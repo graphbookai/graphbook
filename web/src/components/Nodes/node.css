@@ -1,0 +1,250 @@
+input[type="number"] {
+    -webkit-appearance: textfield;
+       -moz-appearance: textfield;
+            appearance: textfield;
+}
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+    -webkit-appearance: none;
+}
+
+.ant-card .ant-card-body {
+    padding: 0;
+}
+
+.fn-header {
+    margin-left: 6px;
+    font-size: .6em;
+}
+
+textarea.code {
+    width: 200px;
+    height: 60px;
+    min-height: 30px;
+    font-size: .6em;
+    margin: 0 5px;
+}
+
+.workflow-node {
+    min-width: 150px;
+    max-width: 400px;
+    max-height: 600px;
+    cursor: crosshair;
+}
+
+.workflow-node.collapsed {
+    min-width: 150px;
+    max-width: 150px;
+}
+
+.workflow-node .widgets {
+    margin: 5px 5px;
+}
+
+.workflow-node .widgets .input-container {
+    border-radius: 4px;
+    padding: 0 2px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.workflow-node .widgets .input-container .ant-typography {
+    font-size: .6em;
+}
+
+.workflow-node .widgets .input {
+    text-align: right;
+    border: none;
+    margin-left: 2px;
+    font-size: .6em;
+    flex: 1;
+    -webkit-transition: 0.5s;
+    transition: 0.5s;
+    outline: none;
+}
+
+.workflow-node .collapsed {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-right: 20px;
+}
+
+.workflow-node .title {
+    font-size: .8em;
+    margin: 2px 5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workflow-node .collapsed .title {
+    font-size: .8em;
+    margin: 2px 1px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: max-content;
+    width: 100%;
+    overflow: hidden;
+}
+
+.workflow-node .title.type {
+    flex: 1;
+}
+
+.workflow-node .title.value {
+    flex: 2;
+}
+
+.workflow-node .title button.ant-btn {
+    width: 15px;
+    height: 15px;
+    min-width: 15px;
+    margin: auto 0;
+}
+
+.workflow-node .title .ant-btn-icon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: scale(.6);
+}
+
+.workflow-node .ant-input-group-addon {
+    font-size: .6em;
+    padding: 0 2px;
+}
+
+.workflow-node .ant-input {
+    padding: 0 2px;
+    text-align: right;
+}
+
+.workflow-node .ant-input-number-group-addon {
+    font-size: .6em;
+    padding: 0 2px;
+}
+
+.workflow-node input.ant-input-number-input {
+    padding: 0 2px;
+    text-align: right;
+}
+
+.workflow-node .inputs .input .label {
+    font-size: .6em;
+}
+
+.workflow-node .outputs .output .label{
+    font-size: .6em;
+}
+
+.workflow-node .handles {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 0 2px 5px 2px;
+}
+
+.workflow-node .handles .inputs {
+    display: flex;
+    flex-direction: column;
+}
+
+.workflow-node .handles .outputs {
+    display: flex;
+    flex-direction: column;
+}
+
+.workflow-node .handles .outputs .output {
+    display: flex;
+    flex-direction: row;
+    justify-content: right;
+    align-items: center;
+}
+
+.workflow-node .handles .inputs .input {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+
+.react-flow__handle {
+    position: relative;
+    display: inline-block;
+}
+
+.workflow-node.resource .handles .inputs .react-flow__handle {
+    background-color: #e6a857;
+    border: 1px solid #e6a857;
+}
+
+.workflow-node.resource .handles .outputs .react-flow__handle {
+    background-color: #e6a857;
+    border: 1px solid #e6a857;
+}
+
+.workflow-node .handles .inputs .react-flow__handle {
+    background-color: #22A7F0;
+    border: 1px solid #22A7F0;
+}
+
+.workflow-node .handles .inputs .react-flow__handle.parameter {
+    background-color: #e6a857;
+    border: 1px solid #e6a857;
+}
+
+.workflow-node .handles .outputs .react-flow__handle {
+    background-color: #22A7F0;
+    border: 1px solid #22A7F0;
+}
+
+.workflow-node .handles .outputs .react-flow__handle:hover {
+    background-color: #d0d0d0;
+    border: 1px solid #d0d0d0;
+}
+
+.workflow-node .handles .inputs .react-flow__handle.react-flow__handle-valid {
+    background-color: #d0d0d0;
+    border: 1px solid #d0d0d0;
+}
+
+.control-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.workflow-node .quickview {
+    font-size: .6rem;
+}
+
+.workflow-node .quickview .content {
+    white-space: pre-wrap;
+    margin: 0;
+}
+
+
+.workflow-node .quickview .ant-collapse-header {
+    display: flex;
+    align-items: center;
+    padding: 5px;
+}
+
+.workflow-node .quickview .ant-collapse-header .ant-collapse-expand-icon {
+    padding-right: 5px;
+}
+
+.workflow-node .quickview .ant-collapse-content-box {
+    padding: 5px;
+}
+
+.workflow-node .quickview .ant-descriptions-item-label,.ant-descriptions-item-content {
+    padding: 5px !important;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}

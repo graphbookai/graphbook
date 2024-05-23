@@ -1,0 +1,108 @@
+import graphbook.steps.base as base
+import graphbook.steps.io as io
+import graphbook.steps.hf_transformers as t
+import graphbook.resources.base as rbase
+import graphbook.resources.hf_transformers as rt
+import custom_nodes
+
+default_exported_steps = {
+    "Split": base.Split,
+    "SplitRecordsByItems": base.SplitRecordsByItems,
+    "SplitItemField": base.SplitItemField,
+    "DumpJSONL": io.DumpJSONL,
+    "LoadJSONL": io.LoadJSONL,
+    "LoadJSON": io.LoadJSON,
+    "LoadJSONAsDataRecords": io.LoadJSONAsDataRecords,
+    "LoadImageDataset": io.LoadImageDataset,
+    "AutoImageProcessorStep": t.HFImageProcessorStep,
+}
+
+default_exported_resources = {
+    "Text": rbase.Resource,
+    "Function": rbase.FunctionResource,
+    "AutoImageProcessorResource": rt.AutoImageProcessorResource,
+    "AutoModelResource": rt.AutoModelResource,
+    "ViTForImageClassificationResource": rt.ViTForImageClassificationResource,
+    "ViTImageProcessorResource": rt.ViTImageProcessorResource,
+}
+
+
+class NodeHub:
+    def __init__(self, path):
+        self.exported_steps = default_exported_steps
+        self.exported_resources = default_exported_resources
+        self.custom_node_importer = custom_nodes.CustomNodeImporter(
+            path, self.handle_step, self.handle_resource
+        )
+
+    def start(self):
+        self.custom_node_importer.start_observer()
+
+    def stop(self):
+        self.custom_node_importer.stop_observer()
+
+    async def handle_step(self, filename, name, step):
+        if name in self.exported_steps:
+            print(f"Reloading custom step node {name} from {filename}")
+        else:
+            print(f"Loading custom step node {name} from {filename}")
+        self.exported_steps[name] = step
+
+    async def handle_resource(self, filename, name, resource):
+        if name in self.exported_resources:
+            print(f"Reloading custom resource node {name} from {filename}")
+        else:
+            print(f"Loading custom resource node {name} from {filename}")
+        self.exported_resources[name] = resource
+
+    def get_steps(self):
+        return self.exported_steps
+
+    def get_resources(self):
+        return self.exported_resources
+
+    def get_all(self):
+        return {"steps": self.get_steps(), "resources": self.get_resources()}
+
+    def get_exported_nodes(self):
+        # Create directory structure for nodes based on their category
+        def create_dir_structure(nodes):
+            node_tree = {}
+            for node_name in nodes:
+                node = nodes[node_name]
+                category_tree = node["category"].split("/")
+                curr_category = node_tree
+                for category in category_tree:
+                    if curr_category.get(category) is None:
+                        curr_category[category] = {"children": {}}
+                    curr_category = curr_category[category]["children"]
+                curr_category[node_name] = node
+            return node_tree
+
+        steps = {
+            k: {
+                "name": k,
+                "parameters": v.Parameters,
+                "inputs": ["in"] if v.RequiresInput else [],
+                "outputs": v.Outputs,
+                "category": v.Category,
+            }
+            for k, v in self.get_steps().items()
+        }
+        resources = {
+            k: {
+                "name": k,
+                "parameters": v.Parameters,
+                "category": v.Category,
+            }
+            for k, v in self.get_resources().items()
+        }
+
+        return {
+            "steps": create_dir_structure(steps),
+            "resources": create_dir_structure(resources),
+        }
+
+    def set_websocket(self, websocket):
+        print("Setting websocket for custom node importer")
+        self.custom_node_importer.set_websocket(websocket)
