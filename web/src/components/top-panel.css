@@ -1,0 +1,25 @@
+.top-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+}
+
+.top-panel .textual {
+    padding: 0 20px;
+    /* background-color: #f8f9fa; */
+    /* border-bottom: 1px solid #e9ecef; */
+    height: 40px;
+    flex-direction: row;
+    justify-content: space-between;
+    display: flex;
+}
+
+.top-panel .textual .title {
+    margin: 0;
+    line-height: 40px;
+    height: 100%;
+}

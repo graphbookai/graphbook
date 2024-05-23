@@ -1,0 +1,39 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px;
+    position: fixed;
+    border: 1px solid black;
+    border-radius: 5%;
+    background-color: white;
+}
+
+.container .title {
+    margin: 0;
+}
+
+.container .results {
+    background-color: #d7d7d7;
+    font-size: .8em;
+    height: 20vh;
+    overflow-y: auto;
+}
+
+.container .results .item {
+    margin: 4px 2px;
+    padding: 2px;
+    border: 1px solid white;
+    border-radius: 2%;
+    background-color: #efefef;
+
+}
+
+.quick-add {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 5px;
+}
+
+.container .search {
+}

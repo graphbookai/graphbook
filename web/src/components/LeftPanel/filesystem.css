@@ -1,0 +1,28 @@
+.filesystem .ant-tree-node-content-wrapper{
+    display: flex;
+    flex-direction: row;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.filesystem .ant-tree-title .file-item {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+    display: block;
+}
+
+.filesystem .fs-icon {
+    margin: 0 2px;
+    padding: 1px;
+    width: 28px;
+    height: 28px;
+}
+
+.filesystem .add-fs-item-input {
+    width: auto;
+    padding: 1px 4px;
+    border-radius: 0%;
+}
