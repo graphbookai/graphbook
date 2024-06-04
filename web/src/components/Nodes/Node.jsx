@@ -266,8 +266,10 @@ function QuickviewCollapse({ data }) {
         Object.entries(data).map(([key, value], i) => {
 
           const { items } = value;
-          const descriptionItems = keyRecursively(Object.entries(items).map(([itemKey, itemList]) => {
-            const images = itemList.filter(item => item.type.slice(0, 5) === 'image');
+          const descriptionItems = keyRecursively(Object.entries(items).filter(([_, itemList]) => {
+            return itemList.filter(item => item.type?.slice(0, 5) === 'image').length > 0;
+          }).map(([itemKey, itemList]) => {
+            const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
             return {
               label: itemKey,
               children: (
@@ -287,7 +289,9 @@ function QuickviewCollapse({ data }) {
                 <div style={{ marginRight: '5px' }}>
                   {JSON.stringify(value, null, 2)}
                 </div>
-                <Descriptions layout="vertical" bordered items={descriptionItems}/>
+                {
+                    descriptionItems.length > 0 && <Descriptions layout="vertical" bordered items={descriptionItems}/>
+                }
               </Flex>
             </Panel>
           );

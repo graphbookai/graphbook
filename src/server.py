@@ -17,13 +17,31 @@ import argparse
 import hashlib
 from state import UIState
 
+def create_error_middleware(overrides):
+    @web.middleware
+    async def error_middleware(request, handler):
+        try:
+            return await handler(request)
+        except web.HTTPException as ex:
+            override = overrides.get(ex.status)
+            if override:
+                return await override(request)
+
+            raise
+        except Exception:
+            request.protocol.logger.exception("Error handling request")
+            return await overrides[500](request)
+
 
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
         response = web.Response()
     else:
-        response = await handler(request)
+        try:
+            response = await handler(request)
+        except web.HTTPException as ex:
+            response = web.Response(status=ex.status, text=ex.text)
 
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "POST, GET, DELETE, PUT, OPTIONS"
@@ -107,6 +125,22 @@ class GraphServer:
             processor_queue.put(
                 {
                     "cmd": "run",
+                    "graph": graph,
+                    "resources": resources,
+                    "step_id": step_id,
+                }
+            )
+            return web.json_response({"success": True})
+
+        @routes.post("/step/{id}")
+        async def step(request: web.Request) -> web.Response:
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            graph = data.get("graph", {})
+            resources = data.get("resources", {})
+            processor_queue.put(
+                {
+                    "cmd": "step",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,

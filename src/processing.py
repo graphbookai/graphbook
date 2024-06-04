@@ -76,10 +76,14 @@ class WebInstanceProcessor:
 
         return is_active
 
+    def step_until_received_output(self, steps: List[Step], step_id: str):
+        is_active = True
+        step_executed = False
+        while is_active and not step_executed:
+            is_active = self.handle_steps(steps)
+            step_executed = self.graph_state.get_state(step_id, StepState.EXECUTED)
+
     def run(self, step_id: str = None):
-        if self.is_running:
-            return
-        self.is_running = True
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         self.setup_dataloader(steps)
         for step in steps:
@@ -93,7 +97,19 @@ class WebInstanceProcessor:
             self.view_manager.handle_end()
             for step in steps:
                 step.on_end()
-            self.is_running = False
+
+    def step(self, step_id: str = None):
+        steps: List[Step] = self.graph_state.get_processing_steps(step_id)
+        self.setup_dataloader(steps)
+        for step in steps:
+            self.view_manager.handle_start(step.id)
+            step.on_start()
+        try:
+            self.step_until_received_output(steps, step_id)
+        finally:
+            self.view_manager.handle_end()
+            for step in steps:
+                step.on_end()
 
     def cleanup(self):
         self.dataloader.shutdown()
@@ -110,6 +126,9 @@ class WebInstanceProcessor:
     
     def start_loop(self, close_event: mp.Event):
         while not close_event.is_set():
+            if self.is_running:
+                return
+            self.is_running = True
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
@@ -118,8 +137,12 @@ class WebInstanceProcessor:
                 elif work["cmd"] == "run":
                     self.graph_state.update_state(work["graph"], work["resources"])
                     self.run(work["step_id"])
+                elif work["cmd"] == "step":
+                    self.graph_state.update_state(work["graph"], work["resources"])
+                    self.step(work["step_id"])
             except KeyboardInterrupt:
                 self.cleanup()
                 break
             except queue.Empty:
                 pass
+            self.is_running = False

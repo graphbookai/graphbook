@@ -252,8 +252,9 @@ class GraphState:
                 i += 1
         raise StopIteration
     
-    def get_state(self, step: Step, state: StepState) -> bool:
-        return state in self._step_states[step.id]
+    def get_state(self, step: Step | str, state: StepState) -> bool:
+        step_id = step.id if isinstance(step, Step) else step
+        return state in self._step_states[step_id]
 
 class MultiConsumerStateDictionaryQueue:
     def __init__(self):
