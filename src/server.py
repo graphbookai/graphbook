@@ -17,22 +17,6 @@ import argparse
 import hashlib
 from state import UIState
 
-def create_error_middleware(overrides):
-    @web.middleware
-    async def error_middleware(request, handler):
-        try:
-            return await handler(request)
-        except web.HTTPException as ex:
-            override = overrides.get(ex.status)
-            if override:
-                return await override(request)
-
-            raise
-        except Exception:
-            request.protocol.logger.exception("Error handling request")
-            return await overrides[500](request)
-
-
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
