@@ -6,6 +6,3 @@ sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.7
 sphinxcontrib-serializinghtml==1.1.10
 sphinx-rtd-theme==2.0.0
-torch==2.2.2
-torchvision==0.17.2
-watchdog==4.0.0
