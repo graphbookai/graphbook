@@ -13,6 +13,7 @@ from enum import Enum
 
 Outputs = Dict[str, List[DataRecord]]
 
+
 class UIState:
     def __init__(self, websocket: WebSocketResponse):
         self.ws = websocket
@@ -20,21 +21,22 @@ class UIState:
         self.edges = {}
 
     def cmd(self, req: dict):
-        if req['cmd'] == 'add_node':
-            self.add_node(req['node'])
-        elif req['cmd'] == 'put_node':
-            self.put_node(req['node'])
-        elif req['cmd'] == 'delete_node':
-            self.delete_node(req['id'])
+        if req["cmd"] == "add_node":
+            self.add_node(req["node"])
+        elif req["cmd"] == "put_node":
+            self.put_node(req["node"])
+        elif req["cmd"] == "delete_node":
+            self.delete_node(req["id"])
 
     def add_node(self, node: dict):
-        self.nodes[node['id']] = node
+        self.nodes[node["id"]] = node
 
     def put_node(self, node: dict):
-        self.nodes[node['id']] = node
+        self.nodes[node["id"]] = node
 
     def delete_node(self, id: str):
         del self.nodes[id]
+
 
 class NodeCatalog:
     def __init__(self, custom_nodes_path: str):
@@ -47,11 +49,19 @@ class NodeCatalog:
 
     def _clean_hashes(self):
         for node_type in self.hashes:
-            self.hashes[node_type] = { k: v for k, v in self.hashes[node_type].items() if k in self.nodes[node_type] }
+            self.hashes[node_type] = {
+                k: v
+                for k, v in self.hashes[node_type].items()
+                if k in self.nodes[node_type]
+            }
 
     def _clean_nodes(self, is_updated: dict):
         for node_type in self.nodes:
-            self.nodes[node_type] = { k: v for k, v in self.nodes[node_type].items() if k in is_updated[node_type] }
+            self.nodes[node_type] = {
+                k: v
+                for k, v in self.nodes[node_type].items()
+                if k in is_updated[node_type]
+            }
 
     def get_nodes(self) -> Tuple[dict, dict]:
         def get_code_hash(obj):
@@ -70,15 +80,21 @@ class NodeCatalog:
                 is_updated[name] = True
             node_lookup[name] = obj
 
-        is_updated = {"steps": { k: False for k in self.nodes["steps"] }, "resources": { k: False for k in self.nodes["resources"] }}
-        is_new = {"steps": { k: False for k in self.nodes["steps"] }, "resources": { k: False for k in self.nodes["resources"] }}
+        is_updated = {
+            "steps": {k: False for k in self.nodes["steps"]},
+            "resources": {k: False for k in self.nodes["resources"]},
+        }
+        is_new = {
+            "steps": {k: False for k in self.nodes["steps"]},
+            "resources": {k: False for k in self.nodes["resources"]},
+        }
         for root, dirs, files in os.walk(self.custom_nodes_path):
             for file in files:
-                if not file.endswith('.py'):
+                if not file.endswith(".py"):
                     continue
-                module_name = file[:file.index('.py')]
+                module_name = file[: file.index(".py")]
                 # trim beginning periods
-                while module_name.startswith('.'):
+                while module_name.startswith("."):
                     module_name = module_name[1:]
                 # import
                 if module_name in sys.modules:
@@ -90,15 +106,31 @@ class NodeCatalog:
                 for name, obj in inspect.getmembers(mod):
                     if inspect.isclass(obj):
                         if issubclass(obj, Step):
-                            try_set_node(name, obj, self.nodes["steps"], self.hashes["steps"], is_updated["steps"], is_new["steps"])
+                            try_set_node(
+                                name,
+                                obj,
+                                self.nodes["steps"],
+                                self.hashes["steps"],
+                                is_updated["steps"],
+                                is_new["steps"],
+                            )
                         if issubclass(obj, Resource):
-                            try_set_node(name, obj, self.nodes["resources"], self.hashes["resources"], is_updated["resources"], is_new["resources"])
+                            try_set_node(
+                                name,
+                                obj,
+                                self.nodes["resources"],
+                                self.hashes["resources"],
+                                is_updated["resources"],
+                                is_new["resources"],
+                            )
 
         self._clean_hashes()
         self._clean_nodes(is_updated)
         return self.nodes, is_updated, is_new
 
-StepState = Enum('StepState', ['EXECUTED'])
+
+StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
+
 
 class GraphState:
     def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue):
@@ -132,8 +164,14 @@ class GraphState:
         for resource_id, resource_data in graph_resources.items():
             curr_resource = self._dict_resources.get(resource_id)
             resource_name = resource_data["name"]
-            resources[resource_id] = resource_hub[resource_name](**resource_data["parameters"])
-            if curr_resource is not None and curr_resource == resource_data and not is_updated_resource.get(resource_name, False):
+            resources[resource_id] = resource_hub[resource_name](
+                **resource_data["parameters"]
+            )
+            if (
+                curr_resource is not None
+                and curr_resource == resource_data
+                and not is_updated_resource.get(resource_name, False)
+            ):
                 param_values[resource_id] = self._resource_values[resource_id]
             else:
                 param_values[resource_id] = resources[resource_id].value()
@@ -147,20 +185,27 @@ class GraphState:
             step_input = {}
             for param_name, lookup in step_data["parameters"].items():
                 if isinstance(lookup, dict):
-                    step_input[param_name] = param_values[lookup['node']]
+                    step_input[param_name] = param_values[lookup["node"]]
                 else:
                     step_input[param_name] = lookup
             logger = Logger(self.view_manager_queue, step_id, step_name)
             step = step_hub[step_name](**step_input, id=step_id, logger=logger)
             steps[step_id] = step
             curr_step = self._dict_graph.get(step_id)
-            if curr_step is not None and curr_step == step_data and not is_updated_step.get(step_name, False):
+            if (
+                curr_step is not None
+                and curr_step == step_data
+                and not is_updated_step.get(step_name, False)
+            ):
                 queues[step_id] = self._queues[step_id]
                 step_states[step_id] = self._step_states[step_id]
+                step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
                 previous_obj = self._steps[step_id]
                 for parent in previous_obj.parents:
                     if parent.id in self._queues:
-                        self._queues[parent.id].update_consumer(id(previous_obj), id(step))
+                        self._queues[parent.id].update_consumer(
+                            id(previous_obj), id(step)
+                        )
             else:
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()
@@ -168,9 +213,9 @@ class GraphState:
         # Next, connect the steps
         for step_id, step_data in graph.items():
             child_node = steps[step_id]
-            for input in step_data['inputs']['in']:
-                node = input['node']
-                slot = input['slot']
+            for input in step_data["inputs"]["in"]:
+                node = input["node"]
+                slot = input["slot"]
                 parent_node = steps[node]
                 if parent_node not in child_node.parents:
                     parent_node.set_child(child_node, slot)
@@ -180,15 +225,23 @@ class GraphState:
                 queues[parent_node.id].add_consumer(id(child_node), slot)
         for step_id in steps:
             parent_node = steps[step_id]
-            children_ids = [id(child) for label_steps in parent_node.children.values() for child in label_steps]
+            children_ids = [
+                id(child)
+                for label_steps in parent_node.children.values()
+                for child in label_steps
+            ]
             queues[step_id].remove_except(children_ids)
+
         def get_parent_iterator(step_id):
             step = steps[step_id]
             p_index = 0
             while True:
                 yield step.parents[p_index]
                 p_index = (p_index + 1) % len(step.parents)
-        self._parent_iterators = { step_id: get_parent_iterator(step_id) for step_id in steps }
+
+        self._parent_iterators = {
+            step_id: get_parent_iterator(step_id) for step_id in steps
+        }
 
         # Update current graph and resource state
         self._dict_graph = graph
@@ -222,6 +275,7 @@ class GraphState:
         # Note: Optional, due to the way the graph is processed
         ordered_steps = []
         visited = set()
+
         def dfs(step_id):
             if step_id in visited or step_id not in steps:
                 return
@@ -231,15 +285,17 @@ class GraphState:
                 for c in child:
                     dfs(c.id)
             ordered_steps.append(step)
+
         for step_id in steps:
             dfs(step_id)
         return ordered_steps[::-1]
-    
+
     def handle_outputs(self, step_id: str, outputs: Outputs):
         for label, records in outputs.items():
             self._queues[step_id].enqueue(label, records)
         self._step_states[step_id].add(StepState.EXECUTED)
-        
+        self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
+
     def get_input(self, step: Step) -> DataRecord:
         num_parents = len(step.parents)
         i = 0
@@ -251,10 +307,11 @@ class GraphState:
             except StopIteration:
                 i += 1
         raise StopIteration
-    
+
     def get_state(self, step: Step | str, state: StepState) -> bool:
         step_id = step.id if isinstance(step, Step) else step
         return state in self._step_states[step_id]
+
 
 class MultiConsumerStateDictionaryQueue:
     def __init__(self):
@@ -268,7 +325,7 @@ class MultiConsumerStateDictionaryQueue:
             self._consumer_idx[consumer_id] = 0
             self._consumer_subs[consumer_id] = set()
         self._consumer_subs[consumer_id].add(key)
-        
+
     def update_consumer(self, old_id: int, new_id: int):
         self._consumer_idx[new_id] = self._consumer_idx[old_id]
         self._consumer_subs[new_id] = self._consumer_subs[old_id]
@@ -278,11 +335,15 @@ class MultiConsumerStateDictionaryQueue:
     def remove_consumer(self, consumer_id: int):
         del self._consumer_idx[consumer_id]
         del self._consumer_subs[consumer_id]
-        
+
     def remove_except(self, consumer_ids: List[int]):
-        self._consumer_idx = { k: v for k, v in self._consumer_idx.items() if k in consumer_ids }
-        self._consumer_subs = { k: v for k, v in self._consumer_subs.items() if k in consumer_ids }
-        
+        self._consumer_idx = {
+            k: v for k, v in self._consumer_idx.items() if k in consumer_ids
+        }
+        self._consumer_subs = {
+            k: v for k, v in self._consumer_subs.items() if k in consumer_ids
+        }
+
     def enqueue(self, key: str, records: List[DataRecord]):
         if not key in self._dict:
             self._dict[key] = []
@@ -290,7 +351,7 @@ class MultiConsumerStateDictionaryQueue:
         self._dict[key].extend(records)
         for i in range(len(records)):
             self._order.append((key, idx + i))
-        
+
     def dequeue(self, consumer_id: int):
         idx = self._consumer_idx[consumer_id]
         key = None

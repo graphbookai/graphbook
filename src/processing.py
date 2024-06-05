@@ -8,13 +8,16 @@ from state import GraphState, StepState
 from viewer import ViewManagerInterface
 import traceback
 
+
 class WebInstanceProcessor:
-    def __init__(self,
-                 cmd_queue: mp.Queue,
-                 view_manager_queue: mp.Queue,
-                 output_dir: str,
-                 custom_nodes_path: str,
-                 num_workers: int = 1):
+    def __init__(
+        self,
+        cmd_queue: mp.Queue,
+        view_manager_queue: mp.Queue,
+        output_dir: str,
+        custom_nodes_path: str,
+        num_workers: int = 1,
+    ):
         self.cmd_queue = cmd_queue
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
@@ -32,7 +35,10 @@ class WebInstanceProcessor:
             if input is None:
                 outputs = step_fn()
             else:
-                outputs = step_fn(input)
+                if isinstance(step, AsyncStep):
+                    outputs = step.in_q(input)
+                else:
+                    outputs = step_fn(input)
         except Exception as e:
             step.logger.log_exception(e)
             traceback.print_exc()
@@ -42,7 +48,7 @@ class WebInstanceProcessor:
             self.graph_state.handle_outputs(step.id, outputs)
             self.view_manager.handle_outputs(step.id, outputs)
         return outputs
-    
+
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
         for step in steps:
@@ -56,13 +62,11 @@ class WebInstanceProcessor:
                     is_active = True
                 except StopIteration:
                     input = None
-                
+
                 if isinstance(step, AsyncStep):
-                    if input:
-                        step.in_q(input)
-                    if is_active: # parent is active
+                    if is_active:  # parent is active
                         # Proceed with normal step execution
-                        output = self.exec_step(step)
+                        output = self.exec_step(step, input)
                     else:
                         # Flush queue and proceed with normal execution
                         output = self.exec_step(step, flush=True)
@@ -81,7 +85,9 @@ class WebInstanceProcessor:
         step_executed = False
         while is_active and not step_executed:
             is_active = self.handle_steps(steps)
-            step_executed = self.graph_state.get_state(step_id, StepState.EXECUTED)
+            print("Active", is_active)
+            step_executed = self.graph_state.get_state(step_id, StepState.EXECUTED_THIS_RUN)
+            print("Executed", step_executed)
 
     def run(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
@@ -123,7 +129,7 @@ class WebInstanceProcessor:
 
     def __str__(self):
         return self.root.__str__()
-    
+
     def start_loop(self, close_event: mp.Event):
         while not close_event.is_set():
             if self.is_running:
@@ -138,6 +144,7 @@ class WebInstanceProcessor:
                     self.graph_state.update_state(work["graph"], work["resources"])
                     self.run(work["step_id"])
                 elif work["cmd"] == "step":
+                    print("Stepping")
                     self.graph_state.update_state(work["graph"], work["resources"])
                     self.step(work["step_id"])
             except KeyboardInterrupt:

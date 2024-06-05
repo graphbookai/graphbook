@@ -252,7 +252,6 @@ class SourceStep(Step):
 
     def __call__(self):
         result = self.load()
-        # Return
         for k, v in result.items():
             if not isinstance(v, list):
                 result[k] = [v]
