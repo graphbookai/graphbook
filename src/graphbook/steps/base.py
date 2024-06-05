@@ -244,14 +244,14 @@ class SourceStep(Step):
     def __init__(self, id, logger):
         super().__init__(id, logger)
 
-    def load_source(self) -> StepOutput:
+    def load(self) -> StepOutput:
         """
         Function to load data and convert into DataRecords. Must output a dictionary of DataRecords.
         """
         raise NotImplementedError("load_source function must be implemented for SourceStep")
 
     def __call__(self):
-        result = self.load_source()
+        result = self.load()
         # Return
         for k, v in result.items():
             if not isinstance(v, list):
