@@ -131,6 +131,23 @@ class GraphServer:
                 }
             )
             return web.json_response({"success": True})
+        
+        @routes.post("/clear")
+        @routes.post("/clear/{id}")
+        async def clear(request: web.Request) -> web.Response:
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            graph = data.get("graph", {})
+            resources = data.get("resources", {})
+            processor_queue.put(
+                {
+                    "cmd": "clear",
+                    "graph": graph,
+                    "resources": resources,
+                    "step_id": step_id,
+                }
+            )
+            return web.json_response({"success": True})
 
         @routes.get("/nodes")
         async def get_nodes(request: web.Request) -> web.Response:
@@ -142,7 +159,7 @@ class GraphServer:
             )
 
         @routes.get("/fs")
-        @routes.get(r"/fs/{path:[\w\d\./\-\+]+}")
+        @routes.get(r"/fs/{path:.+}")
         def get(request: web.Request):
             path = request.match_info.get("path", "")
             fullpath = osp.join(root_path, path)

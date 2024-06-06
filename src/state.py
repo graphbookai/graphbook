@@ -3,7 +3,7 @@ from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.steps.base import Step, DataRecord
 from graphbook.resources.base import Resource
-from viewer import Logger
+from viewer import Logger, ViewManagerInterface
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import exports
@@ -119,6 +119,7 @@ class GraphState:
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.view_manager_queue = view_manager_queue
+        self.view_manager = ViewManagerInterface(view_manager_queue)
         self._dict_graph = {}
         self._dict_resources = {}
         self._steps: Dict[str, Step] = {}
@@ -279,6 +280,22 @@ class GraphState:
             self._queues[step_id].enqueue(label, records)
         self._step_states[step_id].add(StepState.EXECUTED)
         self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
+        self.view_manager.handle_queue_size(step_id, self._queues[step_id].size())
+
+    def clear_outputs(self, step_id: str = None):
+        if step_id is None:
+            for q in self._queues.values():
+                q.clear()
+            for step_id in self._step_states:
+                self.view_manager.handle_queue_size(step_id, 0)
+                self._step_states[step_id] = set()
+        else:
+            self._queues[step_id].clear()
+            step = self._steps[step_id]
+            for p in step.parents:
+                self._queues[p.id].reset_consumer_idx(id(step))
+            self._step_states[step_id] = set()
+        self.view_manager.handle_queue_size(step_id, 0)
 
     def get_input(self, step: Step) -> DataRecord:
         num_parents = len(step.parents)
@@ -344,10 +361,22 @@ class MultiConsumerStateDictionaryQueue:
                 raise StopIteration
             key, order_idx = self._order[idx]
             idx += 1
-        # key, order_idx = self._order[idx]
         records = self._dict[key]
         if order_idx >= len(records):
             raise StopIteration
         value = records[order_idx]
         self._consumer_idx[consumer_id] = idx
         return value
+    
+    def size(self):
+        return len(self._order)
+
+    def clear(self):
+        self._dict.clear()
+        self._order.clear()
+        for consumer_id in self._consumer_subs:
+            self._consumer_idx[consumer_id] = 0
+            self._consumer_subs[consumer_id] = set()
+            
+    def reset_consumer_idx(self, consumer_id: int):
+        self._consumer_idx[consumer_id] = 0

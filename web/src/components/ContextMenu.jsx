@@ -27,6 +27,16 @@ const NODE_OPTIONS = [
         }
     },
     {
+        name: 'Clear Outputs',
+        action: (node, reactFlowInstance) => {
+            const { getNodes, getEdges } = reactFlowInstance;
+            const nodes = getNodes();
+            const edges = getEdges();
+            const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+            API.clear(graph, resources, node.id);
+        }
+    },
+    {
         name: 'Duplicate',
         action: (node, reactFlowInstance) => {
             const { addNode } = reactFlowInstance;

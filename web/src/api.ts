@@ -139,6 +139,15 @@ class ServerAPI {
         return await this.post(`step/${stepId}`, { graph, resources });
     }
 
+    public async clearAll(graph, resources) {
+        console.log("Clearing all")
+        return await this.post('clear', { graph, resources });
+    }
+
+    public async clear(graph, resources, stepId) {
+        return await this.post(`clear/${stepId}`, { graph, resources });
+    }
+
     public async getNodes() {
         return await this.get('nodes');
     }

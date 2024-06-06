@@ -144,6 +144,9 @@ class WebInstanceProcessor:
                 elif work["cmd"] == "step":
                     self.graph_state.update_state(work["graph"], work["resources"])
                     self.step(work["step_id"])
+                elif work["cmd"] == "clear":
+                    self.graph_state.update_state(work["graph"], work["resources"])
+                    self.graph_state.clear_outputs(work.get("step_id"))
             except KeyboardInterrupt:
                 self.cleanup()
                 break
