@@ -142,7 +142,6 @@ class WebInstanceProcessor:
                     self.graph_state.update_state(work["graph"], work["resources"])
                     self.run(work["step_id"])
                 elif work["cmd"] == "step":
-                    print("Stepping")
                     self.graph_state.update_state(work["graph"], work["resources"])
                     self.step(work["step_id"])
             except KeyboardInterrupt:
