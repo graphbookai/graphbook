@@ -85,9 +85,8 @@ class WebInstanceProcessor:
         step_executed = False
         while is_active and not step_executed:
             is_active = self.handle_steps(steps)
-            print("Active", is_active)
             step_executed = self.graph_state.get_state(step_id, StepState.EXECUTED_THIS_RUN)
-            print("Executed", step_executed)
+            # print("Executed", step_executed)
 
     def run(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
@@ -121,7 +120,6 @@ class WebInstanceProcessor:
         self.dataloader.shutdown()
 
     def setup_dataloader(self, steps: List[Step]):
-        self.dataloader.shutdown()
         dataloader_consumers = [step for step in steps if isinstance(step, AsyncStep)]
         self.dataloader.setup([id(c) for c in dataloader_consumers])
         for c in dataloader_consumers:

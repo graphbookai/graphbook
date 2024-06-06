@@ -387,10 +387,10 @@ def main():
         close_event.set()
         view_manager_queue.cancel_join_thread()
         cmd_queue.cancel_join_thread()
-        view_manager_queue.close()
-        cmd_queue.close()
         for p in processes:
             p.join()
+        cmd_queue.close()
+        view_manager_queue.close()
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, signal_handler)

@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import json
 from graphbook.dataloading import Dataloader
 from custom_nodes import transform_function_string
 
+
 class DataItem:
     """
     Data structure containing the text, audio, image, or video coupled with its annotation.
-    
+
     Args:
         item (str): A path to media, string of text, or the actual data item to store
         type (str): Optional string to specify the type of data this is
@@ -19,6 +20,7 @@ class DataItem:
 
             d = DataItem("path/to/image.jpg", "image", {"prediction": "dog"})
     """
+
     def __init__(self, item, type=None, annotation={}):
         self.item = item
         self.type = type
@@ -26,23 +28,20 @@ class DataItem:
 
     def __str__(self):
         return f"{'('+self.type+')' if self.type else ''}Item {self.item}: Annotations: {self.annotation}"
-    
+
     def json(self):
         """
         Returns DataItem into a serialized JSON format
         """
-        return {
-            "item": self.item,
-            "type": self.type,
-            "annotation": self.annotation
-        }
+        return {"item": self.item, "type": self.type, "annotation": self.annotation}
+
 
 class DataRecord:
     """
     The unit that passes through workflow steps. DataRecords contains a dictionary of DataItems related to the record,
     and a dictionary of annotations.
     It also contains the property "key" which is useful to set with a unique id as in its id from its original database.
-    
+
     Args:
         key (str): An optional key or id
         annotation (Dict[str, str]): An optional dictionary of annotations for this item
@@ -54,17 +53,20 @@ class DataRecord:
 
             d = DataRecord( "0123456789", {"prediction": "dog"}, {"images": [DataItem("image_of_dog.png")]} )
     """
-    def __init__(self, key:str="", annotation:dict={}, items:dict={}):
+
+    def __init__(self, key: str = "", annotation: dict = {}, items: dict = {}):
         self.key: str = key
         self.annotation: dict = annotation
         for k, v in items.items():
             if not isinstance(v, list):
                 items[k] = [v]
             # Convert to list of DataItems
-            for i,item in enumerate(v):
+            for i, item in enumerate(v):
                 if not isinstance(item, DataItem):
                     if isinstance(item, dict):
-                        v[i] = DataItem(item['item'], item.get('type'), item.get('annotation'))
+                        v[i] = DataItem(
+                            item["item"], item.get("type"), item.get("annotation")
+                        )
                     else:
                         v[i] = DataItem(item)
         self.items = items
@@ -88,15 +90,17 @@ class DataRecord:
         record_entry = {
             "key": self.key,
             "annotation": self.annotation,
-            "items": { k: [item.json() for item in v] for k, v in self.items.items() }
+            "items": {k: [item.json() for item in v] for k, v in self.items.items()},
         }
         return record_entry
-    
+
     def __str__(self):
         return json.dumps(self.json())
 
+
 StepOutput = Dict[str, List[DataRecord]]
 """A dict mapping of output slot to DataRecord list. Every Step outputs a StepOutput."""
+
 
 class Step:
     """
@@ -107,14 +111,13 @@ class Step:
         annotation (Dict[str, str]): An optional dictionary of annotations for this item
         items (Dict[str, List[DataItems]]): An optional dictionary of DataItems
     """
+
     def __init__(self, id, logger, item_key=None):
         self.id = id
         self.logger = logger
         self.item_key = item_key
         self.parents = []
-        self.children = {
-            "out": []
-        }
+        self.children = {"out": []}
 
     def set_child(self, child: Step, slot_name: str = "out"):
         """
@@ -200,7 +203,9 @@ class Step:
 
         if self.item_key is not None:
             items = data_record.items.get(self.item_key, None)
-            assert items is not None, f"Item key {self.item_key} not found in data record. Cannot retrieve DataItem list."
+            assert (
+                items is not None
+            ), f"Item key {self.item_key} not found in data record. Cannot retrieve DataItem list."
             for item in items:
                 self.on_item(item, data_record)
 
@@ -213,7 +218,7 @@ class Step:
         elif isinstance(out, dict):
             output = out
         return output
-    
+
     def all(self, data_records: List[DataRecord]) -> StepOutput:
         step_outputs = []
         if data_records is not None:
@@ -226,8 +231,15 @@ class Step:
             return {}
 
         output_keys = step_outputs[0].keys()
-        return {k: [record for step_output in step_outputs for record in step_output.get(k, [])] for k in output_keys}
-    
+        return {
+            k: [
+                record
+                for step_output in step_outputs
+                for record in step_output.get(k, [])
+            ]
+            for k in output_keys
+        }
+
     def __str__(self):
         def get_str(step, indent):
             s = f"{' ' * indent}({step._id}) {type(step).__name__}\n"
@@ -235,12 +247,15 @@ class Step:
                 for c in child:
                     s += get_str(c, indent + 2)
             return s
+
         return get_str(self, 0)
+
 
 class SourceStep(Step):
     """
     A Step that accepts no input but produce outputs.
     """
+
     def __init__(self, id, logger):
         super().__init__(id, logger)
 
@@ -248,7 +263,7 @@ class SourceStep(Step):
         """
         Function to load data and convert into DataRecords. Must output a dictionary of DataRecords.
         """
-        raise NotImplementedError("load_source function must be implemented for SourceStep")
+        raise NotImplementedError("load function must be implemented for SourceStep")
 
     def __call__(self):
         result = self.load()
@@ -257,12 +272,14 @@ class SourceStep(Step):
                 result[k] = [v]
         return result
 
+
 class AsyncStep(Step):
     """
-    Asynchronous processing step that will consume everything in the in_queue so that the main thread can handle the outputs. 
+    Asynchronous processing step that will consume everything in the in_queue so that the main thread can handle the outputs.
     Useful for parallel processing where the task can be optimized with multiple processes and the main thread can continue
     processing the rest of the graph.
     """
+
     def __init__(self, id, logger, item_key=None):
         super().__init__(id, logger, item_key)
         self._is_processing = True
@@ -279,6 +296,7 @@ class AsyncStep(Step):
 
     def is_active(self) -> bool:
         return self._is_processing
+
 
 class RecordItemHolders:
     def __init__(self):
@@ -300,7 +318,7 @@ class RecordItemHolders:
             return
         item_key, output_fn = item_response
         self.records[record_id].put_item(item_key, output_fn)
-            
+
     def set_completed(self, record: DataRecord):
         record_id = id(record)
         self.completed_records[record_id] = record
@@ -318,14 +336,19 @@ class RecordItemHolders:
         for record_id in to_remove:
             del self.completed_records[record_id]
         return completed
-    
+
     def is_active(self):
         return len(self.completed_records) > 0
 
+
+StepData = Tuple[List[DataItem], List[DataRecord], List[DataRecord]]
+
+
 class BatchStep(AsyncStep):
     """
-    A Step used for batch processing. This step will consume Pytorch tensor batches loaded by the worker pool by default. 
+    A Step used for batch processing. This step will consume Pytorch tensor batches loaded by the worker pool by default.
     """
+
     def __init__(self, id, logger, batch_size, item_key):
         super().__init__(id, logger, item_key=item_key)
         self.batch_size = int(batch_size)
@@ -352,7 +375,7 @@ class BatchStep(AsyncStep):
                 dr_id = id(data_record)
                 self.dl.put_load(items, dr_id, self.load_fn, id(self))
 
-                self.loaded_data_records[dr_id] = data_record 
+                self.loaded_data_records[dr_id] = data_record
                 self.num_loaded_data_records[dr_id] = len(items)
 
     def get_batch(self, flush: bool = False) -> StepData:
@@ -360,7 +383,8 @@ class BatchStep(AsyncStep):
         next_in = self.dl.get_load(id(self))
         if next_in is not None:
             item, record_id = next_in
-            record = self.loaded_data_records[record_id] # get original record (not pickled one)
+            # get original record (not pickled one)
+            record = self.loaded_data_records[record_id]
             if item is not None:
                 items.append(item)
                 records.append(record)
@@ -374,7 +398,7 @@ class BatchStep(AsyncStep):
         else:
             if len(self.accumulated_items[0]) == 0:
                 return None
-        
+
         if len(items) == 0:
             return None
         if len(items) < self.batch_size:
@@ -383,11 +407,15 @@ class BatchStep(AsyncStep):
             else:
                 if len(self.loaded_data_records) > 0:
                     return None
-        
-        batch = (items[:self.batch_size], records[:self.batch_size], completed)
-        self.accumulated_items = (items[self.batch_size:], records[self.batch_size:], [])
+
+        batch = (items[: self.batch_size], records[: self.batch_size], completed)
+        self.accumulated_items = (
+            items[self.batch_size :],
+            records[self.batch_size :],
+            [],
+        )
         return batch
-    
+
     def dump_data(self, data_record: DataRecord, item_key, output):
         self.dumped_item_holders.handle_record(data_record)
         self.dl.put_dump(output, item_key, id(data_record), self.dump_fn, id(self))
@@ -396,12 +424,17 @@ class BatchStep(AsyncStep):
         items, records, completed = batch
         tensors = [item[0] for item in items]
         indexes = [item[1] for item in items]
-        items = [record.items[self.item_key][index] for record, index in zip(records, indexes)]
+        items = [
+            record.items[self.item_key][index]
+            for record, index in zip(records, indexes)
+        ]
         data_dump = self.on_item_batch(tensors, items, records)
         if data_dump is not None:
             for k, v in data_dump.items():
                 if len(records) != len(v):
-                    self.logger.log(f"Unexpected number of records ({len(records)}) does not match returned outputs ({len(v)}). Will not write outputs!")
+                    self.logger.log(
+                        f"Unexpected number of records ({len(records)}) does not match returned outputs ({len(v)}). Will not write outputs!"
+                    )
                 else:
                     for record, out in zip(records, v):
                         self.dump_data(record, k, out)
@@ -422,7 +455,7 @@ class BatchStep(AsyncStep):
                 output[output_key] = []
             output[output_key].append(record)
         return output
-    
+
     def on_item_batch(self, tensor, items, records):
         """
         Called when B items are loaded into PyTorch tensors and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
@@ -447,7 +480,7 @@ class BatchStep(AsyncStep):
 
         output = self.handle_completed_records()
         return output
-    
+
     def all(self) -> StepOutput:
         outputs = {}
         has_outputs = True
@@ -461,9 +494,12 @@ class BatchStep(AsyncStep):
         return outputs
 
     def is_active(self) -> bool:
-        return len(self.loaded_data_records) > 0 or \
-                len(self.accumulated_items[0]) > 0 or \
-                self.dumped_item_holders.is_active()
+        return (
+            len(self.loaded_data_records) > 0
+            or len(self.accumulated_items[0]) > 0
+            or self.dumped_item_holders.is_active()
+        )
+
 
 class Split(Step):
     """
@@ -474,14 +510,12 @@ class Split(Step):
         split_fn (str): A Python syntax function. The str must contain the function header (def ...). The function \
         will be evaluated on *forward_record(record)* where each record is fed into *split_fn(record)*.
     """
+
     RequiresInput = True
-    Parameters = {
-        "split_fn": {
-            "type": "function"
-        }
-    }
+    Parameters = {"split_fn": {"type": "function"}}
     Outputs = ["A", "B"]
     Category = "Filtering"
+
     def __init__(self, id, logger, split_fn):
         super().__init__(id, logger)
         self.split_fn = split_fn
@@ -492,7 +526,8 @@ class Split(Step):
         if split_result:
             return "A"
         return "B"
-    
+
+
 class SplitRecordsByItems(Step):
     """
     Routes incoming DataRecords into either of two output slots, A or B. If split_fn evaluates to True,
@@ -503,17 +538,15 @@ class SplitRecordsByItems(Step):
         will be evaluated on *forward_record(record)* where each record and selected items is fed into \
         *split_fn(items, records)*.
     """
+
     RequiresInput = True
     Parameters = {
-        "split_items_fn": {
-            "type": "function"
-        },
-        "item_key": {
-            "type": "string"
-        }
+        "split_items_fn": {"type": "function"},
+        "item_key": {"type": "string"},
     }
     Outputs = ["A", "B"]
     Category = "Filtering"
+
     def __init__(self, id, logger, split_items_fn, item_key):
         super().__init__(id, logger, item_key=item_key)
         self.split_fn = split_items_fn
@@ -524,6 +557,7 @@ class SplitRecordsByItems(Step):
         if split_result:
             return "A"
         return "B"
+
 
 class SplitItemField(Step):
     """
@@ -541,18 +575,15 @@ class SplitItemField(Step):
         should_delete_original (str): If True, will delete original DataItem key-value pair of item_key. Defaults to True
         
     """
+
     RequiresInput = True
-    Parameters = {
-        "split_fn": {
-            "type": "function"
-        },
-        "item_key": {
-            "type": "string"
-        }
-    }
+    Parameters = {"split_fn": {"type": "function"}, "item_key": {"type": "string"}}
     Category = "Filtering"
     Outputs = ["out"]
-    def __init__(self, id, logger, split_fn, item_key, a_key, b_key, should_delete_original=True):
+
+    def __init__(
+        self, id, logger, split_fn, item_key, a_key, b_key, should_delete_original=True
+    ):
         super().__init__(id, logger, item_key=item_key)
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
