@@ -17,13 +17,15 @@ import argparse
 import hashlib
 from state import UIState
 
-
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
         response = web.Response()
     else:
-        response = await handler(request)
+        try:
+            response = await handler(request)
+        except web.HTTPException as ex:
+            response = web.Response(status=ex.status, text=ex.text)
 
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "POST, GET, DELETE, PUT, OPTIONS"
@@ -107,6 +109,22 @@ class GraphServer:
             processor_queue.put(
                 {
                     "cmd": "run",
+                    "graph": graph,
+                    "resources": resources,
+                    "step_id": step_id,
+                }
+            )
+            return web.json_response({"success": True})
+
+        @routes.post("/step/{id}")
+        async def step(request: web.Request) -> web.Response:
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            graph = data.get("graph", {})
+            resources = data.get("resources", {})
+            processor_queue.put(
+                {
+                    "cmd": "step",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,
@@ -369,10 +387,10 @@ def main():
         close_event.set()
         view_manager_queue.cancel_join_thread()
         cmd_queue.cancel_join_thread()
-        view_manager_queue.close()
-        cmd_queue.close()
         for p in processes:
             p.join()
+        cmd_queue.close()
+        view_manager_queue.close()
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, signal_handler)

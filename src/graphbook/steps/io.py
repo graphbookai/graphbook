@@ -16,7 +16,7 @@ class LoadJSONAsDataRecords(SourceStep):
         super().__init__(id, logger)
         self.json_path = json_path
 
-    def load_source(self) -> StepOutput:
+    def load(self) -> StepOutput:
         with open(self.json_path, 'r') as f:
             data = json.load(f)
         records = [DataRecord(k, v, v.get("items", {})) for k, v in data.items()]
@@ -37,7 +37,7 @@ class LoadJSON(SourceStep):
         super().__init__(id, logger)
         self.json_path = json_path
 
-    def load_source(self) -> StepOutput:
+    def load(self) -> StepOutput:
         with open(self.json_path, 'r') as f:
             data = json.load(f)
         records = [DataRecord(k, v.get("annotation", {}), v.get("items", {})) for k, v in data.items()]
@@ -59,7 +59,7 @@ class LoadJSONL(SourceStep):
         self.jsonl_path = jsonl_path
         self.start_from = start_from
 
-    def load_source(self) -> StepOutput:
+    def load(self) -> StepOutput:
         with open(self.jsonl_path, 'r') as f:
             data = [json.loads(line) for line in f][self.start_from:]
         records = [DataRecord(entry.get("key"), entry.get("annotation"), entry.get("items")) for entry in data]
@@ -87,7 +87,7 @@ class LoadImageDataset(SourceStep):
         items = {"image": [DataItem(image) for image in images]}
         return DataRecord(key, items=items)
 
-    def load_source(self) -> StepOutput:
+    def load(self) -> StepOutput:
         image_subdirs = os.listdir(self.image_dir)
         records = [self.create_datarecord(subdir) for subdir in image_subdirs]
         return {

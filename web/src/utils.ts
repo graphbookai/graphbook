@@ -1,5 +1,5 @@
 export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"): Array<any> => {
-    let currKeyVal = 1;
+    let currKeyVal = 0;
     const keyRec = (obj: Array<any>) => {
         return obj.map((item) => {
             if (item[childrenKey]) {

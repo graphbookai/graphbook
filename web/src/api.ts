@@ -66,30 +66,51 @@ class ServerAPI {
     }
 
     private async post(path, data) {
-        const response = await fetch(`http://${this.host}/${path}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-        return await response.json();
+        try {
+            const response = await fetch(`http://${this.host}/${path}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
     }
 
     private async put(path, data) {
-        const response = await fetch(`http://${this.host}/${path}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-        return await response.json();
+        try {
+            const response = await fetch(`http://${this.host}/${path}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
     }
 
     private async get(path) {
-        const response = await fetch(`http://${this.host}/${path}`);
-        return await response.json();
+        try {
+            const response = await fetch(`http://${this.host}/${path}`);
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
     }
 
     public addWsEventListener(eventType: string, callback: EventListenerOrEventListenerObject) {
@@ -112,6 +133,10 @@ class ServerAPI {
 
     public async run(graph, resources, stepId) {
         return await this.post(`run/${stepId}`, { graph, resources });
+    }
+
+    public async step(graph, resources, stepId) {
+        return await this.post(`step/${stepId}`, { graph, resources });
     }
 
     public async getNodes() {
