@@ -84,6 +84,9 @@ class NodeStatsViewer(Viewer):
 
     def handle_end(self):
         self.start_times = {}
+        
+    def handle_queue_size(self, node_id: str, size: int):
+        self.queue_sizes[node_id] = size
 
     def handle_outputs(self, node_id: str, outputs: dict):
         if node_id not in self.output_counts:
@@ -100,9 +103,11 @@ class NodeStatsViewer(Viewer):
                 "record_rate": self.record_rate[node_id],
             }
         for node_id in self.output_counts:
-            if node_id not in data_obj:
-                data_obj[node_id] = {}
+            data_obj.setdefault(node_id, {})
             data_obj[node_id]["output_count"] = self.output_counts[node_id]
+        for node_id in self.queue_sizes:
+            data_obj.setdefault(node_id, {})
+            data_obj[node_id]["queue_size"] = self.queue_sizes[node_id]
         return data_obj
     
 class NodeLogsViewer(Viewer):
@@ -189,6 +194,9 @@ class ViewManager:
             return
         for viewer in self.viewers:
             viewer.handle_outputs(node_id, outputs)
+            
+    def handle_queue_size(self, node_id: str, size: int):
+        self.node_stats_viewer.handle_queue_size(node_id, size)
 
     def handle_start(self, node_id: str):
         for viewer in self.viewers:
@@ -207,6 +215,8 @@ class ViewManager:
                 work = self.work_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "handle_outputs":
                     self.handle_outputs(work["node_id"], work["outputs"])
+                elif work["cmd"] == "handle_queue_size":
+                    self.handle_queue_size(work["node_id"], work["size"])
                 elif work["cmd"] == "handle_start":
                     self.handle_start(work["node_id"])
                 elif work["cmd"] == "handle_end":
@@ -243,6 +253,13 @@ class ViewManagerInterface:
             "cmd": "handle_outputs",
             "node_id": node_id,
             "outputs": outputs
+        })
+        
+    def handle_queue_size(self, node_id: str, size: int):
+        self.view_manager_queue.put({
+            "cmd": "handle_queue_size",
+            "node_id": node_id,
+            "size": size
         })
 
     def handle_start(self, node_id: str):
