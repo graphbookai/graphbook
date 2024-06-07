@@ -86,7 +86,6 @@ class WebInstanceProcessor:
         while is_active and not step_executed:
             is_active = self.handle_steps(steps)
             step_executed = self.graph_state.get_state(step_id, StepState.EXECUTED_THIS_RUN)
-            # print("Executed", step_executed)
 
     def run(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
