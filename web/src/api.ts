@@ -123,6 +123,14 @@ class ServerAPI {
         this.websocket.removeEventListener(eventType, callback);
     }
 
+    public addWSMessageListener(callback: EventListenerOrEventListenerObject) {
+        this.addWsEventListener('message', callback);
+    }
+
+    public removeWSMessageListener(callback: EventListenerOrEventListenerObject) {
+        this.removeWsEventListener('message', callback);
+    }
+
     /**
      * Processor API
      */
@@ -137,6 +145,10 @@ class ServerAPI {
 
     public async step(graph, resources, stepId) {
         return await this.post(`step/${stepId}`, { graph, resources });
+    }
+
+    public async pause() {
+        return await this.post('pause', {});
     }
 
     public async clearAll(graph, resources) {

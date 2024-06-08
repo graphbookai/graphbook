@@ -16,9 +16,13 @@ class WebInstanceProcessor:
         view_manager_queue: mp.Queue,
         output_dir: str,
         custom_nodes_path: str,
+        close_event: mp.Event,
+        pause_event: mp.Event,
         num_workers: int = 1,
     ):
         self.cmd_queue = cmd_queue
+        self.close_event = close_event
+        self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.output_dir = output_dir
@@ -83,19 +87,22 @@ class WebInstanceProcessor:
     def step_until_received_output(self, steps: List[Step], step_id: str):
         is_active = True
         step_executed = False
-        while is_active and not step_executed:
+        while is_active and not step_executed and not self.pause_event.is_set():
             is_active = self.handle_steps(steps)
             step_executed = self.graph_state.get_state(step_id, StepState.EXECUTED_THIS_RUN)
 
     def run(self, step_id: str = None):
+        self.is_running = True
+        self.view_manager.handle_run_state(True)
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         self.setup_dataloader(steps)
         for step in steps:
             self.view_manager.handle_start(step.id)
             step.on_start()
+        self.pause_event.clear()
         dag_is_active = True
         try:
-            while dag_is_active:
+            while dag_is_active and not self.pause_event.is_set():
                 dag_is_active = self.handle_steps(steps)
         finally:
             self.view_manager.handle_end()
@@ -103,11 +110,14 @@ class WebInstanceProcessor:
                 step.on_end()
 
     def step(self, step_id: str = None):
+        self.is_running = True
+        self.view_manager.handle_run_state(True)
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         self.setup_dataloader(steps)
         for step in steps:
             self.view_manager.handle_start(step.id)
             step.on_start()
+        self.pause_event.clear()
         try:
             self.step_until_received_output(steps, step_id)
         finally:
@@ -127,11 +137,11 @@ class WebInstanceProcessor:
     def __str__(self):
         return self.root.__str__()
 
-    def start_loop(self, close_event: mp.Event):
-        while not close_event.is_set():
+    def start_loop(self):
+        while not self.close_event.is_set():
             if self.is_running:
-                return
-            self.is_running = True
+                self.is_running = False
+                self.view_manager.handle_run_state(False)
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
@@ -151,4 +161,3 @@ class WebInstanceProcessor:
                 break
             except queue.Empty:
                 pass
-            self.is_running = False

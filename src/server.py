@@ -17,6 +17,7 @@ import argparse
 import hashlib
 from state import UIState
 
+
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
@@ -38,6 +39,7 @@ class GraphServer:
     def __init__(
         self,
         processor_queue: mp.Queue,
+        processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
         close_event: mp.Event,
         address="0.0.0.0",
@@ -131,7 +133,12 @@ class GraphServer:
                 }
             )
             return web.json_response({"success": True})
-        
+
+        @routes.post("/pause")
+        async def pause(request: web.Request) -> web.Response:
+            processor_pause_event.set()
+            return web.json_response({"success": True})
+
         @routes.post("/clear")
         @routes.post("/clear/{id}")
         async def clear(request: web.Request) -> web.Response:
@@ -243,11 +250,13 @@ class GraphServer:
                 file_contents = base64.b64decode(file_contents)
 
             if osp.exists(fullpath):
-              with open(fullpath, "r") as f:
-                  current_hash = hashlib.md5(f.read().encode()).hexdigest()
-                  print(current_hash, hash_key)
-                  if current_hash != hash_key:
-                      return web.json_response({"reason": "Hash mismatch."}, status=409)
+                with open(fullpath, "r") as f:
+                    current_hash = hashlib.md5(f.read().encode()).hexdigest()
+                    print(current_hash, hash_key)
+                    if current_hash != hash_key:
+                        return web.json_response(
+                            {"reason": "Hash mismatch."}, status=409
+                        )
 
             with open(fullpath, "w") as f:
                 f.write(file_contents)
@@ -320,7 +329,8 @@ class MediaServer:
                 httpd.serve_forever()
             except KeyboardInterrupt:
                 print("Exiting media server")
-                
+
+
 class WebServer:
     def __init__(self, address, port, web_dir):
         self.address = address
@@ -355,22 +365,32 @@ def get_args():
     parser.add_argument("--web", action="store_true", default=False)
     parser.add_argument("--workflow_dir", type=str, default="./workflow")
     parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
+    parser.add_argument("--num_workers", type=int, default=1)
     return parser.parse_args()
 
-def create_graph_server(args, cmd_queue, view_manager_queue, close_event, root_path, custom_nodes_path):
+
+def create_graph_server(
+    args, cmd_queue, processor_pause_event, view_manager_queue, close_event, root_path, custom_nodes_path
+):
     server = GraphServer(
         cmd_queue,
+        processor_pause_event,
         view_manager_queue,
         close_event,
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
         address=args.address,
-        port=args.graph_port)
+        port=args.graph_port,
+    )
     server.start()
 
+
 def create_media_server(args):
-    server = MediaServer(address=args.address, port=args.media_port, media_root=args.media_dir)
+    server = MediaServer(
+        address=args.address, port=args.media_port, media_root=args.media_dir
+    )
     server.start()
+
 
 def create_web_server(args):
     server = WebServer(address=args.address, port=args.web_port, web_dir=args.web_dir)
@@ -382,6 +402,7 @@ def main():
     cmd_queue = mp.Queue()
     view_manager_queue = mp.Queue()
     close_event = mp.Event()
+    pause_event = mp.Event()
     root_path = args.workflow_dir
     custom_nodes_path = args.nodes_dir
     if not osp.exists(root_path):
@@ -390,7 +411,18 @@ def main():
         os.mkdir(custom_nodes_path)
     processes = [
         mp.Process(target=create_media_server, args=(args,)),
-        mp.Process(target=create_graph_server, args=(args, cmd_queue, view_manager_queue, close_event, root_path, custom_nodes_path))
+        mp.Process(
+            target=create_graph_server,
+            args=(
+                args,
+                cmd_queue,
+                pause_event,
+                view_manager_queue,
+                close_event,
+                root_path,
+                custom_nodes_path,
+            ),
+        ),
     ]
     if args.web:
         web_process = mp.Process(target=create_web_server, args=(args,))
@@ -414,9 +446,16 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     processor = WebInstanceProcessor(
-        cmd_queue, view_manager_queue, args.output_dir, custom_nodes_path
+        cmd_queue,
+        view_manager_queue,
+        args.output_dir,
+        custom_nodes_path,
+        close_event,
+        pause_event,
+        args.num_workers,
     )
-    processor.start_loop(close_event)
+
+    processor.start_loop()
 
 
 if __name__ == "__main__":

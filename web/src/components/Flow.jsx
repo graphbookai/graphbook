@@ -7,7 +7,7 @@ import ReactFlow, {
     addEdge
 } from 'reactflow';
 import { Button, Flex, notification, theme } from 'antd';
-import { ClearOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
@@ -167,9 +167,6 @@ export default function Flow({ initialNodes, initialEdges }) {
             }
 
             const updatedNodes = await API.getNodes();
-            // console.log('Updated nodes:', updatedNodes);
-            // console.log('Current nodes:', nodes);
-
             const mergedNodes = nodes.map(node => {
                 const updatedNodeData = updatedNodes.steps[node.data.category]?.children[node.data.name];
                 if (updatedNodeData) {
@@ -197,7 +194,6 @@ export default function Flow({ initialNodes, initialEdges }) {
                 return node;
             });
 
-            // console.log('Merged nodes:', mergedNodes);
             setNodes(mergedNodes);
         };
 
@@ -249,11 +245,39 @@ export default function Flow({ initialNodes, initialEdges }) {
 
 function ControlRow({ getGraph }) {
     const size = 'large';
+    const [isClicked, setIsClicked] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
 
+    useEffect(() => {
+        const callback = (event) => {
+            const message = JSON.parse(event.data);
+            if (message.type !== 'run_state') {
+                return;
+            }
+            if (message.is_running) {
+                setIsRunning(true);
+                setIsClicked(false);
+            } else {
+                setIsRunning(false);
+                setIsClicked(false);
+            }
+        };
+
+        API.addWSMessageListener(callback);
+        return () => {
+            API.removeWSMessageListener(callback);
+        };
+    }, [setIsClicked, setIsRunning]);
+
     const run = useCallback(() => {
+        setIsClicked(true);
         const [graph, resources] = getGraph();
         API.runAll(graph, resources);
+    });
+
+    const pause = useCallback(() => {
+        setIsClicked(true);
+        API.pause();
     });
 
     const clear = useCallback(() => {
@@ -264,8 +288,14 @@ function ControlRow({ getGraph }) {
     return (
         <div className="control-row">
             <Flex gap="small" wrap="wrap">
-                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} loading={isRunning} /> {/* Clear */}
-                <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={isRunning} /> {/* Run */}
+                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={isRunning} /> {/* Clear */}
+                {
+                    isRunning ? (
+                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={isClicked} />
+                    ) : (
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={isClicked} />
+                    )
+                }
             </Flex>
         </div>
     );
