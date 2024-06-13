@@ -5,6 +5,7 @@ import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design
 import { Widget } from './Widgets';
 import { API } from '../../api';
 import { Graph } from '../../graph';
+import { useRunState } from '../../hooks/RunState';
 import { mediaUrl, keyRecursively } from '../../utils';
 const { Panel } = Collapse;
 const { useToken } = theme;
@@ -134,9 +135,11 @@ export function WorkflowStep({ id, data, selected }) {
         setErrored(false);
     }, [logsData]);
 
+    const [runState, runStateShouldChange] = useRunState();
     const run = useCallback(() => {
         const [graph, resources] = Graph.serializeForAPI(nodes, edges);
         API.run(graph, resources, id);
+        runStateShouldChange();
     }, [nodes, edges]);
 
     const selectedStyle = {
@@ -159,7 +162,7 @@ export function WorkflowStep({ id, data, selected }) {
                 <Card className="workflow-node">
                     <Flex gap="small" justify='space-between' className='title'>
                         <div>{name}</div>
-                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} />
+                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped'}/>
                     </Flex>
                     <div className="handles">
                         <div className="inputs">

@@ -7,7 +7,7 @@ import ReactFlow, {
     addEdge
 } from 'reactflow';
 import { Button, Flex, notification, theme } from 'antd';
-import { ClearOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
@@ -15,6 +15,7 @@ import { CodeResource } from './Nodes/CodeResource.jsx';
 import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { API } from '../api';
+import { useRunState } from '../hooks/RunState';
 const { useToken } = theme;
 
 import './Nodes/node.css';
@@ -167,9 +168,6 @@ export default function Flow({ initialNodes, initialEdges }) {
             }
 
             const updatedNodes = await API.getNodes();
-            // console.log('Updated nodes:', updatedNodes);
-            // console.log('Current nodes:', nodes);
-
             const mergedNodes = nodes.map(node => {
                 const updatedNodeData = updatedNodes.steps[node.data.category]?.children[node.data.name];
                 if (updatedNodeData) {
@@ -197,7 +195,6 @@ export default function Flow({ initialNodes, initialEdges }) {
                 return node;
             });
 
-            // console.log('Merged nodes:', mergedNodes);
             setNodes(mergedNodes);
         };
 
@@ -249,11 +246,17 @@ export default function Flow({ initialNodes, initialEdges }) {
 
 function ControlRow({ getGraph }) {
     const size = 'large';
-    const [isRunning, setIsRunning] = useState(false);
+    const [runState, runStateShouldChange] = useRunState();
 
     const run = useCallback(() => {
         const [graph, resources] = getGraph();
         API.runAll(graph, resources);
+        runStateShouldChange();
+    });
+
+    const pause = useCallback(() => {
+        API.pause();
+        runStateShouldChange();
     });
 
     const clear = useCallback(() => {
@@ -264,8 +267,14 @@ function ControlRow({ getGraph }) {
     return (
         <div className="control-row">
             <Flex gap="small" wrap="wrap">
-                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} loading={isRunning} /> {/* Clear */}
-                <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={isRunning} /> {/* Run */}
+                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped'} /> {/* Clear */}
+                {
+                    runState !== 'stopped' ? (
+                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} />
+                    ) : (
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} />
+                    )
+                }
             </Flex>
         </div>
     );

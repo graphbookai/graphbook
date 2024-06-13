@@ -56,14 +56,12 @@ export const Graph = {
                 };
             } else if (node.type.toLowerCase().includes('resource')) {
                 if (node.type === 'codeResource' || node.type === 'fileResource') {
-                    console.log(node.data.value);
                     const parameters = {"val": node.data.value};
                     resources[node.id] = {
                         ...common,
                         name: 'BaseResource',
                         parameters
                     }
-                    console.log(resources[node.id]);
                 } else {
                     const params = {};
                     for (const [key, param] of Object.entries(node.data.parameters)) {
@@ -89,9 +87,7 @@ export const Graph = {
             } else {
                 node.parameters[targetHandle] = { node: source, slot: sourceHandle };
             }
-        })
-        console.log(nodes);
-        console.log(edges);
+        });
         console.log(G);
         console.log(resources);
         return [G, resources];

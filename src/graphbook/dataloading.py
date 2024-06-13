@@ -61,12 +61,15 @@ def worker_loop(
     dump_dir: str,
     close_event: mp.Event,
 ):
-    dump_ctr = rank
-    while not close_event.is_set():
-        do_load(load_queue, load_result_queue)
-        did_receive_work = do_dump(dump_queue, dump_result_queue, dump_dir, dump_ctr)
-        if did_receive_work:
-            dump_ctr += num_processes
+    try:
+        dump_ctr = rank
+        while not close_event.is_set():
+            do_load(load_queue, load_result_queue)
+            did_receive_work = do_dump(dump_queue, dump_result_queue, dump_dir, dump_ctr)
+            if did_receive_work:
+                dump_ctr += num_processes
+    except KeyboardInterrupt:
+        pass
 
 
 class Dataloader:
