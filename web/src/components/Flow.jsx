@@ -15,6 +15,7 @@ import { CodeResource } from './Nodes/CodeResource.jsx';
 import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { API } from '../api';
+import { useRunState } from '../hooks/RunState';
 const { useToken } = theme;
 
 import './Nodes/node.css';
@@ -245,39 +246,17 @@ export default function Flow({ initialNodes, initialEdges }) {
 
 function ControlRow({ getGraph }) {
     const size = 'large';
-    const [isClicked, setIsClicked] = useState(false);
-    const [isRunning, setIsRunning] = useState(false);
-
-    useEffect(() => {
-        const callback = (event) => {
-            const message = JSON.parse(event.data);
-            if (message.type !== 'run_state') {
-                return;
-            }
-            if (message.is_running) {
-                setIsRunning(true);
-                setIsClicked(false);
-            } else {
-                setIsRunning(false);
-                setIsClicked(false);
-            }
-        };
-
-        API.addWSMessageListener(callback);
-        return () => {
-            API.removeWSMessageListener(callback);
-        };
-    }, [setIsClicked, setIsRunning]);
+    const [runState, runStateShouldChange] = useRunState();
 
     const run = useCallback(() => {
-        setIsClicked(true);
         const [graph, resources] = getGraph();
         API.runAll(graph, resources);
+        runStateShouldChange();
     });
 
     const pause = useCallback(() => {
-        setIsClicked(true);
         API.pause();
+        runStateShouldChange();
     });
 
     const clear = useCallback(() => {
@@ -288,12 +267,12 @@ function ControlRow({ getGraph }) {
     return (
         <div className="control-row">
             <Flex gap="small" wrap="wrap">
-                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={isRunning} /> {/* Clear */}
+                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped'} /> {/* Clear */}
                 {
-                    isRunning ? (
-                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={isClicked} />
+                    runState !== 'stopped' ? (
+                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} />
                     ) : (
-                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={isClicked} />
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} />
                     )
                 }
             </Flex>

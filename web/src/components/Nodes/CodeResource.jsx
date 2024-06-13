@@ -29,7 +29,6 @@ export function CodeResource({ id, data }) {
   const { token } = useToken();
 
   const onHandleConnect = useCallback((connection) => {
-    console.log('handle connect', connection);
     setTargetHandle(connection.targetHandle);
   });
 

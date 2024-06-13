@@ -135,7 +135,6 @@ class ServerAPI {
      * Processor API
      */
     public async runAll(graph, resources) {
-        console.log(graph, resources)
         return await this.post('run', { graph, resources });
     }
 

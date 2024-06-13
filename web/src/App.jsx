@@ -38,7 +38,6 @@ function View({ setAppSettings }) {
   } = theme.useToken();
 
   const loadedGraph = Graph.loadGraph();
-  // console.log(loadedGraph.nodes)
   const [codeEditor, setCodeEditor] = useState(null);
   const onBeginEdit = useCallback((val) => {
     setCodeEditor(val);

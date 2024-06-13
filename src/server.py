@@ -16,6 +16,7 @@ import base64
 import argparse
 import hashlib
 from state import UIState
+import time
 
 
 @web.middleware
@@ -94,6 +95,7 @@ class GraphServer:
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
+            time.sleep(5.0)
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
