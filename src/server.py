@@ -16,7 +16,7 @@ import base64
 import argparse
 import hashlib
 from state import UIState
-from media import MediaServer as MediaServer2
+from media import MediaServer
 
 
 @web.middleware
@@ -311,27 +311,6 @@ class GraphServer:
             print("Exiting graph server")
 
 
-class MediaServer:
-    def __init__(self, address="0.0.0.0", port=8006, media_root="./media"):
-        self.address = address
-        self.port = port
-        self.cwd = media_root
-        self.server = http.server.SimpleHTTPRequestHandler
-
-    def start(self):
-        if not osp.exists(self.cwd):
-            os.mkdir(self.cwd)
-        else:
-            assert osp.isdir(self.cwd), f"Specifed path {self.cwd} must be a directory"
-        os.chdir(self.cwd)
-        with socketserver.TCPServer((self.address, self.port), self.server) as httpd:
-            print(f"Starting media server at {self.address}:{self.port}")
-            try:
-                httpd.serve_forever()
-            except KeyboardInterrupt:
-                print("Exiting media server")
-
-
 class WebServer:
     def __init__(self, address, port, web_dir):
         self.address = address
@@ -387,7 +366,7 @@ def create_graph_server(
 
 
 def create_media_server(args):
-    server = MediaServer2(
+    server = MediaServer(
         address=args.address, port=args.media_port, root_path=args.media_dir
     )
     server.start()
