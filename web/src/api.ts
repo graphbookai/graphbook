@@ -47,6 +47,10 @@ class ServerAPI {
         await this.setupConnection();
     }
 
+    public setMediaHost(host: string) {
+        this.mediaHost = host;
+    }
+
     public getNodeProperties(name: string) {
         return {};
     }
@@ -195,10 +199,36 @@ class ServerAPI {
     }
 
     /**
-     * Image API
+     * Image/Media API
      */
     public getImagePath(imageName: string) {
         return `http://${this.mediaHost}/${imageName}`;
+    }
+
+    private async mediaServerPut(path, data) {
+        try {
+            const response = await fetch(`http://${this.mediaHost}/${path}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    }
+
+    public async setMediaServerVar(name: string, value: string): Promise<any> {
+        return this.mediaServerPut('set', { [name]: value });
+    }
+
+    public async getMediaServerVars(): Promise<any> {
+        return this.mediaServerPut('set', { });
     }
 }
 

@@ -16,7 +16,7 @@ import base64
 import argparse
 import hashlib
 from state import UIState
-import time
+from media import MediaServer as MediaServer2
 
 
 @web.middleware
@@ -95,7 +95,6 @@ class GraphServer:
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
-            time.sleep(5.0)
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
@@ -388,8 +387,8 @@ def create_graph_server(
 
 
 def create_media_server(args):
-    server = MediaServer(
-        address=args.address, port=args.media_port, media_root=args.media_dir
+    server = MediaServer2(
+        address=args.address, port=args.media_port, root_path=args.media_dir
     )
     server.start()
 
