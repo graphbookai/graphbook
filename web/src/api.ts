@@ -12,8 +12,18 @@ class ServerAPI {
         this.mediaHost = mediaHost;
         this.nodes = {};
         this.listeners = new Set();
-        this.setupConnection();
+    }
+
+    public connect(host: string, mediaHost: string) {
+        this.host = host;
+        this.mediaHost = mediaHost;
         this.connectWebSocket();
+    }
+
+    public disconnect() {
+        if (this.websocket) {
+            this.websocket.close();
+        }
     }
 
     private connectWebSocket() {
@@ -23,7 +33,7 @@ class ServerAPI {
         }
         this.websocket.onopen = () => {
             console.log("Connected to server.");
-
+            this.refreshNodeCatalogue();
         };
         this.websocket.onclose = () => {
             console.log("Lost connection with server. Retrying connection...");
@@ -41,28 +51,26 @@ class ServerAPI {
         return this.host;
     }
 
-    public async setHost(host: string) {
+    public getMediaHost() {
+        return this.mediaHost;
+    }
+
+    public setHost(host: string) {
         this.host = host;
         this.connectWebSocket();
-        await this.setupConnection();
+    }
+
+    public setMediaHost(host: string) {
+        this.mediaHost = host;
     }
 
     public getNodeProperties(name: string) {
         return {};
     }
 
-    private async setupConnection() {
+    private async refreshNodeCatalogue() {
         const nodesRes = await this.get('nodes');
         this.nodes = nodesRes;
-    }
-
-    public addNodeUpdatedListener(callback: () => void) {
-        this.websocket.addEventListener('message', (event) => {
-            const message = JSON.parse(event.data);
-            if (message.event === 'node_updated') {
-                callback();
-            }
-        });
     }
 
     private async post(path, data) {
@@ -113,14 +121,19 @@ class ServerAPI {
         }
     }
 
+
     public addWsEventListener(eventType: string, callback: EventListenerOrEventListenerObject) {
         this.listeners.add([eventType, callback]);
-        this.websocket.addEventListener(eventType, callback);
+        if (this.websocket) {
+            this.websocket.addEventListener(eventType, callback);
+        }
     }
 
     public removeWsEventListener(eventType: string, callback: EventListenerOrEventListenerObject) {
         this.listeners.delete([eventType, callback]);
-        this.websocket.removeEventListener(eventType, callback);
+        if (this.websocket) {
+            this.websocket.removeEventListener(eventType, callback);
+        }
     }
 
     public addWSMessageListener(callback: EventListenerOrEventListenerObject) {
@@ -151,7 +164,6 @@ class ServerAPI {
     }
 
     public async clearAll(graph, resources) {
-        console.log("Clearing all")
         return await this.post('clear', { graph, resources });
     }
 
@@ -195,10 +207,36 @@ class ServerAPI {
     }
 
     /**
-     * Image API
+     * Image/Media API
      */
     public getImagePath(imageName: string) {
         return `http://${this.mediaHost}/${imageName}`;
+    }
+
+    private async mediaServerPut(path, data) {
+        try {
+            const response = await fetch(`http://${this.mediaHost}/${path}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    }
+
+    public async setMediaServerVar(name: string, value: string): Promise<any> {
+        return this.mediaServerPut('set', { [name]: value });
+    }
+
+    public async getMediaServerVars(): Promise<any> {
+        return this.mediaServerPut('set', { });
     }
 }
 
