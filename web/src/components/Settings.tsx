@@ -1,22 +1,18 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Switch, Input, Typography, Flex, theme, Button, Space } from 'antd';
 import { API } from '../api';
+import { useSettings } from '../hooks/Settings';
 import React from 'react';
 
 const { Text, Title } = Typography;
 
-export default function Settings({setAppSettings}) {
+export default function Settings() {
     const [mediaSettings, setMediaSettings] = useState({root_path: ''});
-    const [clientSettings, setClientSettings] = useState({
-        theme: "Light",
-        graphServerHost: "localhost:8005",
-        mediaServerHost: "localhost:8006"
-    });
+    const [clientSettings, setClientSetting] = useSettings();
 
     useEffect(() => {
         const fetchMediaSettings = async () => {
             const response = await API.getMediaServerVars();
-            console.log(response);
             if (response) {
                 setMediaSettings(response);
             }
@@ -24,23 +20,17 @@ export default function Settings({setAppSettings}) {
         fetchMediaSettings();
     }, []);
 
-    const setClientVar = useCallback((name, value) => {
-        setClientSettings({...clientSettings, [name]: value});
-    }, [clientSettings]);
-
     const setMediaVar = useCallback(async (name, value) => {
         setMediaSettings({...mediaSettings, [name]: value});
         await API.setMediaServerVar('root_path', mediaSettings.root_path);
     }, [mediaSettings]);
 
-    const setGraphServerHost = useCallback(async (value) => {
-        setClientVar('graphServerHost', value);
-        await API.setHost(value);
+    const setGraphServerHost = useCallback((value) => {
+        setClientSetting('graphServerHost', value);
     }, []);
 
     const setMediaServerHost = useCallback((value) => {
-        setClientVar('mediaServerHost', value);
-        API.setMediaHost(value);
+        setClientSetting('mediaServerHost', value);
     }, []);
 
     return (
@@ -51,13 +41,8 @@ export default function Settings({setAppSettings}) {
                 checked={clientSettings.theme === "Dark"}
                 checkedText="Dark"
                 uncheckedText="Light"
-                onChange={(checked) => {
-                    setClientVar('theme', checked ? "Dark" : "Light");
-                    setAppSettings({
-                        ...clientSettings,
-                        themeAlgorithm: checked ? theme.darkAlgorithm : theme.defaultAlgorithm
-                    });
-            }}/>
+                onChange={(checked) => {setClientSetting('theme', checked ? "Dark" : "Light")}}
+            />
             <SettingsEntryInput name="Graph Server Host" value={clientSettings.graphServerHost} addonBefore="http://" onApply={setGraphServerHost}/>
             <SettingsEntryInput name="Media Server Host" value={clientSettings.mediaServerHost} addonBefore="http://" onApply={setMediaServerHost}/>
             <Title level={4}>Server Settings</Title>
@@ -78,12 +63,14 @@ function SettingsEntryInput({name, value, ...optionalProps}) {
         }
     }, []);
 
+    const onPressEnter = onApply ? () => onApply(inputValue) : () => {};
+
     return (
         <Flex vertical>
             <Text>{name}</Text>
             <Flex vertical={false}>
                 <Space>
-                    <Input value={inputValue} onChange={(e)=>onChangeSetting(e.target.value)} addonBefore={addonBefore}/>
+                    <Input value={inputValue} onChange={(e)=>onChangeSetting(e.target.value)} addonBefore={addonBefore} onPressEnter={onPressEnter}/>
                     { onApply && <Button onClick={()=>onApply(inputValue)}>Apply</Button> }
                 </Space>
             </Flex>

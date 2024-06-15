@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Popover, Input, Modal } from 'antd';
 import { LinkOutlined, DisconnectOutlined, SettingFilled } from '@ant-design/icons';
 import Settings from './Settings';
+import { useSettings } from '../hooks/Settings';
 import { API } from '../api';
 import './top-panel.css';
 
@@ -11,14 +12,15 @@ const iconStyle = { fontSize: '18px', margin: '0 5px', lineHeight: '40px', heigh
 const connectedStyle = {...iconStyle, color: 'green'};
 const disconnectedStyle = {...iconStyle, color: 'red'};
 
-export default function TopPanel({ setAppSettings }) {
+export default function TopPanel() {
     const title = 'Graphbook';
+    const [settings, setSetting] = useSettings();
     const [connected, setConnected] = useState(false);
-    const [host, setHost] = useState(API.getHost());
+    const [host, setHost] = useState(settings.graphServerHost);
     const [hostEditorOpen, setHostEditorOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
 
-    const setupWebsocketStatus = () => {
+    useEffect(() => {
         const handleOpen = () => setConnected(true);
         const handleClose = () => setConnected(false);
         API.addWsEventListener('open', handleOpen);
@@ -27,15 +29,11 @@ export default function TopPanel({ setAppSettings }) {
             API.removeWsEventListener('open', handleOpen);
             API.removeWsEventListener('close', handleClose);
         };
-    }
-    const setAPIHost = useCallback(host => {
-        API.setHost(host);
-        setupWebsocketStatus();
-    });
-
-    useEffect(() => {
-        setupWebsocketStatus();
     }, []);
+
+    const setAPIHost = useCallback(host => {
+        setSetting("graphServerHost", host);
+    });
 
     const onHostChange = useCallback((e) => {
         setHost(e.target.value);
@@ -80,7 +78,7 @@ export default function TopPanel({ setAppSettings }) {
             </div>
 
             <Modal width={1000} title="Settings" open={settingsOpen} onCancel={() => setSettingsModal(false)} footer={null}>
-                <Settings setAppSettings={setAppSettings}/>
+                <Settings/>
             </Modal>
         </div>
     )
