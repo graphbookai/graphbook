@@ -170,6 +170,16 @@ textarea.code {
     align-items: center;
 }
 
+.react-flow__node.react-flow__node-group {
+    padding: 0;
+    border: none;
+    resize: both;
+    z-index: -1 !important;
+}
+
+.react-flow__node.react-flow__node-group.selectable.selected {
+    box-shadow: none;
+}
 
 .react-flow__handle {
     position: relative;

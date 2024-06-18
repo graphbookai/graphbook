@@ -12,6 +12,7 @@ import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { CodeResource } from './Nodes/CodeResource.jsx';
+import { Group, groupIfPossible } from './Nodes/Group.tsx';
 import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { API } from '../api';
@@ -39,7 +40,8 @@ export default function Flow({ initialNodes, initialEdges }) {
     const nodeTypes = useMemo(() => ({
         workflowStep: WorkflowStep,
         resource: Resource,
-        codeResource: CodeResource
+        codeResource: CodeResource,
+        group: Group,
     }), []);
 
     const onConnect = useCallback(
@@ -208,6 +210,11 @@ export default function Flow({ initialNodes, initialEdges }) {
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
 
+    const onNodeDragStop = useCallback((e, _, draggedNodes) => {
+        const updatedNodes = groupIfPossible(draggedNodes, nodes);
+        setNodes(updatedNodes);
+    }, [nodes]);
+
     return (
         <div style={{ height: '100%', width: '100%' }}>
             <ReactFlow
@@ -229,6 +236,7 @@ export default function Flow({ initialNodes, initialEdges }) {
                 onNodeContextMenu={onNodeContextMenu}
                 onPaneContextMenu={onPaneContextMenu}
                 isValidConnection={isValidConnection}
+                onNodeDragStop={onNodeDragStop}
             >
                 {notificationCtxt}
                 <Panel position='top-right'>

@@ -202,6 +202,14 @@ export function PaneContextMenu({ top, left, close }) {
         setNodes(newNodes);
     }, [graphNodes]);
 
+    const addGroup = useCallback(() => {
+        const position = screenToFlowPosition({ x: left, y: top });
+        const type = 'group';
+        const newNode = ({ type, position, data: { label: 'Group' } });
+        const newNodes = Graph.addNode(newNode, graphNodes);
+        setNodes(newNodes);
+    }, [graphNodes]);
+
     const onClick = useCallback(({ key }) => {
         const { event, item } = getEvent(items, key);
         switch (event) {
@@ -210,6 +218,9 @@ export function PaneContextMenu({ top, left, close }) {
                 break;
             case 'Add Resource':
                 addResource(item);
+                break;
+            case 'Add Group':
+                addGroup();
                 break;
             default:
                 break;
