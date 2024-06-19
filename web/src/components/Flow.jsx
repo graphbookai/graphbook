@@ -12,7 +12,7 @@ import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { CodeResource } from './Nodes/CodeResource.jsx';
-import { Group, groupIfPossible } from './Nodes/Group.tsx';
+import { Group, groupIfPossible, getExportedHandle, isInternalHandle } from './Nodes/Group.tsx';
 import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { API } from '../api';
@@ -38,7 +38,7 @@ export default function Flow({ initialNodes, initialEdges }) {
     const reactFlowRef = useRef(null);
 
     const nodeTypes = useMemo(() => ({
-        workflowStep: WorkflowStep,
+        step: WorkflowStep,
         resource: Resource,
         codeResource: CodeResource,
         group: Group,
@@ -136,15 +136,62 @@ export default function Flow({ initialNodes, initialEdges }) {
         const srcNode = getNode(connection.source);
         const tgtNode = getNode(connection.target);
 
-        if (connection.targetHandle === 'in' && tgtNode.type === 'workflowStep') {
-            if (srcNode.type !== 'workflowStep') {
+        console.log(connection, srcNode, tgtNode);
+        if (connection.targetHandle === 'in' && tgtNode.type === 'step') {
+            if (srcNode.type !== 'step' && srcNode.type !== 'group') {
                 return false;
             }
         }
-        const tgtParameter = tgtNode.data.parameters[connection.targetHandle];
-        if (tgtParameter && tgtParameter.type === 'resource') {
-            if (srcNode.type !== 'resource') {
+
+        if (tgtNode.type === 'step') {
+            const tgtParameter = tgtNode.data.parameters[connection.targetHandle];
+            if (tgtParameter && tgtParameter.type === 'resource') {
+                if (srcNode.type !== 'resource' && srcNode.type !== 'group') {
+                    return false;
+                }
+            }
+        } else if (tgtNode.type === 'group') {
+            if (isInternalHandle(connection.targetHandle) && srcNode.parentId !== tgtNode.id) {
                 return false;
+            }
+
+            const handle = getExportedHandle(tgtNode, connection.targetHandle, true);
+            if (srcNode.type === 'group') {
+                const srcHandle = getExportedHandle(srcNode, connection.sourceHandle, false);
+                if (srcHandle.type !== handle.type) {
+                    return false;
+                }
+            } else {
+                if (handle.type !== srcNode.type) {
+                    return false;
+                }
+            }
+        }
+
+        if (srcNode.type === 'group') {
+            if (isInternalHandle(connection.sourceHandle) && tgtNode.parentId !== srcNode.id) {
+                console.log("A")
+                return false;
+            }
+
+            const handle = getExportedHandle(srcNode, connection.sourceHandle, false);
+            if (tgtNode.type === 'group') {
+                const tgtHandle = getExportedHandle(tgtNode, connection.targetHandle, true);
+                if (tgtHandle.type !== handle.type) {
+                    console.log("B")
+                    return false;
+                }
+            } else { // tgtNode is step
+                if (handle.type === 'resource') {
+                    const resourceParam = tgtNode.data.parameters[connection.targetHandle];
+                    if (!resourceParam) {
+                        console.log("D")
+                        return false;
+                    }
+                } else if (handle.type !== tgtNode.type) {
+                    console.log("C")
+                    return false;
+                }
             }
         }
 
@@ -237,6 +284,21 @@ export default function Flow({ initialNodes, initialEdges }) {
                 onPaneContextMenu={onPaneContextMenu}
                 isValidConnection={isValidConnection}
                 onNodeDragStop={onNodeDragStop}
+                onNodesDelete={(deletedNodes) => {
+                    const deletedNodesMap = {};
+                    deletedNodes.forEach(node => {
+                        deletedNodesMap[node.id] = node;
+                    });
+                    nodes.forEach(n => {
+                        if (n.parentId) {
+                            const parent = deletedNodesMap[n.parentId];
+                            if (parent) {
+                                n.parentId = null;
+                                n.position = { x: n.position.x + parent.position.x, y: n.position.y + parent.position.y };
+                            }
+                        }
+                    });
+                }}
             >
                 {notificationCtxt}
                 <Panel position='top-right'>

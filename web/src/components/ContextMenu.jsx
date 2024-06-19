@@ -39,13 +39,13 @@ const NODE_OPTIONS = [
     {
         name: 'Duplicate',
         action: (node, reactFlowInstance) => {
-            const { addNode } = reactFlowInstance;
+            const { addNodes } = reactFlowInstance;
             const position = {
                 x: node.position.x + 50,
                 y: node.position.y + 50,
             };
 
-            addNode({
+            addNodes({
                 ...node,
                 selected: false,
                 dragging: false,
@@ -84,22 +84,106 @@ const NODE_OPTIONS = [
     }
 ];
 
+const addExport = (node, reactFlowInstance, isInput, exp) => {
+    const currentExports = isInput ? node.data.exports.inputs : node.data.exports.outputs;
+    const newExports = {
+        [isInput ? 'inputs' : 'outputs']: {
+            ...currentExports,
+            [`${isInput ? 'in' : 'out'}_${Object.keys(currentExports).length}`]: exp
+        }
+    };
+    const { setNodes } = reactFlowInstance;
+    setNodes(nodes => nodes.map(n => {
+        if (n.id === node.id) {
+            return {
+                ...n,
+                data: {
+                    ...n.data,
+                    exports: {
+                        ...n.data.exports,
+                        ...newExports
+                    }
+                }
+            }
+        }
+        return n;
+    }));
+};
+
+const GROUP_OPTIONS = [
+    {
+        name: 'Disband Group',
+        action: (node, reactFlowInstance) => {
+            const { setNodes, setEdges } = reactFlowInstance;
+            setNodes((nodes) => nodes
+                .map((n) => {
+                    if (n.parentId === node.id) {
+                        return {
+                            ...n,
+                            parentId: null,
+                            position: { x: n.position.x + node.position.x, y: n.position.y + node.position.y }
+                        };
+                    }
+                    return n;
+                })
+                .filter((n) => {console.log(n); return n.id !== node.id})
+            );
+            setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
+        }
+    },
+    {
+        name: 'Add Step Output Export',
+        parent: 'Add Export',
+        action: (node, reactFlowInstance) => {
+            addExport(node, reactFlowInstance, false, {
+                type: 'step'
+            });
+        }
+    },
+    {
+        name: 'Add Step Input Export',
+        action: (node, reactFlowInstance) => {
+            addExport(node, reactFlowInstance, true, {
+                type: 'step'
+            });
+        }
+    },
+    {
+        name: 'Add Resource Output Export',
+        action: (node, reactFlowInstance) => {
+            addExport(node, reactFlowInstance, false, {
+                type: 'resource'
+            });
+        }
+    },
+    {
+        name: 'Add Resource Input Export',
+        action: (node, reactFlowInstance) => {
+            addExport(node, reactFlowInstance, true, {
+                type: 'resource'
+            });
+        }
+    }
+]
+
 export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
-    const node = reactFlowInstance.getNode(nodeId);
+    const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
 
     const items = useMemo(() => {
-        const toReturn = NODE_OPTIONS.map((option) => {
-            return {
-                label: typeof option.name === 'function' ? option.name(node) : option.name
-            };
-        });
-        return keyRecursively(toReturn);
-    }, [node]);
+
+            const toReturn = (node.type === 'step' ? NODE_OPTIONS : GROUP_OPTIONS).map((option) => {
+                return {
+                    label: typeof option.name === 'function' ? option.name(node) : option.name,
+                    children: option.children
+                };
+            });
+            return keyRecursively(toReturn);
+        }, [node]);
 
     const menuItemOnClick = useCallback(({ key }) => {
         const actionIndex = parseInt(key);
-        const action = NODE_OPTIONS[actionIndex].action;
+        const action = (node.type === 'step' ? NODE_OPTIONS : GROUP_OPTIONS)[actionIndex].action;
         action(node, reactFlowInstance);
     }, [node]);
 
@@ -182,7 +266,7 @@ export function PaneContextMenu({ top, left, close }) {
 
     const addStep = useCallback((node) => {
         const position = screenToFlowPosition({ x: left, y: top });
-        const type = 'workflowStep';
+        const type = 'step';
         Object.values(node.parameters).forEach((p) => {
             p.value = p.default;
         });
@@ -205,7 +289,20 @@ export function PaneContextMenu({ top, left, close }) {
     const addGroup = useCallback(() => {
         const position = screenToFlowPosition({ x: left, y: top });
         const type = 'group';
-        const newNode = ({ type, position, data: { label: 'Group' } });
+        const newNode = {
+            type,
+            position,
+            width: 200,
+            height: 200,
+            data: {
+                label: 'Group',
+                exports: {
+                    inputs: {},
+                    outputs: {},
+                }
+            }
+        };
+        console.log(newNode);
         const newNodes = Graph.addNode(newNode, graphNodes);
         setNodes(newNodes);
     }, [graphNodes]);

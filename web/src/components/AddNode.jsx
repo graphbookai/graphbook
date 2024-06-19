@@ -19,7 +19,7 @@ export default function AddNode({position, setNodeTo, addNode}) {
     const onResultClick = useCallback(({type, workflowType}) => {
         return () => {
             if (workflowType) {
-                addNode({ type: 'workflowStep', position: setNodeTo, data: API.getNodeProperties(workflowType)});
+                addNode({ type: 'step', position: setNodeTo, data: API.getNodeProperties(workflowType)});
             } else {
                 addNode({ type, position: setNodeTo, data: {}});
             }

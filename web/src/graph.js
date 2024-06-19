@@ -38,7 +38,7 @@ export const Graph = {
             const common = {
                 // position: node.position
             }
-            if (node.type === 'workflowStep') {
+            if (node.type === 'step') {
                 const params = {};
                 for (const [key, param] of Object.entries(node.data.parameters)) {
                     if (!param.node) {
@@ -110,11 +110,22 @@ export const Graph = {
         }
     },
     wouldBeCyclic(nodes, edges, connectingEdge) {
+        if (connectingEdge.sourceHandle.endsWith('_inner') || connectingEdge.targetHandle.endsWith('_inner')) {
+            return false;
+        }
         const adjList = {};
+        const isGroup = {};
         for (const node of nodes) {
             adjList[node.id] = [];
+            isGroup[node.id] = node.type === 'group';
         }
         for (const edge of edges) {
+            if (isGroup[edge.source] && edge.sourceHandle.endsWith('_inner')) {
+                continue;
+            }
+            if (isGroup[edge.target] && edge.targetHandle.endsWith('_inner')) {
+                continue;
+            }
             if (!adjList[edge.source].includes(edge.target)) {
                 adjList[edge.source].push(edge.target);
             }

@@ -2,7 +2,7 @@
 export default function Extensions() {
     return (
         <div className="extensions">
-            <h2>Extensions</h2>
+            <h3>Coming soon</h3>
         </div>
     );
 }
