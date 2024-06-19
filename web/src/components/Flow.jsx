@@ -12,7 +12,8 @@ import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { CodeResource } from './Nodes/CodeResource.jsx';
-import { Group, groupIfPossible, getExportedHandle, isInternalHandle } from './Nodes/Group.tsx';
+import { Group, groupIfPossible } from './Nodes/Group.tsx';
+import { getHandle } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { API } from '../api';
@@ -21,6 +22,7 @@ const { useToken } = theme;
 
 import './Nodes/node.css';
 import 'reactflow/dist/style.css';
+import { NodeConfig } from './NodeConfig.tsx';
 
 export default function Flow({ initialNodes, initialEdges }) {
     const { token } = useToken();
@@ -135,63 +137,26 @@ export default function Flow({ initialNodes, initialEdges }) {
         const { getNode, getNodes, getEdges } = reactFlowInstance.current;
         const srcNode = getNode(connection.source);
         const tgtNode = getNode(connection.target);
+        const srcHandle = getHandle(srcNode, connection.sourceHandle, false);
+        const tgtHandle = getHandle(tgtNode, connection.targetHandle, true);
 
-        console.log(connection, srcNode, tgtNode);
-        if (connection.targetHandle === 'in' && tgtNode.type === 'step') {
-            if (srcNode.type !== 'step' && srcNode.type !== 'group') {
+        if (!srcHandle || !tgtHandle) {
+            return false;
+        }
+
+        if (srcHandle.type !== tgtHandle.type) {
+            return false;
+        }
+
+        if (srcHandle.nodeType === 'group' && srcHandle.inner) {
+            if (tgtNode.parentId !== srcNode.id) {
                 return false;
             }
         }
 
-        if (tgtNode.type === 'step') {
-            const tgtParameter = tgtNode.data.parameters[connection.targetHandle];
-            if (tgtParameter && tgtParameter.type === 'resource') {
-                if (srcNode.type !== 'resource' && srcNode.type !== 'group') {
-                    return false;
-                }
-            }
-        } else if (tgtNode.type === 'group') {
-            if (isInternalHandle(connection.targetHandle) && srcNode.parentId !== tgtNode.id) {
+        if (tgtHandle.nodeType === 'group' && tgtHandle.inner) {
+            if (srcNode.parentId !== tgtNode.id) {
                 return false;
-            }
-
-            const handle = getExportedHandle(tgtNode, connection.targetHandle, true);
-            if (srcNode.type === 'group') {
-                const srcHandle = getExportedHandle(srcNode, connection.sourceHandle, false);
-                if (srcHandle.type !== handle.type) {
-                    return false;
-                }
-            } else {
-                if (handle.type !== srcNode.type) {
-                    return false;
-                }
-            }
-        }
-
-        if (srcNode.type === 'group') {
-            if (isInternalHandle(connection.sourceHandle) && tgtNode.parentId !== srcNode.id) {
-                console.log("A")
-                return false;
-            }
-
-            const handle = getExportedHandle(srcNode, connection.sourceHandle, false);
-            if (tgtNode.type === 'group') {
-                const tgtHandle = getExportedHandle(tgtNode, connection.targetHandle, true);
-                if (tgtHandle.type !== handle.type) {
-                    console.log("B")
-                    return false;
-                }
-            } else { // tgtNode is step
-                if (handle.type === 'resource') {
-                    const resourceParam = tgtNode.data.parameters[connection.targetHandle];
-                    if (!resourceParam) {
-                        console.log("D")
-                        return false;
-                    }
-                } else if (handle.type !== tgtNode.type) {
-                    console.log("C")
-                    return false;
-                }
             }
         }
 
@@ -303,6 +268,9 @@ export default function Flow({ initialNodes, initialEdges }) {
                 {notificationCtxt}
                 <Panel position='top-right'>
                     <ControlRow getGraph={getGraph} />
+                </Panel>
+                <Panel position='top-left'>
+                    <NodeConfig/>
                 </Panel>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}

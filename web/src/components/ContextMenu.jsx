@@ -172,7 +172,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
 
     const items = useMemo(() => {
 
-            const toReturn = (node.type === 'step' ? NODE_OPTIONS : GROUP_OPTIONS).map((option) => {
+            const toReturn = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS).map((option) => {
                 return {
                     label: typeof option.name === 'function' ? option.name(node) : option.name,
                     children: option.children
@@ -183,7 +183,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
 
     const menuItemOnClick = useCallback(({ key }) => {
         const actionIndex = parseInt(key);
-        const action = (node.type === 'step' ? NODE_OPTIONS : GROUP_OPTIONS)[actionIndex].action;
+        const action = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS)[actionIndex].action;
         action(node, reactFlowInstance);
     }, [node]);
 
@@ -302,7 +302,6 @@ export function PaneContextMenu({ top, left, close }) {
                 }
             }
         };
-        console.log(newNode);
         const newNodes = Graph.addNode(newNode, graphNodes);
         setNodes(newNodes);
     }, [graphNodes]);
