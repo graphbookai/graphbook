@@ -87,10 +87,13 @@ const NODE_OPTIONS = [
 const addExport = (node, reactFlowInstance, isInput, exp) => {
     const currentExports = isInput ? node.data.exports.inputs : node.data.exports.outputs;
     const newExports = {
-        [isInput ? 'inputs' : 'outputs']: {
+        [isInput ? 'inputs' : 'outputs']: [
             ...currentExports,
-            [`${isInput ? 'in' : 'out'}_${Object.keys(currentExports).length}`]: exp
-        }
+            {
+                name: `${isInput ? 'in' : 'out'}_${Object.keys(currentExports).length}`,
+                ...exp
+            }
+        ]
     };
     const { setNodes } = reactFlowInstance;
     setNodes(nodes => nodes.map(n => {
@@ -126,7 +129,7 @@ const GROUP_OPTIONS = [
                     }
                     return n;
                 })
-                .filter((n) => {console.log(n); return n.id !== node.id})
+                .filter((n) => n.id !== node.id)
             );
             setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
         }
@@ -171,15 +174,14 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
 
     const items = useMemo(() => {
-
-            const toReturn = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS).map((option) => {
-                return {
-                    label: typeof option.name === 'function' ? option.name(node) : option.name,
-                    children: option.children
-                };
-            });
-            return keyRecursively(toReturn);
-        }, [node]);
+        const toReturn = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS).map((option) => {
+            return {
+                label: typeof option.name === 'function' ? option.name(node) : option.name,
+                children: option.children
+            };
+        });
+        return keyRecursively(toReturn);
+    }, [node]);
 
     const menuItemOnClick = useCallback(({ key }) => {
         const actionIndex = parseInt(key);
@@ -297,8 +299,8 @@ export function PaneContextMenu({ top, left, close }) {
             data: {
                 label: 'Group',
                 exports: {
-                    inputs: {},
-                    outputs: {},
+                    inputs: [],
+                    outputs: [],
                 }
             }
         };

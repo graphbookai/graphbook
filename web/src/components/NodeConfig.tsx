@@ -38,7 +38,7 @@ export function NodeConfig() {
     return (
         <div style={{ background: token.colorBgContainer, borderRadius: token.borderRadius, minWidth: '350px' }}>
             <Text style={{margin: token.margin}}>Node Properties</Text>
-            <Collapse defaultActiveKey={items[0]?.key} bordered={false} items={items}/>
+            <Collapse bordered={false} items={items}/>
         </div>
     );
 }
@@ -61,7 +61,7 @@ function StepView({ node }) {
         {
             label: 'Parameters',
             children: Object.entries(node.data.parameters).map(([name, parameter]) => (
-                <Card>
+                <Card key={name}>
                     <Text>{name}</Text>
                     <pre>{JSON.stringify(parameter, null, 2)}</pre>
                 </Card>
@@ -91,7 +91,7 @@ function ResourceView({ node }) {
         {
             label: 'Parameters',
             children: Object.entries(node.data.parameters).map(([name, parameter]) => (
-                <Card>
+                <Card key={name}>
                     <Text>{name}</Text>
                     <pre>{JSON.stringify(parameter, null, 2)}</pre>
                 </Card>
@@ -109,20 +109,18 @@ type GroupNode = {
     data: {
         label: string,
         exports: {
-            inputs: Record<string, { type: string }>,
-            outputs: Record<string, { type: string }>
+            inputs: Array<{ name: string, type: string }>,
+            outputs: Array<{ name: string, type: string }>,
         }
     }
 }
 
-const onChangeInputExportName = (oldName: string, newName: string, node: GroupNode, setNodes, setEdges) => {
+const onChangeInputExportName = (index: number, newName: string, node: GroupNode, setNodes) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { inputs } = n.data.exports;
-                const input = inputs[oldName];
-                delete inputs[oldName];
-                inputs[newName] = input;
+                inputs[index].name = newName;
                 return {
                     ...n,
                     data: {
@@ -138,61 +136,37 @@ const onChangeInputExportName = (oldName: string, newName: string, node: GroupNo
         });
         return updatedNodes;
     });
-    setEdges((edges) => {
-        const updatedEdges = edges.map(e => {
-            if (e.target === node.id) {
-                if (e.targetHandle === oldName) {
-                    e.targetHandle = newName;
-                }
-            }
-            if (e.source === node.id) {
-                if (e.sourceHandle === oldName + '_inner') {
-                    e.sourceHandle = newName + '_inner';
-                }
-            }
-            return e;
-        });
-        return updatedEdges;
-    });
 }
 
-const onChangeOutputExportName = (oldName: string, newName: string, node: GroupNode, setNodes, setEdges) => {
+const onChangeOutputExportName = (index: number, newName: string, node: GroupNode, setNodes) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { outputs } = n.data.exports;
-                const output = outputs[oldName];
-                delete outputs[oldName];
-                outputs[newName] = output;
+                outputs[index].name = newName;
+                return {
+                    ...n,
+                    data: {
+                        ...n.data,
+                        exports: {
+                            ...n.data.exports,
+                            outputs
+                        }
+                    }
+                };
             }
             return n;
         });
         return updatedNodes;
     });
-    setEdges((edges) => {
-        const updatedEdges = edges.map(e => {
-            if (e.target === node.id) {
-                if (e.targetHandle === oldName + '_inner') {
-                    e.targetHandle = newName + '_inner';
-                }
-            }
-            if (e.source === node.id) {
-                if (e.sourceHandle === oldName) {
-                    e.sourceHandle = newName;
-                }
-            }
-            return e;
-        });
-        return updatedEdges;
-    });
 }
 
-const onDeleteInputExport = (name: string, node: GroupNode, setNodes, setEdges) => {
+const onDeleteInputExport = (index: number, node: GroupNode, setNodes, setEdges) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { inputs } = n.data.exports;
-                delete inputs[name];
+                inputs.splice(index, 1);
                 return {
                     ...n,
                     data: {
@@ -211,10 +185,10 @@ const onDeleteInputExport = (name: string, node: GroupNode, setNodes, setEdges) 
     setEdges((edges) => {
         const updatedEdges = edges.filter(e => {
             if (e.target === node.id) {
-                return e.targetHandle !== name;
+                return e.targetHandle !== index;
             }
             if (e.source === node.id) {
-                return e.sourceHandle !== name + '_inner';
+                return e.sourceHandle !== index + '_inner';
             }
             return true;
         });
@@ -222,12 +196,12 @@ const onDeleteInputExport = (name: string, node: GroupNode, setNodes, setEdges) 
     });
 }
 
-const onDeleteOutputExport = (name: string, node: GroupNode, setNodes, setEdges) => {
+const onDeleteOutputExport = (index: number, node: GroupNode, setNodes, setEdges) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { outputs } = n.data.exports;
-                delete outputs[name];
+                outputs.splice(index, 1);
                 return {
                     ...n,
                     data: {
@@ -246,10 +220,10 @@ const onDeleteOutputExport = (name: string, node: GroupNode, setNodes, setEdges)
     setEdges((edges) => {
         const updatedEdges = edges.filter(e => {
             if (e.source === node.id) {
-                return e.sourceHandle !== name;
+                return e.sourceHandle !== index;
             }
             if (e.target === node.id) {
-                return e.targetHandle !== name + '_inner';
+                return e.targetHandle !== index + '_inner';
             }
             return true;
         });
@@ -259,11 +233,11 @@ const onDeleteOutputExport = (name: string, node: GroupNode, setNodes, setEdges)
 
 function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
     const { node } = props;
-    const onChangeInput = useCallback((oldName, newName) => {
-        onChangeInputExportName(oldName, newName, node, props.setNodes, props.setEdges)
+    const onChangeInput = useCallback((index, newName) => {
+        onChangeInputExportName(index, newName, node, props.setNodes)
     }, [node]);
-    const onChangeOutput = useCallback((oldName, newName) => {
-        onChangeOutputExportName(oldName, newName, node, props.setNodes, props.setEdges)
+    const onChangeOutput = useCallback((index, newName) => {
+        onChangeOutputExportName(index, newName, node, props.setNodes)
     }, [node]);
     const onDeleteInput = useCallback((name) => {
         onDeleteInputExport(name, node, props.setNodes, props.setEdges)
@@ -280,65 +254,67 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
         {
             label: 'Name',
             children: (
-                <Input defaultValue={node.data.label} onChange={(e) => props.setNodes((nodes) => {
-                    return nodes.map(n => {
-                        if (n.id === node.id) {
-                            return {
-                                ...n,
-                                data: {
-                                    ...n.data,
-                                    label: e.target.value
-                                }
-                            };
-                        }
-                        return n;
+                <Input defaultValue={node.data.label} onChange={(e) => {
+                    props.setNodes((nodes) => {
+                        return nodes.map(n => {
+                            if (n.id === node.id) {
+                                return {
+                                    ...n,
+                                    data: {
+                                        ...n.data,
+                                        label: e.target.value
+                                    }
+                                };
+                            }
+                            return n;
+                        });
                     });
-                })}/>
+                }}/>
             )
         },
         {
             label: 'Step Inputs',
-            children: Object.entries(node.data.exports.inputs)
-                .filter(([_, input]) => input.type === "step")
-                .map(([name, input]) => (
-                    <Flex key={name}>
-                        <Input defaultValue={name} onChange={(e) => onChangeInput(name, e.target.value)}/>
-                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(name)}></Button>
+            children: node.data.exports.inputs
+                .filter(input => input.type === "step")
+                .map((input, i) => (
+                    <Flex key={i}>
+                        <Input defaultValue={input.name} onChange={(e) => onChangeInput(i, e.target.value)}/>
+                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(i)}></Button>
                     </Flex>
                 )),
         },
         {
             label: 'Resource Inputs',
-            children: Object.entries(node.data.exports.inputs)
-                .filter(([_, input]) => input.type === "resource")
-                .map(([name, input]) => (
-                    <Flex key={name}>
-                        <Input defaultValue={name} onChange={(e) => onChangeInput(name, e.target.value)}/>
-                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(name)}></Button>
-                    </Flex>
-                )),
+            children: node.data.exports.inputs
+                .filter(input => input.type === "resource")
+                .map((input, i) => (
+                        <Flex key={i}>
+                            <Input defaultValue={input.name} onChange={(e) => onChangeInput(i, e.target.value)}/>
+                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(i)}></Button>
+                        </Flex>
+                    )),
         },
         {
             label: 'Step Outputs',
-            children: Object.entries(node.data.exports.outputs)
-                .filter(([_, output]) => output.type === "step")
-                .map(([name, output]) => (
-                    <Flex key={name}>
-                        <Input defaultValue={name} onChange={(e) => onChangeOutput(name, e.target.value)}/>
-                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(name)}></Button>
-                    </Flex>
-                )),
+            children: node.data.exports.outputs
+                .filter(output => output.type === "step")
+                .map((output, i) => (
+                        <Flex key={i}>
+                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(i, e.target.value)}/>
+                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(i)}></Button>
+                        </Flex>
+                    )),
         },
         {
             label: 'Resource Outputs',
-            children: Object.entries(node.data.exports.outputs)
-                .filter(([_, output]) => output.type === "resource")
-                .map(([name, output]) => (
-                    <Flex key={name}>
-                        <Input defaultValue={name} onChange={(e) => onChangeOutput(name, e.target.value)}/>
-                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(name)}></Button>
-                    </Flex>
-                )),
+            children: node.data.exports.outputs
+                .filter(output => output.type === "resource")
+                .map((output, i) => (
+                        <Flex key={i}>
+                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(i, e.target.value)}/>
+                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(i)}></Button>
+                        </Flex>
+                    )),
         }
     ], "");
     return (

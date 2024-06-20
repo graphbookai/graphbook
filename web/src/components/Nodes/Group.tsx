@@ -37,19 +37,10 @@ export function Group({ data, width, height }) {
         backgroundColor: '#f0f0f080',
     };
     const { inputs, outputs } = data.exports;
-    const stepInputs = Object.entries(inputs)
-                        .filter(([_, v]) => v.type === 'step')
-                        .map(([name, v]) => ({ name, ...v }));
-    const stepOutputs = Object.entries(outputs)
-                        .filter(([_, v]) => v.type === 'step')
-                        .map(([name, v]) => ({ name, ...v }));
-    const resourceInputs = Object.entries(inputs)
-                        .filter(([_, v]) => v.type === 'resource')
-                        .map(([name, v]) => ({ name, ...v }));
-    const resourceOutputs = Object.entries(outputs)
-                        .filter(([_, v]) => v.type === 'resource')
-                        .map(([name, v]) => ({ name, ...v }));
-
+    const stepInputs = inputs.filter((v) => v.type === 'step');
+    const stepOutputs = outputs.filter((v) => v.type === 'step');
+    const resourceInputs = inputs.filter((v) => v.type === 'resource');
+    const resourceOutputs = outputs.filter((v) => v.type === 'resource');
 
     return (
         <div className='workflow-node group'>
@@ -63,9 +54,9 @@ export function Group({ data, width, height }) {
                         stepInputs.map((input, i) => {
                             return (
                                 <div key={i} className="input" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={input.name} />
+                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={i} />
                                     <span className="label">{input.name}</span>
-                                    <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={input.name+"_inner"} />
+                                    <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${i}_inner`} />
                                 </div>
                             );
                         })
@@ -74,15 +65,9 @@ export function Group({ data, width, height }) {
                         resourceInputs.map((input, i) => {
                             return (
                                 <div key={i} className="input" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle
-                                        className="parameter"
-                                        style={inHandleStyle}
-                                        type="target"
-                                        position={Position.Left}
-                                        id={input.name}
-                                    />
+                                    <Handle className="parameter" style={inHandleStyle} type="target" position={Position.Left} id={i}/>
                                     <span className="label">{input.name}</span>
-                                    <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={input.name+"_inner"} />
+                                    <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${i}_inner`} />
                                 </div>
                             );
                         })
@@ -93,9 +78,9 @@ export function Group({ data, width, height }) {
                         stepOutputs.map((output, i) => {
                             return (
                                 <div key={i} className="output" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={output.name+"_inner"} />
+                                    <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={`${i}_inner`} />
                                     <span className="label">{output.name}</span>
-                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={output.name} />
+                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={i} />
                                 </div>
                             );
                         })
@@ -104,9 +89,9 @@ export function Group({ data, width, height }) {
                         resourceOutputs.map((output, i) => {
                             return (
                                 <div key={i} className="output" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={output.name+"_inner"} />
+                                    <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={`${i}_inner`} />
                                     <span className="label">{output.name}</span>
-                                    <Handle className="parameter" style={outHandleStyle} type="source" position={Position.Right} id={output.name} />
+                                    <Handle className="parameter" style={outHandleStyle} type="source" position={Position.Right} id={i} />
                                 </div>
                             );
                         })
@@ -163,43 +148,4 @@ export function groupIfPossible(changedNodes: Node[], allNodes: Node[]) {
 
         return node;
     });
-}
-
-export function getExportedHandle(node: Node, handleId: string, isTarget: boolean) {
-    if (isTarget) {
-        if (isInternalHandle(handleId)) {
-            return getExportedOutputHandle(node, handleId);
-        } else {
-            return getExportedInputHandle(node, handleId);
-        }
-    } else  {
-        if (isInternalHandle(handleId)) {
-            return getExportedInputHandle(node, handleId);
-        } else {
-            return getExportedOutputHandle(node, handleId);
-        }
-    }
-}
-
-
-export function getExportedInputHandle(node: Node, handleId: string) {
-    const toReturn = {};
-    if (handleId.endsWith('_inner')) {
-        handleId = handleId.slice(0, -6);
-        toReturn['inner'] = true;
-    }
-    return { ...toReturn, ...node.data.exports.inputs[handleId] };
-}
-
-export function getExportedOutputHandle(node: Node, handleId: string) {
-    const toReturn = {};
-    if (handleId.endsWith('_inner')) {
-        handleId = handleId.slice(0, -6);
-        toReturn['inner'] = true;
-    }
-    return { ...toReturn, ...node.data.exports.outputs[handleId] };
-}
-
-export function isInternalHandle(handleId: string) {
-    return handleId.endsWith('_inner');
 }
