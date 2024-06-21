@@ -166,6 +166,31 @@ const GROUP_OPTIONS = [
                 type: 'resource'
             });
         }
+    },
+    {
+        name: node => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
+        action: (node, reactFlowInstance) => {
+            const { setNodes } = reactFlowInstance;
+            setNodes((nodes) => {
+                return nodes.map((n) => {
+                    if (n.parentId === node.id) {
+                        return {
+                            ...n,
+                            hidden: !node.data.isCollapsed
+                        };
+                    } else if (n.id === node.id) {
+                        return {
+                            ...n,
+                            data: {
+                                ...n.data,
+                                isCollapsed: !node.data.isCollapsed
+                            }
+                        };
+                    }
+                    return n;
+                });
+            });
+        }
     }
 ]
 

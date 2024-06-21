@@ -81,7 +81,7 @@ const isWidgetType = (type) => {
     return ['number', 'string', 'boolean'].includes(type);
 };
 
-export function WorkflowStep({ id, data, selected }) {
+export function WorkflowStep({ id, data, selected, ...props }) {
     const { name, parameters, inputs, outputs } = data;
     const [quickViewData, setQuickViewData] = useState(null);
     const [logsData, setLogsData] = useState([]);
@@ -210,6 +210,7 @@ export function WorkflowStep({ id, data, selected }) {
                     </div>
                     <div className='widgets'>
                         {
+                            !data.isCollapsed &&
                             Object.entries(parameters).map(([parameterName, parameter], i) => {
                                 if (isWidgetType(parameter.type)) {
                                     return (
@@ -222,7 +223,7 @@ export function WorkflowStep({ id, data, selected }) {
                             }).filter(x => x)
                         }
                     </div>
-                    <Monitor quickViewData={quickViewData} logsData={logsData} />
+                    { !data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
                 </Card>
             </Badge>
         </div>

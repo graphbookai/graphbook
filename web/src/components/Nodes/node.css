@@ -236,6 +236,8 @@ textarea.code {
     width: 100%;
     max-width: none;
     max-height: none;
+    min-width: 150px;
+    min-height: 150px;
 }
 
 .control-row {
@@ -274,4 +276,9 @@ textarea.code {
     flex-direction: row;
     justify-content: center;
     align-items: center;
+}
+
+.react-flow__node.react-flow__node-group:has(.collapsed) {
+    width: auto !important;
+    height: auto !important;
 }

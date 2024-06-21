@@ -1,7 +1,9 @@
-import React, { useCallback, useState } from 'react';
-import { Flex } from 'antd';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Flex, Card, Typography, theme } from 'antd';
 import { NodeResizer, Handle, Position } from 'reactflow';
 import { Node } from 'reactflow';
+const { Text } = Typography;
+
 const handleStyle = {
     borderRadius: '50%',
     position: 'relative',
@@ -31,74 +33,85 @@ const outInnerHandleStyle = {
     ...innerHandleStyle,
     marginRight: '5px',
 };
-export function Group({ data, width, height }) {
+export function Group({ data, ...props }) {
     const { label } = data;
     const style = {
         backgroundColor: '#f0f0f080',
     };
-    const { inputs, outputs } = data.exports;
-    const stepInputs = inputs.filter((v) => v.type === 'step');
-    const stepOutputs = outputs.filter((v) => v.type === 'step');
-    const resourceInputs = inputs.filter((v) => v.type === 'resource');
-    const resourceOutputs = outputs.filter((v) => v.type === 'resource');
+
+    if (data.isCollapsed) {
+        return <CollapsedGroup data={data} />;
+    }
 
     return (
         <div className='workflow-node group'>
-            <NodeResizer minWidth={200} minHeight={200}/>
-            <Flex gap="small" justify='space-between'>
-                <div style={{marginLeft: '5px'}}>{label}</div>
+            <NodeResizer minWidth={150} minHeight={150}/>
+            <Flex justify='space-between' style={{margin: '0 2px'}}>
+                <Text>{label}</Text>
             </Flex>
-            <Flex vertical={true} className="handles">
-                <div className="inputs">
-                    {
-                        stepInputs.map((input, i) => {
-                            return (
-                                <div key={i} className="input" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={i} />
-                                    <span className="label">{input.name}</span>
-                                    <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${i}_inner`} />
-                                </div>
-                            );
-                        })
-                    }
-                    {
-                        resourceInputs.map((input, i) => {
-                            return (
-                                <div key={i} className="input" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle className="parameter" style={inHandleStyle} type="target" position={Position.Left} id={i}/>
-                                    <span className="label">{input.name}</span>
-                                    <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${i}_inner`} />
-                                </div>
-                            );
-                        })
-                    }
-                </div>
-                <div className='outputs'>
-                    {
-                        stepOutputs.map((output, i) => {
-                            return (
-                                <div key={i} className="output" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={`${i}_inner`} />
-                                    <span className="label">{output.name}</span>
-                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={i} />
-                                </div>
-                            );
-                        })
-                    }
-                    {
-                        resourceOutputs.map((output, i) => {
-                            return (
-                                <div key={i} className="output" style={{backgroundColor: '#fff', borderRadius: '10%', padding: '2px 5px', margin: '1px 0'}}>
-                                    <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={`${i}_inner`} />
-                                    <span className="label">{output.name}</span>
-                                    <Handle className="parameter" style={outHandleStyle} type="source" position={Position.Right} id={i} />
-                                </div>
-                            );
-                        })
-                    }
-                </div>
-            </Flex>
+            <GroupPins data={data} />
         </div>
+    );
+}
+
+function CollapsedGroup({ data }) {
+    const { label } = data;
+    return (
+        <Card className='workflow-node group collapsed'>
+            <Flex justify='space-between' style={{margin: '0 2px'}}>
+                <Text>{label}</Text>
+            </Flex>
+            <GroupPins data={data} />
+        </Card>
+    );
+}
+
+function GroupPins({ data }) {
+    const { inputs, outputs } = data.exports;
+    const { token } = theme.useToken();
+    const c = data.isCollapsed;
+    const handleContainerStyle = c ? {} : {
+        backgroundColor: token.colorBgBase,
+        borderRadius: '10%',
+        padding: '2px 5px',
+        margin: '1px 0'
+    };
+
+    return (
+        <Flex vertical={true} className="handles">
+            <div className="inputs">
+                {
+                    inputs
+                        .map((input, i)=>({...input, id: i}))
+                        .sort((a, b) => a.type === 'step' ? -1 : 1)
+                        .map((input, i) => {
+                            return (
+                                <div key={i} className="input" style={handleContainerStyle}>
+                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={String(input.id)} className={input.type === 'resource' ? 'parameter' : ''}/>
+                                    <Text className="label">{input.name}</Text>
+                                    {!c && <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${input.id}_inner`} />}
+                                </div>
+                            );
+                    })
+                }
+            </div>
+            <div className='outputs'>
+                {
+                    outputs
+                        .map((output, i)=>({...output, id: i}))
+                        .sort((a, b) => a.type === 'step' ? -1 : 1)
+                        .map((output, i) => {
+                            return (
+                                <div key={i} className="output" style={handleContainerStyle}>
+                                    {!c && <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={`${output.id}_inner`} />}
+                                    <Text className="label">{output.name}</Text>
+                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={String(output.id)} className={output.type === 'resource' ? 'parameter' : ''}/>
+                                </div>
+                            );
+                        })
+                }
+            </div>
+        </Flex>
     );
 }
 

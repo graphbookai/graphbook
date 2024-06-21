@@ -77,7 +77,9 @@ export default function Flow({ initialNodes, initialEdges }) {
         setIsAddNodeActive(false);
         setNodeMenu(null);
         setPaneMenu(null);
-
+        if (!event) {
+            return;
+        }
         if (event.type === 'dblclick' && !isAddNodeActive) {
             setIsAddNodeActive(true);
             setEventMousePos({ x: event.clientX, y: event.clientY });
