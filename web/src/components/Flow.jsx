@@ -20,8 +20,6 @@ import { API } from '../api';
 import { useRunState } from '../hooks/RunState';
 const { useToken } = theme;
 
-import './Nodes/node.css';
-import 'reactflow/dist/style.css';
 import { NodeConfig } from './NodeConfig.tsx';
 
 export default function Flow({ initialNodes, initialEdges }) {
@@ -161,6 +159,8 @@ export default function Flow({ initialNodes, initialEdges }) {
                 return false;
             }
         }
+
+        // TODO: multiple resource nodes cannot be connected to the same step
 
         if (Graph.wouldBeCyclic(getNodes(), getEdges(), connection)) {
             notificationCtrl.error({

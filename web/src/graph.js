@@ -36,58 +36,188 @@ export const Graph = {
         const resources = {}
         nodes.forEach((node) => {
             const common = {
-                // position: node.position
-            }
-            if (node.type === 'step') {
-                const params = {};
+                parameters: {},
+                type: node.type
+            };
+            if (node.data.parameters) {
                 for (const [key, param] of Object.entries(node.data.parameters)) {
                     if (!param.node) {
-                        params[key] = param.value;
+                        common.parameters[key] = param.value;
                     }
                 }
+            }
+            if (node.type === 'step' || node.type === 'group') {
                 G[node.id] = {
                     ...common,
                     name: node.data.name,
-                    // position: node.position,
-                    inputs: {
-                        in: []
+                    inputs: {},
+                    exports: {
+                        inputs: {},
+                        outputs: {}
                     },
-                    parameters: params
                 };
-            } else if (node.type.toLowerCase().includes('resource')) {
-                if (node.type === 'codeResource' || node.type === 'fileResource') {
-                    const parameters = {"val": node.data.value};
-                    resources[node.id] = {
-                        ...common,
-                        name: 'BaseResource',
-                        parameters
-                    }
-                } else {
-                    const params = {};
-                    for (const [key, param] of Object.entries(node.data.parameters)) {
-                        if (!param.node) {
-                            params[key] = param.value;
-                        }
-                    }
-                    resources[node.id] = {
-                        ...common,
-                        name: node.data.name,
-                        parameters: params
-                    }
-                }
+            } else if (node.type === 'resource') {
+                resources[node.id] = {
+                    ...common,
+                    name: node.data.name,
+                };
+                G[node.id] = resources[node.id];
             } else {
                 console.warn('Unknown node type when serializing graph:', node.type);
             }
         });
+        const setOutput = (node, slot, from={}, to={}) => {
+            const output = node.exports.outputs[slot];
+            if (output) {
+                if (from) {
+                    output.from.push(from);
+                }
+                if (to) {
+                    output.to.push(to);
+                }
+            } else {
+                node.exports.outputs[slot] = {
+                    from: from ? [from] : [],
+                    to: to ? [to] : []
+                };
+            }
+        };
+        const setInput = (node, slot, from={}, to={}) => {
+            const input = node.exports.inputs[slot];
+            if (input) {
+                if (from) {
+                    input.from.push(from);
+                }
+                if (to) {
+                    input.to.push(to);
+                }
+            } else {
+                node.exports.inputs[slot] = {
+                    from: from ? [from] : [],
+                    to: to ? [to] : []
+                };
+            }
+        };
         edges.forEach((edge) => {
             const {source, target, sourceHandle, targetHandle} = edge;
-            const node = G[target];
-            if (targetHandle === 'in') {
-                node.inputs.in.push({ node: source, slot: sourceHandle });
-            } else {
-                node.parameters[targetHandle] = { node: source, slot: sourceHandle };
+            const sourceNode = G[source];
+            const targetNode = G[target];
+
+            if (targetNode.type === 'group') {
+                if (targetHandle.endsWith('_inner')) { // case 3
+                    setOutput(targetNode, targetHandle.slice(0, -6), { node: source, slot: sourceHandle });
+                } else { // case 1
+                    setInput(targetNode, targetHandle, { node: source, slot: sourceHandle });
+                }
+            }
+
+            if (sourceNode.type === 'group') {
+                if (sourceHandle.endsWith('_inner')) { // case 2
+                    setInput(sourceNode, sourceHandle.slice(0, -6), null, { node: target, slot: targetHandle });
+                    if (targetNode.type === 'step') {
+                        if (targetHandle === 'in') {
+                            targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle.slice(0, -6), isInner: true };
+                        } else {
+                            targetNode.parameters[targetHandle] = { node: source, slot: sourceHandle.slice(0, -6), isInner: true };
+                        }
+                    }
+                } else { // case 4
+                    setOutput(sourceNode, sourceHandle, null, { node: target, slot: targetHandle });
+                    if (targetNode.type === 'step') {
+                        if (targetHandle === 'in') {
+                            targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle, isInner: false };
+                        } else {
+                            targetNode.parameters[targetHandle] = { node: source, slot: sourceHandle, isInner: false };
+                        }
+                    }
+                }
+            } else if (sourceNode.type === 'step') {
+                if (targetNode.type === 'step') {
+                    if (targetHandle === 'in') {
+                        targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle };
+                    }
+                }
+            } else if (sourceNode.type === 'resource') {
+                if (targetNode.type === 'step') {
+                    targetNode.parameters[targetHandle] = { node: source, slot: sourceHandle };
+                }
             }
         });
+
+
+        const resolveInputs = (inputs) => {
+            let newInputs = [];
+            Object.entries(inputs).forEach(([handleId, input]) => {
+                let sourceNode = input.node;
+                let sourceSlot = input.slot;
+                if (G[sourceNode] && G[sourceNode].type === 'group') { // must be case 2 or 4 if groups cant be cascaded
+                    if (input.isInner) { // case 2
+                        const groupInput = G[sourceNode].exports.inputs[sourceSlot];
+                        if (groupInput && groupInput.from) {
+                            newInputs.push(...resolveInputs(groupInput.from));
+                        }
+                    } else { // case 4
+                        const groupOutput = G[sourceNode].exports.outputs[sourceSlot];
+                        if (groupOutput && groupOutput.from) {
+                            newInputs.push(...resolveInputs(groupOutput.from));
+                        }
+                    }
+                }
+                if (G[sourceNode] && G[sourceNode].type === 'step') {
+                    newInputs.push({ node: sourceNode, slot: sourceSlot });
+                }
+            });
+            return newInputs;
+        };
+
+        const resolveParameters = (parameters) => {
+            let newParams = {};
+            Object.entries(parameters).forEach(([handleId, input]) => {
+                let sourceNode = input.node;
+                let sourceSlot = input.slot;
+                if (!sourceNode) {
+                    return;
+                }
+                while (G[sourceNode] && G[sourceNode].type === 'group') { // must be case 2 or 4 if groups cant be cascaded
+                    let pin;
+                    if (input.isInner) { // case 2
+                        pin = G[sourceNode].exports.inputs[sourceSlot];
+                    } else { // case 4
+                        pin = G[sourceNode].exports.outputs[sourceSlot];
+                    }
+                    if (pin && pin.from?.[0]) {
+                        sourceNode = pin.from[0].node;
+                        sourceSlot = pin.from[0].slot;
+                    } else {
+                        sourceNode = null;
+                        break;
+                    }
+                }
+                if (G[sourceNode] && G[sourceNode].type === 'resource') {
+                    newParams[handleId] = { node: sourceNode, slot: sourceSlot };
+                }
+            });
+            return newParams;
+        };
+        Object.entries(G).forEach(([id, node]) => {
+            if (node.type !== 'step') {
+                return;
+            }
+            const inputs = resolveInputs(node.inputs);
+            const params = resolveParameters(node.parameters);
+            node.inputs = inputs;
+            node.parameters = {
+                ...node.parameters,
+                ...params
+            };
+            delete node.exports;
+        });
+        Object.entries(G).forEach(([id, node]) => {
+            if (node.type !== 'step') {
+                delete G[id];
+            }
+        });
+
         console.log(G);
         console.log(resources);
         return [G, resources];

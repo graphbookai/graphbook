@@ -198,7 +198,7 @@ class GraphState:
         # Next, connect the steps
         for step_id, step_data in graph.items():
             child_node = steps[step_id]
-            for input in step_data["inputs"]["in"]:
+            for input in step_data["inputs"]:
                 node = input["node"]
                 slot = input["slot"]
                 parent_node = steps[node]

@@ -10,6 +10,8 @@ import { API } from './api';
 const { Header, Content, Sider } = Layout;
 
 import 'reactflow/dist/style.css';
+import './components/Nodes/node.css';
+
 import { CodeEditor } from './components/Editor/CodeEditor';
 
 export default function App() {

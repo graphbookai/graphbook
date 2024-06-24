@@ -9,7 +9,6 @@ import { useRunState } from '../../hooks/RunState';
 import { mediaUrl, keyRecursively } from '../../utils';
 const { Panel } = Collapse;
 const { useToken } = theme;
-import './node.css';
 
 const handleStyle = {
     borderRadius: '50%',
@@ -81,7 +80,7 @@ const isWidgetType = (type) => {
     return ['number', 'string', 'boolean'].includes(type);
 };
 
-export function WorkflowStep({ id, data, selected, ...props }) {
+export function WorkflowStep({ id, data, selected }) {
     const { name, parameters, inputs, outputs } = data;
     const [quickViewData, setQuickViewData] = useState(null);
     const [logsData, setLogsData] = useState([]);

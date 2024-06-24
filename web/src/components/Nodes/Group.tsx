@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Flex, Card, Typography, theme } from 'antd';
-import { NodeResizer, Handle, Position } from 'reactflow';
+import { NodeResizer, Handle, Position, useUpdateNodeInternals } from 'reactflow';
 import { Node } from 'reactflow';
 const { Text } = Typography;
 
@@ -33,11 +33,16 @@ const outInnerHandleStyle = {
     ...innerHandleStyle,
     marginRight: '5px',
 };
-export function Group({ data, ...props }) {
+export function Group({ id, data, ...props }) {
     const { label } = data;
+    const updateNodeInternals = useUpdateNodeInternals();
     const style = {
         backgroundColor: '#f0f0f080',
     };
+
+    useEffect(() => {
+        updateNodeInternals(id);
+    }, [id, data.exports]);
 
     if (data.isCollapsed) {
         return <CollapsedGroup data={data} />;
@@ -46,8 +51,8 @@ export function Group({ data, ...props }) {
     return (
         <div className='workflow-node group'>
             <NodeResizer minWidth={150} minHeight={150}/>
-            <Flex justify='space-between' style={{margin: '0 2px'}}>
-                <Text>{label}</Text>
+            <Flex className='title' justify='space-between' style={{margin: '0 2px'}}>
+                <div>{label}</div>
             </Flex>
             <GroupPins data={data} />
         </div>
@@ -58,8 +63,8 @@ function CollapsedGroup({ data }) {
     const { label } = data;
     return (
         <Card className='workflow-node group collapsed'>
-            <Flex justify='space-between' style={{margin: '0 2px'}}>
-                <Text>{label}</Text>
+            <Flex className='title' justify='space-between' style={{margin: '0 2px'}}>
+                <div>{label}</div>
             </Flex>
             <GroupPins data={data} />
         </Card>
