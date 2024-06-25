@@ -1,7 +1,7 @@
 import { Menu } from 'antd';
 import { useReactFlow } from 'reactflow';
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { keyRecursively } from '../utils';
+import { keyRecursively, uniqueIdFrom } from '../utils';
 import { API } from '../api';
 import { Graph } from '../graph';
 
@@ -86,11 +86,12 @@ const NODE_OPTIONS = [
 
 const addExport = (node, reactFlowInstance, isInput, exp) => {
     const currentExports = isInput ? node.data.exports.inputs : node.data.exports.outputs;
+    const id = uniqueIdFrom(currentExports);
     const newExports = {
         [isInput ? 'inputs' : 'outputs']: [
             ...currentExports,
             {
-                name: `${isInput ? 'in' : 'out'}_${Object.keys(currentExports).length}`,
+                id,
                 ...exp
             }
         ]
@@ -135,18 +136,29 @@ const GROUP_OPTIONS = [
         }
     },
     {
-        name: 'Add Step Output Export',
-        parent: 'Add Export',
+        name: 'Add Step Input Export',
         action: (node, reactFlowInstance) => {
-            addExport(node, reactFlowInstance, false, {
+            addExport(node, reactFlowInstance, true, {
+                name: 'in',
                 type: 'step'
             });
         }
     },
     {
-        name: 'Add Step Input Export',
+        name: 'Add Resource Input Export',
         action: (node, reactFlowInstance) => {
             addExport(node, reactFlowInstance, true, {
+                name: 'resource',
+                type: 'resource'
+            });
+        }
+    },
+    {
+        name: 'Add Step Output Export',
+        parent: 'Add Export',
+        action: (node, reactFlowInstance) => {
+            addExport(node, reactFlowInstance, false, {
+                name: 'out',
                 type: 'step'
             });
         }
@@ -155,14 +167,7 @@ const GROUP_OPTIONS = [
         name: 'Add Resource Output Export',
         action: (node, reactFlowInstance) => {
             addExport(node, reactFlowInstance, false, {
-                type: 'resource'
-            });
-        }
-    },
-    {
-        name: 'Add Resource Input Export',
-        action: (node, reactFlowInstance) => {
-            addExport(node, reactFlowInstance, true, {
+                name: 'resource',
                 type: 'resource'
             });
         }

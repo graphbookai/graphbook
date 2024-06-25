@@ -1,9 +1,10 @@
 import { API } from './api';
+import { uniqueIdFrom } from './utils';
 
 export const Graph = {
     addNode(node, nodes) {
-        const nextId = Math.max(Math.max(...nodes.map(({id}) => parseInt(id))), -1) + 1;
-        const newNode = {id: nextId.toString(), visibility: 'visible', ...node};
+        const nextId = uniqueIdFrom(nodes);
+        const newNode = {id: nextId.toString(), ...node};
         newNode.data.isCollapsed = false;
         API.putNode(newNode);
         
@@ -66,36 +67,20 @@ export const Graph = {
                 console.warn('Unknown node type when serializing graph:', node.type);
             }
         });
-        const setOutput = (node, slot, from={}, to={}) => {
+        const setOutput = (node, slot, from={}) => {
             const output = node.exports.outputs[slot];
             if (output) {
-                if (from) {
-                    output.from.push(from);
-                }
-                if (to) {
-                    output.to.push(to);
-                }
+                output.push(from);
             } else {
-                node.exports.outputs[slot] = {
-                    from: from ? [from] : [],
-                    to: to ? [to] : []
-                };
+                node.exports.outputs[slot] = [from];
             }
         };
-        const setInput = (node, slot, from={}, to={}) => {
+        const setInput = (node, slot, from) => {
             const input = node.exports.inputs[slot];
             if (input) {
-                if (from) {
-                    input.from.push(from);
-                }
-                if (to) {
-                    input.to.push(to);
-                }
+                input.push(from);
             } else {
-                node.exports.inputs[slot] = {
-                    from: from ? [from] : [],
-                    to: to ? [to] : []
-                };
+                node.exports.inputs[slot] = [from];
             }
         };
         edges.forEach((edge) => {
@@ -113,7 +98,7 @@ export const Graph = {
 
             if (sourceNode.type === 'group') {
                 if (sourceHandle.endsWith('_inner')) { // case 2
-                    setInput(sourceNode, sourceHandle.slice(0, -6), null, { node: target, slot: targetHandle });
+                    // setInput(sourceNode, sourceHandle.slice(0, -6), null, { node: target, slot: targetHandle });
                     if (targetNode.type === 'step') {
                         if (targetHandle === 'in') {
                             targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle.slice(0, -6), isInner: true };
@@ -122,7 +107,7 @@ export const Graph = {
                         }
                     }
                 } else { // case 4
-                    setOutput(sourceNode, sourceHandle, null, { node: target, slot: targetHandle });
+                    // setOutput(sourceNode, sourceHandle, null, { node: target, slot: targetHandle });
                     if (targetNode.type === 'step') {
                         if (targetHandle === 'in') {
                             targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle, isInner: false };
@@ -153,13 +138,13 @@ export const Graph = {
                 if (G[sourceNode] && G[sourceNode].type === 'group') { // must be case 2 or 4 if groups cant be cascaded
                     if (input.isInner) { // case 2
                         const groupInput = G[sourceNode].exports.inputs[sourceSlot];
-                        if (groupInput && groupInput.from) {
-                            newInputs.push(...resolveInputs(groupInput.from));
+                        if (groupInput) {
+                            newInputs.push(...resolveInputs(groupInput));
                         }
                     } else { // case 4
                         const groupOutput = G[sourceNode].exports.outputs[sourceSlot];
-                        if (groupOutput && groupOutput.from) {
-                            newInputs.push(...resolveInputs(groupOutput.from));
+                        if (groupOutput && groupOutput) {
+                            newInputs.push(...resolveInputs(groupOutput));
                         }
                     }
                 }
@@ -185,9 +170,9 @@ export const Graph = {
                     } else { // case 4
                         pin = G[sourceNode].exports.outputs[sourceSlot];
                     }
-                    if (pin && pin.from?.[0]) {
-                        sourceNode = pin.from[0].node;
-                        sourceSlot = pin.from[0].slot;
+                    if (pin && pin[0]) {
+                        sourceNode = pin[0].node;
+                        sourceSlot = pin[0].slot;
                     } else {
                         sourceNode = null;
                         break;

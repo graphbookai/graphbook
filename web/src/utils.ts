@@ -25,6 +25,14 @@ export const mediaUrl = (url: string) : string => {
     return `http://localhost:8006/${url}`; // TODO: change in settings
 }
 
+export const uniqueIdFrom = (obj: any): string => {
+    if (typeof(obj.length) === 'number') {
+        return String(Math.max(Math.max(...obj.map(({id}) => parseInt(id))), -1) + 1);
+    } else {
+        return String(Math.max(...Object.keys(obj).map((key) => parseInt(key)), -1) + 1);
+    }
+}
+
 /**
  * Types of handles:
  * - step

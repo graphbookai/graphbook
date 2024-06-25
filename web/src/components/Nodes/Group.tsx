@@ -33,12 +33,10 @@ const outInnerHandleStyle = {
     ...innerHandleStyle,
     marginRight: '5px',
 };
-export function Group({ id, data, ...props }) {
+export function Group({ id, data }) {
     const { label } = data;
     const updateNodeInternals = useUpdateNodeInternals();
-    const style = {
-        backgroundColor: '#f0f0f080',
-    };
+
 
     useEffect(() => {
         updateNodeInternals(id);
@@ -52,7 +50,7 @@ export function Group({ id, data, ...props }) {
         <div className='workflow-node group'>
             <NodeResizer minWidth={150} minHeight={150}/>
             <Flex className='title' justify='space-between' style={{margin: '0 2px'}}>
-                <div>{label}</div>
+                <Text>{label}</Text>
             </Flex>
             <GroupPins data={data} />
         </div>
@@ -64,11 +62,18 @@ function CollapsedGroup({ data }) {
     return (
         <Card className='workflow-node group collapsed'>
             <Flex className='title' justify='space-between' style={{margin: '0 2px'}}>
-                <div>{label}</div>
+                <Text>{label}</Text>
             </Flex>
             <GroupPins data={data} />
         </Card>
     );
+}
+
+const sortPinFn = (a, b) => {
+    if (a.type === b.type) {
+        return Number(a.id) - Number(b.id);
+    }
+    return a.type === 'step' ? -1 : 1;
 }
 
 function GroupPins({ data }) {
@@ -88,12 +93,12 @@ function GroupPins({ data }) {
                 {
                     inputs
                         .map((input, i)=>({...input, id: i}))
-                        .sort((a, b) => a.type === 'step' ? -1 : 1)
+                        .sort(sortPinFn)
                         .map((input, i) => {
                             return (
                                 <div key={i} className="input" style={handleContainerStyle}>
                                     <Handle style={inHandleStyle} type="target" position={Position.Left} id={String(input.id)} className={input.type === 'resource' ? 'parameter' : ''}/>
-                                    <Text className="label">{input.name}</Text>
+                                    <Text style={{alignSelf: 'left'}} className="label">{input.name}</Text>
                                     {!c && <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${input.id}_inner`} />}
                                 </div>
                             );
@@ -104,7 +109,7 @@ function GroupPins({ data }) {
                 {
                     outputs
                         .map((output, i)=>({...output, id: i}))
-                        .sort((a, b) => a.type === 'step' ? -1 : 1)
+                        .sort(sortPinFn)
                         .map((output, i) => {
                             return (
                                 <div key={i} className="output" style={handleContainerStyle}>

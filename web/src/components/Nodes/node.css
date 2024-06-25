@@ -170,11 +170,20 @@ textarea.code {
     align-items: center;
 }
 
+.workflow-node.group .handles .outputs .output {
+    justify-content: space-between;
+}
+
+.workflow-node.group .handles .inputs .input {
+    justify-content: space-between;
+}
+
 .react-flow__node.react-flow__node-group {
     padding: 0;
     border: none;
     resize: both;
     z-index: -1 !important;
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 .react-flow__node.react-flow__node-group.selectable.selected {

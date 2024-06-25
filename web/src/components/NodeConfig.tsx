@@ -109,25 +109,32 @@ type GroupNode = {
     data: {
         label: string,
         exports: {
-            inputs: Array<{ name: string, type: string }>,
-            outputs: Array<{ name: string, type: string }>,
+            inputs: Array<{ name: string, type: string, id: string }>,
+            outputs: Array<{ name: string, type: string, id: string }>,
         }
     }
 }
 
-const onChangeInputExportName = (index: number, newName: string, node: GroupNode, setNodes) => {
+const onChangeInputExportName = (id: string, newName: string, node: GroupNode, setNodes) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { inputs } = n.data.exports;
-                inputs[index].name = newName;
                 return {
                     ...n,
                     data: {
                         ...n.data,
                         exports: {
                             ...n.data.exports,
-                            inputs
+                            inputs: inputs.map(input => {
+                                if (input.id === id) {
+                                    return {
+                                        ...input,
+                                        name: newName
+                                    }
+                                }
+                                return input;
+                            })
                         }
                     }
                 };
@@ -138,19 +145,26 @@ const onChangeInputExportName = (index: number, newName: string, node: GroupNode
     });
 }
 
-const onChangeOutputExportName = (index: number, newName: string, node: GroupNode, setNodes) => {
+const onChangeOutputExportName = (id: string, newName: string, node: GroupNode, setNodes) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { outputs } = n.data.exports;
-                outputs[index].name = newName;
                 return {
                     ...n,
                     data: {
                         ...n.data,
                         exports: {
                             ...n.data.exports,
-                            outputs
+                            outputs: outputs.map(output => {
+                                if (output.id === id) {
+                                    return {
+                                        ...output,
+                                        name: newName
+                                    }
+                                }
+                                return output;
+                            })
                         }
                     }
                 };
@@ -161,19 +175,18 @@ const onChangeOutputExportName = (index: number, newName: string, node: GroupNod
     });
 }
 
-const onDeleteInputExport = (index: number, node: GroupNode, setNodes, setEdges) => {
+const onDeleteInputExport = (id: string, node: GroupNode, setNodes, setEdges) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { inputs } = n.data.exports;
-                inputs.splice(index, 1);
                 return {
                     ...n,
                     data: {
                         ...n.data,
                         exports: {
                             ...n.data.exports,
-                            inputs
+                            inputs: inputs.filter(input => input.id !== id)
                         }
                     }
                 };
@@ -185,10 +198,10 @@ const onDeleteInputExport = (index: number, node: GroupNode, setNodes, setEdges)
     setEdges((edges) => {
         const updatedEdges = edges.filter(e => {
             if (e.target === node.id) {
-                return e.targetHandle !== index;
+                return e.targetHandle !== id;
             }
             if (e.source === node.id) {
-                return e.sourceHandle !== index + '_inner';
+                return e.sourceHandle !== id + '_inner';
             }
             return true;
         });
@@ -196,19 +209,18 @@ const onDeleteInputExport = (index: number, node: GroupNode, setNodes, setEdges)
     });
 }
 
-const onDeleteOutputExport = (index: number, node: GroupNode, setNodes, setEdges) => {
+const onDeleteOutputExport = (id: string, node: GroupNode, setNodes, setEdges) => {
     setNodes((nodes) => {
         const updatedNodes = nodes.map(n => {
             if (n.id === node.id) {
                 const { outputs } = n.data.exports;
-                outputs.splice(index, 1);
                 return {
                     ...n,
                     data: {
                         ...n.data,
                         exports: {
                             ...n.data.exports,
-                            outputs
+                            outputs: outputs.filter(output => output.id !== id)
                         }
                     }
                 };
@@ -220,10 +232,10 @@ const onDeleteOutputExport = (index: number, node: GroupNode, setNodes, setEdges
     setEdges((edges) => {
         const updatedEdges = edges.filter(e => {
             if (e.source === node.id) {
-                return e.sourceHandle !== index;
+                return e.sourceHandle !== id;
             }
             if (e.target === node.id) {
-                return e.targetHandle !== index + '_inner';
+                return e.targetHandle !== id + '_inner';
             }
             return true;
         });
@@ -233,11 +245,11 @@ const onDeleteOutputExport = (index: number, node: GroupNode, setNodes, setEdges
 
 function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
     const { node } = props;
-    const onChangeInput = useCallback((index, newName) => {
-        onChangeInputExportName(index, newName, node, props.setNodes)
+    const onChangeInput = useCallback((id, newName) => {
+        onChangeInputExportName(id, newName, node, props.setNodes)
     }, [node]);
-    const onChangeOutput = useCallback((index, newName) => {
-        onChangeOutputExportName(index, newName, node, props.setNodes)
+    const onChangeOutput = useCallback((id, newName) => {
+        onChangeOutputExportName(id, newName, node, props.setNodes)
     }, [node]);
     const onDeleteInput = useCallback((name) => {
         onDeleteInputExport(name, node, props.setNodes, props.setEdges)
@@ -277,9 +289,9 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
             children: node.data.exports.inputs
                 .filter(input => input.type === "step")
                 .map((input, i) => (
-                    <Flex key={i}>
-                        <Input defaultValue={input.name} onChange={(e) => onChangeInput(i, e.target.value)}/>
-                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(i)}></Button>
+                    <Flex key={input.id}>
+                        <Input defaultValue={input.name} onChange={(e) => onChangeInput(input.id, e.target.value)}/>
+                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(input.id)}></Button>
                     </Flex>
                 )),
         },
@@ -288,9 +300,9 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
             children: node.data.exports.inputs
                 .filter(input => input.type === "resource")
                 .map((input, i) => (
-                        <Flex key={i}>
-                            <Input defaultValue={input.name} onChange={(e) => onChangeInput(i, e.target.value)}/>
-                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(i)}></Button>
+                        <Flex key={input.id}>
+                            <Input defaultValue={input.name} onChange={(e) => onChangeInput(input.id, e.target.value)}/>
+                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(input.id)}></Button>
                         </Flex>
                     )),
         },
@@ -299,9 +311,9 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
             children: node.data.exports.outputs
                 .filter(output => output.type === "step")
                 .map((output, i) => (
-                        <Flex key={i}>
-                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(i, e.target.value)}/>
-                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(i)}></Button>
+                        <Flex key={output.id}>
+                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(output.id, e.target.value)}/>
+                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(output.id)}></Button>
                         </Flex>
                     )),
         },
@@ -310,9 +322,9 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
             children: node.data.exports.outputs
                 .filter(output => output.type === "resource")
                 .map((output, i) => (
-                        <Flex key={i}>
-                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(i, e.target.value)}/>
-                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(i)}></Button>
+                        <Flex key={output.id}>
+                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(output.id, e.target.value)}/>
+                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(output.id)}></Button>
                         </Flex>
                     )),
         }

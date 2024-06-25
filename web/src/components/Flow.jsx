@@ -160,9 +160,16 @@ export default function Flow({ initialNodes, initialEdges }) {
             }
         }
 
-        // TODO: multiple resource nodes cannot be connected to the same step
+        const edges = getEdges();
+        if (tgtHandle.type === 'resource') {
+            for (const edge of edges) {
+                if (edge.target === connection.target && edge.targetHandle === connection.targetHandle) {
+                    return false;
+                }
+            }
+        }
 
-        if (Graph.wouldBeCyclic(getNodes(), getEdges(), connection)) {
+        if (Graph.wouldBeCyclic(getNodes(), edges, connection)) {
             notificationCtrl.error({
                 key: 'no-cycles',
                 message: 'No Cycles',
