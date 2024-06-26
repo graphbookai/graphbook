@@ -6,6 +6,7 @@ import LeftPanel from './components/LeftPanel/LeftPanel';
 import { Graph } from './graph';
 import { useSettings } from './hooks/Settings';
 import { API } from './api';
+import { useAPI } from './hooks/API';
 
 const { Header, Content, Sider } = Layout;
 
@@ -16,6 +17,7 @@ import { CodeEditor } from './components/Editor/CodeEditor';
 
 export default function App() {
     const [settings, _] = useSettings();
+    useAPI();
     const themeAlgorithm = settings.theme === "Light" ? theme.defaultAlgorithm : theme.darkAlgorithm;
 
     useEffect(() => {

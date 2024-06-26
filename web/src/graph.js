@@ -98,7 +98,6 @@ export const Graph = {
 
             if (sourceNode.type === 'group') {
                 if (sourceHandle.endsWith('_inner')) { // case 2
-                    // setInput(sourceNode, sourceHandle.slice(0, -6), null, { node: target, slot: targetHandle });
                     if (targetNode.type === 'step') {
                         if (targetHandle === 'in') {
                             targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle.slice(0, -6), isInner: true };
@@ -107,7 +106,6 @@ export const Graph = {
                         }
                     }
                 } else { // case 4
-                    // setOutput(sourceNode, sourceHandle, null, { node: target, slot: targetHandle });
                     if (targetNode.type === 'step') {
                         if (targetHandle === 'in') {
                             targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle, isInner: false };
