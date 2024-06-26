@@ -4,6 +4,7 @@ import graphbook.steps.hf_transformers as t
 import graphbook.resources.base as rbase
 import graphbook.resources.hf_transformers as rt
 import custom_nodes
+from aiohttp import web
 
 default_exported_steps = {
     "Split": base.Split,
@@ -103,6 +104,5 @@ class NodeHub:
             "resources": create_dir_structure(resources),
         }
 
-    def set_websocket(self, websocket):
-        print("Setting websocket for custom node importer")
+    def set_websocket(self, websocket: web.WebSocketResponse):
         self.custom_node_importer.set_websocket(websocket)

@@ -4,30 +4,36 @@ import { useCallback, useEffect, useState, useMemo } from 'react';
 import { keyRecursively, uniqueIdFrom } from '../utils';
 import { API } from '../api';
 import { Graph } from '../graph';
+import { useRunState } from '../hooks/RunState';
 
 const NODE_OPTIONS = [
     {
         name: 'Run',
-        action: (node, reactFlowInstance) => {
+        disabled: (runState) => runState !== 'stopped',
+        action: (node, reactFlowInstance, runStateShouldChange) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
             const [graph, resources] = Graph.serializeForAPI(nodes, edges);
             API.run(graph, resources, node.id);
+            runStateShouldChange();
         }
     },
     {
         name: 'Step',
-        action: (node, reactFlowInstance) => {
+        disabled: (runState) => runState !== 'stopped',
+        action: (node, reactFlowInstance, runStateShouldChange) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
             const [graph, resources] = Graph.serializeForAPI(nodes, edges);
             API.step(graph, resources, node.id);
+            runStateShouldChange();
         }
     },
     {
         name: 'Clear Outputs',
+        disabled: (runState) => runState !== 'stopped',
         action: (node, reactFlowInstance) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
@@ -56,6 +62,7 @@ const NODE_OPTIONS = [
     },
     {
         name: 'Delete',
+        disabled: (runState) => runState !== 'stopped',
         action: (node, reactFlowInstance) => {
             const { setNodes, setEdges } = reactFlowInstance;
             setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
@@ -117,6 +124,7 @@ const addExport = (node, reactFlowInstance, isInput, exp) => {
 const GROUP_OPTIONS = [
     {
         name: 'Disband Group',
+        disabled: (runState) => runState !== 'stopped',
         action: (node, reactFlowInstance) => {
             const { setNodes, setEdges } = reactFlowInstance;
             setNodes((nodes) => nodes
@@ -202,12 +210,14 @@ const GROUP_OPTIONS = [
 export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
+    const [runState, runStateShouldChange] = useRunState();
 
     const items = useMemo(() => {
         const toReturn = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS).map((option) => {
             return {
                 label: typeof option.name === 'function' ? option.name(node) : option.name,
-                children: option.children
+                children: option.children,
+                disabled: typeof option.disabled === 'function' ? option.disabled(runState) : option.disabled,
             };
         });
         return keyRecursively(toReturn);
@@ -216,7 +226,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const menuItemOnClick = useCallback(({ key }) => {
         const actionIndex = parseInt(key);
         const action = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS)[actionIndex].action;
-        action(node, reactFlowInstance);
+        action(node, reactFlowInstance, runStateShouldChange);
     }, [node]);
 
     return (
@@ -254,7 +264,6 @@ export function PaneContextMenu({ top, left, close }) {
     const { setNodes, getNodes, screenToFlowPosition } = useReactFlow();
     const [apiNodes, setApiNodes] = useState({ steps: {}, resources: {} });
     const graphNodes = getNodes();
-    // const nodes = API.getNodes();
 
     useEffect(() => {
         const setData = async () => {

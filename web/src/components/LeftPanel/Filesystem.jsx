@@ -1,7 +1,8 @@
 import { Flex, Input, Tree, Button, Typography } from "antd";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
-import { API } from "../../api";
+// import { API } from "../../api";
+import { useAPI } from "../../hooks/API";
 import { keyRecursively } from "../../utils";
 const { Text } = Typography;
 const { Search } = Input;
@@ -32,23 +33,25 @@ export default function Filesystem({ onBeginEdit }) {
     const [searchValue, setSearchValue] = useState('');
     const [autoExpandParent, setAutoExpandParent] = useState(true);
     const [addingState, setAddingState] = useState({ isAddingItem: false, isAddingFile: true });
+    const API = useAPI();
 
     const getFiles = useCallback(async () => {
+        if (API === null) {
+            return;
+        }
         const files = await API.listFiles();
-        const splitPath = files[0].from_root.split('/');
+        if (!files) {
+            return;
+        }
+        const splitPath = files.children[0].from_root.split('/');
         const filesRoot = splitPath[splitPath.length-1];
-        setFiles(files);
+        setFiles(files.children);
         setFilesRoot(filesRoot);
-    });
+    }, [API]);
 
     useEffect(() => {
         getFiles();
-    }, []);
-
-    const refreshFiles = useCallback( async () => {
-        const files = await API.listFiles();
-        setFiles(files);
-    });
+    }, [API]);
 
     const onExpand = (newExpandedKeys) => {
         setExpandedKeys(newExpandedKeys);
@@ -171,7 +174,7 @@ export default function Filesystem({ onBeginEdit }) {
                 <div style={{display: 'flex', flexDirection: 'row'}}>
                     <Button className="fs-icon" icon={<FileAddOutlined />} onClick={()=>setAddingState({ isAddingItem: true, isAddingFile: true })}/>
                     <Button className="fs-icon" icon={<FolderAddOutlined style={{fontSize: '17px'}}/>} onClick={()=>setAddingState({ isAddingItem: true, isAddingFile: false })}/>
-                    <Button className="fs-icon" icon={<UndoOutlined style={{fontSize: '15px'}}/>} onClick={refreshFiles}/>
+                    <Button className="fs-icon" icon={<UndoOutlined style={{fontSize: '15px'}}/>} onClick={getFiles}/>
                 </div>
             </Flex>
             <Tree.DirectoryTree

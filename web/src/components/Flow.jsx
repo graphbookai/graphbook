@@ -28,6 +28,7 @@ export default function Flow({ initialNodes, initialEdges }) {
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [nodeMenu, setNodeMenu] = useState(null);
     const [paneMenu, setPaneMenu] = useState(null);
+    const [runState, runStateShouldChange] = useRunState();
 
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     // Coalesce
@@ -59,11 +60,35 @@ export default function Flow({ initialNodes, initialEdges }) {
 
     const onNodesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
+        if (runState !== 'stopped') {
+            const newChanges = changes.filter(change => change.type !== 'remove');
+            if (newChanges.length !== changes.length) {
+                notificationCtrl.error({
+                    key: 'no-remove',
+                    message: 'Remove Disabled',
+                    description: 'Cannot remove nodes while running the graph',
+                    duration: 1,
+                });
+            }
+            return onNodesChange(newChanges);
+        }
         onNodesChange(changes);
     });
 
     const onEdgesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
+        if (runState !== 'stopped') {
+            const newChanges = changes.filter(change => change.type !== 'remove');
+            if (newChanges.length !== changes.length) {
+                notificationCtrl.error({
+                    key: 'no-remove',
+                    message: 'Remove Disabled',
+                    description: 'Cannot remove edges while running the graph',
+                    duration: 1,
+                });
+            }
+            return onEdgesChange(newChanges);
+        }
         onEdgesChange(changes);
     });
 

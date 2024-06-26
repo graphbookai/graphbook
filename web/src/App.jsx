@@ -16,27 +16,21 @@ import { CodeEditor } from './components/Editor/CodeEditor';
 
 export default function App() {
     const [settings, _] = useSettings();
-    const [{gsHost, mHost}, setHosts] = useState({gsHost: settings.graphServerHost, mHost: settings.mediaServerHost});
     const themeAlgorithm = settings.theme === "Light" ? theme.defaultAlgorithm : theme.darkAlgorithm;
 
     useEffect(() => {
-        API.connect(gsHost, mHost);
+        API.connect(settings.graphServerHost, settings.mediaServerHost);
         return () => {
             API.disconnect();
         };
     }, []);
 
     useEffect(() => {
-        const setGraphServerHost = () => {
+        if (API.getHost() !== settings.graphServerHost) {
             API.setHost(settings.graphServerHost);
-        };
-        if (gsHost !== settings.graphServerHost) {
-            setGraphServerHost();
-            setHosts({gsHost: settings.graphServerHost, mHost});
         }
-        if (mHost !== settings.mediaServerHost) {
+        if (API.getMediaHost() !== settings.mediaServerHost) {
             API.setMediaHost(settings.mediaServerHost);
-            setHosts({gsHost, mHost: settings.mediaServerHost});
         }
 
     }, [settings]);
