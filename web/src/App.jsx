@@ -6,35 +6,33 @@ import LeftPanel from './components/LeftPanel/LeftPanel';
 import { Graph } from './graph';
 import { useSettings } from './hooks/Settings';
 import { API } from './api';
+import { useAPI } from './hooks/API';
 
 const { Header, Content, Sider } = Layout;
 
 import 'reactflow/dist/style.css';
+import './components/Nodes/node.css';
+
 import { CodeEditor } from './components/Editor/CodeEditor';
 
 export default function App() {
     const [settings, _] = useSettings();
-    const [{gsHost, mHost}, setHosts] = useState({gsHost: settings.graphServerHost, mHost: settings.mediaServerHost});
+    useAPI();
     const themeAlgorithm = settings.theme === "Light" ? theme.defaultAlgorithm : theme.darkAlgorithm;
 
     useEffect(() => {
-        API.connect(gsHost, mHost);
+        API.connect(settings.graphServerHost, settings.mediaServerHost);
         return () => {
             API.disconnect();
         };
     }, []);
 
     useEffect(() => {
-        const setGraphServerHost = () => {
+        if (API.getHost() !== settings.graphServerHost) {
             API.setHost(settings.graphServerHost);
-        };
-        if (gsHost !== settings.graphServerHost) {
-            setGraphServerHost();
-            setHosts({gsHost: settings.graphServerHost, mHost});
         }
-        if (mHost !== settings.mediaServerHost) {
+        if (API.getMediaHost() !== settings.mediaServerHost) {
             API.setMediaHost(settings.mediaServerHost);
-            setHosts({gsHost, mHost: settings.mediaServerHost});
         }
 
     }, [settings]);

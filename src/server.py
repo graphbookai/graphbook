@@ -74,7 +74,6 @@ class GraphServer:
             sid = self.view_manager.add_client(ws)
             try:
                 async for msg in ws:
-                    print("Received message")
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         if msg.data == "close":
                             await ws.close()

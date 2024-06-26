@@ -1,10 +1,10 @@
 import { Node } from 'reactflow';
 
-class ServerAPI {
+export class ServerAPI {
     private host: string;
     private mediaHost: string;
     private nodes: any;
-    private websocket: WebSocket;
+    private websocket: WebSocket | null;
     private listeners: Set<[string, EventListenerOrEventListenerObject]>
 
     constructor(host: string = 'localhost:8005', mediaHost: string = 'localhost:8006') {
@@ -22,28 +22,45 @@ class ServerAPI {
 
     public disconnect() {
         if (this.websocket) {
+            this.websocket.onclose = null;
             this.websocket.close();
+            this.websocket = null;
         }
     }
 
     private connectWebSocket() {
-        this.websocket = new WebSocket(`ws://${this.host}/ws`);
-        for (const [eventType, callback] of this.listeners) {
-            this.websocket.addEventListener(eventType, callback);
+        const connect = () => {
+            this.websocket = new WebSocket(`ws://${this.host}/ws`);
+            for (const [eventType, callback] of this.listeners) {
+                this.websocket.addEventListener(eventType, callback);
+            }
+            this.websocket.onopen = () => {
+                console.log("Connected to server.");
+                this.refreshNodeCatalogue();
+            };
+            this.websocket.onclose = () => {
+                this.retryWebSocketConnection();
+            };
+        };
+        if (this.websocket) {
+            if (this.websocket.readyState === WebSocket.OPEN || this.websocket.readyState === WebSocket.CONNECTING) {
+                console.log("Must disconnect websocket before reconnecting.");
+            } else if (this.websocket.readyState === WebSocket.CLOSING) {
+                this.websocket.onclose = () => connect();
+            } else {
+                connect();
+            }
+        } else {
+            connect();
         }
-        this.websocket.onopen = () => {
-            console.log("Connected to server.");
-            this.refreshNodeCatalogue();
-        };
-        this.websocket.onclose = () => {
-            console.log("Lost connection with server. Retrying connection...");
-            this.retryWebSocketConnection();
-        };
     }
 
     private retryWebSocketConnection() {
         setTimeout(() => {
-            this.connectWebSocket();
+            if (this.websocket) {
+                console.log("Retrying connection to server...");
+                this.connectWebSocket();
+            }
         }, 2000);
     }
 
@@ -57,6 +74,7 @@ class ServerAPI {
 
     public setHost(host: string) {
         this.host = host;
+        this.disconnect();
         this.connectWebSocket();
     }
 
@@ -180,7 +198,7 @@ class ServerAPI {
      */
     public async listFiles() {
         const workflowFiles = await this.get('fs?stat=true');
-        return workflowFiles.children;
+        return workflowFiles;
     }
 
     public async putItem(filepath, isFile, content = null, hash_key = null) {
@@ -199,6 +217,9 @@ class ServerAPI {
      * Graph API
      */
     public putNode(node: Node) {
+        if (!this.websocket) {
+            return;
+        }
         this.websocket.send(JSON.stringify({
             api: "graph",
             cmd: "put_node",

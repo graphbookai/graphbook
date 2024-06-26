@@ -197,10 +197,12 @@ class ViewManager:
         client = Client(ws, self.viewers)
         self.clients[sid] = client
         client.start()
+        print(f"Added new client {sid}")
         return sid
 
     async def remove_client(self, sid: str):
         if sid in self.clients:
+            print(f"Removing client {sid}")
             await self.clients[sid].close()
             del self.clients[sid]
 

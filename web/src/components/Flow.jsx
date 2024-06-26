@@ -12,14 +12,15 @@ import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { CodeResource } from './Nodes/CodeResource.jsx';
+import { Group, groupIfPossible } from './Nodes/Group.tsx';
+import { getHandle } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { API } from '../api';
 import { useRunState } from '../hooks/RunState';
 const { useToken } = theme;
 
-import './Nodes/node.css';
-import 'reactflow/dist/style.css';
+import { NodeConfig } from './NodeConfig.tsx';
 
 export default function Flow({ initialNodes, initialEdges }) {
     const { token } = useToken();
@@ -27,6 +28,7 @@ export default function Flow({ initialNodes, initialEdges }) {
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [nodeMenu, setNodeMenu] = useState(null);
     const [paneMenu, setPaneMenu] = useState(null);
+    const [runState, runStateShouldChange] = useRunState();
 
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     // Coalesce
@@ -37,9 +39,10 @@ export default function Flow({ initialNodes, initialEdges }) {
     const reactFlowRef = useRef(null);
 
     const nodeTypes = useMemo(() => ({
-        workflowStep: WorkflowStep,
+        step: WorkflowStep,
         resource: Resource,
-        codeResource: CodeResource
+        codeResource: CodeResource,
+        group: Group,
     }), []);
 
     const onConnect = useCallback(
@@ -57,11 +60,35 @@ export default function Flow({ initialNodes, initialEdges }) {
 
     const onNodesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
+        if (runState !== 'stopped') {
+            const newChanges = changes.filter(change => change.type !== 'remove');
+            if (newChanges.length !== changes.length) {
+                notificationCtrl.error({
+                    key: 'no-remove',
+                    message: 'Remove Disabled',
+                    description: 'Cannot remove nodes while running the graph',
+                    duration: 1,
+                });
+            }
+            return onNodesChange(newChanges);
+        }
         onNodesChange(changes);
     });
 
     const onEdgesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
+        if (runState !== 'stopped') {
+            const newChanges = changes.filter(change => change.type !== 'remove');
+            if (newChanges.length !== changes.length) {
+                notificationCtrl.error({
+                    key: 'no-remove',
+                    message: 'Remove Disabled',
+                    description: 'Cannot remove edges while running the graph',
+                    duration: 1,
+                });
+            }
+            return onEdgesChange(newChanges);
+        }
         onEdgesChange(changes);
     });
 
@@ -73,7 +100,9 @@ export default function Flow({ initialNodes, initialEdges }) {
         setIsAddNodeActive(false);
         setNodeMenu(null);
         setPaneMenu(null);
-
+        if (!event) {
+            return;
+        }
         if (event.type === 'dblclick' && !isAddNodeActive) {
             setIsAddNodeActive(true);
             setEventMousePos({ x: event.clientX, y: event.clientY });
@@ -133,20 +162,39 @@ export default function Flow({ initialNodes, initialEdges }) {
         const { getNode, getNodes, getEdges } = reactFlowInstance.current;
         const srcNode = getNode(connection.source);
         const tgtNode = getNode(connection.target);
+        const srcHandle = getHandle(srcNode, connection.sourceHandle, false);
+        const tgtHandle = getHandle(tgtNode, connection.targetHandle, true);
 
-        if (connection.targetHandle === 'in' && tgtNode.type === 'workflowStep') {
-            if (srcNode.type !== 'workflowStep') {
+        if (!srcHandle || !tgtHandle) {
+            return false;
+        }
+
+        if (srcHandle.type !== tgtHandle.type) {
+            return false;
+        }
+
+        if (srcHandle.nodeType === 'group' && srcHandle.inner) {
+            if (tgtNode.parentId !== srcNode.id) {
                 return false;
             }
         }
-        const tgtParameter = tgtNode.data.parameters[connection.targetHandle];
-        if (tgtParameter && tgtParameter.type === 'resource') {
-            if (srcNode.type !== 'resource') {
+
+        if (tgtHandle.nodeType === 'group' && tgtHandle.inner) {
+            if (srcNode.parentId !== tgtNode.id) {
                 return false;
             }
         }
 
-        if (Graph.wouldBeCyclic(getNodes(), getEdges(), connection)) {
+        const edges = getEdges();
+        if (tgtHandle.type === 'resource') {
+            for (const edge of edges) {
+                if (edge.target === connection.target && edge.targetHandle === connection.targetHandle) {
+                    return false;
+                }
+            }
+        }
+
+        if (Graph.wouldBeCyclic(getNodes(), edges, connection)) {
             notificationCtrl.error({
                 key: 'no-cycles',
                 message: 'No Cycles',
@@ -208,6 +256,11 @@ export default function Flow({ initialNodes, initialEdges }) {
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
 
+    const onNodeDragStop = useCallback((e, _, draggedNodes) => {
+        const updatedNodes = groupIfPossible(draggedNodes, nodes);
+        setNodes(updatedNodes);
+    }, [nodes]);
+
     return (
         <div style={{ height: '100%', width: '100%' }}>
             <ReactFlow
@@ -229,10 +282,29 @@ export default function Flow({ initialNodes, initialEdges }) {
                 onNodeContextMenu={onNodeContextMenu}
                 onPaneContextMenu={onPaneContextMenu}
                 isValidConnection={isValidConnection}
+                onNodeDragStop={onNodeDragStop}
+                onNodesDelete={(deletedNodes) => {
+                    const deletedNodesMap = {};
+                    deletedNodes.forEach(node => {
+                        deletedNodesMap[node.id] = node;
+                    });
+                    nodes.forEach(n => {
+                        if (n.parentId) {
+                            const parent = deletedNodesMap[n.parentId];
+                            if (parent) {
+                                n.parentId = null;
+                                n.position = { x: n.position.x + parent.position.x, y: n.position.y + parent.position.y };
+                            }
+                        }
+                    });
+                }}
             >
                 {notificationCtxt}
                 <Panel position='top-right'>
                     <ControlRow getGraph={getGraph} />
+                </Panel>
+                <Panel position='top-left'>
+                    <NodeConfig/>
                 </Panel>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}

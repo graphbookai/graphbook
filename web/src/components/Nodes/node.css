@@ -170,6 +170,25 @@ textarea.code {
     align-items: center;
 }
 
+.workflow-node.group .handles .outputs .output {
+    justify-content: space-between;
+}
+
+.workflow-node.group .handles .inputs .input {
+    justify-content: space-between;
+}
+
+.react-flow__node.react-flow__node-group {
+    padding: 0;
+    border: none;
+    resize: both;
+    z-index: -1 !important;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.react-flow__node.react-flow__node-group.selectable.selected {
+    box-shadow: none;
+}
 
 .react-flow__handle {
     position: relative;
@@ -196,12 +215,22 @@ textarea.code {
     border: 1px solid #e6a857;
 }
 
+.workflow-node .handles .outputs .react-flow__handle.parameter {
+    background-color: #e6a857;
+    border: 1px solid #e6a857;
+}
+
 .workflow-node .handles .outputs .react-flow__handle {
     background-color: #22A7F0;
     border: 1px solid #22A7F0;
 }
 
-.workflow-node .handles .outputs .react-flow__handle:hover {
+.workflow-node .handles .react-flow__handle:hover {
+    background-color: #d0d0d0;
+    border: 1px solid #d0d0d0;
+}
+
+.workflow-node .handles .react-flow__handle.parameter:hover {
     background-color: #d0d0d0;
     border: 1px solid #d0d0d0;
 }
@@ -209,6 +238,15 @@ textarea.code {
 .workflow-node .handles .inputs .react-flow__handle.react-flow__handle-valid {
     background-color: #d0d0d0;
     border: 1px solid #d0d0d0;
+}
+
+.workflow-node.group {
+    height: 100%;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    min-width: 150px;
+    min-height: 150px;
 }
 
 .control-row {
@@ -247,4 +285,9 @@ textarea.code {
     flex-direction: row;
     justify-content: center;
     align-items: center;
+}
+
+.react-flow__node.react-flow__node-group:has(.collapsed) {
+    width: auto !important;
+    height: auto !important;
 }

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Handle, Position, useNodes, useEdges } from 'reactflow';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
 import { Card, Collapse, Badge, Flex, Button, Image, Descriptions, theme } from 'antd';
 import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget } from './Widgets';
@@ -9,7 +9,6 @@ import { useRunState } from '../../hooks/RunState';
 import { mediaUrl, keyRecursively } from '../../utils';
 const { Panel } = Collapse;
 const { useToken } = theme;
-import './node.css';
 
 const handleStyle = {
     borderRadius: '50%',
@@ -87,9 +86,12 @@ export function WorkflowStep({ id, data, selected }) {
     const [logsData, setLogsData] = useState([]);
     const [recordCount, setRecordCount] = useState(0);
     const [errored, setErrored] = useState(false);
+    const [parentSelected, setParentSelected] = useState(false);
+    const [runState, runStateShouldChange] = useRunState();
     const nodes = useNodes();
     const edges = useEdges();
     const { token } = useToken();
+    const { getNode } = useReactFlow();
 
     const appendNewLogsCallback = useCallback((newEntries) => {
         let wipeIndex = -1;
@@ -135,29 +137,70 @@ export function WorkflowStep({ id, data, selected }) {
         setErrored(false);
     }, [logsData]);
 
-    const [runState, runStateShouldChange] = useRunState();
+    const onSelectionChange = useCallback(({ nodes }) => {
+        const parentId = getNode(id).parentId;
+        if (!parentId) {
+            return;
+        }
+        for (const n of nodes) {
+            if (parentId === n.id && n.selected) {
+                setParentSelected(true);
+                return;
+            }
+        }
+        setParentSelected(false);
+    }, [id]);
+
+    useOnSelectionChange({
+        onChange: onSelectionChange
+    });
+
     const run = useCallback(() => {
         const [graph, resources] = Graph.serializeForAPI(nodes, edges);
         API.run(graph, resources, id);
         runStateShouldChange();
     }, [nodes, edges]);
 
-    const selectedStyle = {
-        border: `1px dashed ${token.colorInfoActive}`,
-        padding: '1px',
-        transform: 'translate(-2px, -2px)',
-        borderRadius: token.borderRadius
-    };
+    const borderStyle = useMemo(() => {
+        const baseStyle = {
+            padding: '1px',
+            borderRadius: token.borderRadius,
+            transform: 'translate(-2px, -2px)'
+        };
 
-    const erroredStyle = {
-        border: `1px solid ${token.colorError}`,
-        padding: '1px',
-        transform: 'translate(-2px, -2px)',
-        borderRadius: token.borderRadius
-    };
+        const selectedStyle = {
+            ...baseStyle,
+            border: `1px dashed ${token.colorInfoActive}`
+        };
+    
+        const erroredStyle = {
+            ...baseStyle,
+            border: `1px solid ${token.colorError}`,
+        };
+
+        const parentSelectedStyle = {
+            ...baseStyle,
+            border: `1px dashed ${token.colorInfoBorder}`
+        };
+        
+        if (errored) {
+            return erroredStyle;
+        }
+
+        if (selected) {
+            return selectedStyle;
+        }
+
+        if (parentSelected) {
+            return parentSelectedStyle;
+        }
+
+    }, [token, errored, selected, parentSelected]);
+
+
 
     return (
-        <div style={errored ? erroredStyle : (selected ? selectedStyle : {})}>
+        <div style={borderStyle}>
             <Badge count={recordCount} color={token.colorFill} style={{ color: token.colorText }} overflowCount={Infinity}>
                 <Card className="workflow-node">
                     <Flex gap="small" justify='space-between' className='title'>
@@ -210,6 +253,7 @@ export function WorkflowStep({ id, data, selected }) {
                     </div>
                     <div className='widgets'>
                         {
+                            !data.isCollapsed &&
                             Object.entries(parameters).map(([parameterName, parameter], i) => {
                                 if (isWidgetType(parameter.type)) {
                                     return (
@@ -222,7 +266,7 @@ export function WorkflowStep({ id, data, selected }) {
                             }).filter(x => x)
                         }
                     </div>
-                    <Monitor quickViewData={quickViewData} logsData={logsData} />
+                    { !data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
                 </Card>
             </Badge>
         </div>

@@ -3,7 +3,6 @@ import { Handle, Position, useReactFlow } from 'reactflow';
 import { Card, theme } from 'antd';
 import { Graph } from '../../graph';
 const { useToken } = theme;
-import './node.css';
 
 const handleStyle = { 
   backgroundColor: '#22A7F0',
