@@ -25,7 +25,7 @@ const getParentKey = (key, tree) => {
     return parentKey;
   };
 
-export default function Filesystem({ onBeginEdit }) {
+export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [files, setFiles] = useState(initialFiles);
     const [filesRoot, setFilesRoot] = useState('.');
     const [expandedKeys, setExpandedKeys] = useState([]);
@@ -82,12 +82,16 @@ export default function Filesystem({ onBeginEdit }) {
             return;
         }
         const { filename } = node.title.props;
+        console.log(filename);
         if (!filename) {
             onBeginEdit(null);
             return;
         }
         if (filename.slice(-3) == '.py') {
             onBeginEdit({name: filename});
+        } else if(filename.slice(-5) == '.json') {
+            setWorkflow(filename);
+            onBeginEdit(null);
         } else {
             onBeginEdit(null);
         }
@@ -109,7 +113,7 @@ export default function Filesystem({ onBeginEdit }) {
     });
 
     const treeData = useMemo(() => {
-        const loop = (data, parentName="/") => (
+        const loop = (data, parentName="") => (
             data.map((item) => {
                 const strTitle = item.title;
                 const filename = parentName + strTitle;

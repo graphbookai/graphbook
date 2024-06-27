@@ -6,12 +6,12 @@ import { Tabs } from 'antd';
 import Filesystem from './Filesystem';
 import Extensions from './Extensions';
 
-export default function LeftPanel({ onBeginEdit }) {
+export default function LeftPanel({ setWorkflow, onBeginEdit }) {
     const items = [
         {
             key: '1',
             label: 'Explorer',
-            children: <Filesystem onBeginEdit={onBeginEdit}/>,
+            children: <Filesystem setWorkflow={setWorkflow} onBeginEdit={onBeginEdit}/>,
             icon: <FileFilled />,
         },
         {

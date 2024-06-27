@@ -11,24 +11,24 @@ import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/ic
 import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
-import { CodeResource } from './Nodes/CodeResource.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
 import { getHandle } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
-import { API } from '../api';
+import { useAPI } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
 const { useToken } = theme;
 
 import { NodeConfig } from './NodeConfig.tsx';
 
-export default function Flow({ initialNodes, initialEdges }) {
+export default function Flow({ filename }) {
     const { token } = useToken();
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    const API = useAPI();
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [nodeMenu, setNodeMenu] = useState(null);
     const [paneMenu, setPaneMenu] = useState(null);
-    const [runState, runStateShouldChange] = useRunState();
+    const [runState, _] = useRunState();
 
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     // Coalesce
@@ -38,10 +38,28 @@ export default function Flow({ initialNodes, initialEdges }) {
     const reactFlowInstance = useRef(null);
     const reactFlowRef = useRef(null);
 
+    useEffect(() => {
+        const loadGraph = async () => {
+            if (API && filename) {
+                const file = await API.getFile(filename);
+                if (file?.content) {
+                    const graph = JSON.parse(file.content);
+                    if (graph.type === 'workflow') {
+                        setNodes(graph.nodes);
+                        setEdges(graph.edges);
+                    }
+                } else {
+                    setNodes([]);
+                    setEdges([]);
+                }
+            }
+        };
+        loadGraph();
+    }, [API, filename]);
+
     const nodeTypes = useMemo(() => ({
         step: WorkflowStep,
         resource: Resource,
-        codeResource: CodeResource,
         group: Group,
     }), []);
 
@@ -53,10 +71,6 @@ export default function Flow({ initialNodes, initialEdges }) {
     const onInitReactFlow = (instance) => {
         reactFlowInstance.current = instance;
     };
-
-    const onAddNode = useCallback((node) => {
-        setNodes(Graph.addNode(node, nodes));
-    }, [nodes]);
 
     const onNodesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
@@ -92,9 +106,9 @@ export default function Flow({ initialNodes, initialEdges }) {
         onEdgesChange(changes);
     });
 
-    useEffect(() => {
-        Graph.storeGraph(nodes, edges);
-    }, [nodes, edges]);
+    // useEffect(() => {
+    //     Graph.storeGraph(nodes, edges);
+    // }, [nodes, edges]);
 
     const handleMouseClickComp = useCallback((event) => {
         setIsAddNodeActive(false);
@@ -132,7 +146,7 @@ export default function Flow({ initialNodes, initialEdges }) {
         const dropPosition = reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
         const data = JSON.parse(event.dataTransfer.getData("application/json"));
         if (data.type) {
-            onAddNode({ ...data, position: dropPosition });
+            setNodes(Graph.addNode({ ...data, position: dropPosition }, nodes));
         }
     });
     const makeDroppable = useCallback((event) => {
@@ -208,6 +222,9 @@ export default function Flow({ initialNodes, initialEdges }) {
     }, [reactFlowInstance]);
 
     useEffect(() => {
+        if (!API) {
+            return;
+        }
         // Add WebSocket event listener for node updates
         const handleNodeUpdate = async (event) => {
             const message = JSON.parse(event.data);
@@ -251,7 +268,7 @@ export default function Flow({ initialNodes, initialEdges }) {
         return () => {
             API.removeWsEventListener('message', handleNodeUpdate);
         };
-    }, [nodes, setNodes]);
+    }, [nodes, setNodes, API]);
 
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
@@ -304,14 +321,14 @@ export default function Flow({ initialNodes, initialEdges }) {
                     <ControlRow getGraph={getGraph} />
                 </Panel>
                 <Panel position='top-left'>
-                    <NodeConfig/>
+                    <NodeConfig />
                 </Panel>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
                 <Background id="1" variant="lines" gap={10} size={1} color={lineColor1} />
                 <Background id="2" variant="lines" gap={100} color={lineColor2} />
             </ReactFlow>
-            {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} addNode={onAddNode} />}
+            {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
         </div>
     );
 }
@@ -319,6 +336,7 @@ export default function Flow({ initialNodes, initialEdges }) {
 function ControlRow({ getGraph }) {
     const size = 'large';
     const [runState, runStateShouldChange] = useRunState();
+    const API = useAPI();
 
     const run = useCallback(() => {
         const [graph, resources] = getGraph();

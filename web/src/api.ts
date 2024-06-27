@@ -1,4 +1,4 @@
-import { Node } from 'reactflow';
+import { Node, Edge } from 'reactflow';
 
 export class ServerAPI {
     private host: string;
@@ -7,9 +7,7 @@ export class ServerAPI {
     private websocket: WebSocket | null;
     private listeners: Set<[string, EventListenerOrEventListenerObject]>
 
-    constructor(host: string = 'localhost:8005', mediaHost: string = 'localhost:8006') {
-        this.host = host;
-        this.mediaHost = mediaHost;
+    constructor() {
         this.nodes = {};
         this.listeners = new Set();
     }
@@ -62,6 +60,10 @@ export class ServerAPI {
                 this.connectWebSocket();
             }
         }, 2000);
+    }
+
+    private isWebSocketOpen(): boolean {
+        return this.websocket != null && this.websocket.readyState === WebSocket.OPEN;
     }
 
     public getHost() {
@@ -216,14 +218,16 @@ export class ServerAPI {
     /**
      * Graph API
      */
-    public putNode(node: Node) {
-        if (!this.websocket) {
+    public putGraph(filename: string, nodes: Node[], edges: Edge[]) {
+        if (!this.isWebSocketOpen()) {
             return;
         }
-        this.websocket.send(JSON.stringify({
+        this.websocket?.send(JSON.stringify({
             api: "graph",
-            cmd: "put_node",
-            node: node
+            cmd: "put_graph",
+            filename: filename,
+            nodes: nodes,
+            edges: edges
         }));
     }
 

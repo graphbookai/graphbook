@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Flow from './components/Flow';
 import TopPanel from './components/TopPanel'
 import { Layout, ConfigProvider, theme } from 'antd';
@@ -48,13 +48,20 @@ function View() {
     const {
         token: { colorBgContainer, colorBorder },
     } = theme.useToken();
-
-    const loadedGraph = Graph.loadGraph();
-    const [codeEditor, setCodeEditor] = useState(null);
+    const [codeEditor, setCodeEditor] = useState<{name: string} | null>(null);
+    const [worflowFile, setWorkflowFile] = useState<string | null>(null);
+    
     const onBeginEdit = useCallback((val) => {
         setCodeEditor(val);
-    });
+    }, []);
 
+    const codeEditorView = useMemo(() => {
+        if (codeEditor) {
+            return <CodeEditor name={codeEditor.name} closeEditor={()=>setCodeEditor(null)} />;
+        }
+        return <></>
+
+    }, [codeEditor]);
 
     return (
         <Layout style={{ height: '100vh' }}>
@@ -64,10 +71,10 @@ function View() {
             <Content style={{ height: '100%' }}>
                 <Layout style={{ width: '100vw', height: '100%' }}>
                     <Sider width={300} style={{ background: colorBgContainer }}>
-                        <LeftPanel onBeginEdit={onBeginEdit} />
+                        <LeftPanel setWorkflow={setWorkflowFile} onBeginEdit={onBeginEdit} />
                     </Sider>
-                    {codeEditor && <CodeEditor closeEditor={() => setCodeEditor(null)} {...codeEditor} />}
-                    <Flow initialNodes={loadedGraph.nodes} initialEdges={loadedGraph.edges} />
+                    {codeEditorView}
+                    <Flow filename={worflowFile} />
                 </Layout>
             </Content>
         </Layout>

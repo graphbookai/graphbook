@@ -1,4 +1,3 @@
-import { API } from './api';
 import { uniqueIdFrom } from './utils';
 
 export const Graph = {
@@ -6,7 +5,6 @@ export const Graph = {
         const nextId = uniqueIdFrom(nodes);
         const newNode = {id: nextId.toString(), ...node};
         newNode.data.isCollapsed = false;
-        API.putNode(newNode);
         
         return [...nodes, newNode];
     },
@@ -206,6 +204,7 @@ export const Graph = {
         return [G, resources];
     },
     serialize(nodes, edges) {
+        console.log(JSON.stringify({nodes, edges}));
         return JSON.stringify({nodes, edges});
     },
     deserialize(serialized) {
