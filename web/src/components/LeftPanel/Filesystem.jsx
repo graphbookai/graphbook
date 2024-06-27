@@ -82,7 +82,6 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         const { filename } = node.title.props;
-        console.log(filename);
         if (!filename) {
             onBeginEdit(null);
             return;
@@ -104,7 +103,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         try {
-            await API.putItem(e.target.value, isFile);
+            await API.putFile(e.target.value, isFile);
             getFiles();
         } catch (e) {
             console.error(e);

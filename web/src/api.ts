@@ -203,7 +203,7 @@ export class ServerAPI {
         return workflowFiles;
     }
 
-    public async putItem(filepath, isFile, content = null, hash_key = null) {
+    public async putFile(filepath, isFile, content = null, hash_key = null) {
         return await this.put(`fs/${filepath}`, {
             is_file: isFile,
             file_contents: content ?? '',

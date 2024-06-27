@@ -64,7 +64,7 @@ export function CodeEditor({closeEditor, name}) {
         const timeout = setTimeout(async () => {
             console.log("Saving file...", filepath);
             try {
-                await API.putItem(filepath, true, val, codeEditorState.prevHash);
+                await API.putFile(filepath, true, val, codeEditorState.prevHash);
                 const newHash = generateMD5(val);
                 setCodeEditorState({ ...codeEditorState, isSaved: true, prevHash: newHash, value: val });
             } catch {

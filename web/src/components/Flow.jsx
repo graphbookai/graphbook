@@ -21,6 +21,7 @@ const { useToken } = theme;
 
 import { NodeConfig } from './NodeConfig.tsx';
 
+let isEnabled = false;
 export default function Flow({ filename }) {
     const { token } = useToken();
     const API = useAPI();
@@ -39,22 +40,33 @@ export default function Flow({ filename }) {
     const reactFlowRef = useRef(null);
 
     useEffect(() => {
+        isEnabled = false;
+    }, [filename]);
+
+    useEffect(() => {
         const loadGraph = async () => {
-            if (API && filename) {
-                const file = await API.getFile(filename);
-                if (file?.content) {
-                    const graph = JSON.parse(file.content);
-                    if (graph.type === 'workflow') {
-                        setNodes(graph.nodes);
-                        setEdges(graph.edges);
-                    }
-                } else {
-                    setNodes([]);
-                    setEdges([]);
+            const file = await API.getFile(filename);
+            if (file?.content) {
+                const graph = JSON.parse(file.content);
+                if (graph.type === 'workflow') {
+                    setNodes(graph.nodes);
+                    setEdges(graph.edges);
+                    isEnabled = true;
                 }
+            } else {
+                setNodes([]);
+                setEdges([]);
+                isEnabled = true;
             }
         };
-        loadGraph();
+        isEnabled = false;
+
+        if (!filename || !API) {
+            setNodes([]);
+            setEdges([]);
+        } else {
+            loadGraph();
+        }
     }, [API, filename]);
 
     const nodeTypes = useMemo(() => ({
@@ -106,9 +118,11 @@ export default function Flow({ filename }) {
         onEdgesChange(changes);
     });
 
-    // useEffect(() => {
-    //     Graph.storeGraph(nodes, edges);
-    // }, [nodes, edges]);
+    useEffect(() => {
+        if (isEnabled) {
+            tryPutGraph(API, filename, nodes, edges);
+        }
+    }, [nodes, edges, API, filename]);
 
     const handleMouseClickComp = useCallback((event) => {
         setIsAddNodeActive(false);
@@ -368,4 +382,12 @@ function ControlRow({ getGraph }) {
             </Flex>
         </div>
     );
+}
+
+function tryPutGraph(API, filename, nodes, edges) {
+    try {
+        API.putGraph(filename, nodes, edges);
+    } catch (e) {
+        console.error("Error saving graph", e);
+    }
 }
