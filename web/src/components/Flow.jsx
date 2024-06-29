@@ -17,11 +17,11 @@ import { Resource } from './Nodes/Resource.jsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { useAPI } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
+import { GraphStore } from '../graphstore.ts';
 const { useToken } = theme;
 
 import { NodeConfig } from './NodeConfig.tsx';
 
-let isEnabled = false;
 export default function Flow({ filename }) {
     const { token } = useToken();
     const API = useAPI();
@@ -30,6 +30,7 @@ export default function Flow({ filename }) {
     const [nodeMenu, setNodeMenu] = useState(null);
     const [paneMenu, setPaneMenu] = useState(null);
     const [runState, _] = useRunState();
+    const graphStore = useRef(null);
 
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     // Coalesce
@@ -40,7 +41,7 @@ export default function Flow({ filename }) {
     const reactFlowRef = useRef(null);
 
     useEffect(() => {
-        isEnabled = false;
+        graphStore.current = null;
     }, [filename]);
 
     useEffect(() => {
@@ -51,15 +52,15 @@ export default function Flow({ filename }) {
                 if (graph.type === 'workflow') {
                     setNodes(graph.nodes);
                     setEdges(graph.edges);
-                    isEnabled = true;
+                    graphStore.current = new GraphStore(filename, API, graph.nodes, graph.edges);
                 }
             } else {
                 setNodes([]);
                 setEdges([]);
-                isEnabled = true;
+                graphStore.current = new GraphStore(filename, API, graph.nodes, graph.edges);
             }
         };
-        isEnabled = false;
+        graphStore.current = null;
 
         if (!filename || !API) {
             setNodes([]);
@@ -74,11 +75,6 @@ export default function Flow({ filename }) {
         resource: Resource,
         group: Group,
     }), []);
-
-    const onConnect = useCallback(
-        (params) => setEdges((eds) => addEdge(params, eds)),
-        [setEdges],
-    );
 
     const onInitReactFlow = (instance) => {
         reactFlowInstance.current = instance;
@@ -118,9 +114,29 @@ export default function Flow({ filename }) {
         onEdgesChange(changes);
     });
 
+    const onConnect = useCallback((params) => {
+        setEdges((eds) => addEdge(params, eds));
+    }, [setEdges, edges]);
+
+    const onNodesDelete = useCallback((deletedNodes) => {
+        const deletedNodesMap = {};
+        deletedNodes.forEach(node => {
+            deletedNodesMap[node.id] = node;
+        });
+        nodes.forEach(n => {
+            if (n.parentId) {
+                const parent = deletedNodesMap[n.parentId];
+                if (parent) {
+                    n.parentId = null;
+                    n.position = { x: n.position.x + parent.position.x, y: n.position.y + parent.position.y };
+                }
+            }
+        });
+    });
+
     useEffect(() => {
-        if (isEnabled) {
-            tryPutGraph(API, filename, nodes, edges);
+        if (graphStore.current) {
+            graphStore.current.update(nodes, edges);
         }
     }, [nodes, edges, API, filename]);
 
@@ -290,6 +306,9 @@ export default function Flow({ filename }) {
     const onNodeDragStop = useCallback((e, _, draggedNodes) => {
         const updatedNodes = groupIfPossible(draggedNodes, nodes);
         setNodes(updatedNodes);
+        if (graphStore.current) {
+            graphStore.current.updateNodePositions(draggedNodes);
+        }
     }, [nodes]);
 
     return (
@@ -314,21 +333,7 @@ export default function Flow({ filename }) {
                 onPaneContextMenu={onPaneContextMenu}
                 isValidConnection={isValidConnection}
                 onNodeDragStop={onNodeDragStop}
-                onNodesDelete={(deletedNodes) => {
-                    const deletedNodesMap = {};
-                    deletedNodes.forEach(node => {
-                        deletedNodesMap[node.id] = node;
-                    });
-                    nodes.forEach(n => {
-                        if (n.parentId) {
-                            const parent = deletedNodesMap[n.parentId];
-                            if (parent) {
-                                n.parentId = null;
-                                n.position = { x: n.position.x + parent.position.x, y: n.position.y + parent.position.y };
-                            }
-                        }
-                    });
-                }}
+                onNodesDelete={onNodesDelete}
             >
                 {notificationCtxt}
                 <Panel position='top-right'>
@@ -382,12 +387,4 @@ function ControlRow({ getGraph }) {
             </Flex>
         </div>
     );
-}
-
-function tryPutGraph(API, filename, nodes, edges) {
-    try {
-        API.putGraph(filename, nodes, edges);
-    } catch (e) {
-        console.error("Error saving graph", e);
-    }
 }
