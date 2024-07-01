@@ -130,7 +130,7 @@ export function groupIfPossible(changedNodes: Node[], allNodes: Node[]) {
     const groupNodes = allNodes.filter((node) => node.type === 'group');
     const changedNodesIds = changedNodes.map(({ id }) => id);
     return allNodes.map((node) => {
-        if (node.type === 'group' || !changedNodesIds.includes(node.id)) {
+        if (node.type === 'group' || node.type === 'export' || !changedNodesIds.includes(node.id)) {
             return node;
         }
 
