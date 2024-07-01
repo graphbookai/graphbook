@@ -15,14 +15,17 @@ export function NodeConfig() {
     const items = useMemo(() => {
         return nodes.filter(node => node.selected).map(node => {
             let nodeView;
-            if( node.type === 'step' ) {
+            if (node.type === 'step') {
                 nodeView = <StepView node={node} />;
             }
-            if(node.type === 'resource') {
+            if (node.type === 'resource') {
                 nodeView = <ResourceView node={node} />;
             }
-            if(node.type === 'group') {
+            if (node.type === 'group') {
                 nodeView = <GroupView node={node} setNodes={setNodes} setEdges={setEdges} />;
+            }
+            if (node.type === 'export') {
+                nodeView = <ExportView node={node} setNodes={setNodes} setEdges={setEdges} />;
             }
             return {
                 key: node.id,
@@ -37,8 +40,8 @@ export function NodeConfig() {
     }
     return (
         <div style={{ background: token.colorBgContainer, borderRadius: token.borderRadius, minWidth: '350px' }}>
-            <Text style={{margin: token.margin}}>Node Properties</Text>
-            <Collapse bordered={false} items={items}/>
+            <Text style={{ margin: token.margin }}>Node Properties</Text>
+            <Collapse bordered={false} items={items} />
         </div>
     );
 }
@@ -97,6 +100,27 @@ function ResourceView({ node }) {
                 </Card>
             )),
             span: 2
+        }
+    ];
+    return (
+        <Descriptions bordered={true} column={2} items={items} />
+    );
+}
+
+function ExportView({ node }) {
+    const items: DescriptionsProps['items'] = [
+        {
+            label: 'ID',
+            children: node.id,
+            span: 2
+        },
+        {
+            label: 'Export Type',
+            children: node.data.exportType
+        },
+        {
+            label: 'Is Resource',
+            children: String(node.data.isResource)
         }
     ];
     return (
@@ -243,7 +267,7 @@ const onDeleteOutputExport = (id: string, node: GroupNode, setNodes, setEdges) =
     });
 }
 
-function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
+function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any }) {
     const { node } = props;
     const onChangeInput = useCallback((id, newName) => {
         onChangeInputExportName(id, newName, node, props.setNodes)
@@ -281,7 +305,7 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
                             return n;
                         });
                     });
-                }}/>
+                }} />
             )
         },
         {
@@ -290,8 +314,8 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
                 .filter(input => input.type === "step")
                 .map((input, i) => (
                     <Flex key={input.id}>
-                        <Input defaultValue={input.name} onChange={(e) => onChangeInput(input.id, e.target.value)}/>
-                        <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(input.id)}></Button>
+                        <Input defaultValue={input.name} onChange={(e) => onChangeInput(input.id, e.target.value)} />
+                        <Button danger icon={<DeleteOutlined />} onClick={() => onDeleteInput(input.id)}></Button>
                     </Flex>
                 )),
         },
@@ -300,33 +324,33 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any}) {
             children: node.data.exports.inputs
                 .filter(input => input.type === "resource")
                 .map((input, i) => (
-                        <Flex key={input.id}>
-                            <Input defaultValue={input.name} onChange={(e) => onChangeInput(input.id, e.target.value)}/>
-                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteInput(input.id)}></Button>
-                        </Flex>
-                    )),
+                    <Flex key={input.id}>
+                        <Input defaultValue={input.name} onChange={(e) => onChangeInput(input.id, e.target.value)} />
+                        <Button danger icon={<DeleteOutlined />} onClick={() => onDeleteInput(input.id)}></Button>
+                    </Flex>
+                )),
         },
         {
             label: 'Step Outputs',
             children: node.data.exports.outputs
                 .filter(output => output.type === "step")
                 .map((output, i) => (
-                        <Flex key={output.id}>
-                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(output.id, e.target.value)}/>
-                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(output.id)}></Button>
-                        </Flex>
-                    )),
+                    <Flex key={output.id}>
+                        <Input defaultValue={output.name} onChange={(e) => onChangeOutput(output.id, e.target.value)} />
+                        <Button danger icon={<DeleteOutlined />} onClick={() => onDeleteOutput(output.id)}></Button>
+                    </Flex>
+                )),
         },
         {
             label: 'Resource Outputs',
             children: node.data.exports.outputs
                 .filter(output => output.type === "resource")
                 .map((output, i) => (
-                        <Flex key={output.id}>
-                            <Input defaultValue={output.name} onChange={(e) => onChangeOutput(output.id, e.target.value)}/>
-                            <Button danger icon={<DeleteOutlined/>} onClick={() => onDeleteOutput(output.id)}></Button>
-                        </Flex>
-                    )),
+                    <Flex key={output.id}>
+                        <Input defaultValue={output.name} onChange={(e) => onChangeOutput(output.id, e.target.value)} />
+                        <Button danger icon={<DeleteOutlined />} onClick={() => onDeleteOutput(output.id)}></Button>
+                    </Flex>
+                )),
         }
     ], "");
     return (

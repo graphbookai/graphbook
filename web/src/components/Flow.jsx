@@ -14,6 +14,7 @@ import { WorkflowStep } from './Nodes/Node.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
 import { getHandle } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
+import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { useAPI } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
@@ -74,6 +75,7 @@ export default function Flow({ filename }) {
         step: WorkflowStep,
         resource: Resource,
         group: Group,
+        export: Export,
     }), []);
 
     const onInitReactFlow = (instance) => {

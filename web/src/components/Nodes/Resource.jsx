@@ -3,7 +3,6 @@ import { Handle, Position, useOnSelectionChange, useReactFlow } from 'reactflow'
 import { Card, theme } from 'antd';
 import { Widget } from './Widgets';
 const { useToken } = theme;
-import './node.css';
 
 const handleStyle = {
     borderRadius: '50%',

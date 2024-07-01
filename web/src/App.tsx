@@ -3,7 +3,6 @@ import Flow from './components/Flow';
 import TopPanel from './components/TopPanel'
 import { Layout, ConfigProvider, theme } from 'antd';
 import LeftPanel from './components/LeftPanel/LeftPanel';
-import { Graph } from './graph';
 import { useSettings } from './hooks/Settings';
 import { API } from './api';
 import { useAPI } from './hooks/API';

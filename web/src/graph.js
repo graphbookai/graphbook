@@ -34,6 +34,9 @@ export const Graph = {
         const G = {};
         const resources = {}
         nodes.forEach((node) => {
+            if (node.type === 'export') {
+                return;
+            }
             const common = {
                 parameters: {},
                 type: node.type

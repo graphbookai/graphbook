@@ -43,8 +43,10 @@ export function getHandle(node: Node, handleId: string, isTarget: boolean) {
         return getStepHandle(node, handleId, isTarget);
     } else if(node.type === 'resource'){
         return getResourceHandle(node, handleId, isTarget);
-    } else {
+    } else if(node.type === 'group'){
         return getGroupHandle(node, handleId, isTarget);
+    } else {
+        return getExportHandle(node, handleId, isTarget);
     }
 }
 
@@ -129,4 +131,13 @@ export function getExportedOutputHandle(node: Node, handleId: string) {
 
 export function isInternalHandle(handleId: string) {
     return handleId.endsWith('_inner');
+}
+
+
+/**
+ * Export Handles
+ */
+export function getExportHandle(node: Node, handleId: string, isTarget: boolean) {
+    const type = node.data.isResource ? 'resource' : 'step';
+    return { id: handleId, type, inner: false, nodeType: 'export' };
 }
