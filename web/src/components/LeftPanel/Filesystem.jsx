@@ -3,6 +3,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
 import { keyRecursively } from "../../utils";
+import { filesystemDragBegin } from "../../utils";
 const { Text } = Typography;
 const { Search } = Input;
 
@@ -200,20 +201,10 @@ function DirItem({ title }) {
     );
 }
 
-function FileItem({ title, fullpath, onClick }) {
+function FileItem({ title, filename, fullpath, onClick }) {
     const onDragStart = useCallback((e) => {
-        e.dataTransfer.setData('application/json', JSON.stringify({
-            type: 'resource',
-            data: {
-                name: 'Text',
-                parameters: {
-                    val: {
-                        value: fullpath
-                    }
-                }
-            }
-        }));
-    });
+        filesystemDragBegin(filename, e);
+    }, [filename]);
 
     return (
         <span className="file-item" onDragStart={onDragStart} draggable onClick={onClick}>

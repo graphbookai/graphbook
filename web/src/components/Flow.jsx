@@ -12,16 +12,17 @@ import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle } from '../utils.ts';
+import { getHandle, filesystemDragEnd } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
 import { useAPI } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
-const { useToken } = theme;
-
 import { NodeConfig } from './NodeConfig.tsx';
+
+const { useToken } = theme;
+const makeDroppable = (e) => e.preventDefault();
 
 export default function Flow({ filename }) {
     const { token } = useToken();
@@ -175,15 +176,8 @@ export default function Flow({ filename }) {
     }, [nodes, edges]);
 
     const onDrop = useCallback((event) => {
-        const dropPosition = reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-        const data = JSON.parse(event.dataTransfer.getData("application/json"));
-        if (data.type) {
-            setNodes(Graph.addNode({ ...data, position: dropPosition }, nodes));
-        }
-    });
-    const makeDroppable = useCallback((event) => {
-        event.preventDefault();
-    });
+        filesystemDragEnd(reactFlowInstance.current, API, event);
+    }, [reactFlowInstance, API]);
 
     const onNodeContextMenu = useCallback((event, node) => {
         event.preventDefault();

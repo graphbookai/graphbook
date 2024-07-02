@@ -1,4 +1,8 @@
 import { Node } from "reactflow";
+import { Graph } from "./graph";
+import type { ServerAPI } from "./api";
+import type { ReactFlowInstance } from "reactflow";
+import type { Ref } from "react";
 
 export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"): Array<any> => {
     let currKeyVal = 0;
@@ -31,6 +35,52 @@ export const uniqueIdFrom = (obj: any): string => {
     } else {
         return String(Math.max(...Object.keys(obj).map((key) => parseInt(key)), -1) + 1);
     }
+}
+
+
+export const filesystemDragBegin = (value: string, e: DragEvent) => {
+    if (e) {
+        e.dataTransfer?.setData('application/json', JSON.stringify({ value }));
+    }
+}
+
+export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, API: ServerAPI, e: DragEvent) => {
+    if (e?.dataTransfer) {
+        const data = JSON.parse(e.dataTransfer.getData("application/json"));
+        if (!data.value) {
+            return;
+        }
+
+        let type = 'resource';
+        let label = 'Text';
+        let parameters = { val: { type: "string", value: data.value } };
+        if (data.value.endsWith('.json')) {
+            const res = await API.getFile(data.value);
+            if (res?.content) {
+                const jsonData = JSON.parse(res.content);
+                if (jsonData?.type === 'workflow') {
+                    type = 'subflow';
+                    label = data.value.split('/').pop().slice(0, -5);
+                }
+            }
+        }
+        const { setNodes, getNodes } = reactFlowInstance;
+        const dropPosition = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+        const nodes = getNodes();
+        const node = {
+            id: uniqueIdFrom(nodes),
+            position: dropPosition,
+            type,
+            data: {
+                name: label,
+                parameters
+            }
+        }
+        console.log("Adding node", node);
+        setNodes(Graph.addNode(node, nodes));
+    }
+
 }
 
 /**
