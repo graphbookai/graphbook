@@ -51,16 +51,21 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
             return;
         }
 
+        let nodeData: any = {
+            name: 'Text',
+            parameters: { val: { type: "string", value: data.value } }
+        };
         let type = 'resource';
-        let label = 'Text';
-        let parameters = { val: { type: "string", value: data.value } };
         if (data.value.endsWith('.json')) {
             const res = await API.getFile(data.value);
             if (res?.content) {
                 const jsonData = JSON.parse(res.content);
                 if (jsonData?.type === 'workflow') {
                     type = 'subflow';
-                    label = data.value.split('/').pop().slice(0, -5);
+                    nodeData = {
+                        name: data.value.split('/').pop().slice(0, -5),
+                        filename: data.value,
+                    }
                 }
             }
         }
@@ -72,15 +77,11 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
             id: uniqueIdFrom(nodes),
             position: dropPosition,
             type,
-            data: {
-                name: label,
-                parameters
-            }
+            data: nodeData
         }
         console.log("Adding node", node);
         setNodes(Graph.addNode(node, nodes));
     }
-
 }
 
 /**
@@ -95,8 +96,10 @@ export function getHandle(node: Node, handleId: string, isTarget: boolean) {
         return getResourceHandle(node, handleId, isTarget);
     } else if(node.type === 'group'){
         return getGroupHandle(node, handleId, isTarget);
-    } else {
+    } else if(node.type === 'export') {
         return getExportHandle(node, handleId, isTarget);
+    } else {
+        return getSubflowHandle(node, handleId, isTarget);
     }
 }
 
@@ -190,4 +193,20 @@ export function isInternalHandle(handleId: string) {
 export function getExportHandle(node: Node, handleId: string, isTarget: boolean) {
     const type = node.data.isResource ? 'resource' : 'step';
     return { id: handleId, type, inner: false, nodeType: 'export' };
+}
+
+/**
+ * Export Handles
+ */
+export function getSubflowHandle(node: Node, handleId: string, isTarget: boolean) {
+    const index = parseInt(handleId);
+    if (isTarget) {
+        const input = node.data.inputs[index];
+        const type = input.isResource ? 'resource' : 'step';
+        return { id: handleId, type, inner: false, nodeType: 'subflow' };
+    }
+
+    const output = node.data.outputs[index];
+    const type = output.isResource ? 'resource' : 'step';
+    return { id: handleId, type, inner: false, nodeType: 'subflow' };
 }

@@ -168,7 +168,7 @@ export class ServerAPI {
      * Processor API
      */
     public async runAll(graph, resources) {
-        return await this.post('run', { graph, resources });
+        // return await this.post('run', { graph, resources });
     }
 
     public async run(graph, resources, stepId) {
@@ -213,6 +213,17 @@ export class ServerAPI {
 
     public async getFile(filepath) {
         return await this.get(`fs/${filepath}`);
+    }
+
+    public async getSubflowFromFile(filepath) {
+        const res = await this.getFile(filepath);
+        if (res?.content) {
+            const jsonData = JSON.parse(res.content);
+            if (jsonData?.type === 'workflow') {
+                return { nodes: jsonData.nodes, edges: jsonData.edges };
+            }
+        }
+        return null;
     }
 
     /**

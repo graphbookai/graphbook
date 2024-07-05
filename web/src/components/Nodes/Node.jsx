@@ -138,7 +138,7 @@ export function WorkflowStep({ id, data, selected }) {
     }, [logsData]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
-        const parentId = getNode(id).parentId;
+        const parentId = getNode(id)?.parentId;
         if (!parentId) {
             return;
         }

@@ -6,7 +6,7 @@ let globalRunState: RunState = 'stopped';
 let localSetters: Function[] = [];
 let globalListenerIsSet = false;
 
-export function useRunState() {
+export function useRunState(): [RunState, () => void] {
     const [_, setRunState] = useState<RunState>(globalRunState);
 
     useEffect(() => {

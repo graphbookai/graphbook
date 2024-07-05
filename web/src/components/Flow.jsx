@@ -20,6 +20,7 @@ import { useAPI } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
+import { Subflow } from './Nodes/Subflow.tsx';
 
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -77,6 +78,7 @@ export default function Flow({ filename }) {
         resource: Resource,
         group: Group,
         export: Export,
+        subflow: Subflow,
     }), []);
 
     const onInitReactFlow = (instance) => {
@@ -171,8 +173,8 @@ export default function Flow({ filename }) {
         };
     }, [handleMouseClick]);
 
-    const getGraph = useCallback(() => {
-        return Graph.serializeForAPI(nodes, edges);
+    const getGraph = useCallback(async () => {
+        return await Graph.serializeForAPI(nodes, edges);
     }, [nodes, edges]);
 
     const onDrop = useCallback((event) => {
@@ -223,6 +225,10 @@ export default function Flow({ filename }) {
             if (srcNode.parentId !== tgtNode.id) {
                 return false;
             }
+        }
+
+        if (srcNode.type === 'export' && tgtNode.type === 'export') {
+            return false;
         }
 
         const edges = getEdges();
@@ -353,8 +359,8 @@ function ControlRow({ getGraph }) {
     const [runState, runStateShouldChange] = useRunState();
     const API = useAPI();
 
-    const run = useCallback(() => {
-        const [graph, resources] = getGraph();
+    const run = useCallback(async () => {
+        const [graph, resources] = await getGraph();
         API.runAll(graph, resources);
         runStateShouldChange();
     });
