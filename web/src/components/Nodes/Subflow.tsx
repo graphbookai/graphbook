@@ -27,10 +27,6 @@ const inHandleStyle = {
     ...handleStyle,
     marginRight: '5px'
 };
-const parameterHandleStyle = {
-    ...inHandleStyle,
-    borderRadius: '50%',
-};
 const outHandleStyle = {
     ...handleStyle,
     marginLeft: '5px'
@@ -41,36 +37,14 @@ export function Subflow({ id, data, selected }) {
     const { token } = useToken();
     const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
-    const [subflowGraph, setSubflowGraph] = useState<SubflowGraph>({ nodes: [], edges: [] });
     const [runState, runStateShouldChange] = useRunState();
     const { getNode, getNodes, getEdges, setNodes } = useReactFlow();
     const API = useAPI();
-    const { filename } = data;
-
-    // useEffect(() => {
-    //     if (!filename || !API) {
-    //         return;
-    //     }
-    //     const fetchSubflow = async () => {
-    //         const res = await API.getFile(filename);
-    //         if (!res?.content) {
-    //             setErrored(true);
-    //             return;
-    //         }
-    //         const subflow = JSON.parse(res.content);
-    //         if (!subflow?.nodes || !subflow?.edges) {
-    //             setErrored(true);
-    //             return;
-    //         }
-    //         setSubflowGraph(subflow);
-    //     };
-    //     fetchSubflow();
-    // }, [filename, API]);
 
     useEffect(() => {
         const inputs: any[] = [];
         const outputs: any[] = [];
-        for (const node of data.nodes) {
+        for (const node of data.properties.nodes) {
             if (node.type === 'export') {
                 if (node.data?.exportType === 'input') {
                     inputs.push({

@@ -1,5 +1,6 @@
 import type { Node, Edge } from 'reactflow';
 import type { ServerAPI } from './api';
+import { properties } from './properties';
 
 /**
  * Note:
@@ -65,7 +66,9 @@ export class GraphStore {
 
         for (let i = 0; i < prev.nodes.length; i++) {
             // If node's data is updated
-            if (prev.nodes[i].data !== next.nodes[i].data) {
+            const prevData = { ...prev.nodes[i].data, properties: undefined };
+            const nextData = { ...next.nodes[i].data, properties: undefined };
+            if (prevData !== nextData) {
                 return true;
             }
 

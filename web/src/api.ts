@@ -168,7 +168,7 @@ export class ServerAPI {
      * Processor API
      */
     public async runAll(graph, resources) {
-        // return await this.post('run', { graph, resources });
+        return await this.post('run', { graph, resources });
     }
 
     public async run(graph, resources, stepId) {

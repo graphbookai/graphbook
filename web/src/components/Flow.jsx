@@ -30,10 +30,12 @@ const onLoadGraph = async (filename, API) => {
         const graph = JSON.parse(file.content);
         if (graph.type === 'workflow') {
             for (const node of graph.nodes) {
-                if (node.type === 'subflow') {
+                if (node.type === 'subflow' && node.data.filename !== filename) {
                     const subflowGraph = await onLoadGraph(node.data.filename, API);
-                    node.data.nodes = subflowGraph[0];
-                    node.data.edges = subflowGraph[1];
+                    node.data.properties = {
+                        nodes: subflowGraph[0],
+                        edges: subflowGraph[1],
+                    };
                 }
             }
             return [graph.nodes, graph.edges];
@@ -315,10 +317,10 @@ export default function Flow({ filename }) {
 
     const onNodeDragStop = useCallback((e, _, draggedNodes) => {
         const updatedNodes = groupIfPossible(draggedNodes, nodes);
-        setNodes(updatedNodes);
         if (graphStore.current) {
-            graphStore.current.updateNodePositions(draggedNodes);
+            graphStore.current.updateNodePositions(updatedNodes);
         }
+        setNodes(updatedNodes);
     }, [nodes]);
 
     return (

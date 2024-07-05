@@ -174,7 +174,6 @@ export const Graph = {
 
         const resolveInputs = (inputs) => {
             let newInputs = [];
-            console.log(inputs);
             Object.entries(inputs).forEach(([handleId, input]) => {
                 let sourceNode = input.node;
                 let sourceSlot = input.slot;
@@ -184,13 +183,11 @@ export const Graph = {
                             sourceSlot = G[sourceNode].handleId;
                             sourceNode = G[sourceNode].parentId;
                         }
-                        console.log(G[sourceNode].type, input.isInner)
                         const groupInput = G[sourceNode].exports.inputs[sourceSlot];
                         if (groupInput) {
                             newInputs.push(...resolveInputs(groupInput));
                         }
                     } else if ((G[sourceNode].type === 'group' && !input.isInner) || G[sourceNode].type === 'subflow') {
-                        console.log(G[sourceNode].type, input.isInner)
                         const groupOutput = G[sourceNode].exports.outputs[sourceSlot];
                         if (groupOutput) {
                             newInputs.push(...resolveInputs(groupOutput));
@@ -267,7 +264,6 @@ export const Graph = {
         return [G, resources];
     },
     serialize(nodes, edges) {
-        console.log(JSON.stringify({ nodes, edges }));
         return JSON.stringify({ nodes, edges });
     },
     deserialize(serialized) {
