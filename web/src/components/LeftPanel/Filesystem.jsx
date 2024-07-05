@@ -4,6 +4,7 @@ import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/ic
 import { useAPI } from "../../hooks/API";
 import { keyRecursively } from "../../utils";
 import { filesystemDragBegin } from "../../utils";
+import DefaultWorkflow from "../../DefaultWorkflow.json";
 const { Text } = Typography;
 const { Search } = Input;
 
@@ -104,7 +105,10 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         try {
-            await API.putFile(e.target.value, isFile);
+            const filename = e.target.value;
+            const content = filename.endsWith('.json') ? DefaultWorkflow : "";
+            await API.putFile(filename, isFile, JSON.stringify(content));
+            setWorkflow(filename);
             getFiles();
         } catch (e) {
             console.error(e);

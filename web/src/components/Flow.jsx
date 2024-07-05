@@ -6,7 +6,7 @@ import ReactFlow, {
     useEdgesState,
     addEdge
 } from 'reactflow';
-import { Button, Flex, notification, theme } from 'antd';
+import { Button, Flex, Typography, notification, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph';
 import AddNode from './AddNode';
@@ -21,9 +21,26 @@ import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
-
+const { Text } = Typography;
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
+const onLoadGraph = async (filename, API) => {
+    const file = await API.getFile(filename);
+    if (file?.content) {
+        const graph = JSON.parse(file.content);
+        if (graph.type === 'workflow') {
+            for (const node of graph.nodes) {
+                if (node.type === 'subflow') {
+                    const subflowGraph = await onLoadGraph(node.data.filename, API);
+                    node.data.nodes = subflowGraph[0];
+                    node.data.edges = subflowGraph[1];
+                }
+            }
+            return [graph.nodes, graph.edges];
+        }
+    }
+    return [[], []];
+};
 
 export default function Flow({ filename }) {
     const { token } = useToken();
@@ -49,19 +66,10 @@ export default function Flow({ filename }) {
 
     useEffect(() => {
         const loadGraph = async () => {
-            const file = await API.getFile(filename);
-            if (file?.content) {
-                const graph = JSON.parse(file.content);
-                if (graph.type === 'workflow') {
-                    setNodes(graph.nodes);
-                    setEdges(graph.edges);
-                    graphStore.current = new GraphStore(filename, API, graph.nodes, graph.edges);
-                }
-            } else {
-                setNodes([]);
-                setEdges([]);
-                graphStore.current = new GraphStore(filename, API, graph.nodes, graph.edges);
-            }
+            const [nodes, edges] = await onLoadGraph(filename, API);
+            setNodes(nodes);
+            setEdges(edges);
+            graphStore.current = new GraphStore(filename, API, nodes, edges);
         };
         graphStore.current = null;
 
@@ -343,6 +351,9 @@ export default function Flow({ filename }) {
                 </Panel>
                 <Panel position='top-left'>
                     <NodeConfig />
+                </Panel>
+                <Panel position='bottom-left'>
+                    <Text italic>{filename}</Text>
                 </Panel>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}

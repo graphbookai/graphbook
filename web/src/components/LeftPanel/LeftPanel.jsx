@@ -14,12 +14,12 @@ export default function LeftPanel({ setWorkflow, onBeginEdit }) {
             children: <Filesystem setWorkflow={setWorkflow} onBeginEdit={onBeginEdit}/>,
             icon: <FileFilled />,
         },
-        {
-            key: '2',
-            label: 'Extensions',
-            children: <Extensions />,
-            icon: <AppstoreOutlined />,
-        },
+        // {
+        //     key: '2',
+        //     label: 'Extensions',
+        //     children: <Extensions />,
+        //     icon: <AppstoreOutlined />,
+        // },
     ];
     
     return (

@@ -13,6 +13,7 @@ import 'reactflow/dist/style.css';
 import './components/Nodes/node.css';
 
 import { CodeEditor } from './components/Editor/CodeEditor';
+import { WelcomeScreen } from './components/WelcomeScreen';
 
 export default function App() {
     const [settings, _] = useSettings();
@@ -48,7 +49,7 @@ function View() {
         token: { colorBgContainer, colorBorder },
     } = theme.useToken();
     const [codeEditor, setCodeEditor] = useState<{name: string} | null>(null);
-    const [worflowFile, setWorkflowFile] = useState<string | null>(null);
+    const [workflowFile, setWorkflowFile] = useState<string | null>(null);
     
     const onBeginEdit = useCallback((val) => {
         setCodeEditor(val);
@@ -62,6 +63,19 @@ function View() {
 
     }, [codeEditor]);
 
+    const mainView = useMemo(() => {
+        if (workflowFile) {
+            return (
+                <div style={{width: '100%', height: '100%'}}>
+                    {codeEditorView}
+                    <Flow filename={workflowFile} />
+                </div>
+            );
+        }
+        
+        return <WelcomeScreen />;
+    }, [workflowFile, codeEditorView]);
+
     return (
         <Layout style={{ height: '100vh' }}>
             <Header style={{ height: '40px', background: colorBgContainer, borderBottom: `1px solid ${colorBorder}` }}>
@@ -72,8 +86,7 @@ function View() {
                     <Sider width={300} style={{ background: colorBgContainer }}>
                         <LeftPanel setWorkflow={setWorkflowFile} onBeginEdit={onBeginEdit} />
                     </Sider>
-                    {codeEditorView}
-                    <Flow filename={worflowFile} />
+                    {mainView}
                 </Layout>
             </Content>
         </Layout>

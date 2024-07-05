@@ -10,11 +10,11 @@ const NODE_OPTIONS = [
     {
         name: 'Run',
         disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance, runStateShouldChange) => {
+        action: async (node, reactFlowInstance, runStateShouldChange) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
-            const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
             API.run(graph, resources, node.id);
             runStateShouldChange();
         }
@@ -22,11 +22,11 @@ const NODE_OPTIONS = [
     {
         name: 'Step',
         disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance, runStateShouldChange) => {
+        action: async (node, reactFlowInstance, runStateShouldChange) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
-            const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
             API.step(graph, resources, node.id);
             runStateShouldChange();
         }
@@ -34,11 +34,11 @@ const NODE_OPTIONS = [
     {
         name: 'Clear Outputs',
         disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance) => {
+        action: async (node, reactFlowInstance) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
-            const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
             API.clear(graph, resources, node.id);
         }
     },

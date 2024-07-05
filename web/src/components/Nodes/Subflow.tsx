@@ -47,32 +47,30 @@ export function Subflow({ id, data, selected }) {
     const API = useAPI();
     const { filename } = data;
 
-    useEffect(() => {
-        if (!filename || !API) {
-            return;
-        }
-        const fetchSubflow = async () => {
-            const res = await API.getFile(filename);
-            if (!res?.content) {
-                setErrored(true);
-                return;
-            }
-            const subflow = JSON.parse(res.content);
-            if (!subflow?.nodes || !subflow?.edges) {
-                setErrored(true);
-                return;
-            }
-            // handleProperties.setSubflowHandles(id, subflow);
-            setSubflowGraph(subflow);
-        };
-        console.log("Fetching subflow")
-        fetchSubflow();
-    }, [filename, API]);
+    // useEffect(() => {
+    //     if (!filename || !API) {
+    //         return;
+    //     }
+    //     const fetchSubflow = async () => {
+    //         const res = await API.getFile(filename);
+    //         if (!res?.content) {
+    //             setErrored(true);
+    //             return;
+    //         }
+    //         const subflow = JSON.parse(res.content);
+    //         if (!subflow?.nodes || !subflow?.edges) {
+    //             setErrored(true);
+    //             return;
+    //         }
+    //         setSubflowGraph(subflow);
+    //     };
+    //     fetchSubflow();
+    // }, [filename, API]);
 
     useEffect(() => {
         const inputs: any[] = [];
         const outputs: any[] = [];
-        for (const node of subflowGraph.nodes) {
+        for (const node of data.nodes) {
             if (node.type === 'export') {
                 if (node.data?.exportType === 'input') {
                     inputs.push({
@@ -89,9 +87,8 @@ export function Subflow({ id, data, selected }) {
                 }
             }
         }
-        console.log("Setting inputs/outputs")
         setNodes(Graph.editNodeData(id, { inputs, outputs }, getNodes()));
-    }, [subflowGraph]);
+    }, [data]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
         const parentId = getNode(id)?.parentId;

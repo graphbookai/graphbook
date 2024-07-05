@@ -155,8 +155,8 @@ export function WorkflowStep({ id, data, selected }) {
         onChange: onSelectionChange
     });
 
-    const run = useCallback(() => {
-        const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+    const run = useCallback(async () => {
+        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
         API.run(graph, resources, id);
         runStateShouldChange();
     }, [nodes, edges]);

@@ -36,7 +36,6 @@ export const Graph = {
             const id = (id) => parentId + id;
             const G = {};
             const resources = {}
-            const inputs = {};
             const outputs = {};
             let exportCounts = {
                 inputs: 0,
@@ -54,26 +53,22 @@ export const Graph = {
                     };
                     if (node.data.exportType === 'input') {
                         G[id(node.id)].handleId = String(exportCounts.inputs++);
-                        console.log("Set input export",id(node.id), G[id(node.id)].handleId)
                     } else {
                         G[id(node.id)].handleId = String(exportCounts.outputs++);
-                        console.log("Set output export",id(node.id), G[id(node.id)].handleId)
                     }
                 } else if (node.type === 'subflow') {
                     const subflow = await API.getSubflowFromFile(node.data.filename);
-                    console.log("PARENBT ID", parentId + node.id + "/");
-                    const [subflowG, subflowResources, subflowInputs, subflowOutputs] = await serialize(subflow.nodes, subflow.edges, parentId + node.id + "/");
+                    const [subflowG, subflowResources, subflowOutputs] = await serialize(subflow.nodes, subflow.edges, parentId + node.id + "/");
                     Object.assign(G, subflowG);
                     Object.assign(resources, subflowResources);
                     G[id(node.id)] = {
                         ...common,
                         inputs: {},
                         exports: {
-                            inputs: subflowInputs,
+                            inputs: {},
                             outputs: subflowOutputs
                         },
                     };
-                    console.log("Regusted sybflow", G[id(node.id)]);
                 } else if (node.type === 'group') {
                     G[id(node.id)] = {
                         ...common,
@@ -148,67 +143,59 @@ export const Graph = {
                 }
 
                 const s = sourceHandle.endsWith('_inner') ? sourceHandle.slice(0, -6) : sourceHandle;
+                const isInner = sourceHandle.endsWith('_inner');
 
                 if (targetNode.type === 'export') {
-                    setSubflowOutput(targetNode.handleId, { node: source, slot: sourceHandle });
+                    setSubflowOutput(targetNode.handleId, { node: source, slot: s, isInner });
                 } else {
                     if (targetNode.type === 'step') {
                         if (targetHandle === 'in') {
-                            if (target === '1') {
-                                console.log("pushing input", { node: source, slot: s })
-                            }
-                            targetNode.inputs.push({ node: source, slot: s });
+                            targetNode.inputs.push({ node: source, slot: s, isInner });
                         } else {
-                            targetNode.parameters[targetHandle] = { node: source, slot: s };
+                            targetNode.parameters[targetHandle] = { node: source, slot: s, isInner };
                         }
                     } else if (targetNode.type === 'resource') {
-                        targetNode.parameters[targetHandle] = { node: source, slot: s };
+                        targetNode.parameters[targetHandle] = { node: source, slot: s, isInner };
                     } else if (targetNode.type === 'group') {
                         if (targetHandle.endsWith('_inner')) { // case 3
-                            setOutput(targetNode, targetHandle.slice(0, -6), { node: source, slot: sourceHandle });
+                            setOutput(targetNode, targetHandle.slice(0, -6), { node: source, slot: s, isInner: true });
                         } else { // case 1
-                            setInput(targetNode, targetHandle, { node: source, slot: sourceHandle });
+                            setInput(targetNode, targetHandle, { node: source, slot: s, isInner: false });
                         }
                     } else if (targetNode.type === 'subflow') {
-                        console.log("Setting subflow input", target, targetHandle, { node: source, slot: s });
-                        setSubflowInput(target, targetHandle, { node: source, slot: s });
+                        setSubflowInput(target, targetHandle, { node: source, slot: s, isInner });
                     }
                 }
             });
 
-            return [G, resources, inputs, outputs];
+            return [G, resources, outputs];
         };
         const [G, resources] = await serialize(nodes, edges);
-        console.log(JSON.stringify(G, null, 2));
 
         const resolveInputs = (inputs) => {
             let newInputs = [];
+            console.log(inputs);
             Object.entries(inputs).forEach(([handleId, input]) => {
                 let sourceNode = input.node;
                 let sourceSlot = input.slot;
-                console.log("in", sourceNode, sourceSlot, JSON.stringify(G[sourceNode]))
-                if (G[sourceNode]) { // must be case 2 or 4 if groups cant be cascaded
-                    console.log(JSON.stringify(G[sourceNode]));
-                    if ((G[sourceNode].type === 'group' && input.isInner) || G[sourceNode].type === 'export') { // case 2
+                if (G[sourceNode]) {
+                    if ((G[sourceNode].type === 'group' && input.isInner) || G[sourceNode].type === 'export') {
                         if (G[sourceNode].type === 'export') {
                             sourceSlot = G[sourceNode].handleId;
                             sourceNode = G[sourceNode].parentId;
-                            console.log("Export", sourceNode, sourceSlot);
                         }
-                        console.log("TO", G[sourceNode].exports.inputs);
+                        console.log(G[sourceNode].type, input.isInner)
                         const groupInput = G[sourceNode].exports.inputs[sourceSlot];
                         if (groupInput) {
                             newInputs.push(...resolveInputs(groupInput));
                         }
-                    } else if ((G[sourceNode].type === 'group' && !input.isInner) || G[sourceNode].type === 'subflow') { // case 4
-                        console.log(sourceNode, sourceSlot, input);
-                        console.log(G[sourceNode].exports.outputs[sourceSlot]);
+                    } else if ((G[sourceNode].type === 'group' && !input.isInner) || G[sourceNode].type === 'subflow') {
+                        console.log(G[sourceNode].type, input.isInner)
                         const groupOutput = G[sourceNode].exports.outputs[sourceSlot];
                         if (groupOutput) {
                             newInputs.push(...resolveInputs(groupOutput));
                         }
                     } else if (G[sourceNode].type === 'step') {
-                        console.log("Pushing", { node: sourceNode, slot: sourceSlot });
                         newInputs.push({ node: sourceNode, slot: sourceSlot });
                     }
                 }
@@ -219,16 +206,23 @@ export const Graph = {
         const resolveParameters = (parameters) => {
             let newParams = {};
             Object.entries(parameters).forEach(([handleId, input]) => {
+                if (!input) {
+                    return;
+                }
                 let sourceNode = input.node;
                 let sourceSlot = input.slot;
                 if (!sourceNode) {
                     return;
                 }
-                while (G[sourceNode] && G[sourceNode].type === 'group') { // must be case 2 or 4 if groups cant be cascaded
+                while (G[sourceNode] && G[sourceNode].type !== 'resource') {
                     let pin;
-                    if (input.isInner) { // case 2
+                    if ((G[sourceNode].type === 'group' && input.isInner) || G[sourceNode].type === 'export') {
+                        if (G[sourceNode].type === 'export') {
+                            sourceSlot = G[sourceNode].handleId;
+                            sourceNode = G[sourceNode].parentId;
+                        }
                         pin = G[sourceNode].exports.inputs[sourceSlot];
-                    } else { // case 4
+                    } else if ((G[sourceNode].type === 'group' && !input.isInner) || G[sourceNode].type === 'subflow') {
                         pin = G[sourceNode].exports.outputs[sourceSlot];
                     }
                     if (pin && pin[0]) {
@@ -250,17 +244,19 @@ export const Graph = {
                 return;
             }
 
-            console.log(id);
             const inputs = resolveInputs(node.inputs);
-            // const params = resolveParameters(node.parameters);
+            const params = resolveParameters(node.parameters);
             node.inputs = inputs;
-            // node.parameters = {
-            //     ...node.parameters,
-            //     ...params
-            // };
+            node.parameters = {
+                ...node.parameters,
+                ...params
+            };
             delete node.exports;
         });
         Object.entries(G).forEach(([id, node]) => {
+            if (node.type === 'resource') {
+                resources[id] = node;
+            }
             if (node.type !== 'step') {
                 delete G[id];
             }
