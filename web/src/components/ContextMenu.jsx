@@ -1,5 +1,5 @@
 import { Menu } from 'antd';
-import { useReactFlow } from 'reactflow';
+import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { keyRecursively, uniqueIdFrom } from '../utils';
 import { API } from '../api';
@@ -10,11 +10,11 @@ const NODE_OPTIONS = [
     {
         name: 'Run',
         disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance, runStateShouldChange) => {
+        action: async (node, reactFlowInstance, runStateShouldChange) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
-            const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
             API.run(graph, resources, node.id);
             runStateShouldChange();
         }
@@ -22,11 +22,11 @@ const NODE_OPTIONS = [
     {
         name: 'Step',
         disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance, runStateShouldChange) => {
+        action: async (node, reactFlowInstance, runStateShouldChange) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
-            const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
             API.step(graph, resources, node.id);
             runStateShouldChange();
         }
@@ -34,11 +34,11 @@ const NODE_OPTIONS = [
     {
         name: 'Clear Outputs',
         disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance) => {
+        action: async (node, reactFlowInstance) => {
             const { getNodes, getEdges } = reactFlowInstance;
             const nodes = getNodes();
             const edges = getEdges();
-            const [graph, resources] = Graph.serializeForAPI(nodes, edges);
+            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
             API.clear(graph, resources, node.id);
         }
     },
@@ -205,15 +205,51 @@ const GROUP_OPTIONS = [
             });
         }
     }
-]
+];
+
+const EXPORT_OPTIONS = [
+    {
+        name: 'Edit Label',
+        action: (node, reactFlowInstance) => {
+            const { setNodes } = reactFlowInstance;
+            setNodes((nodes) => {
+                return nodes.map((n) => {
+                    if (n.id === node.id) {
+                        return {
+                            ...n,
+                            data: {
+                                ...n.data,
+                                isEditing: true
+                            }
+                        };
+                    }
+                    return n;
+                });
+            });
+        }
+    }
+];
+
+const getOptions = (nodeType) => {
+    if (nodeType === 'group') {
+        return GROUP_OPTIONS;
+    }
+    if (nodeType === 'export') {
+        return EXPORT_OPTIONS;
+    }
+    if (nodeType === 'step' || nodeType === 'resource') {
+        return NODE_OPTIONS;
+    }
+};
 
 export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
     const [runState, runStateShouldChange] = useRunState();
+    const updateNodeInternals = useUpdateNodeInternals();
 
     const items = useMemo(() => {
-        const toReturn = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS).map((option) => {
+        const toReturn = getOptions(node.type).map((option) => {
             return {
                 label: typeof option.name === 'function' ? option.name(node) : option.name,
                 children: option.children,
@@ -225,8 +261,9 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
 
     const menuItemOnClick = useCallback(({ key }) => {
         const actionIndex = parseInt(key);
-        const action = (node.type !== 'group' ? NODE_OPTIONS : GROUP_OPTIONS)[actionIndex].action;
+        const action = getOptions(node.type)[actionIndex].action;
         action(node, reactFlowInstance, runStateShouldChange);
+        updateNodeInternals(nodeId);
     }, [node]);
 
     return (
@@ -300,6 +337,21 @@ export function PaneContextMenu({ top, left, close }) {
             children: toListTree(resources)
         }, {
             label: 'Add Group'
+        }, {
+            label: 'Add Export',
+            children: [{
+                label: 'Resource Input',
+                key: 'resource input'
+            }, {
+                label: 'Step Input',
+                key: 'step input'
+            }, {
+                label: 'Resource Output',
+                key: 'resource output'
+            }, {
+                label: 'Step Output',
+                key: 'step output'
+            }]
         }];
 
         return keyRecursively(items);
@@ -347,6 +399,15 @@ export function PaneContextMenu({ top, left, close }) {
         setNodes(newNodes);
     }, [graphNodes]);
 
+    const addExport = useCallback((exportType, isResource) => {
+        const position = screenToFlowPosition({ x: left, y: top });
+        const type = 'export';
+        const label = isResource ? 'Resource' : (exportType === 'input' ? 'Input' : 'Output');
+        const newNode = ({ type, position, data: { label, exportType, isResource } });
+        const newNodes = Graph.addNode(newNode, graphNodes);
+        setNodes(newNodes);
+    }, [graphNodes]);
+
     const onClick = useCallback(({ key }) => {
         const { event, item } = getEvent(items, key);
         switch (event) {
@@ -358,6 +419,17 @@ export function PaneContextMenu({ top, left, close }) {
                 break;
             case 'Add Group':
                 addGroup();
+                break;
+            case 'Add Export':
+                if (item.label === 'Resource Input') {
+                    addExport('input', true);
+                } else if (item.label === 'Step Input') {
+                    addExport('input', false);
+                } else if (item.label === 'Resource Output') {
+                    addExport('output', true);
+                } else if (item.label === 'Step Output') {
+                    addExport('output', false);
+                }
                 break;
             default:
                 break;

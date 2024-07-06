@@ -5,7 +5,7 @@ import { basicDark } from '@uiw/codemirror-theme-basic';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
 import { CloseOutlined, CheckOutlined, LoadingOutlined } from "@ant-design/icons";
 import { theme } from 'antd';
-import { API } from '../../api';
+import { useAPI } from '../../hooks/API';
 import { md5 } from 'js-md5';
 const { useToken } = theme;
 
@@ -28,6 +28,7 @@ const generateMD5 = (content) => {
 export function CodeEditor({closeEditor, name}) {
     const [codeEditorState, setCodeEditorState] = useState(defaultEditorState);
     const [currTimeout, setCurrTimeout] = useState(null);
+    const API = useAPI();
     const token = useToken();
 
     let filepath = name;
@@ -45,10 +46,16 @@ export function CodeEditor({closeEditor, name}) {
                 console.log("Error getting file");
             }
         };
-        getFile();
-    }, []);
+        if (API && filepath) {
+            getFile();
+        }
+    }, [API]);
 
     const onChange = useCallback((val, viewUpdate) => {
+        if (!API) {
+            return;
+        }
+
         setCodeEditorState({ ...codeEditorState, isSaved: false, value: val });
         if (currTimeout) {
             clearTimeout(currTimeout);
@@ -57,7 +64,7 @@ export function CodeEditor({closeEditor, name}) {
         const timeout = setTimeout(async () => {
             console.log("Saving file...", filepath);
             try {
-                await API.putItem(filepath, true, val, codeEditorState.prevHash);
+                await API.putFile(filepath, true, val, codeEditorState.prevHash);
                 const newHash = generateMD5(val);
                 setCodeEditorState({ ...codeEditorState, isSaved: true, prevHash: newHash, value: val });
             } catch {
@@ -66,7 +73,7 @@ export function CodeEditor({closeEditor, name}) {
             }
         }, UPDATE_EVERY);
         setCurrTimeout(timeout);
-    }, [currTimeout, filepath, codeEditorState]);
+    }, [currTimeout, filepath, codeEditorState, API]);
 
     return (
         <div style={{height: '100%', display: 'flex', flexDirection: 'column'}}>

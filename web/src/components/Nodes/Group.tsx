@@ -33,13 +33,13 @@ const outInnerHandleStyle = {
     ...innerHandleStyle,
     marginRight: '5px',
 };
-export function Group({ id, data }) {
+export function Group({ id, data, selected }) {
     const { label } = data;
     const updateNodeInternals = useUpdateNodeInternals();
 
 
     useEffect(() => {
-        updateNodeInternals(id);
+        // updateNodeInternals(id);
     }, [id, data.exports]);
 
     if (data.isCollapsed) {
@@ -92,7 +92,6 @@ function GroupPins({ data }) {
             <div className="inputs">
                 {
                     inputs
-                        .map((input, i)=>({...input, id: i}))
                         .sort(sortPinFn)
                         .map((input, i) => {
                             return (
@@ -108,7 +107,6 @@ function GroupPins({ data }) {
             <div className='outputs'>
                 {
                     outputs
-                        .map((output, i)=>({...output, id: i}))
                         .sort(sortPinFn)
                         .map((output, i) => {
                             return (
@@ -130,7 +128,7 @@ export function groupIfPossible(changedNodes: Node[], allNodes: Node[]) {
     const groupNodes = allNodes.filter((node) => node.type === 'group');
     const changedNodesIds = changedNodes.map(({ id }) => id);
     return allNodes.map((node) => {
-        if (node.type === 'group' || !changedNodesIds.includes(node.id)) {
+        if (node.type === 'group' || node.type === 'export' || !changedNodesIds.includes(node.id)) {
             return node;
         }
 

@@ -1,13 +1,12 @@
-import { API } from './api';
 import { uniqueIdFrom } from './utils';
+import { API } from './api';
 
 export const Graph = {
     addNode(node, nodes) {
         const nextId = uniqueIdFrom(nodes);
-        const newNode = {id: nextId.toString(), ...node};
+        const newNode = { id: nextId.toString(), ...node };
         newNode.data.isCollapsed = false;
-        API.putNode(newNode);
-        
+
         return [...nodes, newNode];
     },
     editNodeData(nodeId, data, nodes) {
@@ -32,122 +31,173 @@ export const Graph = {
         };
         return nodes;
     },
-    serializeForAPI(nodes, edges) {
-        const G = {};
-        const resources = {}
-        nodes.forEach((node) => {
-            const common = {
-                parameters: {},
-                type: node.type
-            };
-            if (node.data.parameters) {
-                for (const [key, param] of Object.entries(node.data.parameters)) {
-                    if (!param.node) {
-                        common.parameters[key] = param.value;
-                    }
-                }
+    serializeForAPI: async (nodes, edges) => {
+        const serialize = async (nodes, edges, parentId = "") => {
+            const id = (id) => parentId + id;
+            const G = {};
+            const resources = {}
+            const outputs = {};
+            let exportCounts = {
+                inputs: 0,
+                outputs: 0
             }
-            if (node.type === 'step' || node.type === 'group') {
-                G[node.id] = {
-                    ...common,
-                    name: node.data.name,
-                    inputs: {},
-                    exports: {
+            for (const node of nodes) {
+                const common = {
+                    type: node.type,
+                    name: node.data.name
+                };
+                if (node.type === 'export') {
+                    G[id(node.id)] = {
+                        ...common,
+                        parentId: parentId.slice(0, -1),
+                    };
+                    if (node.data.exportType === 'input') {
+                        G[id(node.id)].handleId = String(exportCounts.inputs++);
+                    } else {
+                        G[id(node.id)].handleId = String(exportCounts.outputs++);
+                    }
+                } else if (node.type === 'subflow') {
+                    const subflow = await API.getSubflowFromFile(node.data.filename);
+                    const [subflowG, subflowResources, subflowOutputs] = await serialize(subflow.nodes, subflow.edges, parentId + node.id + "/");
+                    Object.assign(G, subflowG);
+                    Object.assign(resources, subflowResources);
+                    G[id(node.id)] = {
+                        ...common,
                         inputs: {},
-                        outputs: {}
-                    },
-                };
-            } else if (node.type === 'resource') {
-                resources[node.id] = {
-                    ...common,
-                    name: node.data.name,
-                };
-                G[node.id] = resources[node.id];
-            } else {
-                console.warn('Unknown node type when serializing graph:', node.type);
-            }
-        });
-        const setOutput = (node, slot, from={}) => {
-            const output = node.exports.outputs[slot];
-            if (output) {
-                output.push(from);
-            } else {
-                node.exports.outputs[slot] = [from];
-            }
-        };
-        const setInput = (node, slot, from) => {
-            const input = node.exports.inputs[slot];
-            if (input) {
-                input.push(from);
-            } else {
-                node.exports.inputs[slot] = [from];
-            }
-        };
-        edges.forEach((edge) => {
-            const {source, target, sourceHandle, targetHandle} = edge;
-            const sourceNode = G[source];
-            const targetNode = G[target];
-
-            if (targetNode.type === 'group') {
-                if (targetHandle.endsWith('_inner')) { // case 3
-                    setOutput(targetNode, targetHandle.slice(0, -6), { node: source, slot: sourceHandle });
-                } else { // case 1
-                    setInput(targetNode, targetHandle, { node: source, slot: sourceHandle });
-                }
-            }
-
-            if (sourceNode.type === 'group') {
-                if (sourceHandle.endsWith('_inner')) { // case 2
-                    if (targetNode.type === 'step') {
-                        if (targetHandle === 'in') {
-                            targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle.slice(0, -6), isInner: true };
-                        } else {
-                            targetNode.parameters[targetHandle] = { node: source, slot: sourceHandle.slice(0, -6), isInner: true };
+                        exports: {
+                            inputs: {},
+                            outputs: subflowOutputs
+                        },
+                    };
+                } else if (node.type === 'group') {
+                    G[id(node.id)] = {
+                        ...common,
+                        exports: {
+                            inputs: {},
+                            outputs: {}
+                        },
+                    };
+                } else if (node.type === 'step' || node.type === 'resource') {
+                    const parameters = {};
+                    for (const [key, param] of Object.entries(node.data.parameters || {})) {
+                        if (!param.node) {
+                            parameters[key] = param.value;
                         }
                     }
-                } else { // case 4
+                    if (node.type === 'step') {
+                        G[id(node.id)] = {
+                            ...common,
+                            inputs: [],
+                            parameters,
+                        };
+                    } else {
+                        G[id(node.id)] = {
+                            ...common,
+                            parameters,
+                        };
+                    }
+                } else {
+                    console.warn('Unknown node type when serializing graph:', node.type);
+                }
+            };
+            const setOutput = (node, slot, from = {}) => {
+                const output = node.exports.outputs[slot];
+                if (output) {
+                    output.push(from);
+                } else {
+                    node.exports.outputs[slot] = [from];
+                }
+            };
+            const setInput = (node, slot, from) => {
+                const input = node.exports.inputs[slot];
+                if (input) {
+                    input.push(from);
+                } else {
+                    node.exports.inputs[slot] = [from];
+                }
+            };
+            const setSubflowOutput = (slot, from) => {
+                const output = outputs[slot];
+                if (output) {
+                    output.push(from);
+                } else {
+                    outputs[slot] = [from];
+                }
+            };
+            const setSubflowInput = (id, slot, from) => {
+                const inputs = G[id].exports.inputs[slot];
+                G[id].exports.inputs = {
+                    ...G[id].exports.inputs,
+                    [slot]: [...(inputs || []), from]
+                };
+            };
+            edges.forEach((edge) => {
+                let { source, target } = edge;
+                source = id(source);
+                target = id(target);
+                const { sourceHandle, targetHandle } = edge;
+                const sourceNode = G[source];
+                const targetNode = G[target];
+                if (!sourceNode || !targetNode) {
+                    return;
+                }
+
+                const s = sourceHandle.endsWith('_inner') ? sourceHandle.slice(0, -6) : sourceHandle;
+                const isInner = sourceHandle.endsWith('_inner');
+
+                if (targetNode.type === 'export') {
+                    setSubflowOutput(targetNode.handleId, { node: source, slot: s, isInner });
+                } else {
                     if (targetNode.type === 'step') {
                         if (targetHandle === 'in') {
-                            targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle, isInner: false };
+                            targetNode.inputs.push({ node: source, slot: s, isInner });
                         } else {
-                            targetNode.parameters[targetHandle] = { node: source, slot: sourceHandle, isInner: false };
+                            targetNode.parameters[targetHandle] = { node: source, slot: s, isInner };
                         }
+                    } else if (targetNode.type === 'resource') {
+                        targetNode.parameters[targetHandle] = { node: source, slot: s, isInner };
+                    } else if (targetNode.type === 'group') {
+                        if (targetHandle.endsWith('_inner')) { // case 3
+                            setOutput(targetNode, targetHandle.slice(0, -6), { node: source, slot: s, isInner: true });
+                        } else { // case 1
+                            setInput(targetNode, targetHandle, { node: source, slot: s, isInner: false });
+                        }
+                    } else if (targetNode.type === 'subflow') {
+                        setSubflowInput(target, targetHandle, { node: source, slot: s, isInner });
                     }
                 }
-            } else if (sourceNode.type === 'step') {
-                if (targetNode.type === 'step') {
-                    if (targetHandle === 'in') {
-                        targetNode.inputs[targetHandle] = { node: source, slot: sourceHandle };
-                    }
-                }
-            } else if (sourceNode.type === 'resource') {
-                if (targetNode.type === 'step') {
-                    targetNode.parameters[targetHandle] = { node: source, slot: sourceHandle };
-                }
-            }
-        });
+            });
 
+            return [G, resources, outputs];
+        };
+        const [G, resources] = await serialize(nodes, edges);
 
         const resolveInputs = (inputs) => {
             let newInputs = [];
             Object.entries(inputs).forEach(([handleId, input]) => {
                 let sourceNode = input.node;
                 let sourceSlot = input.slot;
-                if (G[sourceNode] && G[sourceNode].type === 'group') { // must be case 2 or 4 if groups cant be cascaded
-                    if (input.isInner) { // case 2
+                if (G[sourceNode]) {
+                    if ((G[sourceNode].type === 'group' && input.isInner) || G[sourceNode].type === 'export') {
+                        if (G[sourceNode].type === 'export') {
+                            sourceSlot = G[sourceNode].handleId;
+                            sourceNode = G[sourceNode].parentId;
+                            if (!sourceNode || !sourceSlot) {
+                                return;
+                            }
+                        }
                         const groupInput = G[sourceNode].exports.inputs[sourceSlot];
                         if (groupInput) {
                             newInputs.push(...resolveInputs(groupInput));
                         }
-                    } else { // case 4
+                    } else if ((G[sourceNode].type === 'group' && !input.isInner) || G[sourceNode].type === 'subflow') {
                         const groupOutput = G[sourceNode].exports.outputs[sourceSlot];
-                        if (groupOutput && groupOutput) {
+                        if (groupOutput) {
                             newInputs.push(...resolveInputs(groupOutput));
                         }
+                    } else if (G[sourceNode].type === 'step') {
+                        newInputs.push({ node: sourceNode, slot: sourceSlot });
                     }
-                }
-                if (G[sourceNode] && G[sourceNode].type === 'step') {
-                    newInputs.push({ node: sourceNode, slot: sourceSlot });
                 }
             });
             return newInputs;
@@ -156,16 +206,28 @@ export const Graph = {
         const resolveParameters = (parameters) => {
             let newParams = {};
             Object.entries(parameters).forEach(([handleId, input]) => {
+                if (!input) {
+                    return;
+                }
                 let sourceNode = input.node;
                 let sourceSlot = input.slot;
                 if (!sourceNode) {
                     return;
                 }
-                while (G[sourceNode] && G[sourceNode].type === 'group') { // must be case 2 or 4 if groups cant be cascaded
+                while (G[sourceNode] && G[sourceNode].type !== 'resource') {
                     let pin;
-                    if (input.isInner) { // case 2
+                    if ((G[sourceNode].type === 'group' && input.isInner) || G[sourceNode].type === 'export') {
+                        if (G[sourceNode].type === 'export') {
+                            sourceSlot = G[sourceNode].handleId;
+                            sourceNode = G[sourceNode].parentId;
+                            console.log(`sourceSlot: ${sourceSlot}, sourceNode: ${sourceNode}`)
+                            console.log(!!sourceNode)
+                            if (!sourceNode || !sourceSlot) {
+                                break;
+                            }
+                        }
                         pin = G[sourceNode].exports.inputs[sourceSlot];
-                    } else { // case 4
+                    } else if ((G[sourceNode].type === 'group' && !input.isInner) || G[sourceNode].type === 'subflow') {
                         pin = G[sourceNode].exports.outputs[sourceSlot];
                     }
                     if (pin && pin[0]) {
@@ -186,6 +248,7 @@ export const Graph = {
             if (node.type !== 'step') {
                 return;
             }
+
             const inputs = resolveInputs(node.inputs);
             const params = resolveParameters(node.parameters);
             node.inputs = inputs;
@@ -196,6 +259,9 @@ export const Graph = {
             delete node.exports;
         });
         Object.entries(G).forEach(([id, node]) => {
+            if (node.type === 'resource') {
+                resources[id] = node;
+            }
             if (node.type !== 'step') {
                 delete G[id];
             }
@@ -206,7 +272,7 @@ export const Graph = {
         return [G, resources];
     },
     serialize(nodes, edges) {
-        return JSON.stringify({nodes, edges});
+        return JSON.stringify({ nodes, edges });
     },
     deserialize(serialized) {
         return JSON.parse(serialized);
@@ -219,7 +285,7 @@ export const Graph = {
         if (graph) {
             return Graph.deserialize(graph);
         } else {
-            return {nodes: [], edges: []};
+            return { nodes: [], edges: [] };
         }
     },
     wouldBeCyclic(nodes, edges, connectingEdge) {
@@ -247,7 +313,7 @@ export const Graph = {
         const q = [];
         const origin = connectingEdge.target;
         q.push(origin);
-        while(q.length > 0) {
+        while (q.length > 0) {
             const [nodeId] = q.splice(0, 1);
             for (const childId of adjList[nodeId]) {
                 if (childId === origin) {

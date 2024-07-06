@@ -8,6 +8,8 @@ import multiprocessing as mp
 import importlib, importlib.util, inspect
 import exports
 import sys, os
+import os.path as osp
+import json
 import hashlib
 from enum import Enum
 
@@ -15,27 +17,29 @@ Outputs = Dict[str, List[DataRecord]]
 
 
 class UIState:
-    def __init__(self, websocket: WebSocketResponse):
+    def __init__(self, root_path: str, websocket: WebSocketResponse):
+        self.root_path = root_path
         self.ws = websocket
         self.nodes = {}
         self.edges = {}
 
     def cmd(self, req: dict):
-        if req["cmd"] == "add_node":
-            self.add_node(req["node"])
-        elif req["cmd"] == "put_node":
-            self.put_node(req["node"])
-        elif req["cmd"] == "delete_node":
-            self.delete_node(req["id"])
+        if req["cmd"] == "put_graph":
+            filename = req["filename"]
+            nodes = req["nodes"]
+            edges = req["edges"]
+            self.put_graph(filename, nodes, edges)
 
-    def add_node(self, node: dict):
-        self.nodes[node["id"]] = node
-
-    def put_node(self, node: dict):
-        self.nodes[node["id"]] = node
-
-    def delete_node(self, id: str):
-        del self.nodes[id]
+    def put_graph(self, filename: str, nodes: list, edges: list):
+        full_path = osp.join(self.root_path, filename)
+        with open(full_path, "w") as f:
+            serialized = {
+                "version": "0",
+                "type": "workflow",
+                "nodes": nodes,
+                "edges": edges,
+            }
+            json.dump(serialized, f)
 
 
 class NodeCatalog:
@@ -185,7 +189,7 @@ class GraphState:
                 steps[step_id] = step
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()
-                
+
                 previous_obj = self._steps.get(step_id)
                 if previous_obj is not None:
                     print("Updating consumer")
@@ -367,7 +371,7 @@ class MultiConsumerStateDictionaryQueue:
         value = records[order_idx]
         self._consumer_idx[consumer_id] = idx
         return value
-    
+
     def size(self):
         return len(self._order)
 
@@ -377,6 +381,6 @@ class MultiConsumerStateDictionaryQueue:
         for consumer_id in self._consumer_subs:
             self._consumer_idx[consumer_id] = 0
             self._consumer_subs[consumer_id] = set()
-            
+
     def reset_consumer_idx(self, consumer_id: int):
         self._consumer_idx[consumer_id] = 0

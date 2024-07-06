@@ -3,6 +3,8 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
 import { keyRecursively } from "../../utils";
+import { filesystemDragBegin } from "../../utils";
+import DefaultWorkflow from "../../DefaultWorkflow.json";
 const { Text } = Typography;
 const { Search } = Input;
 
@@ -25,7 +27,7 @@ const getParentKey = (key, tree) => {
     return parentKey;
   };
 
-export default function Filesystem({ onBeginEdit }) {
+export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [files, setFiles] = useState(initialFiles);
     const [filesRoot, setFilesRoot] = useState('.');
     const [expandedKeys, setExpandedKeys] = useState([]);
@@ -88,6 +90,9 @@ export default function Filesystem({ onBeginEdit }) {
         }
         if (filename.slice(-3) == '.py') {
             onBeginEdit({name: filename});
+        } else if(filename.slice(-5) == '.json') {
+            setWorkflow(filename);
+            onBeginEdit(null);
         } else {
             onBeginEdit(null);
         }
@@ -100,7 +105,10 @@ export default function Filesystem({ onBeginEdit }) {
             return;
         }
         try {
-            await API.putItem(e.target.value, isFile);
+            const filename = e.target.value;
+            const content = filename.endsWith('.json') ? DefaultWorkflow : "";
+            await API.putFile(filename, isFile, JSON.stringify(content));
+            setWorkflow(filename);
             getFiles();
         } catch (e) {
             console.error(e);
@@ -109,7 +117,7 @@ export default function Filesystem({ onBeginEdit }) {
     });
 
     const treeData = useMemo(() => {
-        const loop = (data, parentName="/") => (
+        const loop = (data, parentName="") => (
             data.map((item) => {
                 const strTitle = item.title;
                 const filename = parentName + strTitle;
@@ -197,20 +205,10 @@ function DirItem({ title }) {
     );
 }
 
-function FileItem({ title, fullpath, onClick }) {
+function FileItem({ title, filename, fullpath, onClick }) {
     const onDragStart = useCallback((e) => {
-        e.dataTransfer.setData('application/json', JSON.stringify({
-            type: 'resource',
-            data: {
-                name: 'Text',
-                parameters: {
-                    val: {
-                        value: fullpath
-                    }
-                }
-            }
-        }));
-    });
+        filesystemDragBegin(filename, e);
+    }, [filename]);
 
     return (
         <span className="file-item" onDragStart={onDragStart} draggable onClick={onClick}>

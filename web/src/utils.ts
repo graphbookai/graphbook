@@ -1,4 +1,7 @@
 import { Node } from "reactflow";
+import { Graph } from "./graph";
+import type { ServerAPI } from "./api";
+import type { ReactFlowInstance } from "reactflow";
 
 export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"): Array<any> => {
     let currKeyVal = 0;
@@ -33,6 +36,58 @@ export const uniqueIdFrom = (obj: any): string => {
     }
 }
 
+
+export const filesystemDragBegin = (value: string, e: DragEvent) => {
+    if (e) {
+        e.dataTransfer?.setData('application/json', JSON.stringify({ value }));
+    }
+}
+
+export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, API: ServerAPI, e: DragEvent) => {
+    if (e?.dataTransfer) {
+        const data = JSON.parse(e.dataTransfer.getData("application/json"));
+        if (!data.value) {
+            return;
+        }
+
+        let nodeData: any = {
+            name: 'Text',
+            parameters: { val: { type: "string", value: data.value } }
+        };
+        let type = 'resource';
+        if (data.value.endsWith('.json')) {
+            const res = await API.getFile(data.value);
+            if (res?.content) {
+                const jsonData = JSON.parse(res.content);
+                if (jsonData?.type === 'workflow') {
+                    type = 'subflow';
+                    const name = data.value.split('/').pop().slice(0, -5);
+                    nodeData = {
+                        name,
+                        label: name,
+                        filename: data.value,
+                        properties: {
+                            nodes: jsonData.nodes,
+                            edges: jsonData.edges
+                        }
+                    }
+                }
+            }
+        }
+        const { setNodes, getNodes } = reactFlowInstance;
+        const dropPosition = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+        const nodes = getNodes();
+        const node = {
+            id: uniqueIdFrom(nodes),
+            position: dropPosition,
+            type,
+            data: nodeData
+        }
+        setNodes(Graph.addNode(node, nodes));
+    }
+}
+
 /**
  * Types of handles:
  * - step
@@ -43,8 +98,12 @@ export function getHandle(node: Node, handleId: string, isTarget: boolean) {
         return getStepHandle(node, handleId, isTarget);
     } else if(node.type === 'resource'){
         return getResourceHandle(node, handleId, isTarget);
-    } else {
+    } else if(node.type === 'group'){
         return getGroupHandle(node, handleId, isTarget);
+    } else if(node.type === 'export') {
+        return getExportHandle(node, handleId, isTarget);
+    } else {
+        return getSubflowHandle(node, handleId, isTarget);
     }
 }
 
@@ -115,7 +174,7 @@ export function getExportedInputHandle(node: Node, handleId: string) {
         handleId = handleId.slice(0, -6);
         toReturn['inner'] = true;
     }
-    return { ...toReturn, ...node.data.exports.inputs[handleId], nodeType: 'group'};
+    return { ...toReturn, ...node.data.exports.inputs.find(({id})=>id === handleId), nodeType: 'group'};
 }
 
 export function getExportedOutputHandle(node: Node, handleId: string) {
@@ -124,9 +183,36 @@ export function getExportedOutputHandle(node: Node, handleId: string) {
         handleId = handleId.slice(0, -6);
         toReturn['inner'] = true;
     }
-    return { ...toReturn, ...node.data.exports.outputs[handleId], nodeType: 'group' };
+    return { ...toReturn, ...node.data.exports.outputs.find(({id})=>id === handleId), nodeType: 'group' };
 }
 
 export function isInternalHandle(handleId: string) {
     return handleId.endsWith('_inner');
+}
+
+
+/**
+ * Export Handles
+ */
+export function getExportHandle(node: Node, handleId: string, isTarget: boolean) {
+    const type = node.data.isResource ? 'resource' : 'step';
+    return { id: handleId, type, inner: false, nodeType: 'export' };
+}
+
+/**
+ * Export Handles
+ */
+export function getSubflowHandle(node: Node, handleId: string, isTarget: boolean) {
+    const index = parseInt(handleId);
+    if (isTarget) {
+        const inputs = node.data.properties.nodes.filter((n) => n.type === 'export' && n.data.exportType === 'input');
+        const input = inputs[index];
+        const type = input.data.isResource ? 'resource' : 'step';
+        return { id: handleId, type, inner: false, nodeType: 'subflow' };
+    }
+
+    const outputs = node.data.properties.nodes.filter((n) => n.type === 'export' && n.data.exportType === 'output');
+    const output = outputs[index];
+    const type = output.data.isResource ? 'resource' : 'step';
+    return { id: handleId, type, inner: false, nodeType: 'subflow' };
 }

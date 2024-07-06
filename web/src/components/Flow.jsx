@@ -6,29 +6,54 @@ import ReactFlow, {
     useEdgesState,
     addEdge
 } from 'reactflow';
-import { Button, Flex, notification, theme } from 'antd';
+import { Button, Flex, Typography, notification, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
-import { CodeResource } from './Nodes/CodeResource.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle } from '../utils.ts';
+import { getHandle, filesystemDragEnd } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
+import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
-import { API } from '../api';
+import { useAPI } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
-const { useToken } = theme;
-
+import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
+import { Subflow } from './Nodes/Subflow.tsx';
+const { Text } = Typography;
+const { useToken } = theme;
+const makeDroppable = (e) => e.preventDefault();
+const onLoadGraph = async (filename, API) => {
+    const file = await API.getFile(filename);
+    if (file?.content) {
+        const graph = JSON.parse(file.content);
+        if (graph.type === 'workflow') {
+            for (const node of graph.nodes) {
+                if (node.type === 'subflow' && node.data.filename !== filename) {
+                    const file = await API.getFile(node.data.filename);
+                    const subflowGraph = JSON.parse(file?.content);
+                    node.data.properties = {
+                        nodes: subflowGraph.nodes,
+                        edges: subflowGraph.edges,
+                    };
+                }
+            }
+            return [graph.nodes, graph.edges];
+        }
+    }
+    return [[], []];
+};
 
-export default function Flow({ initialNodes, initialEdges }) {
+export default function Flow({ filename }) {
     const { token } = useToken();
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    const API = useAPI();
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [nodeMenu, setNodeMenu] = useState(null);
     const [paneMenu, setPaneMenu] = useState(null);
-    const [runState, runStateShouldChange] = useRunState();
+    const [runState, _] = useRunState();
+    const graphStore = useRef(null);
 
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     // Coalesce
@@ -37,26 +62,40 @@ export default function Flow({ initialNodes, initialEdges }) {
     const [nodeToPos, setNodeToPos] = useState({ x: 0, y: 0 });
     const reactFlowInstance = useRef(null);
     const reactFlowRef = useRef(null);
+    
+
+    useEffect(() => {
+        graphStore.current = null;
+    }, [filename]);
+
+    useEffect(() => {
+        const loadGraph = async () => {
+            const [nodes, edges] = await onLoadGraph(filename, API);
+            setNodes(nodes);
+            setEdges(edges);
+            graphStore.current = new GraphStore(filename, API, nodes, edges);
+        };
+        graphStore.current = null;
+
+        if (!filename || !API) {
+            setNodes([]);
+            setEdges([]);
+        } else {
+            loadGraph();
+        }
+    }, [API, filename]);
 
     const nodeTypes = useMemo(() => ({
         step: WorkflowStep,
         resource: Resource,
-        codeResource: CodeResource,
         group: Group,
+        export: Export,
+        subflow: Subflow,
     }), []);
-
-    const onConnect = useCallback(
-        (params) => setEdges((eds) => addEdge(params, eds)),
-        [setEdges],
-    );
 
     const onInitReactFlow = (instance) => {
         reactFlowInstance.current = instance;
     };
-
-    const onAddNode = useCallback((node) => {
-        setNodes(Graph.addNode(node, nodes));
-    }, [nodes]);
 
     const onNodesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
@@ -92,9 +131,31 @@ export default function Flow({ initialNodes, initialEdges }) {
         onEdgesChange(changes);
     });
 
+    const onConnect = useCallback((params) => {
+        setEdges((eds) => addEdge(params, eds));
+    }, [setEdges, edges]);
+
+    const onNodesDelete = useCallback((deletedNodes) => {
+        const deletedNodesMap = {};
+        deletedNodes.forEach(node => {
+            deletedNodesMap[node.id] = node;
+        });
+        nodes.forEach(n => {
+            if (n.parentId) {
+                const parent = deletedNodesMap[n.parentId];
+                if (parent) {
+                    n.parentId = null;
+                    n.position = { x: n.position.x + parent.position.x, y: n.position.y + parent.position.y };
+                }
+            }
+        });
+    });
+
     useEffect(() => {
-        Graph.storeGraph(nodes, edges);
-    }, [nodes, edges]);
+        if (graphStore.current) {
+            graphStore.current.update(nodes, edges);
+        }
+    }, [nodes, edges, API, filename]);
 
     const handleMouseClickComp = useCallback((event) => {
         setIsAddNodeActive(false);
@@ -124,20 +185,13 @@ export default function Flow({ initialNodes, initialEdges }) {
         };
     }, [handleMouseClick]);
 
-    const getGraph = useCallback(() => {
-        return Graph.serializeForAPI(nodes, edges);
+    const getGraph = useCallback(async () => {
+        return await Graph.serializeForAPI(nodes, edges);
     }, [nodes, edges]);
 
     const onDrop = useCallback((event) => {
-        const dropPosition = reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-        const data = JSON.parse(event.dataTransfer.getData("application/json"));
-        if (data.type) {
-            onAddNode({ ...data, position: dropPosition });
-        }
-    });
-    const makeDroppable = useCallback((event) => {
-        event.preventDefault();
-    });
+        filesystemDragEnd(reactFlowInstance.current, API, event);
+    }, [reactFlowInstance, API]);
 
     const onNodeContextMenu = useCallback((event, node) => {
         event.preventDefault();
@@ -185,6 +239,10 @@ export default function Flow({ initialNodes, initialEdges }) {
             }
         }
 
+        if (srcNode.type === 'export' && tgtNode.type === 'export') {
+            return false;
+        }
+
         const edges = getEdges();
         if (tgtHandle.type === 'resource') {
             for (const edge of edges) {
@@ -208,6 +266,9 @@ export default function Flow({ initialNodes, initialEdges }) {
     }, [reactFlowInstance]);
 
     useEffect(() => {
+        if (!API) {
+            return;
+        }
         // Add WebSocket event listener for node updates
         const handleNodeUpdate = async (event) => {
             const message = JSON.parse(event.data);
@@ -251,13 +312,16 @@ export default function Flow({ initialNodes, initialEdges }) {
         return () => {
             API.removeWsEventListener('message', handleNodeUpdate);
         };
-    }, [nodes, setNodes]);
+    }, [nodes, setNodes, API]);
 
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
 
     const onNodeDragStop = useCallback((e, _, draggedNodes) => {
         const updatedNodes = groupIfPossible(draggedNodes, nodes);
+        if (graphStore.current) {
+            graphStore.current.updateNodePositions(updatedNodes);
+        }
         setNodes(updatedNodes);
     }, [nodes]);
 
@@ -283,35 +347,24 @@ export default function Flow({ initialNodes, initialEdges }) {
                 onPaneContextMenu={onPaneContextMenu}
                 isValidConnection={isValidConnection}
                 onNodeDragStop={onNodeDragStop}
-                onNodesDelete={(deletedNodes) => {
-                    const deletedNodesMap = {};
-                    deletedNodes.forEach(node => {
-                        deletedNodesMap[node.id] = node;
-                    });
-                    nodes.forEach(n => {
-                        if (n.parentId) {
-                            const parent = deletedNodesMap[n.parentId];
-                            if (parent) {
-                                n.parentId = null;
-                                n.position = { x: n.position.x + parent.position.x, y: n.position.y + parent.position.y };
-                            }
-                        }
-                    });
-                }}
+                onNodesDelete={onNodesDelete}
             >
                 {notificationCtxt}
                 <Panel position='top-right'>
                     <ControlRow getGraph={getGraph} />
                 </Panel>
                 <Panel position='top-left'>
-                    <NodeConfig/>
+                    <NodeConfig />
+                </Panel>
+                <Panel position='bottom-left'>
+                    <Text italic>{filename}</Text>
                 </Panel>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
                 <Background id="1" variant="lines" gap={10} size={1} color={lineColor1} />
                 <Background id="2" variant="lines" gap={100} color={lineColor2} />
             </ReactFlow>
-            {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} addNode={onAddNode} />}
+            {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
         </div>
     );
 }
@@ -319,9 +372,10 @@ export default function Flow({ initialNodes, initialEdges }) {
 function ControlRow({ getGraph }) {
     const size = 'large';
     const [runState, runStateShouldChange] = useRunState();
+    const API = useAPI();
 
-    const run = useCallback(() => {
-        const [graph, resources] = getGraph();
+    const run = useCallback(async () => {
+        const [graph, resources] = await getGraph();
         API.runAll(graph, resources);
         runStateShouldChange();
     });

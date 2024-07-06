@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Flow from './components/Flow';
 import TopPanel from './components/TopPanel'
 import { Layout, ConfigProvider, theme } from 'antd';
 import LeftPanel from './components/LeftPanel/LeftPanel';
-import { Graph } from './graph';
 import { useSettings } from './hooks/Settings';
 import { API } from './api';
 import { useAPI } from './hooks/API';
@@ -14,6 +13,7 @@ import 'reactflow/dist/style.css';
 import './components/Nodes/node.css';
 
 import { CodeEditor } from './components/Editor/CodeEditor';
+import { WelcomeScreen } from './components/WelcomeScreen';
 
 export default function App() {
     const [settings, _] = useSettings();
@@ -48,13 +48,33 @@ function View() {
     const {
         token: { colorBgContainer, colorBorder },
     } = theme.useToken();
-
-    const loadedGraph = Graph.loadGraph();
-    const [codeEditor, setCodeEditor] = useState(null);
+    const [codeEditor, setCodeEditor] = useState<{name: string} | null>(null);
+    const [workflowFile, setWorkflowFile] = useState<string | null>(null);
+    
     const onBeginEdit = useCallback((val) => {
         setCodeEditor(val);
-    });
+    }, []);
 
+    const codeEditorView = useMemo(() => {
+        if (codeEditor) {
+            return <CodeEditor name={codeEditor.name} closeEditor={()=>setCodeEditor(null)} />;
+        }
+        return <></>
+
+    }, [codeEditor]);
+
+    const mainView = useMemo(() => {
+        if (workflowFile) {
+            return (
+                <div style={{width: '100%', height: '100%'}}>
+                    {codeEditorView}
+                    <Flow filename={workflowFile} />
+                </div>
+            );
+        }
+        
+        return <WelcomeScreen />;
+    }, [workflowFile, codeEditorView]);
 
     return (
         <Layout style={{ height: '100vh' }}>
@@ -64,10 +84,9 @@ function View() {
             <Content style={{ height: '100%' }}>
                 <Layout style={{ width: '100vw', height: '100%' }}>
                     <Sider width={300} style={{ background: colorBgContainer }}>
-                        <LeftPanel onBeginEdit={onBeginEdit} />
+                        <LeftPanel setWorkflow={setWorkflowFile} onBeginEdit={onBeginEdit} />
                     </Sider>
-                    {codeEditor && <CodeEditor closeEditor={() => setCodeEditor(null)} {...codeEditor} />}
-                    <Flow initialNodes={loadedGraph.nodes} initialEdges={loadedGraph.edges} />
+                    {mainView}
                 </Layout>
             </Content>
         </Layout>

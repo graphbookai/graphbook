@@ -1,4 +1,4 @@
-import { Node } from 'reactflow';
+import { Node, Edge } from 'reactflow';
 
 export class ServerAPI {
     private host: string;
@@ -7,9 +7,7 @@ export class ServerAPI {
     private websocket: WebSocket | null;
     private listeners: Set<[string, EventListenerOrEventListenerObject]>
 
-    constructor(host: string = 'localhost:8005', mediaHost: string = 'localhost:8006') {
-        this.host = host;
-        this.mediaHost = mediaHost;
+    constructor() {
         this.nodes = {};
         this.listeners = new Set();
     }
@@ -62,6 +60,10 @@ export class ServerAPI {
                 this.connectWebSocket();
             }
         }, 2000);
+    }
+
+    private isWebSocketOpen(): boolean {
+        return this.websocket != null && this.websocket.readyState === WebSocket.OPEN;
     }
 
     public getHost() {
@@ -201,7 +203,7 @@ export class ServerAPI {
         return workflowFiles;
     }
 
-    public async putItem(filepath, isFile, content = null, hash_key = null) {
+    public async putFile(filepath, isFile, content = null, hash_key = null) {
         return await this.put(`fs/${filepath}`, {
             is_file: isFile,
             file_contents: content ?? '',
@@ -213,17 +215,30 @@ export class ServerAPI {
         return await this.get(`fs/${filepath}`);
     }
 
+    public async getSubflowFromFile(filepath) {
+        const res = await this.getFile(filepath);
+        if (res?.content) {
+            const jsonData = JSON.parse(res.content);
+            if (jsonData?.type === 'workflow') {
+                return { nodes: jsonData.nodes, edges: jsonData.edges };
+            }
+        }
+        return null;
+    }
+
     /**
      * Graph API
      */
-    public putNode(node: Node) {
-        if (!this.websocket) {
+    public putGraph(filename: string, nodes: Node[], edges: Edge[]) {
+        if (!this.isWebSocketOpen()) {
             return;
         }
-        this.websocket.send(JSON.stringify({
+        this.websocket?.send(JSON.stringify({
             api: "graph",
-            cmd: "put_node",
-            node: node
+            cmd: "put_graph",
+            filename: filename,
+            nodes: nodes,
+            edges: edges
         }));
     }
 

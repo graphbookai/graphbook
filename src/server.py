@@ -67,7 +67,7 @@ class GraphServer:
         async def websocket_handler(request):
             ws = web.WebSocketResponse()
             await ws.prepare(request)
-            self.ui_state = UIState(ws)
+            self.ui_state = UIState(root_path, ws)
 
             self.node_hub.set_websocket(ws)  # Set the WebSocket in NodeHub
 
@@ -170,7 +170,7 @@ class GraphServer:
         def get(request: web.Request):
             path = request.match_info.get("path", "")
             fullpath = osp.join(root_path, path)
-            assert fullpath.startswith(root_path)
+            assert fullpath.startswith(root_path), f"{fullpath} must be within {root_path}"
 
             def handle_fs_tree(p: str, fn: callable) -> dict:
                 if osp.isdir(p):
