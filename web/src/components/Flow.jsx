@@ -53,7 +53,6 @@ export default function Flow({ filename }) {
     const [nodeMenu, setNodeMenu] = useState(null);
     const [paneMenu, setPaneMenu] = useState(null);
     const [runState, _] = useRunState();
-    const [isLoading, setIsLoading] = useState(true); // TODO
     const graphStore = useRef(null);
 
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
@@ -72,7 +71,6 @@ export default function Flow({ filename }) {
     useEffect(() => {
         const loadGraph = async () => {
             const [nodes, edges] = await onLoadGraph(filename, API);
-            console.log(nodes, edges);
             setNodes(nodes);
             setEdges(edges);
             graphStore.current = new GraphStore(filename, API, nodes, edges);

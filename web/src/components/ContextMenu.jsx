@@ -1,5 +1,5 @@
 import { Menu } from 'antd';
-import { useReactFlow } from 'reactflow';
+import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { keyRecursively, uniqueIdFrom } from '../utils';
 import { API } from '../api';
@@ -246,6 +246,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
     const [runState, runStateShouldChange] = useRunState();
+    const updateNodeInternals = useUpdateNodeInternals();
 
     const items = useMemo(() => {
         const toReturn = getOptions(node.type).map((option) => {
@@ -262,6 +263,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         const actionIndex = parseInt(key);
         const action = getOptions(node.type)[actionIndex].action;
         action(node, reactFlowInstance, runStateShouldChange);
+        updateNodeInternals(nodeId);
     }, [node]);
 
     return (

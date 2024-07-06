@@ -33,13 +33,13 @@ const outInnerHandleStyle = {
     ...innerHandleStyle,
     marginRight: '5px',
 };
-export function Group({ id, data }) {
+export function Group({ id, data, selected }) {
     const { label } = data;
     const updateNodeInternals = useUpdateNodeInternals();
 
 
     useEffect(() => {
-        updateNodeInternals(id);
+        // updateNodeInternals(id);
     }, [id, data.exports]);
 
     if (data.isCollapsed) {
@@ -92,7 +92,6 @@ function GroupPins({ data }) {
             <div className="inputs">
                 {
                     inputs
-                        .map((input, i)=>({...input, id: i}))
                         .sort(sortPinFn)
                         .map((input, i) => {
                             return (
@@ -108,7 +107,6 @@ function GroupPins({ data }) {
             <div className='outputs'>
                 {
                     outputs
-                        .map((output, i)=>({...output, id: i}))
                         .sort(sortPinFn)
                         .map((output, i) => {
                             return (

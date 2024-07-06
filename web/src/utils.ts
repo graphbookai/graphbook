@@ -2,7 +2,6 @@ import { Node } from "reactflow";
 import { Graph } from "./graph";
 import type { ServerAPI } from "./api";
 import type { ReactFlowInstance } from "reactflow";
-import type { Ref } from "react";
 
 export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"): Array<any> => {
     let currKeyVal = 0;
@@ -62,9 +61,15 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
                 const jsonData = JSON.parse(res.content);
                 if (jsonData?.type === 'workflow') {
                     type = 'subflow';
+                    const name = data.value.split('/').pop().slice(0, -5);
                     nodeData = {
-                        name: data.value.split('/').pop().slice(0, -5),
+                        name,
+                        label: name,
                         filename: data.value,
+                        properties: {
+                            nodes: jsonData.nodes,
+                            edges: jsonData.edges
+                        }
                     }
                 }
             }
@@ -79,7 +84,6 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
             type,
             data: nodeData
         }
-        console.log("Adding node", node);
         setNodes(Graph.addNode(node, nodes));
     }
 }
@@ -170,7 +174,7 @@ export function getExportedInputHandle(node: Node, handleId: string) {
         handleId = handleId.slice(0, -6);
         toReturn['inner'] = true;
     }
-    return { ...toReturn, ...node.data.exports.inputs[handleId], nodeType: 'group'};
+    return { ...toReturn, ...node.data.exports.inputs.find(({id})=>id === handleId), nodeType: 'group'};
 }
 
 export function getExportedOutputHandle(node: Node, handleId: string) {
@@ -179,7 +183,7 @@ export function getExportedOutputHandle(node: Node, handleId: string) {
         handleId = handleId.slice(0, -6);
         toReturn['inner'] = true;
     }
-    return { ...toReturn, ...node.data.exports.outputs[handleId], nodeType: 'group' };
+    return { ...toReturn, ...node.data.exports.outputs.find(({id})=>id === handleId), nodeType: 'group' };
 }
 
 export function isInternalHandle(handleId: string) {
@@ -203,12 +207,12 @@ export function getSubflowHandle(node: Node, handleId: string, isTarget: boolean
     if (isTarget) {
         const inputs = node.data.properties.nodes.filter((n) => n.type === 'export' && n.data.exportType === 'input');
         const input = inputs[index];
-        const type = input.isResource ? 'resource' : 'step';
+        const type = input.data.isResource ? 'resource' : 'step';
         return { id: handleId, type, inner: false, nodeType: 'subflow' };
     }
 
     const outputs = node.data.properties.nodes.filter((n) => n.type === 'export' && n.data.exportType === 'output');
     const output = outputs[index];
-    const type = output.isResource ? 'resource' : 'step';
+    const type = output.data.isResource ? 'resource' : 'step';
     return { id: handleId, type, inner: false, nodeType: 'subflow' };
 }

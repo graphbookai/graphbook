@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useMemo } from 'react';
-import { useReactFlow } from 'reactflow';
+import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import type { Node } from 'reactflow';
 import { Collapse, Typography, Card, Flex, Descriptions, theme, Input, Button } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
@@ -17,15 +17,14 @@ export function NodeConfig() {
             let nodeView;
             if (node.type === 'step') {
                 nodeView = <StepView node={node} />;
-            }
-            if (node.type === 'resource') {
+            } else if (node.type === 'resource') {
                 nodeView = <ResourceView node={node} />;
-            }
-            if (node.type === 'group') {
+            } else if (node.type === 'group') {
                 nodeView = <GroupView node={node} setNodes={setNodes} setEdges={setEdges} />;
-            }
-            if (node.type === 'export') {
-                nodeView = <ExportView node={node} setNodes={setNodes} setEdges={setEdges} />;
+            } else if (node.type === 'export') {
+                nodeView = <ExportView node={node} />;
+            } else if (node.type === 'subflow') {
+                nodeView = <SubflowView node={node} />;
             }
             return {
                 key: node.id,
@@ -268,18 +267,21 @@ const onDeleteOutputExport = (id: string, node: GroupNode, setNodes, setEdges) =
 }
 
 function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any }) {
+    const updateNodeInternals = useUpdateNodeInternals();
     const { node } = props;
     const onChangeInput = useCallback((id, newName) => {
-        onChangeInputExportName(id, newName, node, props.setNodes)
+        onChangeInputExportName(id, newName, node, props.setNodes);
     }, [node]);
     const onChangeOutput = useCallback((id, newName) => {
-        onChangeOutputExportName(id, newName, node, props.setNodes)
+        onChangeOutputExportName(id, newName, node, props.setNodes);
     }, [node]);
     const onDeleteInput = useCallback((name) => {
-        onDeleteInputExport(name, node, props.setNodes, props.setEdges)
+        onDeleteInputExport(name, node, props.setNodes, props.setEdges);
+        updateNodeInternals(node.id);
     }, [node]);
     const onDeleteOutput = useCallback((name) => {
-        onDeleteOutputExport(name, node, props.setNodes, props.setEdges)
+        onDeleteOutputExport(name, node, props.setNodes, props.setEdges);
+        updateNodeInternals(node.id);
     }, [node]);
 
     const items: DescriptionsProps['items'] = keyRecursively([
@@ -355,5 +357,26 @@ function GroupView(props: { node: GroupNode, setNodes: any, setEdges: any }) {
     ], "");
     return (
         <Descriptions bordered={true} column={1} items={items} />
+    );
+}
+
+function SubflowView({ node }) {
+    const items: DescriptionsProps['items'] = [
+        {
+            label: 'ID',
+            children: node.id
+        },
+        {
+            label: 'Path',
+            children: node.data.filename
+        },
+        {
+            label: '# of Nodes',
+            children: node.data.properties.nodes.length,
+            span: 2
+        }
+    ];
+    return (
+        <Descriptions bordered={true} column={2} items={items} />
     );
 }
