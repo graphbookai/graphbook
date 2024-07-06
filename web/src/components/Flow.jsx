@@ -31,10 +31,11 @@ const onLoadGraph = async (filename, API) => {
         if (graph.type === 'workflow') {
             for (const node of graph.nodes) {
                 if (node.type === 'subflow' && node.data.filename !== filename) {
-                    const subflowGraph = await onLoadGraph(node.data.filename, API);
+                    const file = await API.getFile(node.data.filename);
+                    const subflowGraph = JSON.parse(file?.content);
                     node.data.properties = {
-                        nodes: subflowGraph[0],
-                        edges: subflowGraph[1],
+                        nodes: subflowGraph.nodes,
+                        edges: subflowGraph.edges,
                     };
                 }
             }
@@ -52,6 +53,7 @@ export default function Flow({ filename }) {
     const [nodeMenu, setNodeMenu] = useState(null);
     const [paneMenu, setPaneMenu] = useState(null);
     const [runState, _] = useRunState();
+    const [isLoading, setIsLoading] = useState(true); // TODO
     const graphStore = useRef(null);
 
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
@@ -61,6 +63,7 @@ export default function Flow({ filename }) {
     const [nodeToPos, setNodeToPos] = useState({ x: 0, y: 0 });
     const reactFlowInstance = useRef(null);
     const reactFlowRef = useRef(null);
+    
 
     useEffect(() => {
         graphStore.current = null;
@@ -69,6 +72,7 @@ export default function Flow({ filename }) {
     useEffect(() => {
         const loadGraph = async () => {
             const [nodes, edges] = await onLoadGraph(filename, API);
+            console.log(nodes, edges);
             setNodes(nodes);
             setEdges(edges);
             graphStore.current = new GraphStore(filename, API, nodes, edges);

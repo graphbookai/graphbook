@@ -201,12 +201,14 @@ export function getExportHandle(node: Node, handleId: string, isTarget: boolean)
 export function getSubflowHandle(node: Node, handleId: string, isTarget: boolean) {
     const index = parseInt(handleId);
     if (isTarget) {
-        const input = node.data.inputs[index];
+        const inputs = node.data.properties.nodes.filter((n) => n.type === 'export' && n.data.exportType === 'input');
+        const input = inputs[index];
         const type = input.isResource ? 'resource' : 'step';
         return { id: handleId, type, inner: false, nodeType: 'subflow' };
     }
 
-    const output = node.data.outputs[index];
+    const outputs = node.data.properties.nodes.filter((n) => n.type === 'export' && n.data.exportType === 'output');
+    const output = outputs[index];
     const type = output.isResource ? 'resource' : 'step';
     return { id: handleId, type, inner: false, nodeType: 'subflow' };
 }

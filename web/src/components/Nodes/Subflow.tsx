@@ -41,9 +41,12 @@ export function Subflow({ id, data, selected }) {
     const { getNode, getNodes, getEdges, setNodes } = useReactFlow();
     const API = useAPI();
 
-    useEffect(() => {
+    const [inputs, outputs] = useMemo(() => {
         const inputs: any[] = [];
         const outputs: any[] = [];
+        if (!data.properties) {
+            return [inputs, outputs];
+        }
         for (const node of data.properties.nodes) {
             if (node.type === 'export') {
                 if (node.data?.exportType === 'input') {
@@ -61,7 +64,7 @@ export function Subflow({ id, data, selected }) {
                 }
             }
         }
-        setNodes(Graph.editNodeData(id, { inputs, outputs }, getNodes()));
+        return [inputs, outputs];
     }, [data]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
@@ -128,8 +131,6 @@ export function Subflow({ id, data, selected }) {
         API.run(graph, resources, id);
         runStateShouldChange();
     }, [API, id]);
-
-    const { inputs, outputs } = data;
 
     return (
         <div style={borderStyle}>

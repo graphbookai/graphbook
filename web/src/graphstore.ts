@@ -35,7 +35,7 @@ export class GraphStore {
     public update(nodes: Node[], edges: Edge[]) {
         if (this.isChanged(this.graphState, { nodes, edges })) {
             this.graphState = { nodes, edges };
-            this.API.putGraph(this.filename, nodes, edges);
+            this.putGraph(nodes, edges);
         }
     }
 
@@ -49,8 +49,17 @@ export class GraphStore {
             }
         });
         if (didUpdate) {
-            this.API.putGraph(this.filename, this.graphState.nodes, this.graphState.edges);
+            this.putGraph(this.graphState.nodes, this.graphState.edges);
         }
+    }
+
+    private putGraph(nodes, edges) {
+        const storedNodes = nodes.map(node => {
+            const storedNode = { ...node, data: { ...node.data } };
+            delete storedNode.data.properties;
+            return storedNode;
+        });
+        this.API.putGraph(this.filename, storedNodes, edges);
     }
 
     private isChanged(prev: GraphState, next: GraphState) {
