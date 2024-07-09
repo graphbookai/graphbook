@@ -4,4 +4,20 @@ build-backend = "hatchling.build"
 
 [project]
 name = "graphbook"
-version = "0.0.0"
+version = "0.3.0"
+authors = [
+    { name="Richard Franklin", email="rsamf@graphbook.ai" },
+]
+description = "An extensible ML workflow editor built for data scientists and ML engineers."
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://graphbook.ai"
+Documentation = "https://docs.graphbook.ai"
+Repository = "https://github.com/graphbookai/graphbook"

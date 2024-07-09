@@ -1,8 +1,8 @@
 import aiohttp
 from aiohttp import web
-from processing import WebInstanceProcessor
-from viewer import ViewManager
-from exports import NodeHub
+from graphbook.processing import WebInstanceProcessor
+from graphbook.viewer import ViewManager
+from graphbook.exports import NodeHub
 import os, sys
 import os.path as osp
 import magic
@@ -15,8 +15,8 @@ import asyncio
 import base64
 import argparse
 import hashlib
-from state import UIState
-from media import MediaServer
+from graphbook.state import UIState
+from graphbook.media import MediaServer
 
 
 @web.middleware

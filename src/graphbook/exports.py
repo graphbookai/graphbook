@@ -3,7 +3,7 @@ import graphbook.steps.io as io
 import graphbook.steps.hf_transformers as t
 import graphbook.resources.base as rbase
 import graphbook.resources.hf_transformers as rt
-import custom_nodes
+import graphbook.custom_nodes as custom_nodes
 from aiohttp import web
 
 default_exported_steps = {
