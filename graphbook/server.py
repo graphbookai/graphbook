@@ -320,7 +320,9 @@ class WebServer:
         self.server = http.server.SimpleHTTPRequestHandler
 
     def start(self):
-        assert osp.isdir(self.cwd), f"Specifed path {self.cwd} must be a directory"
+        if not osp.isdir(self.cwd):
+            print(f"Couldn't find web files inside {self.cwd}. Will not start web server.")
+            return
         os.chdir(self.cwd)
         with socketserver.TCPServer((self.address, self.port), self.server) as httpd:
             print(f"Starting web server at {self.address}:{self.port}")
@@ -340,7 +342,6 @@ def get_args():
     parser.add_argument("--graph_port", type=int, default=8005)
     parser.add_argument("--media_port", type=int, default=8006)
     parser.add_argument("--web_port", type=int, default=8007)
-    parser.add_argument("--web", action="store_true", default=False)
     parser.add_argument("--workflow_dir", type=str, default="./workflow")
     parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
     parser.add_argument("--num_workers", type=int, default=1)
@@ -389,6 +390,7 @@ def main():
         os.mkdir(custom_nodes_path)
     processes = [
         mp.Process(target=create_media_server, args=(args,)),
+        mp.Process(target=create_web_server, args=(args,)),
         mp.Process(
             target=create_graph_server,
             args=(
@@ -402,9 +404,6 @@ def main():
             ),
         ),
     ]
-    if args.web:
-        web_process = mp.Process(target=create_web_server, args=(args,))
-        processes.append(web_process)
 
     for p in processes:
         p.daemon = True

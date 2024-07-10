@@ -1,4 +1,4 @@
-from graphbook.steps.base import Step, SourceStep, AsyncStep, DataRecord
+from graphbook.steps import Step, SourceStep, AsyncStep, DataRecord
 from graphbook.dataloading import Dataloader
 from typing import List
 import queue
