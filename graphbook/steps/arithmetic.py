@@ -1,4 +1,4 @@
-from src.graphbook.steps.base import StepData, StepOutput, DataRecord, DataItem, BatchStep
+from graphbook.steps.base import StepData, StepOutput, DataRecord, DataItem, BatchStep
 from typing import List
 
 class NumDataRecord(DataRecord):

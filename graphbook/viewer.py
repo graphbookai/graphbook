@@ -8,7 +8,7 @@ import time
 import multiprocessing as mp
 import queue
 import copy
-from utils import MP_WORKER_TIMEOUT
+from graphbook.utils import MP_WORKER_TIMEOUT
 
 
 class Viewer:

@@ -23,7 +23,7 @@ This is a guide on how to get started developing Graphbook. If you are simply us
 1. (Optional) Create your venv
 1. `pip install -r requirements.txt`
 1. `pip install -r docs/requirements.txt`
-1. `python src/server.py`
+1. `python graphbook/server.py`
 1. `cd web`
 1. `npm install`
 1. `npm run dev`

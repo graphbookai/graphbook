@@ -1,30 +1,19 @@
-import graphbook.steps.base as base
-import graphbook.steps.io as io
-import graphbook.steps.hf_transformers as t
+import graphbook.steps as steps
 import graphbook.resources.base as rbase
-import graphbook.resources.hf_transformers as rt
-import custom_nodes
+import graphbook.custom_nodes as custom_nodes
 from aiohttp import web
 
 default_exported_steps = {
-    "Split": base.Split,
-    "SplitRecordsByItems": base.SplitRecordsByItems,
-    "SplitItemField": base.SplitItemField,
-    "DumpJSONL": io.DumpJSONL,
-    "LoadJSONL": io.LoadJSONL,
-    "LoadJSON": io.LoadJSON,
-    "LoadJSONAsDataRecords": io.LoadJSONAsDataRecords,
-    "LoadImageDataset": io.LoadImageDataset,
-    "AutoImageProcessorStep": t.HFImageProcessorStep,
+    "Split": steps.Split,
+    "SplitRecordsByItems": steps.SplitRecordsByItems,
+    "SplitItemField": steps.SplitItemField,
+    "DumpJSONL": steps.DumpJSONL,
+    "LoadJSONL": steps.LoadJSONL,
 }
 
 default_exported_resources = {
     "Text": rbase.Resource,
-    "Function": rbase.FunctionResource,
-    "AutoImageProcessorResource": rt.AutoImageProcessorResource,
-    "AutoModelResource": rt.AutoModelResource,
-    "ViTForImageClassificationResource": rt.ViTForImageClassificationResource,
-    "ViTImageProcessorResource": rt.ViTImageProcessorResource,
+    "Function": rbase.FunctionResource
 }
 
 

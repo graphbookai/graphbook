@@ -1,12 +1,12 @@
 from __future__ import annotations
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
-from graphbook.steps.base import Step, DataRecord
-from graphbook.resources.base import Resource
-from viewer import Logger, ViewManagerInterface
+from graphbook.steps import Step, DataRecord
+from graphbook.resources import Resource
+from graphbook.viewer import Logger, ViewManagerInterface
 import multiprocessing as mp
 import importlib, importlib.util, inspect
-import exports
+import graphbook.exports as exports
 import sys, os
 import os.path as osp
 import json

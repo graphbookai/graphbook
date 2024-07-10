@@ -1,0 +1,20 @@
+name: Publish Graphbook to PyPI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pypi:
+    runs-on:
+      group: larger-runners
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          pipx install poetry
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build and Publish
+        run: |
+          make package
+          poetry publish -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.PYPI_PASSWORD }}

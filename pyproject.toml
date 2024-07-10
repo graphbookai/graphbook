@@ -1,7 +1,47 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "graphbook"
-version = "0.0.0"
+version = "0.3.6"
+authors = ["Richard Franklin <rsamf@graphbook.ai>"]
+description = "An extensible ML workflow editor built for data scientists and ML engineers."
+keywords = ["ml", "workflow", "pytorch", "data science", "machine learning", "ai"]
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+homepage = "https://graphbook.ai"
+documentation = "https://docs.graphbook.ai"
+repository = "https://github.com/graphbookai/graphbook"
+
+[tool.poetry.scripts]
+graphbook = "graphbook.server:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.3.1"
+aiohttp = "^3.9.3"
+dill = "^0.3.8"
+pillow = "^10.3.0"
+python-magic = "^0.4.27"
+watchdog = "^4.0.0"
+torchvision = "^0.18.1"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^6.0.0"
+sphinx-rtd-theme = "^2.0.0"
+sphinxcontrib-applehelp = "^1.0.8"
+sphinxcontrib-devhelp = "^1.0.6"
+sphinxcontrib-htmlhelp = "^2.0.5"
+sphinxcontrib-jquery = "^4.1"
+sphinxcontrib-jsmath = "^1.0.1"
+sphinxcontrib-qthelp = "^1.0.7"
+sphinxcontrib-serializinghtml = "^1.1.10"
