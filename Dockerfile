@@ -33,4 +33,4 @@ RUN make web
 
 EXPOSE 8005 8006 8007
 
-CMD ["python", "src/server.py", "--web", "--web_dir", "web/dist"]
+CMD ["python", "graphbook/server.py", "--web", "--web_dir", "web/dist"]

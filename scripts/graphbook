@@ -2,7 +2,7 @@
 
 REPO_PATH=$(dirname $(realpath $0))/..
 SCRIPT_DIR=$0
-SERVER_PATH=$REPO_PATH/src/graphbook/server.py
+SERVER_PATH=$REPO_PATH/graphbook/server.py
 WEB_PATH=$REPO_PATH/web
 WEB_BUILD_PATH=$WEB_PATH/dist
 

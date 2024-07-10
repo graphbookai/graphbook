@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Dict, Tuple
 import json
 from graphbook.dataloading import Dataloader
-from custom_nodes import transform_function_string
+from graphbook.custom_nodes import transform_function_string
 
 
 class DataItem:
