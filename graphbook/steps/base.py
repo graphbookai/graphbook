@@ -139,11 +139,7 @@ class Step:
 
         output_keys = step_outputs[0].keys()
         return {
-            k: [
-                note
-                for step_output in step_outputs
-                for note in step_output.get(k, [])
-            ]
+            k: [note for step_output in step_outputs for note in step_output.get(k, [])]
             for k in output_keys
         }
 
@@ -332,8 +328,7 @@ class BatchStep(AsyncStep):
         tensors = [item[0] for item in items]
         indexes = [item[1] for item in items]
         items = [
-            note.items[self.item_key][index]
-            for note, index in zip(notes, indexes)
+            note.items[self.item_key][index] for note, index in zip(notes, indexes)
         ]
         data_dump = self.on_item_batch(tensors, items, notes)
         if data_dump is not None:
