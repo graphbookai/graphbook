@@ -7,7 +7,9 @@ import hashlib
 import sys
 import os
 import os.path as osp
-
+import inspect
+from graphbook.steps import Step
+from graphbook.resources import Resource
 
 # This function is used to convert a string to a function
 # by interpreting the string as a python-typed function
@@ -119,13 +121,13 @@ class CustomNodeImporter:
     def set_websocket(self, websocket):
         self.websocket = websocket
 
-    async def on_module(self, filename, custom_nodes):
-        if "exported_steps" in dir(custom_nodes):
-            for k, v in custom_nodes.exported_steps.items():
-                await self.step_handler(filename, k, v)
-        if "exported_resources" in dir(custom_nodes):
-            for k, v in custom_nodes.exported_resources.items():
-                await self.resource_handler(filename, k, v)
+    async def on_module(self, filename, mod):
+        for name, obj in inspect.getmembers(mod):
+            if inspect.isclass(obj):
+                if issubclass(obj, Step):
+                    await self.step_handler(filename, name, obj)
+                if issubclass(obj, Resource):
+                    await self.resource_handler(filename, name, obj)
 
         if self.websocket is not None and not self.websocket.closed:
             await self.websocket.send_json({"event": "node_updated"})
