@@ -1,8 +1,6 @@
 name: Publish Graphbook to Test PyPI
 
 on:
-  push:
-    branches: ["14-pypi-package"]
   workflow_dispatch:
 
 jobs:
