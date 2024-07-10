@@ -1,0 +1,24 @@
+name: Publish Graphbook to Test PyPI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pypi:
+    runs-on:
+      group: larger-runners
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'poetry'
+      - name: Setup Poetry and Install Dependencies
+        run: |
+          pipx install poetry
+          poetry install
+      - name: Set up Test PyPI Repository
+        run: |
+          poetry config repositories.test-pypi https://test.pypi.org/legacy/
+      - name: Build and Publish
+        run: |
+          poetry publish --build -r test-pypi -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.PYPI_PASSWORD }}
