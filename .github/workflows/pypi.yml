@@ -20,4 +20,5 @@ jobs:
           poetry install
       - name: Build and Publish
         run: |
+          make web
           poetry publish --build -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.PYPI_PASSWORD }}
