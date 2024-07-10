@@ -1,18 +1,18 @@
-from graphbook.steps.base import StepData, StepOutput, DataRecord, DataItem, BatchStep
+from graphbook.steps.base import StepData, StepOutput, Note, any, BatchStep
 from typing import List
 
-class NumDataRecord(DataRecord):
+class NumNote(Note):
     def __init__(self, key:str, num: int):
         super().__init__(key)
         self.items = {
-            "num": [DataItem(num)]
+            "num": [any(num)]
         }
 
-class NumListDataRecord(DataRecord):
+class NumListNote(Note):
     def __init__(self, key:str, nums: List[int]):
         super().__init__(key)
         self.items = {
-            "num": [DataItem(num) for num in nums]
+            "num": [any(num) for num in nums]
         }
 
 class NumStep(BatchStep):
@@ -33,7 +33,7 @@ class SumByConstant(NumStep):
         super().__init__(batch_size=batch_size)
         self.constant = constant
 
-    def on_number(self, numbers: List[DataItem]):
+    def on_number(self, numbers: List[any]):
         # Manipulate
         for num in numbers:
             num.item += self.constant
@@ -43,7 +43,7 @@ class DivByConstant(NumStep):
         super().__init__(batch_size=batch_size)
         self.constant = constant
     
-    def on_number(self, numbers: List[DataItem]):
+    def on_number(self, numbers: List[any]):
         # Manipulate
         for num in numbers:
             num.item /= self.constant
@@ -53,7 +53,7 @@ class MulByConstant(NumStep):
         super().__init__(batch_size=batch_size)
         self.constant = constant
     
-    def on_number(self, numbers: List[DataItem]):
+    def on_number(self, numbers: List[any]):
         # Manipulate
         for num in numbers:
             num.item *= self.constant

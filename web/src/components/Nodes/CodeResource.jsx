@@ -57,8 +57,8 @@ export function CodeResource({ id, data }) {
 
 function FnHeader({fn}) {
   const headers = {
-    "split_item_fn": "def split_item_fn(item: DataItem):",
-    "split_fn": "def split_fn(data_record: DataRecord):",
+    "split_item_fn": "def split_item_fn(item: any):",
+    "split_fn": "def split_fn(note: Note):",
   }
   return (
     <div className="fn-header">

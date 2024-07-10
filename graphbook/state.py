@@ -1,7 +1,7 @@
 from __future__ import annotations
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
-from graphbook.steps import Step, DataRecord
+from graphbook.steps import Step, Note
 from graphbook.resources import Resource
 from graphbook.viewer import Logger, ViewManagerInterface
 import multiprocessing as mp
@@ -13,7 +13,7 @@ import json
 import hashlib
 from enum import Enum
 
-Outputs = Dict[str, List[DataRecord]]
+Outputs = Dict[str, List[Note]]
 
 
 class UIState:
@@ -301,7 +301,7 @@ class GraphState:
             self._step_states[step_id] = set()
         self.view_manager.handle_queue_size(step_id, 0)
 
-    def get_input(self, step: Step) -> DataRecord:
+    def get_input(self, step: Step) -> Note:
         num_parents = len(step.parents)
         i = 0
         while i < num_parents:
@@ -349,7 +349,7 @@ class MultiConsumerStateDictionaryQueue:
             k: v for k, v in self._consumer_subs.items() if k in consumer_ids
         }
 
-    def enqueue(self, key: str, records: List[DataRecord]):
+    def enqueue(self, key: str, records: List[Note]):
         if not key in self._dict:
             self._dict[key] = []
         idx = len(self._dict[key])

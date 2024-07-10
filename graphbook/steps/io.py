@@ -1,4 +1,4 @@
-from .base import Step, SourceStep, DataRecord, StepOutput
+from .base import Step, SourceStep, Note, StepOutput
 import json
 
 class LoadJSONL(SourceStep):
@@ -18,9 +18,9 @@ class LoadJSONL(SourceStep):
     def load(self) -> StepOutput:
         with open(self.jsonl_path, 'r') as f:
             data = [json.loads(line) for line in f][self.start_from:]
-        records = [DataRecord(entry.get("key"), entry.get("annotation"), entry.get("items")) for entry in data]
+        notes = [Note(entry.get("key"), entry.get("annotation"), entry.get("items")) for entry in data]
         return {
-            "out": records
+            "out": notes
         }
 
 class DumpJSONL(Step):
@@ -36,8 +36,8 @@ class DumpJSONL(Step):
         super().__init__(id, logger)
         self.jsonl_path = jsonl_path
 
-    def on_after_items(self, data_record: DataRecord):
+    def on_after_items(self, note: Note):
         with open(self.jsonl_path, 'a') as f:
-            record_entry = data_record.json()
-            json.dump(record_entry, f)
+            note_entry = note.json()
+            json.dump(note_entry, f)
             f.write("\n")
