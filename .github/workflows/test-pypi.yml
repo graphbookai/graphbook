@@ -16,10 +16,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'poetry'
-      - name: Poetry Install
-        run: |
-          poetry install
       - name: Set up Test PyPI Repository
         run: |
           poetry config repositories.test-pypi https://test.pypi.org/legacy/
