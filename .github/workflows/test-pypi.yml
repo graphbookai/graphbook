@@ -11,13 +11,14 @@ jobs:
       group: larger-runners
     steps:
       - uses: actions/checkout@v4
+      - run: |
+          pipx install poetry
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'poetry'
       - name: Setup Poetry and Install Dependencies
         run: |
-          pipx install poetry
           poetry install
       - name: Set up Test PyPI Repository
         run: |
