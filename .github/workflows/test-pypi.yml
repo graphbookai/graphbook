@@ -25,5 +25,5 @@ jobs:
           poetry config repositories.test-pypi https://test.pypi.org/legacy/
       - name: Build and Publish
         run: |
-          make web
-          poetry publish --build -r test-pypi -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.TEST_PYPI_PASSWORD }}
+          make package
+          poetry publish -r test-pypi -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.TEST_PYPI_PASSWORD }}

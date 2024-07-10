@@ -314,14 +314,13 @@ class WebServer:
     def __init__(self, address, port, web_dir):
         self.address = address
         self.port = port
+        if web_dir is None:
+            web_dir = osp.join(osp.dirname(__file__), "web")
         self.cwd = web_dir
         self.server = http.server.SimpleHTTPRequestHandler
 
     def start(self):
-        if not osp.exists(self.cwd):
-            os.mkdir(self.cwd)
-        else:
-            assert osp.isdir(self.cwd), f"Specifed path {self.cwd} must be a directory"
+        assert osp.isdir(self.cwd), f"Specifed path {self.cwd} must be a directory"
         os.chdir(self.cwd)
         with socketserver.TCPServer((self.address, self.port), self.server) as httpd:
             print(f"Starting web server at {self.address}:{self.port}")
