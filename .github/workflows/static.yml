@@ -40,6 +40,7 @@ jobs:
           cache: 'poetry'
       - name: Build Graphbook Docs
         run: |
+          apt-get install python3-sphinx -y
           poetry install --with dev
           poetry run make docs
       - name: Upload artifact
