@@ -1,19 +1,18 @@
-from graphbook.steps.base import StepData, StepOutput, DataRecord, DataItem, BatchStep
+from graphbook.steps.base import StepData, StepOutput, Note, any, BatchStep
 from typing import List
 
-class NumDataRecord(DataRecord):
-    def __init__(self, key:str, num: int):
-        super().__init__(key)
-        self.items = {
-            "num": [DataItem(num)]
-        }
 
-class NumListDataRecord(DataRecord):
-    def __init__(self, key:str, nums: List[int]):
+class NumNote(Note):
+    def __init__(self, key: str, num: int):
         super().__init__(key)
-        self.items = {
-            "num": [DataItem(num) for num in nums]
-        }
+        self.items = {"num": [any(num)]}
+
+
+class NumListNote(Note):
+    def __init__(self, key: str, nums: List[int]):
+        super().__init__(key)
+        self.items = {"num": [any(num) for num in nums]}
+
 
 class NumStep(BatchStep):
     def __init__(self, batch_size=-1):
@@ -24,36 +23,37 @@ class NumStep(BatchStep):
         # Manipulate
         self.on_number(items)
         # Filter
-        return {
-            "_next": completed
-        }
+        return {"_next": completed}
+
 
 class SumByConstant(NumStep):
     def __init__(self, constant, batch_size=-1):
         super().__init__(batch_size=batch_size)
         self.constant = constant
 
-    def on_number(self, numbers: List[DataItem]):
+    def on_number(self, numbers: List[any]):
         # Manipulate
         for num in numbers:
             num.item += self.constant
+
 
 class DivByConstant(NumStep):
     def __init__(self, constant, batch_size=-1):
         super().__init__(batch_size=batch_size)
         self.constant = constant
-    
-    def on_number(self, numbers: List[DataItem]):
+
+    def on_number(self, numbers: List[any]):
         # Manipulate
         for num in numbers:
             num.item /= self.constant
-    
+
+
 class MulByConstant(NumStep):
     def __init__(self, constant, batch_size=-1):
         super().__init__(batch_size=batch_size)
         self.constant = constant
-    
-    def on_number(self, numbers: List[DataItem]):
+
+    def on_number(self, numbers: List[any]):
         # Manipulate
         for num in numbers:
             num.item *= self.constant

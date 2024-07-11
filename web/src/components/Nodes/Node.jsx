@@ -318,24 +318,24 @@ function QuickviewCollapse({ data }) {
             {
                 Object.entries(data).map(([key, value], i) => {
 
-                    const { items } = value;
-                    const descriptionItems = keyRecursively(Object.entries(items).filter(([_, itemList]) => {
-                        return itemList.filter(item => item.type?.slice(0, 5) === 'image').length > 0;
-                    }).map(([itemKey, itemList]) => {
-                        const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
-                        return {
-                            label: itemKey,
-                            children: (
-                                <Flex key={i} vertical>
-                                    {
-                                        images.map((item, i) => (
-                                            <Image key={i} src={mediaUrl(item.item)} width={100} />
-                                        ))
-                                    }
-                                </Flex>
-                            )
-                        };
-                    }), "none");
+                    // const { items } = value;
+                    // const descriptionItems = keyRecursively(Object.entries(items).filter(([_, itemList]) => {
+                    //     return itemList.filter(item => item.type?.slice(0, 5) === 'image').length > 0;
+                    // }).map(([itemKey, itemList]) => {
+                    //     const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
+                    //     return {
+                    //         label: itemKey,
+                    //         children: (
+                    //             <Flex key={i} vertical>
+                    //                 {
+                    //                     images.map((item, i) => (
+                    //                         <Image key={i} src={mediaUrl(item.item)} width={100} />
+                    //                     ))
+                    //                 }
+                    //             </Flex>
+                    //         )
+                    //     };
+                    // }), "none");
                     return (
                         <Panel className='content' header={key} key={i}>
                             <Flex style={{ overflowY: 'scroll', maxHeight: '300px' }}>
@@ -343,7 +343,7 @@ function QuickviewCollapse({ data }) {
                                     {JSON.stringify(value, null, 2)}
                                 </div>
                                 {
-                                    descriptionItems.length > 0 && <Descriptions layout="vertical" bordered items={descriptionItems} />
+                                    // descriptionItems.length > 0 && <Descriptions layout="vertical" bordered items={descriptionItems} />
                                 }
                             </Flex>
                         </Panel>

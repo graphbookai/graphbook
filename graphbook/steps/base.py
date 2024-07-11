@@ -1,105 +1,12 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple
-import json
 from graphbook.dataloading import Dataloader
-from graphbook.custom_nodes import transform_function_string
+from ..utils import transform_function_string
+from graphbook import Note
 
 
-class DataItem:
-    """
-    Data structure containing the text, audio, image, or video coupled with its annotation.
-
-    Args:
-        item (str): A path to media, string of text, or the actual data item to store
-        type (str): Optional string to specify the type of data this is
-        annotation (dict): A dictionary of annotations for this item
-
-    Example:
-        .. highlight:: python
-        .. code-block:: python
-
-            d = DataItem("path/to/image.jpg", "image", {"prediction": "dog"})
-    """
-
-    def __init__(self, item, type=None, annotation={}):
-        self.item = item
-        self.type = type
-        self.annotation = annotation
-
-    def __str__(self):
-        return f"{'('+self.type+')' if self.type else ''}Item {self.item}: Annotations: {self.annotation}"
-
-    def json(self):
-        """
-        Returns DataItem into a serialized JSON format
-        """
-        return {"item": self.item, "type": self.type, "annotation": self.annotation}
-
-
-class DataRecord:
-    """
-    The unit that passes through workflow steps. DataRecords contains a dictionary of DataItems related to the record,
-    and a dictionary of annotations.
-    It also contains the property "key" which is useful to set with a unique id as in its id from its original database.
-
-    Args:
-        key (str): An optional key or id
-        annotation (Dict[str, str]): An optional dictionary of annotations for this item
-        items (Dict[str, List[DataItems]]): An optional dictionary of DataItems
-
-    Example:
-        .. highlight:: python
-        .. code-block:: python
-
-            d = DataRecord( "0123456789", {"prediction": "dog"}, {"images": [DataItem("image_of_dog.png")]} )
-    """
-
-    def __init__(self, key: str = "", annotation: dict = {}, items: dict = {}):
-        self.key: str = key
-        self.annotation: dict = annotation
-        for k, v in items.items():
-            if not isinstance(v, list):
-                items[k] = [v]
-            # Convert to list of DataItems
-            for i, item in enumerate(v):
-                if not isinstance(item, DataItem):
-                    if isinstance(item, dict):
-                        v[i] = DataItem(
-                            item["item"], item.get("type"), item.get("annotation")
-                        )
-                    else:
-                        v[i] = DataItem(item)
-        self.items = items
-
-    def put_item(self, item_key: str, item_value: str):
-        """
-        A convenient function to add a DataItem to an item list
-
-        Args:
-            item_key (str): The item key to append to
-            item_value (str): The value of the item
-        """
-        if self.items.get(item_key) is None:
-            self.items[item_key] = []
-        self.items[item_key].append(DataItem(item_value))
-
-    def json(self):
-        """
-        Returns DataRecord in a serialized JSON format
-        """
-        record_entry = {
-            "key": self.key,
-            "annotation": self.annotation,
-            "items": {k: [item.json() for item in v] for k, v in self.items.items()},
-        }
-        return record_entry
-
-    def __str__(self):
-        return json.dumps(self.json())
-
-
-StepOutput = Dict[str, List[DataRecord]]
-"""A dict mapping of output slot to DataRecord list. Every Step outputs a StepOutput."""
+StepOutput = Dict[str, List[Note]]
+"""A dict mapping of output slot to Note list. Every Step outputs a StepOutput."""
 
 
 class Step:
@@ -109,7 +16,7 @@ class Step:
     Args:
         key (str): An optional key or id
         annotation (Dict[str, str]): An optional dictionary of annotations for this item
-        items (Dict[str, List[DataItems]]): An optional dictionary of DataItems
+        items (Dict[str, List[anys]]): An optional dictionary of anys
     """
 
     def __init__(self, id, logger, item_key=None):
@@ -156,74 +63,74 @@ class Step:
         """
         pass
 
-    def on_before_items(self, data_record: DataRecord):
+    def on_before_items(self, note: Note):
         """
-        Executes upon receiving a DataRecord and before receiving the selected DataItems
+        Executes upon receiving a Note and before receiving items
 
         Args:
-            data_record (DataRecord): The DataRecord input
+            note (Note): The Note input
         """
         pass
 
-    def on_after_items(self, data_record: DataRecord):
+    def on_after_items(self, note: Note):
         """
-        Executes upon receiving a Datarecord and after processing the selected DataItems
+        Executes upon receiving a Note and after processing items
 
         Args:
-            data_record (DataRecord): The DataRecord input
+            note (Note): The Note input
         """
         pass
 
-    def on_item(self, item: DataItem, data_record: DataRecord):
+    def on_item(self, item: any, note: Note):
         """
-        Executes upon receiving a DataItem. Is called after *on_before_items()*.
+        Executes upon receiving an item. Is called after *on_before_items()* and before *on_after_items()*.
 
         Args:
-            item (DataItem): The DataItem input
-            data_record (DataRecord): The DataRecord that the DataItem belongs to
+            item (any): The  input
+            note (Note): The Note that the any belongs to
         """
         pass
 
-    def forward_record(self, data_record: DataRecord) -> str | StepOutput:
+    def forward_note(self, note: Note) -> str | StepOutput:
         """
-        Routes a DataRecord. Must return the corresponding output key or a dictionary that contains DataRecords.
+        Routes a Note. Must return the corresponding output key or a dictionary that contains Notes.
         Is called after *on_after_items()*.
 
         Args:
-            data_record (DataRecord): The DataRecord input
+            note (Note): The Note input
 
         Returns:
-            A string that the record is associated with, or if multiple records are being processed at a time, a StepOutput may be used.
+            A string that the note is associated with, or if multiple notes are being processed at a time, a StepOutput may be used.
         """
         return "out"
 
-    def __call__(self, data_record: DataRecord) -> StepOutput:
-        # 1. on_before_items -> 2. on_item -> 3. on_after_items -> 4. forward_record
-        self.on_before_items(data_record)
+    def __call__(self, note: Note) -> StepOutput:
+        # 1. on_before_items -> 2. on_item -> 3. on_after_items -> 4. forward_note
+        self.on_before_items(note)
 
         if self.item_key is not None:
-            items = data_record.items.get(self.item_key, None)
+            items = note.items.get(self.item_key, None)
             assert (
                 items is not None
-            ), f"Item key {self.item_key} not found in data record. Cannot retrieve DataItem list."
+            ), f"Item key {self.item_key} not found in Note. Cannot retrieve any iterable."
             for item in items:
-                self.on_item(item, data_record)
+                self.on_item(item, note)
 
-        self.on_after_items(data_record)
+        self.on_after_items(note)
 
-        out = self.forward_record(data_record)
+        out = self.forward_note(note)
         output = {}
         if isinstance(out, str):
-            output[out] = [data_record]
+            output[out] = [note]
         elif isinstance(out, dict):
             output = out
         return output
 
-    def all(self, data_records: List[DataRecord]) -> StepOutput:
+    def all(self, notes: List[Note]) -> StepOutput:
         step_outputs = []
-        if data_records is not None:
-            for record in data_records:
-                step_output = self(record)
+        if notes is not None:
+            for note in notes:
+                step_output = self(note)
                 if step_output is not None:
                     step_outputs.append(step_output)
 
@@ -232,11 +139,7 @@ class Step:
 
         output_keys = step_outputs[0].keys()
         return {
-            k: [
-                record
-                for step_output in step_outputs
-                for record in step_output.get(k, [])
-            ]
+            k: [note for step_output in step_outputs for note in step_output.get(k, [])]
             for k in output_keys
         }
 
@@ -261,7 +164,7 @@ class SourceStep(Step):
 
     def load(self) -> StepOutput:
         """
-        Function to load data and convert into DataRecords. Must output a dictionary of DataRecords.
+        Function to load data and convert into Notes. Must output a dictionary of Notes.
         """
         raise NotImplementedError("load function must be implemented for SourceStep")
 
@@ -289,59 +192,59 @@ class AsyncStep(Step):
     def set_dataloader(self, dataloader: Dataloader):
         self.dl = dataloader
 
-    def in_q(self, data_record: DataRecord):
-        if data_record is None:
+    def in_q(self, note: Note):
+        if note is None:
             return
-        self._in_queue.append(data_record)
+        self._in_queue.append(note)
 
     def is_active(self) -> bool:
         return self._is_processing
 
 
-class RecordItemHolders:
+class NoteItemHolders:
     def __init__(self):
         self.item_counts = {}
-        self.records = {}
-        self.completed_records = {}
+        self.notes = {}
+        self.completed_notes = {}
 
-    def handle_record(self, record: DataRecord):
-        record_id = id(record)
-        if record_id not in self.records:
-            self.records[record_id] = record
-        if record_id not in self.item_counts:
-            self.item_counts[record_id] = 0
-        self.item_counts[record_id] += 1
+    def handle_note(self, note: Note):
+        note_id = id(note)
+        if note_id not in self.notes:
+            self.notes[note_id] = note
+        if note_id not in self.item_counts:
+            self.item_counts[note_id] = 0
+        self.item_counts[note_id] += 1
 
-    def handle_item(self, record_id, item_response):
-        self.item_counts[record_id] -= 1
+    def handle_item(self, note_id, item_response):
+        self.item_counts[note_id] -= 1
         if item_response is None:
             return
         item_key, output_fn = item_response
-        self.records[record_id].put_item(item_key, output_fn)
+        self.notes[note_id].put_item(item_key, output_fn)
 
-    def set_completed(self, record: DataRecord):
-        record_id = id(record)
-        self.completed_records[record_id] = record
-        if record_id not in self.item_counts:
-            self.item_counts[record_id] = 0
+    def set_completed(self, note: Note):
+        note_id = id(note)
+        self.completed_notes[note_id] = note
+        if note_id not in self.item_counts:
+            self.item_counts[note_id] = 0
 
     def pop_all_completed(self):
         completed = []
         to_remove = []
-        for record_id in self.completed_records:
-            if self.item_counts[record_id] == 0:
-                completed.append(self.completed_records[record_id])
-                to_remove.append(record_id)
-                del self.item_counts[record_id]
-        for record_id in to_remove:
-            del self.completed_records[record_id]
+        for note_id in self.completed_notes:
+            if self.item_counts[note_id] == 0:
+                completed.append(self.completed_notes[note_id])
+                to_remove.append(note_id)
+                del self.item_counts[note_id]
+        for note_id in to_remove:
+            del self.completed_notes[note_id]
         return completed
 
     def is_active(self):
-        return len(self.completed_records) > 0
+        return len(self.completed_notes) > 0
 
 
-StepData = Tuple[List[DataItem], List[DataRecord], List[DataRecord]]
+StepData = Tuple[List[any], List[Note], List[Note]]
 
 
 class BatchStep(AsyncStep):
@@ -352,49 +255,49 @@ class BatchStep(AsyncStep):
     def __init__(self, id, logger, batch_size, item_key):
         super().__init__(id, logger, item_key=item_key)
         self.batch_size = int(batch_size)
-        self.loaded_data_records = {}
-        self.num_loaded_data_records = {}
-        self.dumped_item_holders = RecordItemHolders()
+        self.loaded_notes = {}
+        self.num_loaded_notes = {}
+        self.dumped_item_holders = NoteItemHolders()
         self.accumulated_items = [[], [], []]
 
-    def in_q(self, data_record: DataRecord):
+    def in_q(self, note: Note):
         """
-        Enqueue a data record to be processed by the step
+        Enqueue a note to be processed by the step
 
         Args:
-            data_record (DataRecord): The DataRecord input
+            note (Note): The Note input
         """
-        if data_record is None:
+        if note is None:
             return
-        self.on_before_items(data_record)
-        items = data_record.items[self.item_key]
+        self.on_before_items(note)
+        items = note.items[self.item_key]
 
         # Load
         if hasattr(self, "load_fn"):
             if len(items) > 0:
-                dr_id = id(data_record)
+                dr_id = id(note)
                 self.dl.put_load(items, dr_id, self.load_fn, id(self))
 
-                self.loaded_data_records[dr_id] = data_record
-                self.num_loaded_data_records[dr_id] = len(items)
+                self.loaded_notes[dr_id] = note
+                self.num_loaded_notes[dr_id] = len(items)
 
     def get_batch(self, flush: bool = False) -> StepData:
-        items, records, completed = self.accumulated_items
+        items, notes, completed = self.accumulated_items
         next_in = self.dl.get_load(id(self))
         if next_in is not None:
-            item, record_id = next_in
-            # get original record (not pickled one)
-            record = self.loaded_data_records[record_id]
+            item, note_id = next_in
+            # get original note (not pickled one)
+            note = self.loaded_notes[note_id]
             if item is not None:
                 items.append(item)
-                records.append(record)
-            remaining_items = self.num_loaded_data_records[record_id] - 1
+                notes.append(note)
+            remaining_items = self.num_loaded_notes[note_id] - 1
             if remaining_items > 0:
-                self.num_loaded_data_records[record_id] = remaining_items
+                self.num_loaded_notes[note_id] = remaining_items
             else:
-                del self.num_loaded_data_records[record_id]
-                del self.loaded_data_records[record_id]
-                completed.append(record)
+                del self.num_loaded_notes[note_id]
+                del self.loaded_notes[note_id]
+                completed.append(note)
         else:
             if len(self.accumulated_items[0]) == 0:
                 return None
@@ -405,67 +308,66 @@ class BatchStep(AsyncStep):
             if not flush:
                 return None
             else:
-                if len(self.loaded_data_records) > 0:
+                if len(self.loaded_notes) > 0:
                     return None
 
-        batch = (items[: self.batch_size], records[: self.batch_size], completed)
+        batch = (items[: self.batch_size], notes[: self.batch_size], completed)
         self.accumulated_items = (
             items[self.batch_size :],
-            records[self.batch_size :],
+            notes[self.batch_size :],
             [],
         )
         return batch
 
-    def dump_data(self, data_record: DataRecord, item_key, output):
-        self.dumped_item_holders.handle_record(data_record)
-        self.dl.put_dump(output, item_key, id(data_record), self.dump_fn, id(self))
+    def dump_data(self, note: Note, item_key, output):
+        self.dumped_item_holders.handle_note(note)
+        self.dl.put_dump(output, item_key, id(note), self.dump_fn, id(self))
 
     def handle_batch(self, batch: StepData):
-        items, records, completed = batch
+        items, notes, completed = batch
         tensors = [item[0] for item in items]
         indexes = [item[1] for item in items]
         items = [
-            record.items[self.item_key][index]
-            for record, index in zip(records, indexes)
+            note.items[self.item_key][index] for note, index in zip(notes, indexes)
         ]
-        data_dump = self.on_item_batch(tensors, items, records)
+        data_dump = self.on_item_batch(tensors, items, notes)
         if data_dump is not None:
             for k, v in data_dump.items():
-                if len(records) != len(v):
+                if len(notes) != len(v):
                     self.logger.log(
-                        f"Unexpected number of records ({len(records)}) does not match returned outputs ({len(v)}). Will not write outputs!"
+                        f"Unexpected number of notes ({len(notes)}) does not match returned outputs ({len(v)}). Will not write outputs!"
                     )
                 else:
-                    for record, out in zip(records, v):
-                        self.dump_data(record, k, out)
+                    for note, out in zip(notes, v):
+                        self.dump_data(note, k, out)
 
-        for record in completed:
-            self.dumped_item_holders.set_completed(record)
+        for note in completed:
+            self.dumped_item_holders.set_completed(note)
 
-    def handle_completed_records(self):
+    def handle_completed_notes(self):
         data = self.dl.get_dump(id(self))
         if data is not None:
-            record_id, item_response = data
-            self.dumped_item_holders.handle_item(record_id, item_response)
+            note_id, item_response = data
+            self.dumped_item_holders.handle_item(note_id, item_response)
         output = {}
-        for record in self.dumped_item_holders.pop_all_completed():
-            self.on_after_items(record)
-            output_key = self.forward_record(record)
+        for note in self.dumped_item_holders.pop_all_completed():
+            self.on_after_items(note)
+            output_key = self.forward_note(note)
             if output_key not in output:
                 output[output_key] = []
-            output[output_key].append(record)
+            output[output_key].append(note)
         return output
 
-    def on_item_batch(self, tensor, items, records):
+    def on_item_batch(self, tensor, items, notes):
         """
         Called when B items are loaded into PyTorch tensors and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
 
         Args:
             tensors (List[torch.Tensor]): The list of loaded tensors of length B
-            items (List[DataItem]): The list of DataItems of length B associated with tensors. This list has the same order as tensors does
+            items (List[any]): The list of anys of length B associated with tensors. This list has the same order as tensors does
                 along the batch dimension
-            records (List[DataRecord]): The list of DataRecords of length B associated with tensors. This list has the same order as tensor does
+            notes (List[Note]): The list of Notes of length B associated with tensors. This list has the same order as tensor does
                 along the batch dimension
         """
         pass
@@ -478,7 +380,7 @@ class BatchStep(AsyncStep):
         if batch:
             self.handle_batch(batch)
 
-        output = self.handle_completed_records()
+        output = self.handle_completed_notes()
         return output
 
     def all(self) -> StepOutput:
@@ -495,7 +397,7 @@ class BatchStep(AsyncStep):
 
     def is_active(self) -> bool:
         return (
-            len(self.loaded_data_records) > 0
+            len(self.loaded_notes) > 0
             or len(self.accumulated_items[0]) > 0
             or self.dumped_item_holders.is_active()
         )
@@ -503,12 +405,12 @@ class BatchStep(AsyncStep):
 
 class Split(Step):
     """
-    Routes incoming DataRecords into either of two output slots, A or B. If split_fn
-    evaluates to True, the record will be forwarded to A, else the record will be forwarded to B.
+    Routes incoming Notes into either of two output slots, A or B. If split_fn
+    evaluates to True, the note will be forwarded to A, else the note will be forwarded to B.
 
     Args:
         split_fn (str): A Python syntax function. The str must contain the function header (def ...). The function \
-        will be evaluated on *forward_record(record)* where each record is fed into *split_fn(record)*.
+        will be evaluated on *forward_note(note)* where each note is fed into *split_fn(note)*.
     """
 
     RequiresInput = True
@@ -521,22 +423,22 @@ class Split(Step):
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
 
-    def forward_record(self, record) -> str:
-        split_result = self.fn(data_record=record)
+    def forward_note(self, note) -> str:
+        split_result = self.fn(note=note)
         if split_result:
             return "A"
         return "B"
 
 
-class SplitRecordsByItems(Step):
+class SplitNotesByItems(Step):
     """
-    Routes incoming DataRecords into either of two output slots, A or B. If split_fn evaluates to True,
-    the record will be forwarded to A, else the record will be forwarded to B.
+    Routes incoming Notes into either of two output slots, A or B. If split_fn evaluates to True,
+    the note will be forwarded to A, else the note will be forwarded to B.
 
     Args:
         split_fn (str): A Python syntax function. The str must contain the function header (def ...). The function \
-        will be evaluated on *forward_record(record)* where each record and selected items is fed into \
-        *split_fn(items, records)*.
+        will be evaluated on *forward_note(note)* where each note and selected items is fed into \
+        *split_fn(items, notes)*.
     """
 
     RequiresInput = True
@@ -552,8 +454,8 @@ class SplitRecordsByItems(Step):
         self.split_fn = split_items_fn
         self.fn = transform_function_string(split_items_fn)
 
-    def forward_record(self, record: DataRecord) -> StepOutput:
-        split_result = self.fn(items=record.items[self.item_key], record=record)
+    def forward_note(self, note: Note) -> StepOutput:
+        split_result = self.fn(items=note.items[self.item_key], note=note)
         if split_result:
             return "A"
         return "B"
@@ -567,12 +469,12 @@ class SplitItemField(Step):
 
     Args:
         split_fn (str): A Python syntax function. The str must contain the function header (def ...). The function \
-        will be evaluated on *on_after_items(record)* where each selected item from item_key is fed into \
+        will be evaluated on *on_after_items(note)* where each selected item from item_key is fed into \
         *split_fn(item)*.
         item_key (str): Original item_key that the items come from
-        a_key (str): Will append item to DataItem list associated with the a_key if *split_fn(item)* evaluates to True
-        b_key (str): Will append item to DataItem list associated with the b_key if *split_fn(item)* evaluates to False
-        should_delete_original (str): If True, will delete original DataItem key-value pair of item_key. Defaults to True
+        a_key (str): Will append item to any list associated with the a_key if *split_fn(item)* evaluates to True
+        b_key (str): Will append item to any list associated with the b_key if *split_fn(item)* evaluates to False
+        should_delete_original (str): If True, will delete original any key-value pair of item_key. Defaults to True
         
     """
 
@@ -591,15 +493,15 @@ class SplitItemField(Step):
         self.b_key = b_key
         self.should_delete_original = should_delete_original
 
-    def on_after_items(self, record: DataRecord) -> StepOutput:
+    def on_after_items(self, note: Note) -> StepOutput:
         a_items = []
         b_items = []
-        for item in record.items[self.item_key]:
+        for item in note.items[self.item_key]:
             if self.fn(item=item):
                 a_items.append(item)
             else:
                 b_items.append(item)
-        record.items[self.a_key] = a_items
-        record.items[self.b_key] = b_items
+        note.items[self.a_key] = a_items
+        note.items[self.b_key] = b_items
         if self.should_delete_original:
-            del record.items[self.item_key]
+            del note.items[self.item_key]

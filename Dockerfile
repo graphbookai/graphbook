@@ -18,16 +18,18 @@ RUN apt install -y \
     curl \
     wget \
     make \
-    python3.11
+    python3.11 \
+    pipx
 
 RUN ln -s /usr/bin/python3.11 /usr/bin/python
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash
 RUN apt install -y nodejs
+RUN pipx install poetry
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml poetry.lock ./
+RUN poetry install
 COPY . .
 RUN make web
 

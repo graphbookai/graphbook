@@ -1,4 +1,4 @@
-from graphbook.steps.base import Step, DataRecord
+from graphbook.steps.base import Step, Note
 import sys
 # sys.path.append("src")
 

@@ -1,5 +1,6 @@
-from graphbook.steps import Step, SourceStep, AsyncStep, DataRecord
+from graphbook.steps import Step, SourceStep, AsyncStep
 from graphbook.dataloading import Dataloader
+from .note import Note
 from typing import List
 import queue
 import multiprocessing as mp
@@ -32,7 +33,7 @@ class WebInstanceProcessor:
         self.dataloader = Dataloader(self.output_dir, self.num_workers)
         self.is_running = False
 
-    def exec_step(self, step: Step, input: DataRecord = None, flush: bool = False):
+    def exec_step(self, step: Step, input: Note = None, flush: bool = False):
         outputs = {}
         step_fn = step if not flush else step.all
         try:

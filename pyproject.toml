@@ -25,7 +25,7 @@ graphbook = "graphbook.server:main"
 [tool.poetry.dependencies]
 python = "^3.11"
 torch = "^2.3.1"
-aiohttp = "^3.9.3"
+aiohttp = "^3.9.4"
 dill = "^0.3.8"
 pillow = "^10.3.0"
 python-magic = "^0.4.27"
@@ -36,7 +36,7 @@ torchvision = "^0.18.1"
 optional = true
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^6.0.0"
+pytest = "^7.2.0"
 sphinx-rtd-theme = "^2.0.0"
 sphinxcontrib-applehelp = "^1.0.8"
 sphinxcontrib-devhelp = "^1.0.6"

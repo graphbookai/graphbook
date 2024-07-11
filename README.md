@@ -12,17 +12,27 @@ Graphbook is an extensible and interactive ML workflow editor that allows you to
 - Multiprocessing I/O to and from disk and network
 - Customizeable multiprocessing functions
 - Basic nodes for filtering, loading, and saving outputs
+- Node grouping and subflows
+- Shareable serialized workflow files
 
 ## Getting Started
-View the docs to learn how to install and get started with Graphbook.
+### Install from PyPI
+1. `pip install graphbook`
+1. `graphbook`
+
+### Install with Docker
+1. `docker run --rm -p 8005:8005 -p 8006:8006 -p 8007:8007 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest`
+
+Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
 
 ## Collaboration Guide
 This is a guide on how to get started developing Graphbook. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.
-1. Install python>=3.11.2. There is a known bug in python 3.10.
+
+### Run Graphbook in Development Mode
+1. Install python>=3.11. There is a known bug in python 3.10.
 1. Clone and `cd graphbook/`
 1. (Optional) Create your venv
-1. `pip install -r requirements.txt`
-1. `pip install -r docs/requirements.txt`
+1. `poetry install --with dev`
 1. `python graphbook/server.py`
 1. `cd web`
 1. `npm install`

@@ -1,5 +1,5 @@
-from graphbook.processor import Sequential, TreeProcessor, Print, Copy, LoadJSONL, Step, DataRecord, SplitRecordsByItems, StepOutput, StepData, BatchStep
-from arithmetic import SumByConstant, DivByConstant, MulByConstant, NumDataRecord, NumListDataRecord
+from graphbook.processor import Sequential, TreeProcessor, Print, Copy, LoadJSONL, Step, Note, SplitRecordsByItems, StepOutput, StepData, BatchStep
+from arithmetic import SumByConstant, DivByConstant, MulByConstant, NumNote, NumListNote
 from typing import List
 import os
 
@@ -19,7 +19,7 @@ class AssertStep(Step):
 
 def test_single_step():
     steps = AssertStep([lambda items: items[0].item == 1])
-    TreeProcessor(steps).run( [NumDataRecord("num", 1)] )
+    TreeProcessor(steps).run( [NumNote("num", 1)] )
 
 def test_split():
     a_step = Sequential([
@@ -37,7 +37,7 @@ def test_split():
         b_step=b_step
     )
    
-    TreeProcessor(steps).run( [NumDataRecord("num", 1), NumDataRecord("num", 10)] )
+    TreeProcessor(steps).run( [NumNote("num", 1), NumNote("num", 10)] )
 
 def test_sequential():
     steps = Sequential([
@@ -46,7 +46,7 @@ def test_sequential():
         AssertStep([lambda items: items[0].item == 4]),
     ])
 
-    TreeProcessor(steps).run( [NumDataRecord("num", 3)] )
+    TreeProcessor(steps).run( [NumNote("num", 3)] )
 
 def test_copy():
     steps = Copy([
@@ -60,19 +60,19 @@ def test_copy():
         ])
     ])
 
-    TreeProcessor(steps).run( [NumDataRecord("num", 2)] )
+    TreeProcessor(steps).run( [NumNote("num", 2)] )
 
 def test_batchsteps_are_flushed():
-    data_records = [NumDataRecord("num", 1), NumDataRecord("num", 2), NumDataRecord("num", 3)]
+    notes = [NumNote("num", 1), NumNote("num", 2), NumNote("num", 3)]
     steps = Sequential([
         Print(),
         SumByConstant(2, batch_size=2),
     ])
 
-    TreeProcessor(steps).run( data_records )
-    assert data_records[0].items["num"][0].item == 3
-    assert data_records[1].items["num"][0].item == 4
-    assert data_records[2].items["num"][0].item == 5
+    TreeProcessor(steps).run( notes )
+    assert notes[0].items["num"][0].item == 3
+    assert notes[1].items["num"][0].item == 4
+    assert notes[2].items["num"][0].item == 5
 
 def test_batchstep_returns_only_complete_records():
     steps = Sequential([
@@ -84,7 +84,7 @@ def test_batchstep_returns_only_complete_records():
         ]),    
     ])
 
-    TreeProcessor(steps).run( [NumDataRecord("num", 1), NumListDataRecord("nums", [2, 3])] )
+    TreeProcessor(steps).run( [NumNote("num", 1), NumListNote("nums", [2, 3])] )
 
 def test_example_tree():
     steps = Sequential([
@@ -135,4 +135,4 @@ def test_multiprocessing():
             return {
                 "_next": completed
             }
-    TreeProcessor(MultiprocessingStep(), num_workers=2).run( [NumDataRecord("num", 1), NumDataRecord("num", 2)] )
+    TreeProcessor(MultiprocessingStep(), num_workers=2).run( [NumNote("num", 1), NumNote("num", 2)] )

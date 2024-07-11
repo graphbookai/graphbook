@@ -220,8 +220,6 @@ export const Graph = {
                         if (G[sourceNode].type === 'export') {
                             sourceSlot = G[sourceNode].handleId;
                             sourceNode = G[sourceNode].parentId;
-                            console.log(`sourceSlot: ${sourceSlot}, sourceNode: ${sourceNode}`)
-                            console.log(!!sourceNode)
                             if (!sourceNode || !sourceSlot) {
                                 break;
                             }
