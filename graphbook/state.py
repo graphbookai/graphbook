@@ -1,7 +1,8 @@
 from __future__ import annotations
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
-from graphbook.steps import Step, Note
+from graphbook.note import Note
+from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
 from graphbook.viewer import Logger, ViewManagerInterface
 import multiprocessing as mp
@@ -12,8 +13,6 @@ import os.path as osp
 import json
 import hashlib
 from enum import Enum
-
-Outputs = Dict[str, List[Note]]
 
 
 class UIState:
@@ -192,7 +191,6 @@ class GraphState:
 
                 previous_obj = self._steps.get(step_id)
                 if previous_obj is not None:
-                    print("Updating consumer")
                     for parent in previous_obj.parents:
                         if parent.id in self._queues:
                             self._queues[parent.id].update_consumer(

@@ -8,6 +8,3 @@ API documentation
 
 .. automodule:: graphbook.steps.io
    :members:
-
-.. automodule:: graphbook.steps.hf_transformers
-   :members:

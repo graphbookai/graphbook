@@ -8,30 +8,11 @@ import sys
 import os
 import os.path as osp
 import inspect
-from graphbook.steps import Step
-from graphbook.resources import Resource
+from graphbook.steps import Step, BatchStep, SourceStep, AsyncStep, Split, SplitNotesByItems, SplitItemField
+from graphbook.resources import Resource, FunctionResource
 
-# This function is used to convert a string to a function
-# by interpreting the string as a python-typed function
-# definition. This is used to allow the user to define
-# custom functions in the graphbook UI.
-def transform_function_string(func_str):
-    func_str = func_str.strip()
-    if not func_str.startswith("def"):
-        raise ValueError("Function string must start with def")
-    func_name = func_str[4 : func_str.index("(")].strip()
-
-    # Create a new module
-    module_name = "my_module"
-    module_spec = importlib.util.spec_from_loader(module_name, loader=None)
-    module = importlib.util.module_from_spec(module_spec)
-
-    # Execute the function string in the module's namespace
-    exec(func_str, module.__dict__)
-
-    # Return the function from the module
-    return getattr(module, func_name)
-
+BUILT_IN_STEPS = [Step, BatchStep, SourceStep, AsyncStep, Split, SplitNotesByItems, SplitItemField]
+BUILT_IN_RESOURCES = [Resource, FunctionResource]
 
 class CustomModuleEventHandler(FileSystemEventHandler):
     def __init__(self, root_path, handler):
@@ -124,15 +105,13 @@ class CustomNodeImporter:
     async def on_module(self, filename, mod):
         for name, obj in inspect.getmembers(mod):
             if inspect.isclass(obj):
-                if issubclass(obj, Step):
+                if issubclass(obj, Step) and not obj in BUILT_IN_STEPS:
                     await self.step_handler(filename, name, obj)
-                if issubclass(obj, Resource):
+                if issubclass(obj, Resource) and not obj in BUILT_IN_RESOURCES:
                     await self.resource_handler(filename, name, obj)
 
         if self.websocket is not None and not self.websocket.closed:
             await self.websocket.send_json({"event": "node_updated"})
-        else:
-            print("No websocket to send node_updated event to")
 
     def start_observer(self):
         self.observer.schedule(self.event_handler, self.path, recursive=True)

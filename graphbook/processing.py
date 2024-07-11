@@ -1,5 +1,6 @@
-from graphbook.steps import Step, SourceStep, AsyncStep, Note
+from graphbook.steps import Step, SourceStep, AsyncStep
 from graphbook.dataloading import Dataloader
+from .note import Note
 from typing import List
 import queue
 import multiprocessing as mp

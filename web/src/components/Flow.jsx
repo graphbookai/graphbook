@@ -385,8 +385,8 @@ function ControlRow({ getGraph }) {
         runStateShouldChange();
     });
 
-    const clear = useCallback(() => {
-        const [graph, resources] = getGraph();
+    const clear = useCallback(async () => {
+        const [graph, resources] = await getGraph();
         API.clearAll(graph, resources);
     });
 

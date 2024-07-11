@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple
 from graphbook.dataloading import Dataloader
-from graphbook.custom_nodes import transform_function_string
+from ..utils import transform_function_string
 from graphbook import Note
 
 

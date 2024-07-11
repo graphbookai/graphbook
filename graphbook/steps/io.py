@@ -43,6 +43,6 @@ class DumpJSONL(Step):
 
     def on_after_items(self, note: Note):
         with open(self.jsonl_path, "a") as f:
-            note_entry = note.json()
+            note_entry = note.items
             json.dump(note_entry, f)
             f.write("\n")

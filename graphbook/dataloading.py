@@ -22,7 +22,7 @@ def do_load(work_queue: mp.Queue, result_queue: mp.Queue):
     except Exception as e:
         to_return = ((None, record_id), consumer_id)
         print(
-            f"Could not process input {item}. The following exception was raised: {e}"
+            f"Worker Error: Could not process input {item}. The following exception was raised: {e}. Check your load_fn."
         )
 
     result_queue.put(to_return, block=False)

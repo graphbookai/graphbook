@@ -58,12 +58,13 @@ class DataViewer(Viewer):
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        new_entries = {k: v[0].json() for k, v in output.items() if len(v) > 0}
-        for dr_json in new_entries.values():
-            items_dict = dr_json["items"]
-            for data_items in items_dict.values():
-                for item in data_items:
-                    item["type"] = self.get_mime_type(item["item"])
+        new_entries = {k: v[0].items for k, v in output.items() if len(v) > 0}
+        # for items in new_entries.values():
+        #     for i,item in enumerate(items):
+        #         items[i] = {
+        #             "value": item,
+        #             "type": self.get_mime_type(item)
+        #         }
 
         self.last_outputs[node_id] |= new_entries
 
