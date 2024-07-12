@@ -3,10 +3,10 @@ import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChang
 import { Card, Collapse, Badge, Flex, Button, Image, Descriptions, theme } from 'antd';
 import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget } from './Widgets';
-import { API } from '../../api';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
-import { mediaUrl, keyRecursively } from '../../utils';
+import { useAPI, useAPINodeMessage } from '../../hooks/API';
+import { useFilename } from '../../hooks/Filename';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -31,50 +31,6 @@ const outHandleStyle = {
     marginLeft: '5px'
 };
 
-const createViewEventListener = (id, callback) => {
-    return (msg) => {
-        msg = JSON.parse(msg.data);
-        if (msg.type !== "view") {
-            return;
-        }
-        const { data } = msg;
-        if (!data[id]) {
-            return;
-        }
-
-        callback(data[id]);
-    }
-};
-
-const createStatsEventListener = (id, callback) => {
-    return (msg) => {
-        msg = JSON.parse(msg.data);
-        if (msg.type !== "stats") {
-            return;
-        }
-        const { data } = msg;
-        if (!data[id]) {
-            return;
-        }
-
-        callback(data[id]);
-    }
-};
-
-const createLogsEventListener = (id, callback) => {
-    return (msg) => {
-        msg = JSON.parse(msg.data);
-        if (msg.type !== "logs") {
-            return;
-        }
-        const { data } = msg;
-        if (!data[id]) {
-            return;
-        }
-
-        callback(data[id]);
-    }
-};
 
 const isWidgetType = (type) => {
     return ['number', 'string', 'boolean'].includes(type);
@@ -93,7 +49,16 @@ export function WorkflowStep({ id, data, selected }) {
     const { token } = useToken();
     const { getNode } = useReactFlow();
 
-    const appendNewLogsCallback = useCallback((newEntries) => {
+    const API = useAPI();
+
+    const filename = useFilename();
+    useAPINodeMessage('stats', id, filename, (msg) => {
+        setRecordCount(msg.queue_size);
+    });
+    useAPINodeMessage('view', id, filename, (msg) => {
+        setQuickViewData(msg.data);
+    });
+    useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
         let wipeIndex = -1;
         for (let i = 0; i < newEntries.length; i++) {
             if (newEntries[i].type === 'wipe') {
@@ -106,25 +71,7 @@ export function WorkflowStep({ id, data, selected }) {
         }
 
         setLogsData([...logsData, ...newEntries]);
-    }, [logsData]);
-
-    useEffect(() => {
-        const viewListener = createViewEventListener(id, data => {
-            setQuickViewData(data);
-        });
-        const statsListener = createStatsEventListener(id, data => {
-            setRecordCount(data.queue_size)
-        });
-        const logsListener = createLogsEventListener(id, appendNewLogsCallback);
-        API.addWsEventListener('message', viewListener);
-        API.addWsEventListener('message', statsListener);
-        API.addWsEventListener('message', logsListener);
-        return () => {
-            API.removeWsEventListener('message', viewListener);
-            API.removeWsEventListener('message', statsListener);
-            API.removeWsEventListener('message', logsListener);
-        };
-    }, []);
+    }, [logsData]));
 
     useEffect(() => {
         for (const log of logsData) {
@@ -156,10 +103,13 @@ export function WorkflowStep({ id, data, selected }) {
     });
 
     const run = useCallback(async () => {
+        if (!API) {
+            return;
+        }
         const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
         API.run(graph, resources, id);
         runStateShouldChange();
-    }, [nodes, edges]);
+    }, [nodes, edges, API]);
 
     const borderStyle = useMemo(() => {
         const baseStyle = {
@@ -197,15 +147,13 @@ export function WorkflowStep({ id, data, selected }) {
 
     }, [token, errored, selected, parentSelected]);
 
-
-
     return (
         <div style={borderStyle}>
             <Badge count={recordCount} color={token.colorFill} style={{ color: token.colorText }} overflowCount={Infinity}>
                 <Card className="workflow-node">
                     <Flex gap="small" justify='space-between' className='title'>
                         <div>{name}</div>
-                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped'}/>
+                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API}/>
                     </Flex>
                     <div className="handles">
                         <div className="inputs">

@@ -6,6 +6,7 @@ import LeftPanel from './components/LeftPanel/LeftPanel';
 import { useSettings } from './hooks/Settings';
 import { API } from './api';
 import { useAPI } from './hooks/API';
+import { setGlobalFilename } from './hooks/Filename.ts';
 
 const { Header, Content, Sider } = Layout;
 
@@ -76,6 +77,11 @@ function View() {
         return <WelcomeScreen />;
     }, [workflowFile, codeEditorView]);
 
+    const setFile = useCallback((filename: string) => {
+        setWorkflowFile(filename);
+        setGlobalFilename(filename);
+    }, []);
+
     return (
         <Layout style={{ height: '100vh' }}>
             <Header style={{ height: '40px', background: colorBgContainer, borderBottom: `1px solid ${colorBorder}` }}>
@@ -84,7 +90,7 @@ function View() {
             <Content style={{ height: '100%' }}>
                 <Layout style={{ width: '100vw', height: '100%' }}>
                     <Sider width={300} style={{ background: colorBgContainer }}>
-                        <LeftPanel setWorkflow={setWorkflowFile} onBeginEdit={onBeginEdit} />
+                        <LeftPanel setWorkflow={setFile} onBeginEdit={onBeginEdit} />
                     </Sider>
                     {mainView}
                 </Layout>

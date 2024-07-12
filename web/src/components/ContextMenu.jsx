@@ -2,251 +2,254 @@ import { Menu } from 'antd';
 import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { keyRecursively, uniqueIdFrom } from '../utils';
-import { API } from '../api';
 import { Graph } from '../graph';
 import { useRunState } from '../hooks/RunState';
-
-const NODE_OPTIONS = [
-    {
-        name: 'Run',
-        disabled: (runState) => runState !== 'stopped',
-        action: async (node, reactFlowInstance, runStateShouldChange) => {
-            const { getNodes, getEdges } = reactFlowInstance;
-            const nodes = getNodes();
-            const edges = getEdges();
-            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
-            API.run(graph, resources, node.id);
-            runStateShouldChange();
-        }
-    },
-    {
-        name: 'Step',
-        disabled: (runState) => runState !== 'stopped',
-        action: async (node, reactFlowInstance, runStateShouldChange) => {
-            const { getNodes, getEdges } = reactFlowInstance;
-            const nodes = getNodes();
-            const edges = getEdges();
-            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
-            API.step(graph, resources, node.id);
-            runStateShouldChange();
-        }
-    },
-    {
-        name: 'Clear Outputs',
-        disabled: (runState) => runState !== 'stopped',
-        action: async (node, reactFlowInstance) => {
-            const { getNodes, getEdges } = reactFlowInstance;
-            const nodes = getNodes();
-            const edges = getEdges();
-            const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
-            API.clear(graph, resources, node.id);
-        }
-    },
-    {
-        name: 'Duplicate',
-        action: (node, reactFlowInstance) => {
-            const { addNodes } = reactFlowInstance;
-            const position = {
-                x: node.position.x + 50,
-                y: node.position.y + 50,
-            };
-
-            addNodes({
-                ...node,
-                selected: false,
-                dragging: false,
-                id: `${node.id}-copy`,
-                position,
-            });
-        }
-    },
-    {
-        name: 'Delete',
-        disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance) => {
-            const { setNodes, setEdges } = reactFlowInstance;
-            setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
-            setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
-        }
-    },
-    {
-        name: (node) => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
-        action: (node, reactFlowInstance) => {
-            const { setNodes } = reactFlowInstance;
-            setNodes((nodes) => {
-                return nodes.map((n) => {
-                    if (n.id === node.id) {
-                        return {
-                            ...n,
-                            data: {
-                                ...n.data,
-                                isCollapsed: !node.data.isCollapsed
-                            }
-                        };
-                    }
-                    return n;
-                });
-            });
-        }
-    }
-];
-
-const addExport = (node, reactFlowInstance, isInput, exp) => {
-    const currentExports = isInput ? node.data.exports.inputs : node.data.exports.outputs;
-    const id = uniqueIdFrom(currentExports);
-    const newExports = {
-        [isInput ? 'inputs' : 'outputs']: [
-            ...currentExports,
-            {
-                id,
-                ...exp
-            }
-        ]
-    };
-    const { setNodes } = reactFlowInstance;
-    setNodes(nodes => nodes.map(n => {
-        if (n.id === node.id) {
-            return {
-                ...n,
-                data: {
-                    ...n.data,
-                    exports: {
-                        ...n.data.exports,
-                        ...newExports
-                    }
-                }
-            }
-        }
-        return n;
-    }));
-};
-
-const GROUP_OPTIONS = [
-    {
-        name: 'Disband Group',
-        disabled: (runState) => runState !== 'stopped',
-        action: (node, reactFlowInstance) => {
-            const { setNodes, setEdges } = reactFlowInstance;
-            setNodes((nodes) => nodes
-                .map((n) => {
-                    if (n.parentId === node.id) {
-                        return {
-                            ...n,
-                            parentId: null,
-                            position: { x: n.position.x + node.position.x, y: n.position.y + node.position.y }
-                        };
-                    }
-                    return n;
-                })
-                .filter((n) => n.id !== node.id)
-            );
-            setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
-        }
-    },
-    {
-        name: 'Add Step Input Export',
-        action: (node, reactFlowInstance) => {
-            addExport(node, reactFlowInstance, true, {
-                name: 'in',
-                type: 'step'
-            });
-        }
-    },
-    {
-        name: 'Add Resource Input Export',
-        action: (node, reactFlowInstance) => {
-            addExport(node, reactFlowInstance, true, {
-                name: 'resource',
-                type: 'resource'
-            });
-        }
-    },
-    {
-        name: 'Add Step Output Export',
-        parent: 'Add Export',
-        action: (node, reactFlowInstance) => {
-            addExport(node, reactFlowInstance, false, {
-                name: 'out',
-                type: 'step'
-            });
-        }
-    },
-    {
-        name: 'Add Resource Output Export',
-        action: (node, reactFlowInstance) => {
-            addExport(node, reactFlowInstance, false, {
-                name: 'resource',
-                type: 'resource'
-            });
-        }
-    },
-    {
-        name: node => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
-        action: (node, reactFlowInstance) => {
-            const { setNodes } = reactFlowInstance;
-            setNodes((nodes) => {
-                return nodes.map((n) => {
-                    if (n.parentId === node.id) {
-                        return {
-                            ...n,
-                            hidden: !node.data.isCollapsed
-                        };
-                    } else if (n.id === node.id) {
-                        return {
-                            ...n,
-                            data: {
-                                ...n.data,
-                                isCollapsed: !node.data.isCollapsed
-                            }
-                        };
-                    }
-                    return n;
-                });
-            });
-        }
-    }
-];
-
-const EXPORT_OPTIONS = [
-    {
-        name: 'Edit Label',
-        action: (node, reactFlowInstance) => {
-            const { setNodes } = reactFlowInstance;
-            setNodes((nodes) => {
-                return nodes.map((n) => {
-                    if (n.id === node.id) {
-                        return {
-                            ...n,
-                            data: {
-                                ...n.data,
-                                isEditing: true
-                            }
-                        };
-                    }
-                    return n;
-                });
-            });
-        }
-    }
-];
-
-const getOptions = (nodeType) => {
-    if (nodeType === 'group') {
-        return GROUP_OPTIONS;
-    }
-    if (nodeType === 'export') {
-        return EXPORT_OPTIONS;
-    }
-    if (nodeType === 'step' || nodeType === 'resource') {
-        return NODE_OPTIONS;
-    }
-};
+import { useAPI } from '../hooks/API';
+import { useFilename } from '../hooks/Filename';
 
 export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
     const [runState, runStateShouldChange] = useRunState();
+    const API = useAPI();
+    const filename = useFilename();
     const updateNodeInternals = useUpdateNodeInternals();
+
+    const NODE_OPTIONS = useMemo(() => [
+        {
+            name: 'Run',
+            disabled: (runState) => API && runState !== 'stopped',
+            action: async () => {
+                const { getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+                API.run(graph, resources, node.id);
+                runStateShouldChange();
+            }
+        },
+        {
+            name: 'Step',
+            disabled: (runState) => API && runState !== 'stopped',
+            action: async () => {
+                const { getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+                API.step(graph, resources, node.id);
+                runStateShouldChange();
+            }
+        },
+        {
+            name: 'Clear Outputs',
+            disabled: (runState) => API && runState !== 'stopped',
+            action: async () => {
+                const { getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+                API.clear(graph, resources, node.id);
+            }
+        },
+        {
+            name: 'Duplicate',
+            disabled: (runState) => runState !== 'stopped',
+            action: () => {
+                const { addNodes } = reactFlowInstance;
+                const position = {
+                    x: node.position.x + 50,
+                    y: node.position.y + 50,
+                };
+    
+                addNodes({
+                    ...node,
+                    selected: false,
+                    dragging: false,
+                    id: `${node.id}-copy`,
+                    position,
+                });
+            }
+        },
+        {
+            name: 'Delete',
+            disabled: (runState) => runState !== 'stopped',
+            action: (node, reactFlowInstance) => {
+                const { setNodes, setEdges } = reactFlowInstance;
+                setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
+                setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
+            }
+        },
+        {
+            name: (node) => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
+            action: (node, reactFlowInstance) => {
+                const { setNodes } = reactFlowInstance;
+                setNodes((nodes) => {
+                    return nodes.map((n) => {
+                        if (n.id === node.id) {
+                            return {
+                                ...n,
+                                data: {
+                                    ...n.data,
+                                    isCollapsed: !node.data.isCollapsed
+                                }
+                            };
+                        }
+                        return n;
+                    });
+                });
+            }
+        }
+    ], [node, reactFlowInstance, runState, API]);
+    
+    const GROUP_OPTIONS = useMemo(() => {
+        const addExport = (isInput, exp) => {
+            const currentExports = isInput ? node.data.exports.inputs : node.data.exports.outputs;
+            const id = uniqueIdFrom(currentExports);
+            const newExports = {
+                [isInput ? 'inputs' : 'outputs']: [
+                    ...currentExports,
+                    {
+                        id,
+                        ...exp
+                    }
+                ]
+            };
+            const { setNodes } = reactFlowInstance;
+            setNodes(nodes => nodes.map(n => {
+                if (n.id === node.id) {
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            exports: {
+                                ...n.data.exports,
+                                ...newExports
+                            }
+                        }
+                    }
+                }
+                return n;
+            }));
+        };
+        return [{
+            name: 'Disband Group',
+            disabled: (runState) => runState !== 'stopped',
+            action: (node, reactFlowInstance) => {
+                const { setNodes, setEdges } = reactFlowInstance;
+                setNodes((nodes) => nodes
+                    .map((n) => {
+                        if (n.parentId === node.id) {
+                            return {
+                                ...n,
+                                parentId: null,
+                                position: { x: n.position.x + node.position.x, y: n.position.y + node.position.y }
+                            };
+                        }
+                        return n;
+                    })
+                    .filter((n) => n.id !== node.id)
+                );
+                setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
+            }
+        },
+        {
+            name: 'Add Step Input Export',
+            action: (node, reactFlowInstance) => {
+                addExport(node, reactFlowInstance, true, {
+                    name: 'in',
+                    type: 'step'
+                });
+            }
+        },
+        {
+            name: 'Add Resource Input Export',
+            action: (node, reactFlowInstance) => {
+                addExport(node, reactFlowInstance, true, {
+                    name: 'resource',
+                    type: 'resource'
+                });
+            }
+        },
+        {
+            name: 'Add Step Output Export',
+            parent: 'Add Export',
+            action: (node, reactFlowInstance) => {
+                addExport(node, reactFlowInstance, false, {
+                    name: 'out',
+                    type: 'step'
+                });
+            }
+        },
+        {
+            name: 'Add Resource Output Export',
+            action: (node, reactFlowInstance) => {
+                addExport(node, reactFlowInstance, false, {
+                    name: 'resource',
+                    type: 'resource'
+                });
+            }
+        },
+        {
+            name: node => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
+            action: (node, reactFlowInstance) => {
+                const { setNodes } = reactFlowInstance;
+                setNodes((nodes) => {
+                    return nodes.map((n) => {
+                        if (n.parentId === node.id) {
+                            return {
+                                ...n,
+                                hidden: !node.data.isCollapsed
+                            };
+                        } else if (n.id === node.id) {
+                            return {
+                                ...n,
+                                data: {
+                                    ...n.data,
+                                    isCollapsed: !node.data.isCollapsed
+                                }
+                            };
+                        }
+                        return n;
+                    });
+                });
+            }
+        }];
+    }, [node, reactFlowInstance]);
+
+    const EXPORT_OPTIONS = useMemo(() => [
+        {
+            name: 'Edit Label',
+            action: (node, reactFlowInstance) => {
+                const { setNodes } = reactFlowInstance;
+                setNodes((nodes) => {
+                    return nodes.map((n) => {
+                        if (n.id === node.id) {
+                            return {
+                                ...n,
+                                data: {
+                                    ...n.data,
+                                    isEditing: true
+                                }
+                            };
+                        }
+                        return n;
+                    });
+                });
+            }
+        }
+    ], [node, reactFlowInstance]);
+    
+    const getOptions = (nodeType) => {
+        if (nodeType === 'group') {
+            return GROUP_OPTIONS;
+        }
+        if (nodeType === 'export') {
+            return EXPORT_OPTIONS;
+        }
+        if (nodeType === 'step' || nodeType === 'resource') {
+            return NODE_OPTIONS;
+        }
+    };
 
     const items = useMemo(() => {
         const toReturn = getOptions(node.type).map((option) => {

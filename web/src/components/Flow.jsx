@@ -21,6 +21,7 @@ import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
+import { useFilename } from '../hooks/Filename.ts';
 const { Text } = Typography;
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -77,10 +78,7 @@ export default function Flow({ filename }) {
         };
         graphStore.current = null;
 
-        if (!filename || !API) {
-            setNodes([]);
-            setEdges([]);
-        } else {
+        if (API) {
             loadGraph();
         }
     }, [API, filename]);
@@ -328,6 +326,7 @@ export default function Flow({ filename }) {
     return (
         <div style={{ height: '100%', width: '100%' }}>
             <ReactFlow
+                key={filename}
                 ref={reactFlowRef}
                 onPaneClick={handleMouseClickComp}
                 onMove={handleMouseClickComp}
@@ -361,8 +360,8 @@ export default function Flow({ filename }) {
                 </Panel>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
-                <Background id="1" variant="lines" gap={10} size={1} color={lineColor1} />
-                <Background id="2" variant="lines" gap={100} color={lineColor2} />
+                <Background id="1" variant="lines" gap={20} size={1} color={lineColor1} />
+                <Background id="2" variant="lines" gap={200} size={1} color={lineColor2} />
             </ReactFlow>
             {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
         </div>
@@ -378,12 +377,12 @@ function ControlRow({ getGraph }) {
         const [graph, resources] = await getGraph();
         API.runAll(graph, resources);
         runStateShouldChange();
-    });
+    }, []);
 
     const pause = useCallback(() => {
         API.pause();
         runStateShouldChange();
-    });
+    }, []);
 
     const clear = useCallback(async () => {
         const [graph, resources] = await getGraph();
@@ -393,12 +392,12 @@ function ControlRow({ getGraph }) {
     return (
         <div className="control-row">
             <Flex gap="small" wrap="wrap">
-                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped'} /> {/* Clear */}
+                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} /> {/* Clear */}
                 {
                     runState !== 'stopped' ? (
-                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} />
+                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
-                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} />
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} disabled={!API}/>
                     )
                 }
             </Flex>
