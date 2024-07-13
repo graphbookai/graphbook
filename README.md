@@ -29,10 +29,10 @@ Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custo
 This is a guide on how to get started developing Graphbook. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.
 
 ### Run Graphbook in Development Mode
-1. Install python>=3.11. There is a known bug in python 3.10.
-1. Clone and `cd graphbook/`
-1. (Optional) Create your venv
+You can use any other virtual environment solution, but `poetry` is used in the steps below.
+1. Clone the repo and `cd graphbook`
 1. `poetry install --with dev`
+1. `poetry shell`
 1. `python graphbook/server.py`
 1. `cd web`
 1. `npm install`

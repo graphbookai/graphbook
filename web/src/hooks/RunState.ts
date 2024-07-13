@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { API } from "../api";
+import { getGlobalFilename } from "./Filename";
 
 export type RunState = 'changing' | 'running' | 'stopped';
 let globalRunState: RunState = 'stopped';
+let globalRunningFile: string = '';
 let localSetters: Function[] = [];
 let globalListenerIsSet = false;
 
-export function useRunState(): [RunState, () => void] {
+export function useRunState(): [RunState, (filename: string) => void] {
     const [_, setRunState] = useState<RunState>(globalRunState);
 
     useEffect(() => {
@@ -47,6 +49,7 @@ export function useRunState(): [RunState, () => void] {
 
     const runStateShouldChange = useCallback(() => {
         globalRunState = 'changing';
+        globalRunningFile = getGlobalFilename();
 
         for (const setter of localSetters) {
             setter(globalRunState);
@@ -54,4 +57,8 @@ export function useRunState(): [RunState, () => void] {
     }, []);
 
     return [globalRunState, runStateShouldChange];
+}
+
+export function getGlobalRunningFile() {
+    return globalRunningFile;
 }

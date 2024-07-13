@@ -45,3 +45,9 @@ sphinxcontrib-jquery = "^4.1"
 sphinxcontrib-jsmath = "^1.0.1"
 sphinxcontrib-qthelp = "^1.0.7"
 sphinxcontrib-serializinghtml = "^1.1.10"
+
+[tool.poetry.group.examples]
+optional = true
+
+[tool.poetry.group.examples.dependencies]
+transformers = "^4.42.4"

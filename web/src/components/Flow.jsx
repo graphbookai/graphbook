@@ -4,7 +4,9 @@ import ReactFlow, {
     Background,
     useNodesState,
     useEdgesState,
-    addEdge
+    addEdge,
+    useNodes,
+    useEdges
 } from 'reactflow';
 import { Button, Flex, Typography, notification, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
@@ -77,10 +79,7 @@ export default function Flow({ filename }) {
         };
         graphStore.current = null;
 
-        if (!filename || !API) {
-            setNodes([]);
-            setEdges([]);
-        } else {
+        if (API) {
             loadGraph();
         }
     }, [API, filename]);
@@ -184,10 +183,6 @@ export default function Flow({ filename }) {
             document.removeEventListener('click', handleMouseClick);
         };
     }, [handleMouseClick]);
-
-    const getGraph = useCallback(async () => {
-        return await Graph.serializeForAPI(nodes, edges);
-    }, [nodes, edges]);
 
     const onDrop = useCallback((event) => {
         filesystemDragEnd(reactFlowInstance.current, API, event);
@@ -328,6 +323,7 @@ export default function Flow({ filename }) {
     return (
         <div style={{ height: '100%', width: '100%' }}>
             <ReactFlow
+                key={filename}
                 ref={reactFlowRef}
                 onPaneClick={handleMouseClickComp}
                 onMove={handleMouseClickComp}
@@ -351,7 +347,7 @@ export default function Flow({ filename }) {
             >
                 {notificationCtxt}
                 <Panel position='top-right'>
-                    <ControlRow getGraph={getGraph} />
+                    <ControlRow />
                 </Panel>
                 <Panel position='top-left'>
                     <NodeConfig />
@@ -361,44 +357,46 @@ export default function Flow({ filename }) {
                 </Panel>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
-                <Background id="1" variant="lines" gap={10} size={1} color={lineColor1} />
-                <Background id="2" variant="lines" gap={100} color={lineColor2} />
+                <Background id="1" variant="lines" gap={20} size={1} color={lineColor1} />
+                <Background id="2" variant="lines" gap={200} size={1} color={lineColor2} />
             </ReactFlow>
             {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
         </div>
     );
 }
 
-function ControlRow({ getGraph }) {
+function ControlRow() {
     const size = 'large';
     const [runState, runStateShouldChange] = useRunState();
     const API = useAPI();
+    const nodes = useNodes();
+    const edges = useEdges();
 
     const run = useCallback(async () => {
-        const [graph, resources] = await getGraph();
+        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
         API.runAll(graph, resources);
         runStateShouldChange();
-    });
+    }, [API, nodes, edges]);
 
     const pause = useCallback(() => {
         API.pause();
         runStateShouldChange();
-    });
+    }, [API]);
 
     const clear = useCallback(async () => {
-        const [graph, resources] = await getGraph();
+        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
         API.clearAll(graph, resources);
-    });
+    }, [API, nodes, edges]);
 
     return (
         <div className="control-row">
             <Flex gap="small" wrap="wrap">
-                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped'} /> {/* Clear */}
+                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} /> {/* Clear */}
                 {
                     runState !== 'stopped' ? (
-                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} />
+                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
-                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} />
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} disabled={!API}/>
                     )
                 }
             </Flex>
