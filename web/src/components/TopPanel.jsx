@@ -5,7 +5,7 @@ import { Popover, Input, Modal } from 'antd';
 import { LinkOutlined, DisconnectOutlined, SettingFilled } from '@ant-design/icons';
 import Settings from './Settings';
 import { useSettings } from '../hooks/Settings';
-import { API } from '../api';
+import { useAPI } from '../hooks/API';
 import './top-panel.css';
 
 const iconStyle = { fontSize: '18px', margin: '0 5px', lineHeight: '40px', height: '100%'};
@@ -19,17 +19,15 @@ export default function TopPanel() {
     const [host, setHost] = useState(settings.graphServerHost);
     const [hostEditorOpen, setHostEditorOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const API = useAPI();
 
     useEffect(() => {
-        const handleOpen = () => setConnected(true);
-        const handleClose = () => setConnected(false);
-        API.addWsEventListener('open', handleOpen);
-        API.addWsEventListener('close', handleClose);
-        return () => {
-            API.removeWsEventListener('open', handleOpen);
-            API.removeWsEventListener('close', handleClose);
-        };
-    }, []);
+        if (!API) {
+            setConnected(false);
+        } else {
+            setConnected(true);
+        }
+    }, [API]);
 
     const setAPIHost = useCallback(host => {
         setSetting("graphServerHost", host);

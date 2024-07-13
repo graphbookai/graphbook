@@ -4,7 +4,9 @@ import ReactFlow, {
     Background,
     useNodesState,
     useEdgesState,
-    addEdge
+    addEdge,
+    useNodes,
+    useEdges
 } from 'reactflow';
 import { Button, Flex, Typography, notification, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
@@ -21,7 +23,6 @@ import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
-import { useFilename } from '../hooks/Filename.ts';
 const { Text } = Typography;
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -182,10 +183,6 @@ export default function Flow({ filename }) {
             document.removeEventListener('click', handleMouseClick);
         };
     }, [handleMouseClick]);
-
-    const getGraph = useCallback(async () => {
-        return await Graph.serializeForAPI(nodes, edges);
-    }, [nodes, edges]);
 
     const onDrop = useCallback((event) => {
         filesystemDragEnd(reactFlowInstance.current, API, event);
@@ -350,7 +347,7 @@ export default function Flow({ filename }) {
             >
                 {notificationCtxt}
                 <Panel position='top-right'>
-                    <ControlRow getGraph={getGraph} />
+                    <ControlRow />
                 </Panel>
                 <Panel position='top-left'>
                     <NodeConfig />
@@ -368,26 +365,28 @@ export default function Flow({ filename }) {
     );
 }
 
-function ControlRow({ getGraph }) {
+function ControlRow() {
     const size = 'large';
     const [runState, runStateShouldChange] = useRunState();
     const API = useAPI();
+    const nodes = useNodes();
+    const edges = useEdges();
 
     const run = useCallback(async () => {
-        const [graph, resources] = await getGraph();
+        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
         API.runAll(graph, resources);
         runStateShouldChange();
-    }, []);
+    }, [API, nodes, edges]);
 
     const pause = useCallback(() => {
         API.pause();
         runStateShouldChange();
-    }, []);
+    }, [API]);
 
     const clear = useCallback(async () => {
-        const [graph, resources] = await getGraph();
+        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
         API.clearAll(graph, resources);
-    });
+    }, [API, nodes, edges]);
 
     return (
         <div className="control-row">
