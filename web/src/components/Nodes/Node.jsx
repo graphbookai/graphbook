@@ -35,7 +35,7 @@ export function WorkflowStep({ id, data, selected }) {
         setRecordCount(msg.queue_size || {});
     });
     useAPINodeMessage('view', id, filename, (msg) => {
-        setQuickViewData(msg.data);
+        setQuickViewData(msg);
     });
     useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
         let wipeIndex = -1;
