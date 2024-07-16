@@ -6,7 +6,7 @@ export const recordCountBadgeStyle = (token: GlobalToken) => {
         height: 10,
         lineHeight: '10px',
         padding: '0px 1px',
-        borderRadius: '25%',
+        borderRadius: '2px',
         marginRight: 2,
         backgroundColor: token.colorBgBase,
         border: `1px solid ${token.colorPrimaryBorder}`,
@@ -54,7 +54,7 @@ export const nodeBorderStyle = (token: GlobalToken, errored: boolean, selected: 
 const handleStyle = {
     borderRadius: '50%',
     left: 0,
-    right: 0
+    right: 0,
 };
 
 export const inputHandleStyle = () => {
@@ -67,6 +67,6 @@ export const inputHandleStyle = () => {
 export const outputHandleStyle = () => {
     return {
         ...handleStyle,
-        marginLeft: '2px'
+        marginLeft: '2px',
     };
 };
