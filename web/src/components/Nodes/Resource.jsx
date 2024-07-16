@@ -24,7 +24,7 @@ const absoluteHandleStyle = {
 const parameterHandleStyle = {
     ...handleStyle,
     borderRadius: '50%',
-    marginLeft: '5px'
+    marginLeft: '2px'
 };
 
 const collapsedStyle = {

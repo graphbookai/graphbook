@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Card, Typography, Flex, Button, theme } from 'antd';
 import { CaretRightOutlined } from '@ant-design/icons';
-import { useAPI } from '../../hooks/API';
+import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
 import { useReactFlow, useOnSelectionChange, Position, Handle } from 'reactflow';
 import { Graph } from '../../graph';
-import { handleProperties } from '../../properties';
+import { useFilename } from '../../hooks/Filename';
 import type { Node, Edge } from 'reactflow';
 const { Text } = Typography;
 const { useToken } = theme;
@@ -14,6 +14,11 @@ type SubflowGraph = {
     nodes: Node[],
     edges: Edge[],
 }
+
+type Output = {
+    node: string,
+    pin: string,
+};
 
 const handleStyle = {
     borderRadius: '50%',
@@ -25,11 +30,11 @@ const handleStyle = {
 };
 const inHandleStyle = {
     ...handleStyle,
-    marginRight: '5px'
+    marginRight: '2px'
 };
 const outHandleStyle = {
     ...handleStyle,
-    marginLeft: '5px'
+    marginLeft: '2px'
 };
 
 export function Subflow({ id, data, selected }) {
@@ -38,15 +43,53 @@ export function Subflow({ id, data, selected }) {
     const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
+    const [recordCount, setRecordCount] = useState({});
     const { getNode, getNodes, getEdges, setNodes } = useReactFlow();
     const API = useAPI();
+    const filename = useFilename();
+    const updateRecordCount = useCallback((node, values) => {
+        setRecordCount({
+            ...recordCount,
+            [node]: values
+        });
+    }, [recordCount]);
+
+    useEffect(() => {
+        const subscribedNodes = new Set<string>();
+        for (const outputs of Object.values(data.properties.stepOutputs)) {
+            for (const output of outputs as Output[]) {
+                subscribedNodes.add(output.node);
+            }
+        }
+        for (const node of subscribedNodes) {
+            useAPINodeMessage('stats', node, filename, (msg) => {
+                updateRecordCount(node, msg.queue_size);
+            });
+        }
+    }, [data.properties.stepOutputs, filename]);
+
+    // for (let [pin, outputs] of Object.entries(data.properties.stepOutputs)) {
+    //     outputs = outputs as Array<Output>;
+
+    //     for (const output of outputs) {
+    //         useAPINodeMessage('stats', output.node, filename, (msg) => {
+    //             // setRecordCount(msg.queue_size);
+    //             updateRecordCount(pin, )
+    //         });
+    //     }
+
+    // }
+
+    console.log('subflow step outputs', data.properties.stepOutputs);
 
     const [inputs, outputs] = useMemo(() => {
         const inputs: any[] = [];
         const outputs: any[] = [];
+        let currStepOutput = 0;
         if (!data.properties) {
             return [inputs, outputs];
         }
+
         for (const node of data.properties.nodes) {
             if (node.type === 'export') {
                 if (node.data?.exportType === 'input') {
@@ -56,11 +99,17 @@ export function Subflow({ id, data, selected }) {
                         id: String(inputs.length)
                     });
                 } else {
+                    let numRecords = 0;
+                    for (const output of data.properties.stepOutputs[currStepOutput]) {
+                        numRecords += recordCount[output.node][output.pin] || 0;
+                    }
                     outputs.push({
                         name: node.data.label,
                         isResource: node.data.isResource,
-                        id: String(outputs.length)
+                        id: String(outputs.length),
+                        numRecords
                     });
+                    currStepOutput++;
                 }
             }
         }

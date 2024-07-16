@@ -14,7 +14,7 @@ import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle, filesystemDragEnd } from '../utils.ts';
+import { getHandle, filesystemDragEnd, parseGraph } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
@@ -31,17 +31,18 @@ const onLoadGraph = async (filename, API) => {
     if (file?.content) {
         const graph = JSON.parse(file.content);
         if (graph.type === 'workflow') {
-            for (const node of graph.nodes) {
-                if (node.type === 'subflow' && node.data.filename !== filename) {
-                    const file = await API.getFile(node.data.filename);
-                    const subflowGraph = JSON.parse(file?.content);
-                    node.data.properties = {
-                        nodes: subflowGraph.nodes,
-                        edges: subflowGraph.edges,
-                    };
-                }
-            }
-            return [graph.nodes, graph.edges];
+            // for (const node of graph.nodes) {
+            //     if (node.type === 'subflow' && node.data.filename !== filename) {
+            //         const file = await API.getFile(node.data.filename);
+            //         const subflowGraph = JSON.parse(file?.content);
+            //         node.data.properties = {
+            //             nodes: subflowGraph.nodes,
+            //             edges: subflowGraph.edges,
+            //         };
+            //     }
+            // }
+            // return [graph.nodes, graph.edges];
+            return parseGraph(graph, API);
         }
     }
     return [[], []];
@@ -83,6 +84,12 @@ export default function Flow({ filename }) {
             loadGraph();
         }
     }, [API, filename]);
+
+    useEffect(() => {
+        /* Needed to refresh Reactflow's edge rendering system */
+        setNodes([]);
+        setEdges([]);
+    }, []);
 
     const nodeTypes = useMemo(() => ({
         step: WorkflowStep,

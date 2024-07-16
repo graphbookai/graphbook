@@ -20,7 +20,7 @@ const handleStyle = {
 };
 const inHandleStyle = {
     ...handleStyle,
-    marginRight: '5px'
+    marginRight: '2px'
 };
 const parameterHandleStyle = {
     ...inHandleStyle,
@@ -28,7 +28,7 @@ const parameterHandleStyle = {
 };
 const outHandleStyle = {
     ...handleStyle,
-    marginLeft: '5px'
+    marginLeft: '2px'
 };
 
 
@@ -40,7 +40,7 @@ export function WorkflowStep({ id, data, selected }) {
     const { name, parameters, inputs, outputs } = data;
     const [quickViewData, setQuickViewData] = useState(null);
     const [logsData, setLogsData] = useState([]);
-    const [recordCount, setRecordCount] = useState(0);
+    const [recordCount, setRecordCount] = useState({});
     const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
@@ -122,7 +122,7 @@ export function WorkflowStep({ id, data, selected }) {
             ...baseStyle,
             border: `1px dashed ${token.colorInfoActive}`
         };
-    
+
         const erroredStyle = {
             ...baseStyle,
             border: `1px solid ${token.colorError}`,
@@ -132,7 +132,7 @@ export function WorkflowStep({ id, data, selected }) {
             ...baseStyle,
             border: `1px dashed ${token.colorInfoBorder}`
         };
-        
+
         if (errored) {
             return erroredStyle;
         }
@@ -147,76 +147,85 @@ export function WorkflowStep({ id, data, selected }) {
 
     }, [token, errored, selected, parentSelected]);
 
+    const badgeIndicatorStyle = useMemo(() => ({
+        fontSize: 8,
+        padding: '0 1px',
+        borderRadius: '25%',
+        marginRight: 2,
+        backgroundColor: token.colorBgBase,
+        border: `1px solid ${token.colorPrimaryBorder}`,
+        color: token.colorPrimaryText,
+    }), [token]);
+
     return (
         <div style={borderStyle}>
-            <Badge count={recordCount} color={token.colorFill} style={{ color: token.colorText }} overflowCount={Infinity}>
-                <Card className="workflow-node">
-                    <Flex gap="small" justify='space-between' className='title'>
-                        <div>{name}</div>
-                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API}/>
-                    </Flex>
-                    <div className="handles">
-                        <div className="inputs">
-                            {
-                                inputs.map((input, i) => {
+            <Card className="workflow-node">
+                <Flex gap="small" justify='space-between' className='title'>
+                    <div>{name}</div>
+                    <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
+                </Flex>
+                <div className="handles">
+                    <div className="inputs">
+                        {
+                            inputs.map((input, i) => {
+                                return (
+                                    <div key={i} className="input">
+                                        <Handle style={inHandleStyle} type="target" position={Position.Left} id="in" />
+                                        <span className="label">{input}</span>
+                                    </div>
+                                );
+                            })
+                        }
+                        {
+                            Object.entries(parameters).map(([parameterName, parameter], i) => {
+                                if (!isWidgetType(parameter.type)) {
                                     return (
                                         <div key={i} className="input">
-                                            <Handle style={inHandleStyle} type="target" position={Position.Left} id="in" />
-                                            <span className="label">{input}</span>
-                                        </div>
-                                    );
-                                })
-                            }
-                            {
-                                Object.entries(parameters).map(([parameterName, parameter], i) => {
-                                    if (!isWidgetType(parameter.type)) {
-                                        return (
-                                            <div key={i} className="input">
-                                                <Handle
-                                                    className="parameter"
-                                                    style={parameterHandleStyle}
-                                                    type="target"
-                                                    position={Position.Left}
-                                                    id={parameterName}
-                                                />
-                                                <span className="label">{parameterName}</span>
-                                            </div>
-                                        );
-                                    }
-                                })
-                            }
-                        </div>
-                        <div className='outputs'>
-                            {
-                                outputs.map((output, i) => {
-                                    return (
-                                        <div key={i} className="output">
-                                            <span className="label">{output}</span>
-                                            <Handle style={outHandleStyle} type="source" position={Position.Right} id={output} />
-                                        </div>
-                                    );
-                                })
-                            }
-                        </div>
-                    </div>
-                    <div className='widgets'>
-                        {
-                            !data.isCollapsed &&
-                            Object.entries(parameters).map(([parameterName, parameter], i) => {
-                                if (isWidgetType(parameter.type)) {
-                                    return (
-                                        <div style={{ marginBottom: '2px' }} key={i} className="parameter">
-                                            <Widget id={id} name={parameterName} {...parameter} />
+                                            <Handle
+                                                className="parameter"
+                                                style={parameterHandleStyle}
+                                                type="target"
+                                                position={Position.Left}
+                                                id={parameterName}
+                                            />
+                                            <span className="label">{parameterName}</span>
                                         </div>
                                     );
                                 }
-                                return null;
-                            }).filter(x => x)
+                            })
                         }
                     </div>
-                    { !data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
-                </Card>
-            </Badge>
+                    <div className='outputs'>
+                        {
+                            outputs.map((output, i) => {
+                                return (
+                                    <div key={i} className="output">
+                                        <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={recordCount[output]} overflowCount={Infinity} />
+                                        <span className="label">{output}</span>
+                                        <Handle style={outHandleStyle} type="source" position={Position.Right} id={output} />
+                                    </div>
+                                );
+                            })
+                        }
+                    </div>
+                </div>
+                <div className='widgets'>
+                    {
+                        !data.isCollapsed &&
+                        Object.entries(parameters).map(([parameterName, parameter], i) => {
+                            if (isWidgetType(parameter.type)) {
+                                return (
+                                    <div style={{ marginBottom: '2px' }} key={i} className="parameter">
+                                        <Widget id={id} name={parameterName} {...parameter} />
+                                    </div>
+                                );
+                            }
+                            return null;
+                        }).filter(x => x)
+                    }
+                </div>
+                {!data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
+            </Card>
         </div>
     );
 }

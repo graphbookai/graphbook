@@ -289,7 +289,7 @@ class ViewManagerInterface:
             {"cmd": "handle_outputs", "node_id": node_id, "outputs": outputs}
         )
 
-    def handle_queue_size(self, node_id: str, size: int):
+    def handle_queue_size(self, node_id: str, size: dict):
         self.view_manager_queue.put(
             {"cmd": "handle_queue_size", "node_id": node_id, "size": size}
         )

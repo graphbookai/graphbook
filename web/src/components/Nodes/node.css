@@ -170,10 +170,6 @@ textarea.code {
     align-items: center;
 }
 
-.workflow-node.group .handles .outputs .output {
-    justify-content: space-between;
-}
-
 .workflow-node.group .handles .inputs .input {
     justify-content: space-between;
 }
