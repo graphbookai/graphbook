@@ -48,9 +48,8 @@ export function WorkflowStep({ id, data, selected }) {
         if (wipeIndex > -1) {
             newEntries = newEntries.slice(wipeIndex + 1);
         }
-
-        setLogsData([...logsData, ...newEntries]);
-    }, [logsData]));
+        setLogsData(prev => ([...prev, ...newEntries]));
+    }, [setLogsData]));
 
     useEffect(() => {
         for (const log of logsData) {
@@ -189,16 +188,21 @@ function Monitor({ quickViewData, logsData }) {
                 {
                     logsData.length == 0 ?
                         <p className='content'>(No logs yet) </p> :
+                        (
+                            <div style={{maxHeight: '200px', overflow: 'scroll'}}>
+                                {
+                                    logsData.map((log, i) => {
+                                        const { msg } = log;
+                                        return (
+                                            <p key={i} className='content'>
+                                                {msg}
+                                            </p>
+                                        );
+                                    })
+                                }
 
-                        logsData.map((log, i) => {
-                            const { msg } = log;
-                            return (
-                                <p key={i} className='content'>
-                                    {msg}
-                                </p>
-                            );
-                        })
-
+                            </div>
+                        )
                 }
             </Panel>
         </Collapse>
