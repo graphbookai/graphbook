@@ -47,25 +47,6 @@ export function Export({ id, data, selected }) {
     );
 }
 
-// const handleStyle = {
-//     borderRadius: '50%',
-//     position: 'absolute',
-//     top: '50%',
-//     transform: 'translate(0,-50%)',
-// };
-
-// const inputHandleStyle = {
-//     ...handleStyle,
-//     right: 5,
-//     left: 'auto',
-// };
-
-// const outputHandleStyle = {
-//     ...handleStyle,
-//     left: 5,
-//     right: 'auto',
-// };
-
 function InputExport({ children, isResource }) {
     return (
         <Flex vertical={false} justify='space-between'>
@@ -91,4 +72,3 @@ function OutputExport({ children, isResource }) {
         </Flex>
     )
 }
-

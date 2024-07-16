@@ -1,7 +1,7 @@
 import { Graph } from "./graph";
 import type { ServerAPI } from "./api";
 import type { ReactFlowInstance } from "reactflow";
-import type { Node, Edge } from "reactflow";
+import type { Node } from "reactflow";
 
 export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"): Array<any> => {
     let currKeyVal = 0;
