@@ -3,6 +3,84 @@ import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
 
+const SERIALIZATION_ERROR = {
+    INPUT_RESOLVE: 'Failed to resolve step input',
+    PARAM_RESOLVE: 'Failed to resolve a parameter',
+};
+
+type SerializationError = {
+    type: string,
+    node: string,
+    pin?: string,
+};
+
+type InputRef = {
+    node: string,
+    slot: string,
+    isInner?: boolean,
+};
+
+type ParamRef = InputRef | number | string;
+
+type SerializedStep = {
+    name: string,
+    inputs: InputRef[],
+    parameters: { [key: string]: ParamRef },
+};
+
+type SerializedStepMap = {
+    [id: string]: SerializedStep
+};
+
+type SerializedResource = {
+    name: string,
+    parameters: { [key: string]: ParamRef },
+};
+
+type SerializedResourceMap = {
+    [id: string]: SerializedResource
+};
+
+export const checkForSerializationErrors = (G, resources): SerializationError[] => {
+    const errors: SerializationError[] = [];
+    Object.entries<SerializedStep>(G).forEach(([id, node]) => {
+        node.inputs.forEach(input => {
+            if (!G[input.node]) {
+                errors.push({
+                    type: SERIALIZATION_ERROR.INPUT_RESOLVE,
+                    node: id,
+                });
+            }
+        });
+        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
+            if (!(typeof param === 'string' || typeof param === 'number')) {
+                if (!resources[param.node]) {
+                    errors.push({
+                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
+                        node: id,
+                        pin: key,
+                    });
+                }
+            }
+        });
+
+    });
+    Object.entries<SerializedResource>(resources).forEach(([id, node]) => {
+        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
+            if (!(typeof param === 'string' || typeof param === 'number')) {
+                if (!resources[param.node]) {
+                    errors.push({
+                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
+                        node: id,
+                        pin: key,
+                    });
+                }
+            }
+        });
+    });
+    return errors;
+};
+
 export const Graph = {
     addNode(node, nodes) {
         const nextId = uniqueIdFrom(nodes);
@@ -33,8 +111,7 @@ export const Graph = {
         };
         return nodes;
     },
-    serializeForAPI: async (nodes, edges) => {
-        type InputRef = { node: string, slot: string, isInner?: boolean };
+    serializeForAPI: async (nodes, edges): Promise<[[SerializedStepMap, SerializedResourceMap], SerializationError[]]> => {
         const serialize = async (nodes, edges, parentId = "") => {
             const id = (id) => parentId + id;
             const G: { [id: string]: any } = {};
@@ -269,11 +346,13 @@ export const Graph = {
             if (node.type !== 'step') {
                 delete G[id];
             }
+            delete node.type;
         });
 
         console.log(G);
         console.log(resources);
-        return [G, resources];
+        const errors = checkForSerializationErrors(G, resources);
+        return [[G, resources], errors];
     },
     serialize(nodes, edges) {
         return JSON.stringify({ nodes, edges });
