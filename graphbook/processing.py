@@ -137,6 +137,12 @@ class WebInstanceProcessor:
 
     def __str__(self):
         return self.root.__str__()
+    
+    def try_update_state(self, queue_entry: dict):
+        try:
+            self.graph_state.update_state(queue_entry["graph"], queue_entry["resources"])
+        except Exception as e:
+            traceback.print_exc()
 
     def start_loop(self):
         while not self.close_event.is_set():
@@ -146,16 +152,16 @@ class WebInstanceProcessor:
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
-                    self.graph_state.update_state(work["graph"], work["resources"])
+                    self.try_update_state(work)
                     self.run()
                 elif work["cmd"] == "run":
-                    self.graph_state.update_state(work["graph"], work["resources"])
+                    self.try_update_state(work)
                     self.run(work["step_id"])
                 elif work["cmd"] == "step":
-                    self.graph_state.update_state(work["graph"], work["resources"])
+                    self.try_update_state(work)
                     self.step(work["step_id"])
                 elif work["cmd"] == "clear":
-                    self.graph_state.update_state(work["graph"], work["resources"])
+                    self.try_update_state(work)
                     self.graph_state.clear_outputs(work.get("step_id"))
             except KeyboardInterrupt:
                 self.cleanup()

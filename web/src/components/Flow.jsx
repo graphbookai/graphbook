@@ -31,17 +31,7 @@ const onLoadGraph = async (filename, API) => {
     if (file?.content) {
         const graph = JSON.parse(file.content);
         if (graph.type === 'workflow') {
-            for (const node of graph.nodes) {
-                if (node.type === 'subflow' && node.data.filename !== filename) {
-                    const file = await API.getFile(node.data.filename);
-                    const subflowGraph = JSON.parse(file?.content);
-                    node.data.properties = {
-                        nodes: subflowGraph.nodes,
-                        edges: subflowGraph.edges,
-                    };
-                }
-            }
-            return [graph.nodes, graph.edges];
+            return Graph.parseGraph(graph, API);
         }
     }
     return [[], []];
@@ -80,6 +70,9 @@ export default function Flow({ filename }) {
         graphStore.current = null;
 
         if (API) {
+            /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
+            setNodes([]);
+            setEdges([]);
             loadGraph();
         }
     }, [API, filename]);

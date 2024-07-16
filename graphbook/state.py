@@ -282,7 +282,7 @@ class GraphState:
             self._queues[step_id].enqueue(label, records)
         self._step_states[step_id].add(StepState.EXECUTED)
         self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
-        self.view_manager.handle_queue_size(step_id, self._queues[step_id].size())
+        self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
 
     def clear_outputs(self, step_id: str = None):
         if step_id is None:
@@ -297,7 +297,7 @@ class GraphState:
             for p in step.parents:
                 self._queues[p.id].reset_consumer_idx(id(step))
             self._step_states[step_id] = set()
-        self.view_manager.handle_queue_size(step_id, 0)
+        self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
 
     def get_input(self, step: Step) -> Note:
         num_parents = len(step.parents)
@@ -372,6 +372,9 @@ class MultiConsumerStateDictionaryQueue:
 
     def size(self):
         return len(self._order)
+    
+    def dict_sizes(self):
+        return {k: len(v) for k, v in self._dict.items()}
 
     def clear(self):
         self._dict.clear()

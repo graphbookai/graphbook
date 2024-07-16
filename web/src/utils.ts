@@ -1,7 +1,7 @@
-import { Node } from "reactflow";
 import { Graph } from "./graph";
 import type { ServerAPI } from "./api";
 import type { ReactFlowInstance } from "reactflow";
+import type { Node } from "reactflow";
 
 export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"): Array<any> => {
     let currKeyVal = 0;
@@ -24,13 +24,13 @@ export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"
     return keyRec(obj);
 }
 
-export const mediaUrl = (url: string) : string => {
+export const mediaUrl = (url: string): string => {
     return `http://localhost:8006/${url}`; // TODO: change in settings
 }
 
 export const uniqueIdFrom = (obj: any): string => {
-    if (typeof(obj.length) === 'number') {
-        return String(Math.max(Math.max(...obj.map(({id}) => parseInt(id))), -1) + 1);
+    if (typeof (obj.length) === 'number') {
+        return String(Math.max(Math.max(...obj.map(({ id }) => parseInt(id))), -1) + 1);
     } else {
         return String(Math.max(...Object.keys(obj).map((key) => parseInt(key)), -1) + 1);
     }
@@ -96,11 +96,11 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
 export function getHandle(node: Node, handleId: string, isTarget: boolean) {
     if (node.type === 'step') {
         return getStepHandle(node, handleId, isTarget);
-    } else if(node.type === 'resource'){
+    } else if (node.type === 'resource') {
         return getResourceHandle(node, handleId, isTarget);
-    } else if(node.type === 'group'){
+    } else if (node.type === 'group') {
         return getGroupHandle(node, handleId, isTarget);
-    } else if(node.type === 'export') {
+    } else if (node.type === 'export') {
         return getExportHandle(node, handleId, isTarget);
     } else {
         return getSubflowHandle(node, handleId, isTarget);
@@ -158,7 +158,7 @@ export function getGroupHandle(node: Node, handleId: string, isTarget: boolean) 
         } else {
             return getExportedInputHandle(node, handleId);
         }
-    } else  {
+    } else {
         if (isInternalHandle(handleId)) {
             return getExportedInputHandle(node, handleId);
         } else {
@@ -174,7 +174,7 @@ export function getExportedInputHandle(node: Node, handleId: string) {
         handleId = handleId.slice(0, -6);
         toReturn['inner'] = true;
     }
-    return { ...toReturn, ...node.data.exports.inputs.find(({id})=>id === handleId), nodeType: 'group'};
+    return { ...toReturn, ...node.data.exports.inputs.find(({ id }) => id === handleId), nodeType: 'group' };
 }
 
 export function getExportedOutputHandle(node: Node, handleId: string) {
@@ -183,7 +183,7 @@ export function getExportedOutputHandle(node: Node, handleId: string) {
         handleId = handleId.slice(0, -6);
         toReturn['inner'] = true;
     }
-    return { ...toReturn, ...node.data.exports.outputs.find(({id})=>id === handleId), nodeType: 'group' };
+    return { ...toReturn, ...node.data.exports.outputs.find(({ id }) => id === handleId), nodeType: 'group' };
 }
 
 export function isInternalHandle(handleId: string) {

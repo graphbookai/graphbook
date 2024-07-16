@@ -1,71 +1,52 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Flex, Card, Typography, theme } from 'antd';
-import { NodeResizer, Handle, Position, useUpdateNodeInternals } from 'reactflow';
-import { Node } from 'reactflow';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { Flex, Card, Typography, theme, Badge } from 'antd';
+import { NodeResizer, Handle, Position, useEdges, useNodes, useUpdateNodeInternals } from 'reactflow';
+import { useAPIMessage } from '../../hooks/API';
+import { recordCountBadgeStyle, inputHandleStyle, outputHandleStyle, nodeBorderStyle } from '../../styles';
+import type { Edge, Node } from 'reactflow';
+import { useFilename } from '../../hooks/Filename';
+import { getGlobalRunningFile } from '../../hooks/RunState';
 const { Text } = Typography;
 
-const handleStyle = {
-    borderRadius: '50%',
-    position: 'relative',
-    top: '0%',
-    right: 0,
-    left: 0,
-    transform: 'translate(0,0)',
-};
+
 const innerHandleStyle = {
-    ...handleStyle,
     backgroundColor: '#fff',
-    border: '2px dashed #4f4f4f',
-}
-const inHandleStyle = {
-    ...handleStyle,
-    marginRight: '5px',
+    border: '2px dashed #4f4f4f'
 };
-const inInnerHandleStyle = {
-    ...innerHandleStyle,
-    marginLeft: '5px',
-};
-const outHandleStyle = {
-    ...handleStyle,
-    marginLeft: '5px'
-};
-const outInnerHandleStyle = {
-    ...innerHandleStyle,
-    marginRight: '5px',
-};
+
 export function Group({ id, data, selected }) {
     const { label } = data;
-    const updateNodeInternals = useUpdateNodeInternals();
-
-
-    useEffect(() => {
-        // updateNodeInternals(id);
-    }, [id, data.exports]);
 
     if (data.isCollapsed) {
-        return <CollapsedGroup data={data} />;
+        return <CollapsedGroup id={id} data={data} selected={selected}/>;
     }
 
     return (
         <div className='workflow-node group'>
-            <NodeResizer minWidth={150} minHeight={150}/>
-            <Flex className='title' justify='space-between' style={{margin: '0 2px'}}>
+            <NodeResizer minWidth={150} minHeight={150} />
+            <Flex className='title' justify='space-between' style={{ margin: '0 2px' }}>
                 <Text>{label}</Text>
             </Flex>
-            <GroupPins data={data} />
+            <GroupPins id={id} data={data} />
         </div>
     );
 }
 
-function CollapsedGroup({ data }) {
+function CollapsedGroup({ id, data, selected }) {
     const { label } = data;
+    const { token } = theme.useToken();
+
+    const borderStyle = useMemo(() => nodeBorderStyle(token, false, selected, false), [token, selected]);
+
     return (
-        <Card className='workflow-node group collapsed'>
-            <Flex className='title' justify='space-between' style={{margin: '0 2px'}}>
-                <Text>{label}</Text>
-            </Flex>
-            <GroupPins data={data} />
-        </Card>
+        <div style={borderStyle}>
+            <Card className='workflow-node group collapsed'>
+                <Flex className='title' justify='space-between' style={{ margin: '0 2px' }}>
+                    <Text>{label}</Text>
+                </Flex>
+                <GroupPins id={id} data={data} />
+            </Card>
+        </div>
     );
 }
 
@@ -76,16 +57,84 @@ const sortPinFn = (a, b) => {
     return a.type === 'step' ? -1 : 1;
 }
 
-function GroupPins({ data }) {
+function GroupPins({ id, data }) {
     const { inputs, outputs } = data.exports;
     const { token } = theme.useToken();
+    const edges: Edge[] = useEdges();
+    const nodes: Node[] = useNodes();
+    const [recordCount, setRecordCount] = useState({});
+    const updateNodeInternals = useUpdateNodeInternals();
+    const filename = useFilename();
+
+    useEffect(() => {
+        updateNodeInternals(id);
+    }, [id, data.isCollapsed]);
+
     const c = data.isCollapsed;
     const handleContainerStyle = c ? {} : {
         backgroundColor: token.colorBgBase,
-        borderRadius: '10%',
-        padding: '2px 5px',
+        borderRadius: '5px',
+        padding: '2px 2px',
         margin: '1px 0'
     };
+
+    const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
+
+    const [subscribedNodes, stepOutputs] = useMemo(() => {
+        const subscribedNodes = new Set<string>();
+        const stepOutputs = {};
+        for (const output of outputs) {
+            if (output.type === 'step') {
+                stepOutputs[output.id] = [];
+            }
+        }
+        const outputEdges = edges.filter((edge) => edge.target === id && edge.targetHandle?.endsWith('_inner'));
+        for (const edge of outputEdges) {
+            const sourceNodeId = edge.source;
+            const sourceNode = nodes.find((node) => node.id === sourceNodeId);
+            if (!sourceNode) {
+                continue;
+            }
+            const outputId = edge.targetHandle?.split('_')[0] || '';
+
+            if (sourceNode?.type === 'step') {
+                subscribedNodes.add(sourceNodeId);
+                stepOutputs[outputId] = [...(stepOutputs[outputId] || []), { node: sourceNodeId, pin: edge.sourceHandle || '' }];
+            } else if (sourceNode?.type === 'subflow') {
+                const outputs = sourceNode.data.properties.stepOutputs[edge.sourceHandle || ''];
+                for (const output of outputs) {
+                    subscribedNodes.add(output.node);
+                    stepOutputs[outputId] = [...(stepOutputs[outputId] || []), { node: output.node, pin: output.pin }];
+                }
+            }
+        }
+        return [subscribedNodes, stepOutputs];
+
+    }, [outputs, edges, nodes, id]);
+
+    const updateStats = useCallback((msg: any) => {
+        Object.entries<{queue_size: any}>(msg).forEach(([node, values]) => {
+            if (filename === getGlobalRunningFile() && subscribedNodes.has(node)) {
+                setRecordCount(prev => ({
+                    ...prev,
+                    [node]: values.queue_size
+                }));
+            }
+        });
+    }, [filename, subscribedNodes, setRecordCount]);
+
+    useAPIMessage('stats', updateStats);
+
+    const innerInputHandleStyle = useMemo(() => ({
+        ...outputHandleStyle(),
+        ...innerHandleStyle,
+    }), []);
+
+    
+    const innerOutputHandleStyle = useMemo(() => ({
+        ...inputHandleStyle(),
+        ...innerHandleStyle,
+    }), []);
 
     return (
         <Flex vertical={true} className="handles">
@@ -96,12 +145,12 @@ function GroupPins({ data }) {
                         .map((input, i) => {
                             return (
                                 <div key={i} className="input" style={handleContainerStyle}>
-                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={String(input.id)} className={input.type === 'resource' ? 'parameter' : ''}/>
-                                    <Text style={{alignSelf: 'left'}} className="label">{input.name}</Text>
-                                    {!c && <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${input.id}_inner`} />}
+                                    <Handle style={inputHandleStyle()} type="target" position={Position.Left} id={String(input.id)} className={input.type === 'resource' ? 'parameter' : ''} />
+                                    <Text style={{ alignSelf: 'left' }} className="label">{input.name}</Text>
+                                    {!c && <Handle style={innerInputHandleStyle} type="source" position={Position.Right} id={`${input.id}_inner`} />}
                                 </div>
                             );
-                    })
+                        })
                 }
             </div>
             <div className='outputs'>
@@ -109,11 +158,15 @@ function GroupPins({ data }) {
                     outputs
                         .sort(sortPinFn)
                         .map((output, i) => {
+                            const count = stepOutputs[output.id]?.reduce((acc, { node, pin }) => {
+                                return acc + (recordCount[node]?.[pin] || 0);
+                            }, 0) || 0;
                             return (
                                 <div key={i} className="output" style={handleContainerStyle}>
-                                    {!c && <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={`${output.id}_inner`} />}
+                                    {!c && <Handle style={innerOutputHandleStyle} type="target" position={Position.Left} id={`${output.id}_inner`} />}
+                                    {c && <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={count} overflowCount={Infinity} />}
                                     <Text className="label">{output.name}</Text>
-                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={String(output.id)} className={output.type === 'resource' ? 'parameter' : ''}/>
+                                    <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={String(output.id)} className={output.type === 'resource' ? 'parameter' : ''} />
                                 </div>
                             );
                         })
@@ -137,7 +190,7 @@ export function groupIfPossible(changedNodes: Node[], allNodes: Node[]) {
             return node;
         }
 
-        for(const groupNode of groupNodes) {
+        for (const groupNode of groupNodes) {
             const gpos = groupNode.position;
             const w = groupNode.width;
             const h = groupNode.height;
@@ -146,7 +199,7 @@ export function groupIfPossible(changedNodes: Node[], allNodes: Node[]) {
             }
             const groupBounds = [gpos.x, gpos.y, gpos.x + w, gpos.y + h];
 
-            if(node.parentId === groupNode.id) {
+            if (node.parentId === groupNode.id) {
                 if (!(position.x > 0 &&
                     position.y > 0 &&
                     position.x + width < w &&

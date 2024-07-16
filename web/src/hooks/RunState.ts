@@ -8,7 +8,7 @@ let globalRunningFile: string = '';
 let localSetters: Function[] = [];
 let globalListenerIsSet = false;
 
-export function useRunState(): [RunState, (filename: string) => void] {
+export function useRunState(): [RunState, () => void] {
     const [_, setRunState] = useState<RunState>(globalRunState);
 
     useEffect(() => {

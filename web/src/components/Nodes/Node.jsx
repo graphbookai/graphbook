@@ -1,36 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Image, Descriptions, theme } from 'antd';
+import { Card, Collapse, Badge, Flex, Button, theme } from 'antd';
 import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget } from './Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
+import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
 const { Panel } = Collapse;
 const { useToken } = theme;
-
-const handleStyle = {
-    borderRadius: '50%',
-    position: 'relative',
-    top: '0%',
-    right: 0,
-    left: 0,
-    transform: 'translate(0,0)',
-};
-const inHandleStyle = {
-    ...handleStyle,
-    marginRight: '5px'
-};
-const parameterHandleStyle = {
-    ...inHandleStyle,
-    borderRadius: '50%',
-};
-const outHandleStyle = {
-    ...handleStyle,
-    marginLeft: '5px'
-};
-
 
 const isWidgetType = (type) => {
     return ['number', 'string', 'boolean'].includes(type);
@@ -40,7 +19,7 @@ export function WorkflowStep({ id, data, selected }) {
     const { name, parameters, inputs, outputs } = data;
     const [quickViewData, setQuickViewData] = useState(null);
     const [logsData, setLogsData] = useState([]);
-    const [recordCount, setRecordCount] = useState(0);
+    const [recordCount, setRecordCount] = useState({});
     const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
@@ -53,10 +32,10 @@ export function WorkflowStep({ id, data, selected }) {
 
     const filename = useFilename();
     useAPINodeMessage('stats', id, filename, (msg) => {
-        setRecordCount(msg.queue_size);
+        setRecordCount(msg.queue_size || {});
     });
     useAPINodeMessage('view', id, filename, (msg) => {
-        setQuickViewData(msg.data);
+        setQuickViewData(msg);
     });
     useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
         let wipeIndex = -1;
@@ -69,9 +48,8 @@ export function WorkflowStep({ id, data, selected }) {
         if (wipeIndex > -1) {
             newEntries = newEntries.slice(wipeIndex + 1);
         }
-
-        setLogsData([...logsData, ...newEntries]);
-    }, [logsData]));
+        setLogsData(prev => ([...prev, ...newEntries]));
+    }, [setLogsData]));
 
     useEffect(() => {
         for (const log of logsData) {
@@ -111,112 +89,78 @@ export function WorkflowStep({ id, data, selected }) {
         runStateShouldChange();
     }, [nodes, edges, API]);
 
-    const borderStyle = useMemo(() => {
-        const baseStyle = {
-            padding: '1px',
-            borderRadius: token.borderRadius,
-            transform: 'translate(-2px, -2px)'
-        };
-
-        const selectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoActive}`
-        };
-    
-        const erroredStyle = {
-            ...baseStyle,
-            border: `1px solid ${token.colorError}`,
-        };
-
-        const parentSelectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoBorder}`
-        };
-        
-        if (errored) {
-            return erroredStyle;
-        }
-
-        if (selected) {
-            return selectedStyle;
-        }
-
-        if (parentSelected) {
-            return parentSelectedStyle;
-        }
-
-    }, [token, errored, selected, parentSelected]);
+    const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
+    const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     return (
         <div style={borderStyle}>
-            <Badge count={recordCount} color={token.colorFill} style={{ color: token.colorText }} overflowCount={Infinity}>
-                <Card className="workflow-node">
-                    <Flex gap="small" justify='space-between' className='title'>
-                        <div>{name}</div>
-                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API}/>
-                    </Flex>
-                    <div className="handles">
-                        <div className="inputs">
-                            {
-                                inputs.map((input, i) => {
+            <Card className="workflow-node">
+                <Flex gap="small" justify='space-between' className='title'>
+                    <div>{name}</div>
+                    <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
+                </Flex>
+                <div className="handles">
+                    <div className="inputs">
+                        {
+                            inputs.map((input, i) => {
+                                return (
+                                    <div key={i} className="input">
+                                        <Handle style={inputHandleStyle()} type="target" position={Position.Left} id="in" />
+                                        <span className="label">{input}</span>
+                                    </div>
+                                );
+                            })
+                        }
+                        {
+                            Object.entries(parameters).map(([parameterName, parameter], i) => {
+                                if (!isWidgetType(parameter.type)) {
                                     return (
                                         <div key={i} className="input">
-                                            <Handle style={inHandleStyle} type="target" position={Position.Left} id="in" />
-                                            <span className="label">{input}</span>
-                                        </div>
-                                    );
-                                })
-                            }
-                            {
-                                Object.entries(parameters).map(([parameterName, parameter], i) => {
-                                    if (!isWidgetType(parameter.type)) {
-                                        return (
-                                            <div key={i} className="input">
-                                                <Handle
-                                                    className="parameter"
-                                                    style={parameterHandleStyle}
-                                                    type="target"
-                                                    position={Position.Left}
-                                                    id={parameterName}
-                                                />
-                                                <span className="label">{parameterName}</span>
-                                            </div>
-                                        );
-                                    }
-                                })
-                            }
-                        </div>
-                        <div className='outputs'>
-                            {
-                                outputs.map((output, i) => {
-                                    return (
-                                        <div key={i} className="output">
-                                            <span className="label">{output}</span>
-                                            <Handle style={outHandleStyle} type="source" position={Position.Right} id={output} />
-                                        </div>
-                                    );
-                                })
-                            }
-                        </div>
-                    </div>
-                    <div className='widgets'>
-                        {
-                            !data.isCollapsed &&
-                            Object.entries(parameters).map(([parameterName, parameter], i) => {
-                                if (isWidgetType(parameter.type)) {
-                                    return (
-                                        <div style={{ marginBottom: '2px' }} key={i} className="parameter">
-                                            <Widget id={id} name={parameterName} {...parameter} />
+                                            <Handle
+                                                className="parameter"
+                                                style={inputHandleStyle()}
+                                                type="target"
+                                                position={Position.Left}
+                                                id={parameterName}
+                                            />
+                                            <span className="label">{parameterName}</span>
                                         </div>
                                     );
                                 }
-                                return null;
-                            }).filter(x => x)
+                            })
                         }
                     </div>
-                    { !data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
-                </Card>
-            </Badge>
+                    <div className='outputs'>
+                        {
+                            outputs.map((output, i) => {
+                                return (
+                                    <div key={i} className="output">
+                                        <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={recordCount[output] || 0} overflowCount={Infinity} />
+                                        <span className="label">{output}</span>
+                                        <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={output} />
+                                    </div>
+                                );
+                            })
+                        }
+                    </div>
+                </div>
+                <div className='widgets'>
+                    {
+                        !data.isCollapsed &&
+                        Object.entries(parameters).map(([parameterName, parameter], i) => {
+                            if (isWidgetType(parameter.type)) {
+                                return (
+                                    <div style={{ marginBottom: '2px' }} key={i} className="parameter">
+                                        <Widget id={id} name={parameterName} {...parameter} />
+                                    </div>
+                                );
+                            }
+                            return null;
+                        }).filter(x => x)
+                    }
+                </div>
+                {!data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
+            </Card>
         </div>
     );
 }
@@ -244,16 +188,21 @@ function Monitor({ quickViewData, logsData }) {
                 {
                     logsData.length == 0 ?
                         <p className='content'>(No logs yet) </p> :
+                        (
+                            <div style={{maxHeight: '200px', overflow: 'scroll'}}>
+                                {
+                                    logsData.map((log, i) => {
+                                        const { msg } = log;
+                                        return (
+                                            <p key={i} className='content'>
+                                                {msg}
+                                            </p>
+                                        );
+                                    })
+                                }
 
-                        logsData.map((log, i) => {
-                            const { msg } = log;
-                            return (
-                                <p key={i} className='content'>
-                                    {msg}
-                                </p>
-                            );
-                        })
-
+                            </div>
+                        )
                 }
             </Panel>
         </Collapse>

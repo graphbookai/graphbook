@@ -1,5 +1,7 @@
 import { uniqueIdFrom } from './utils';
 import { API } from './api';
+import type { ServerAPI } from './api';
+import type { Node, Edge } from 'reactflow';
 
 export const Graph = {
     addNode(node, nodes) {
@@ -32,9 +34,10 @@ export const Graph = {
         return nodes;
     },
     serializeForAPI: async (nodes, edges) => {
+        type InputRef = { node: string, slot: string, isInner?: boolean };
         const serialize = async (nodes, edges, parentId = "") => {
             const id = (id) => parentId + id;
-            const G = {};
+            const G: { [id: string]: any } = {};
             const resources = {}
             const outputs = {};
             let exportCounts = {
@@ -58,6 +61,9 @@ export const Graph = {
                     }
                 } else if (node.type === 'subflow') {
                     const subflow = await API.getSubflowFromFile(node.data.filename);
+                    if (!subflow) {
+                        continue;
+                    }
                     const [subflowG, subflowResources, subflowOutputs] = await serialize(subflow.nodes, subflow.edges, parentId + node.id + "/");
                     Object.assign(G, subflowG);
                     Object.assign(resources, subflowResources);
@@ -79,7 +85,7 @@ export const Graph = {
                     };
                 } else if (node.type === 'step' || node.type === 'resource') {
                     const parameters = {};
-                    for (const [key, param] of Object.entries(node.data.parameters || {})) {
+                    for (const [key, param] of Object.entries<{ node: string | null, value: string }>(node.data.parameters || {})) {
                         if (!param.node) {
                             parameters[key] = param.value;
                         }
@@ -173,8 +179,8 @@ export const Graph = {
         const [G, resources] = await serialize(nodes, edges);
 
         const resolveInputs = (inputs) => {
-            let newInputs = [];
-            Object.entries(inputs).forEach(([handleId, input]) => {
+            let newInputs: InputRef[] = [];
+            Object.entries<InputRef>(inputs).forEach(([handleId, input]) => {
                 let sourceNode = input.node;
                 let sourceSlot = input.slot;
                 if (G[sourceNode]) {
@@ -205,7 +211,7 @@ export const Graph = {
 
         const resolveParameters = (parameters) => {
             let newParams = {};
-            Object.entries(parameters).forEach(([handleId, input]) => {
+            Object.entries<InputRef>(parameters).forEach(([handleId, input]) => {
                 if (!input) {
                     return;
                 }
@@ -232,7 +238,7 @@ export const Graph = {
                         sourceNode = pin[0].node;
                         sourceSlot = pin[0].slot;
                     } else {
-                        sourceNode = null;
+                        sourceNode = '';
                         break;
                     }
                 }
@@ -242,7 +248,7 @@ export const Graph = {
             });
             return newParams;
         };
-        Object.entries(G).forEach(([id, node]) => {
+        Object.entries<any>(G).forEach(([id, node]) => {
             if (node.type !== 'step') {
                 return;
             }
@@ -256,7 +262,7 @@ export const Graph = {
             };
             delete node.exports;
         });
-        Object.entries(G).forEach(([id, node]) => {
+        Object.entries<any>(G).forEach(([id, node]) => {
             if (node.type === 'resource') {
                 resources[id] = node;
             }
@@ -278,13 +284,72 @@ export const Graph = {
     storeGraph(nodes, edges) {
         localStorage.setItem('graph', Graph.serialize(nodes, edges));
     },
-    loadGraph() {
-        const graph = localStorage.getItem('graph');
-        if (graph) {
-            return Graph.deserialize(graph);
-        } else {
-            return { nodes: [], edges: [] };
-        }
+    parseGraph: async (graph: any, API: ServerAPI) => {
+        const resolveSubflowOutputs = (exportNode: Node, nodes: Node[], edges: Edge[], parent = "") => {
+            const outputs: Array<{ node: string, pin: string }> = [];
+            const sourceEdges = edges.filter((edge) => edge.target === exportNode.id);
+            for (const edge of sourceEdges) {
+                const exported = nodes.find((n) => n.id === edge.source);
+                if (!exported) {
+                    continue;
+                }
+                if (exported.type === 'step') {
+                    outputs.push({ node: parent + "/" + exported.id, pin: edge.sourceHandle || '' });
+                } else {
+                    if (exported.type === 'group') {
+                        const innerSourceHandle = `${edge.sourceHandle}_inner`;
+                        for (const edge of edges) {
+                            if (edge.targetHandle === innerSourceHandle) {
+                                const innerExported = nodes.find((n) => n.id === edge.source);
+                                if (!innerExported) {
+                                    continue;
+                                }
+                                if (innerExported.type === 'step') {
+                                    outputs.push({ node: parent + "/" + innerExported.id, pin: edge.sourceHandle || '' });
+                                } else if (innerExported.type === 'subflow') {
+                                    outputs.push(...innerExported.data.properties.stepOutputs[edge.sourceHandle || '']);
+                                }
+                            }
+                        }
+                    } else if (exported.type === 'subflow') {
+                        outputs.push(...exported.data.properties.stepOutputs[edge.sourceHandle || '']);
+                    }
+                }
+            }
+            return outputs;
+        };
+
+        const parseNodes = async (nodes: Array<Node>) => {
+            for (const node of nodes) {
+                if (node.type === 'subflow') {
+                    const file = await API.getFile(node.data.filename);
+                    const subflowGraph = JSON.parse(file?.content);
+                    if (subflowGraph?.type === 'workflow') {
+                        node.data.properties = {
+                            nodes: await parseNodes(subflowGraph.nodes),
+                            edges: subflowGraph.edges,
+                        };
+                    }
+                }
+            }
+            for (const node of nodes) {
+                if (node.type === 'subflow') {
+                    const stepOutputs = {};
+                    let currentStepOutputId = 0;
+                    for (const n of node.data.properties.nodes) {
+                        if (n.type === 'export' && n.data.exportType === 'output' && !n.data.isResource) {
+                            stepOutputs[currentStepOutputId++] = resolveSubflowOutputs(n, node.data.properties.nodes, node.data.properties.edges, node.id);
+                        }
+                    }
+                    node.data.properties.stepOutputs = stepOutputs;
+                }
+            }
+            return nodes;
+
+        };
+
+        const { nodes, edges } = graph;
+        return [await parseNodes(nodes), edges]
     },
     wouldBeCyclic(nodes, edges, connectingEdge) {
         if (connectingEdge.sourceHandle.endsWith('_inner') || connectingEdge.targetHandle.endsWith('_inner')) {
@@ -308,7 +373,7 @@ export const Graph = {
             }
         }
         adjList[connectingEdge.source].push(connectingEdge.target);
-        const q = [];
+        const q: string[] = [];
         const origin = connectingEdge.target;
         q.push(origin);
         while (q.length > 0) {

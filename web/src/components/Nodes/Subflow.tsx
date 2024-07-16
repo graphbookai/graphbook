@@ -1,35 +1,19 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { Card, Typography, Flex, Button, theme } from 'antd';
+import React, { useMemo, useState, useCallback } from 'react';
+import { Card, Typography, Flex, Button, Badge, theme } from 'antd';
 import { CaretRightOutlined } from '@ant-design/icons';
-import { useAPI } from '../../hooks/API';
+import { useAPI, useAPIMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
 import { useReactFlow, useOnSelectionChange, Position, Handle } from 'reactflow';
 import { Graph } from '../../graph';
-import { handleProperties } from '../../properties';
-import type { Node, Edge } from 'reactflow';
+import { nodeBorderStyle, recordCountBadgeStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
+import { useFilename } from '../../hooks/Filename';
+import { getGlobalRunningFile } from '../../hooks/RunState';
 const { Text } = Typography;
 const { useToken } = theme;
 
-type SubflowGraph = {
-    nodes: Node[],
-    edges: Edge[],
-}
-
-const handleStyle = {
-    borderRadius: '50%',
-    position: 'relative',
-    top: '0%',
-    right: 0,
-    left: 0,
-    transform: 'translate(0,0)',
-};
-const inHandleStyle = {
-    ...handleStyle,
-    marginRight: '5px'
-};
-const outHandleStyle = {
-    ...handleStyle,
-    marginLeft: '5px'
+type Output = {
+    node: string,
+    pin: string,
 };
 
 export function Subflow({ id, data, selected }) {
@@ -38,8 +22,40 @@ export function Subflow({ id, data, selected }) {
     const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
-    const { getNode, getNodes, getEdges, setNodes } = useReactFlow();
+    const [recordCount, setRecordCount] = useState({});
+    const { getNode, getNodes, getEdges } = useReactFlow();
     const API = useAPI();
+    const filename = useFilename();
+
+    const updateRecordCount = useCallback((node, values) => {
+        setRecordCount({
+            ...recordCount,
+            [node]: values
+        });
+    }, [recordCount]);
+
+    const subscribedNodes = useMemo(() => {
+        const subscribedNodes = new Set<string>();
+        for (const outputs of Object.values(data.properties.stepOutputs)) {
+            for (const output of outputs as Output[]) {
+                subscribedNodes.add(output.node);
+            }
+        }
+        return subscribedNodes;
+    }, [data.properties.stepOutputs]);
+
+    const updateStats = useCallback((msg: any) => {
+        Object.entries<{queue_size: any}>(msg).forEach(([node, values]) => {
+            if (filename === getGlobalRunningFile() && subscribedNodes.has(node)) {
+                setRecordCount(prev => ({
+                    ...prev,
+                    [node]: values.queue_size
+                }));
+            }
+        });
+    }, [filename, subscribedNodes, setRecordCount]);
+
+    useAPIMessage('stats', updateStats);
 
     const [inputs, outputs] = useMemo(() => {
         const inputs: any[] = [];
@@ -47,6 +63,7 @@ export function Subflow({ id, data, selected }) {
         if (!data.properties) {
             return [inputs, outputs];
         }
+
         for (const node of data.properties.nodes) {
             if (node.type === 'export') {
                 if (node.data?.exportType === 'input') {
@@ -85,41 +102,8 @@ export function Subflow({ id, data, selected }) {
         onChange: onSelectionChange
     });
 
-    const borderStyle = useMemo(() => {
-        const baseStyle = {
-            padding: '1px',
-            borderRadius: token.borderRadius,
-            transform: 'translate(-2px, -2px)'
-        };
-
-        const selectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoActive}`
-        };
-
-        const erroredStyle = {
-            ...baseStyle,
-            border: `1px solid ${token.colorError}`,
-        };
-
-        const parentSelectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoBorder}`
-        };
-
-        if (errored) {
-            return erroredStyle;
-        }
-
-        if (selected) {
-            return selectedStyle;
-        }
-
-        if (parentSelected) {
-            return parentSelectedStyle;
-        }
-
-    }, [token, errored, selected, parentSelected]);
+    const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
+    const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     const run = useCallback(async () => {
         if (!API) {
@@ -146,7 +130,7 @@ export function Subflow({ id, data, selected }) {
                                 .sort((a, b) => a.isResource ? -1 : 1)
                                 .map((input, i) => (
                                 <div key={i} className="input">
-                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={input.id} className={input.isResource ? 'parameter' : ''}/>
+                                    <Handle style={inputHandleStyle()} type="target" position={Position.Left} id={input.id} className={input.isResource ? 'parameter' : ''}/>
                                     <Text style={{alignSelf: 'left'}} className="label">{input.name}</Text>
                                 </div>
                             ))
@@ -156,12 +140,18 @@ export function Subflow({ id, data, selected }) {
                         {
                             (outputs || [])
                                 .sort((a, b) => a.isResource ? -1 : 1)
-                                .map((output, i) => (
-                                <div key={i} className="output">
-                                    <Text style={{alignSelf: 'right'}} className="label">{output.name}</Text>
-                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={output.id} className={output.isResource ? 'parameter' : ''}/>
-                                </div>
-                            ))
+                                .map((output, i) => {
+                                    const count = data.properties.stepOutputs[output.id]?.reduce((acc, { node, pin }) => {
+                                        return acc + (recordCount[node]?.[pin] || 0);
+                                    }, 0) || 0;
+                                    return (
+                                        <div key={i} className="output">
+                                            <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={count} overflowCount={Infinity} />
+                                            <Text style={{alignSelf: 'right'}} className="label">{output.name}</Text>
+                                            <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={output.id} className={output.isResource ? 'parameter' : ''}/>
+                                        </div>
+                                    );
+                                })
                         }
                     </div>
                 </div>

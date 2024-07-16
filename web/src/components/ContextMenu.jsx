@@ -5,20 +5,18 @@ import { keyRecursively, uniqueIdFrom } from '../utils';
 import { Graph } from '../graph';
 import { useRunState } from '../hooks/RunState';
 import { useAPI } from '../hooks/API';
-import { useFilename } from '../hooks/Filename';
 
 export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
     const [runState, runStateShouldChange] = useRunState();
     const API = useAPI();
-    const filename = useFilename();
     const updateNodeInternals = useUpdateNodeInternals();
 
     const NODE_OPTIONS = useMemo(() => [
         {
             name: 'Run',
-            disabled: (runState) => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'stopped',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -30,7 +28,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Step',
-            disabled: (runState) => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'stopped',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -42,7 +40,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Clear Outputs',
-            disabled: (runState) => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'stopped',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -53,7 +51,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Duplicate',
-            disabled: (runState) => runState !== 'stopped',
+            disabled: () => runState !== 'stopped',
             action: () => {
                 const { addNodes } = reactFlowInstance;
                 const position = {
@@ -72,16 +70,16 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Delete',
-            disabled: (runState) => runState !== 'stopped',
-            action: (node, reactFlowInstance) => {
+            disabled: () => runState !== 'stopped',
+            action: () => {
                 const { setNodes, setEdges } = reactFlowInstance;
                 setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
                 setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
             }
         },
         {
-            name: (node) => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
-            action: (node, reactFlowInstance) => {
+            name: () => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
+            action: () => {
                 const { setNodes } = reactFlowInstance;
                 setNodes((nodes) => {
                     return nodes.map((n) => {
@@ -99,7 +97,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                 });
             }
         }
-    ], [node, reactFlowInstance, runState, API]);
+    ], [node, reactFlowInstance, runState, runStateShouldChange, API]);
     
     const GROUP_OPTIONS = useMemo(() => {
         const addExport = (isInput, exp) => {
@@ -133,8 +131,8 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         };
         return [{
             name: 'Disband Group',
-            disabled: (runState) => runState !== 'stopped',
-            action: (node, reactFlowInstance) => {
+            disabled: () => runState !== 'stopped',
+            action: () => {
                 const { setNodes, setEdges } = reactFlowInstance;
                 setNodes((nodes) => nodes
                     .map((n) => {
@@ -154,8 +152,8 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Add Step Input Export',
-            action: (node, reactFlowInstance) => {
-                addExport(node, reactFlowInstance, true, {
+            action: () => {
+                addExport(true, {
                     name: 'in',
                     type: 'step'
                 });
@@ -163,8 +161,8 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Add Resource Input Export',
-            action: (node, reactFlowInstance) => {
-                addExport(node, reactFlowInstance, true, {
+            action: () => {
+                addExport(true, {
                     name: 'resource',
                     type: 'resource'
                 });
@@ -173,8 +171,8 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         {
             name: 'Add Step Output Export',
             parent: 'Add Export',
-            action: (node, reactFlowInstance) => {
-                addExport(node, reactFlowInstance, false, {
+            action: () => {
+                addExport(false, {
                     name: 'out',
                     type: 'step'
                 });
@@ -182,16 +180,16 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Add Resource Output Export',
-            action: (node, reactFlowInstance) => {
-                addExport(node, reactFlowInstance, false, {
+            action: () => {
+                addExport(false, {
                     name: 'resource',
                     type: 'resource'
                 });
             }
         },
         {
-            name: node => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
-            action: (node, reactFlowInstance) => {
+            name: () => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
+            action: () => {
                 const { setNodes } = reactFlowInstance;
                 setNodes((nodes) => {
                     return nodes.map((n) => {
@@ -219,7 +217,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const EXPORT_OPTIONS = useMemo(() => [
         {
             name: 'Edit Label',
-            action: (node, reactFlowInstance) => {
+            action: () => {
                 const { setNodes } = reactFlowInstance;
                 setNodes((nodes) => {
                     return nodes.map((n) => {
@@ -254,9 +252,9 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const items = useMemo(() => {
         const toReturn = getOptions(node.type).map((option) => {
             return {
-                label: typeof option.name === 'function' ? option.name(node) : option.name,
+                label: typeof option.name === 'function' ? option.name() : option.name,
                 children: option.children,
-                disabled: typeof option.disabled === 'function' ? option.disabled(runState) : option.disabled,
+                disabled: typeof option.disabled === 'function' ? option.disabled() : option.disabled,
             };
         });
         return keyRecursively(toReturn);
@@ -265,7 +263,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const menuItemOnClick = useCallback(({ key }) => {
         const actionIndex = parseInt(key);
         const action = getOptions(node.type)[actionIndex].action;
-        action(node, reactFlowInstance, runStateShouldChange);
+        action();
         updateNodeInternals(nodeId);
     }, [node]);
 
@@ -304,14 +302,17 @@ export function PaneContextMenu({ top, left, close }) {
     const { setNodes, getNodes, screenToFlowPosition } = useReactFlow();
     const [apiNodes, setApiNodes] = useState({ steps: {}, resources: {} });
     const graphNodes = getNodes();
+    const API = useAPI();
 
     useEffect(() => {
         const setData = async () => {
             const nodes = await API.getNodes();
             setApiNodes(nodes);
+        };
+        if (API) {
+            setData();
         }
-        setData();
-    }, []);
+    }, [API]);
 
     const items = useMemo(() => {
         const { steps, resources } = apiNodes;
