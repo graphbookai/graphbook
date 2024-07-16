@@ -14,7 +14,7 @@ import { Graph } from '../graph';
 import AddNode from './AddNode';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle, filesystemDragEnd, parseGraph } from '../utils.ts';
+import { getHandle, filesystemDragEnd } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';

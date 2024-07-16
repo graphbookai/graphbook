@@ -2,30 +2,8 @@ import { useCallback, useState, useMemo } from 'react';
 import { Handle, Position, useOnSelectionChange, useReactFlow } from 'reactflow';
 import { Card, theme } from 'antd';
 import { Widget } from './Widgets';
+import { outputHandleStyle, nodeBorderStyle } from '../../styles';
 const { useToken } = theme;
-
-const handleStyle = {
-    borderRadius: '50%',
-    position: 'relative',
-    top: '0%',
-    right: 0,
-    left: 0,
-    transform: 'translate(0,0)',
-};
-
-const absoluteHandleStyle = {
-    position: 'absolute',
-    top: '50%',
-    right: 10,
-    left: 'auto',
-    transform: 'translate(0, -50%)'
-}
-
-const parameterHandleStyle = {
-    ...handleStyle,
-    borderRadius: '50%',
-    marginLeft: '2px'
-};
 
 const collapsedStyle = {
     maxWidth: '150px'
@@ -37,32 +15,7 @@ export function Resource({ id, data, selected }) {
     const { name, parameters, isCollapsed } = data;
     const [parentSelected, setParentSelected] = useState(false);
 
-    const borderStyle = useMemo(() => {
-        const baseStyle = {
-            padding: '1px',
-            borderRadius: token.borderRadius,
-            transform: 'translate(-2px, -2px)'
-        };
-
-        const selectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoActive}`
-        };
-
-        const parentSelectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoBorder}`
-        };
-
-        if (selected) {
-            return selectedStyle;
-        }
-
-        if (parentSelected) {
-            return parentSelectedStyle;
-        }
-
-    }, [token, selected, parentSelected]);
+    const borderStyle = useMemo(() => nodeBorderStyle(token, false, selected, parentSelected), [token, selected, parentSelected]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
         const parentId = getNode(id).parentId;
@@ -95,7 +48,7 @@ export function Resource({ id, data, selected }) {
                             <div className="title value">{firstParamValue}</div>
                             <div className="handles">
                                 <div className="outputs">
-                                    <Handle style={{ ...parameterHandleStyle, ...absoluteHandleStyle }} type="source" position={Position.Right} id="resource" />
+                                    <Handle style={outputHandleStyle()} type="source" position={Position.Right} id="resource" />
                                 </div>
                             </div>
                         </div> :
@@ -114,11 +67,11 @@ export function Resource({ id, data, selected }) {
                                     }
                                 </div>
                             }
-                            <div className="handles">
+                            <div className="handles" style={{marginBottom: '5px'}}>
                                 <div className="inputs"></div>
                                 <div className='outputs'>
                                     <div className="output">
-                                        <Handle style={parameterHandleStyle} type="source" position={Position.Right} id="resource" />
+                                        <Handle style={outputHandleStyle()} type="source" position={Position.Right} id="resource" />
                                     </div>
                                 </div>
                             </div>

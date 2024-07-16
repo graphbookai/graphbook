@@ -68,7 +68,6 @@ textarea.code {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    margin-right: 20px;
 }
 
 .workflow-node .title {
@@ -144,7 +143,7 @@ textarea.code {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    margin: 0 2px 5px 2px;
+    margin: 0 2px;
 }
 
 .workflow-node .handles .inputs {
@@ -160,14 +159,11 @@ textarea.code {
 .workflow-node .handles .outputs .output {
     display: flex;
     flex-direction: row;
-    justify-content: right;
-    align-items: center;
 }
 
 .workflow-node .handles .inputs .input {
     display: flex;
     flex-direction: row;
-    align-items: center;
 }
 
 .workflow-node.group .handles .inputs .input {

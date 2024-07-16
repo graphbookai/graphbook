@@ -5,7 +5,7 @@ import { useAPI, useAPIMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
 import { useReactFlow, useOnSelectionChange, Position, Handle } from 'reactflow';
 import { Graph } from '../../graph';
-import { recordCountBadgeStyle } from '../../styles';
+import { nodeBorderStyle, recordCountBadgeStyle } from '../../styles';
 const { Text } = Typography;
 const { useToken } = theme;
 
@@ -109,42 +109,7 @@ export function Subflow({ id, data, selected }) {
         onChange: onSelectionChange
     });
 
-    const borderStyle = useMemo(() => {
-        const baseStyle = {
-            padding: '1px',
-            borderRadius: token.borderRadius,
-            transform: 'translate(-2px, -2px)'
-        };
-
-        const selectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoActive}`
-        };
-
-        const erroredStyle = {
-            ...baseStyle,
-            border: `1px solid ${token.colorError}`,
-        };
-
-        const parentSelectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoBorder}`
-        };
-
-        if (errored) {
-            return erroredStyle;
-        }
-
-        if (selected) {
-            return selectedStyle;
-        }
-
-        if (parentSelected) {
-            return parentSelectedStyle;
-        }
-
-    }, [token, errored, selected, parentSelected]);
-
+    const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
     const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     const run = useCallback(async () => {

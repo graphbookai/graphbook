@@ -13,3 +13,62 @@ export const recordCountBadgeStyle = (token: GlobalToken) => {
         color: token.colorPrimaryText,
     };
 }
+
+export const nodeBorderStyle = (token: GlobalToken, errored: boolean, selected: boolean, parentSelected: boolean) => {
+    const baseStyle = {
+        padding: '1px',
+        borderRadius: token.borderRadius,
+        transform: 'translate(-2px, -2px)'
+    };
+
+    const selectedStyle = {
+        ...baseStyle,
+        border: `1px dashed ${token.colorInfoActive}`
+    };
+
+    const erroredStyle = {
+        ...baseStyle,
+        border: `1px solid ${token.colorError}`,
+    };
+
+    const parentSelectedStyle = {
+        ...baseStyle,
+        border: `1px dashed ${token.colorInfoBorder}`
+    };
+
+    if (errored) {
+        return erroredStyle;
+    }
+
+    if (selected) {
+        return selectedStyle;
+    }
+
+    if (parentSelected) {
+        return parentSelectedStyle;
+    }
+
+    return {};
+};
+
+const handleStyle = {
+    borderRadius: '50%',
+    // top: '50%',
+    // transform: 'translate(0,-50%)',
+    left: 0,
+    right: 0
+};
+
+export const inputHandleStyle = () => {
+    return {
+        ...handleStyle,
+        marginRight: '2px'
+    };
+};
+
+export const outputHandleStyle = () => {
+    return {
+        ...handleStyle,
+        marginLeft: '2px'
+    };
+};

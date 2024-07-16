@@ -2,38 +2,16 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Flex, Card, Typography, theme, Badge } from 'antd';
 import { NodeResizer, Handle, Position, useEdges, useNodes, useUpdateNodeInternals } from 'reactflow';
 import { useAPIMessage } from '../../hooks/API';
-import { recordCountBadgeStyle } from '../../styles';
+import { recordCountBadgeStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
 import type { Edge, Node } from 'reactflow';
 const { Text } = Typography;
 
-const handleStyle = {
-    borderRadius: '50%',
-    top: '0%',
-    right: 0,
-    left: 0,
-    transform: 'translate(0,0)',
-};
+
 const innerHandleStyle = {
-    ...handleStyle,
     backgroundColor: '#fff',
     border: '2px dashed #4f4f4f',
+    margin: '0 2px',
 }
-const inHandleStyle = {
-    ...handleStyle,
-    marginRight: '2px',
-};
-const inInnerHandleStyle = {
-    ...innerHandleStyle,
-    marginLeft: '2px',
-};
-const outHandleStyle = {
-    ...handleStyle,
-    marginLeft: '2px'
-};
-const outInnerHandleStyle = {
-    ...innerHandleStyle,
-    marginRight: '2px',
-};
 
 export function Group({ id, data }) {
     const { label } = data;
@@ -95,8 +73,8 @@ function GroupPins({ id, data }) {
     const c = data.isCollapsed;
     const handleContainerStyle = c ? {} : {
         backgroundColor: token.colorBgBase,
-        borderRadius: '10%',
-        padding: '2px 5px',
+        borderRadius: '5px',
+        padding: '2px 2px',
         margin: '1px 0'
     };
 
@@ -142,6 +120,17 @@ function GroupPins({ id, data }) {
         });
     });
 
+    const innerInputHandleStyle = useMemo(() => ({
+        ...inputHandleStyle(),
+        ...innerHandleStyle,
+    }), []);
+
+    
+    const innerOutputHandleStyle = useMemo(() => ({
+        ...outputHandleStyle(),
+        ...innerHandleStyle,
+    }), []);
+
     return (
         <Flex vertical={true} className="handles">
             <div className="inputs">
@@ -151,9 +140,9 @@ function GroupPins({ id, data }) {
                         .map((input, i) => {
                             return (
                                 <div key={i} className="input" style={handleContainerStyle}>
-                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={String(input.id)} className={input.type === 'resource' ? 'parameter' : ''} />
+                                    <Handle style={inputHandleStyle()} type="target" position={Position.Left} id={String(input.id)} className={input.type === 'resource' ? 'parameter' : ''} />
                                     <Text style={{ alignSelf: 'left' }} className="label">{input.name}</Text>
-                                    {!c && <Handle style={inInnerHandleStyle} type="source" position={Position.Right} id={`${input.id}_inner`} />}
+                                    {!c && <Handle style={innerInputHandleStyle} type="source" position={Position.Right} id={`${input.id}_inner`} />}
                                 </div>
                             );
                         })
@@ -169,10 +158,10 @@ function GroupPins({ id, data }) {
                             }, 0) || 0;
                             return (
                                 <div key={i} className="output" style={handleContainerStyle}>
-                                    {!c && <Handle style={outInnerHandleStyle} type="target" position={Position.Left} id={`${output.id}_inner`} />}
+                                    {!c && <Handle style={innerOutputHandleStyle} type="target" position={Position.Left} id={`${output.id}_inner`} />}
                                     {c && <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={count} overflowCount={Infinity} />}
                                     <Text className="label">{output.name}</Text>
-                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={String(output.id)} className={output.type === 'resource' ? 'parameter' : ''} />
+                                    <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={String(output.id)} className={output.type === 'resource' ? 'parameter' : ''} />
                                 </div>
                             );
                         })

@@ -7,7 +7,7 @@ import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
-import { recordCountBadgeStyle } from '../../styles';
+import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -22,10 +22,6 @@ const handleStyle = {
 const inHandleStyle = {
     ...handleStyle,
     marginRight: '2px'
-};
-const parameterHandleStyle = {
-    ...inHandleStyle,
-    borderRadius: '50%',
 };
 const outHandleStyle = {
     ...handleStyle,
@@ -112,42 +108,7 @@ export function WorkflowStep({ id, data, selected }) {
         runStateShouldChange();
     }, [nodes, edges, API]);
 
-    const borderStyle = useMemo(() => {
-        const baseStyle = {
-            padding: '1px',
-            borderRadius: token.borderRadius,
-            transform: 'translate(-2px, -2px)'
-        };
-
-        const selectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoActive}`
-        };
-
-        const erroredStyle = {
-            ...baseStyle,
-            border: `1px solid ${token.colorError}`,
-        };
-
-        const parentSelectedStyle = {
-            ...baseStyle,
-            border: `1px dashed ${token.colorInfoBorder}`
-        };
-
-        if (errored) {
-            return erroredStyle;
-        }
-
-        if (selected) {
-            return selectedStyle;
-        }
-
-        if (parentSelected) {
-            return parentSelectedStyle;
-        }
-
-    }, [token, errored, selected, parentSelected]);
-
+    const borderStyle = useMemo(() => nodeBorderStyle(token, selected, errored, parentSelected), [token, selected, errored, parentSelected]);
     const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     return (
@@ -163,7 +124,7 @@ export function WorkflowStep({ id, data, selected }) {
                             inputs.map((input, i) => {
                                 return (
                                     <div key={i} className="input">
-                                        <Handle style={inHandleStyle} type="target" position={Position.Left} id="in" />
+                                        <Handle style={inputHandleStyle()} type="target" position={Position.Left} id="in" />
                                         <span className="label">{input}</span>
                                     </div>
                                 );
@@ -176,7 +137,7 @@ export function WorkflowStep({ id, data, selected }) {
                                         <div key={i} className="input">
                                             <Handle
                                                 className="parameter"
-                                                style={parameterHandleStyle}
+                                                style={inputHandleStyle()}
                                                 type="target"
                                                 position={Position.Left}
                                                 id={parameterName}
@@ -195,7 +156,7 @@ export function WorkflowStep({ id, data, selected }) {
                                     <div key={i} className="output">
                                         <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={recordCount[output] || 0} overflowCount={Infinity} />
                                         <span className="label">{output}</span>
-                                        <Handle style={outHandleStyle} type="source" position={Position.Right} id={output} />
+                                        <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={output} />
                                     </div>
                                 );
                             })
