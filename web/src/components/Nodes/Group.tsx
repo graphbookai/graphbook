@@ -2,22 +2,23 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Flex, Card, Typography, theme, Badge } from 'antd';
 import { NodeResizer, Handle, Position, useEdges, useNodes, useUpdateNodeInternals } from 'reactflow';
 import { useAPIMessage } from '../../hooks/API';
-import { recordCountBadgeStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
+import { recordCountBadgeStyle, inputHandleStyle, outputHandleStyle, nodeBorderStyle } from '../../styles';
 import type { Edge, Node } from 'reactflow';
+import { useFilename } from '../../hooks/Filename';
+import { getGlobalRunningFile } from '../../hooks/RunState';
 const { Text } = Typography;
 
 
 const innerHandleStyle = {
     backgroundColor: '#fff',
-    border: '2px dashed #4f4f4f',
-    margin: '0 2px',
-}
+    border: '2px dashed #4f4f4f'
+};
 
-export function Group({ id, data }) {
+export function Group({ id, data, selected }) {
     const { label } = data;
 
     if (data.isCollapsed) {
-        return <CollapsedGroup id={id} data={data} />;
+        return <CollapsedGroup id={id} data={data} selected={selected}/>;
     }
 
     return (
@@ -31,16 +32,21 @@ export function Group({ id, data }) {
     );
 }
 
-function CollapsedGroup({ id, data }) {
+function CollapsedGroup({ id, data, selected }) {
     const { label } = data;
+    const { token } = theme.useToken();
+
+    const borderStyle = useMemo(() => nodeBorderStyle(token, false, selected, false), [token, selected]);
 
     return (
-        <Card className='workflow-node group collapsed'>
-            <Flex className='title' justify='space-between' style={{ margin: '0 2px' }}>
-                <Text>{label}</Text>
-            </Flex>
-            <GroupPins id={id} data={data} />
-        </Card>
+        <div style={borderStyle}>
+            <Card className='workflow-node group collapsed'>
+                <Flex className='title' justify='space-between' style={{ margin: '0 2px' }}>
+                    <Text>{label}</Text>
+                </Flex>
+                <GroupPins id={id} data={data} />
+            </Card>
+        </div>
     );
 }
 
@@ -58,17 +64,11 @@ function GroupPins({ id, data }) {
     const nodes: Node[] = useNodes();
     const [recordCount, setRecordCount] = useState({});
     const updateNodeInternals = useUpdateNodeInternals();
+    const filename = useFilename();
 
     useEffect(() => {
         updateNodeInternals(id);
     }, [id, data.isCollapsed]);
-
-    const updateRecordCount = useCallback((node, values) => {
-        setRecordCount(prev => ({
-            ...prev,
-            [node]: values
-        }));
-    }, []);
 
     const c = data.isCollapsed;
     const handleContainerStyle = c ? {} : {
@@ -112,22 +112,27 @@ function GroupPins({ id, data }) {
 
     }, [outputs, edges, nodes, id]);
 
-    useAPIMessage('stats', (msg: any) => {
+    const updateStats = useCallback((msg: any) => {
         Object.entries<{queue_size: any}>(msg).forEach(([node, values]) => {
-            if (subscribedNodes.has(node)) {
-                updateRecordCount(node, values.queue_size);
+            if (filename === getGlobalRunningFile() && subscribedNodes.has(node)) {
+                setRecordCount(prev => ({
+                    ...prev,
+                    [node]: values.queue_size
+                }));
             }
         });
-    });
+    }, [filename, subscribedNodes, setRecordCount]);
+
+    useAPIMessage('stats', updateStats);
 
     const innerInputHandleStyle = useMemo(() => ({
-        ...inputHandleStyle(),
+        ...outputHandleStyle(),
         ...innerHandleStyle,
     }), []);
 
     
     const innerOutputHandleStyle = useMemo(() => ({
-        ...outputHandleStyle(),
+        ...inputHandleStyle(),
         ...innerHandleStyle,
     }), []);
 

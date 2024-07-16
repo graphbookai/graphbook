@@ -11,24 +11,6 @@ import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleS
 const { Panel } = Collapse;
 const { useToken } = theme;
 
-const handleStyle = {
-    borderRadius: '50%',
-    position: 'relative',
-    top: '0%',
-    right: 0,
-    left: 0,
-    transform: 'translate(0,0)',
-};
-const inHandleStyle = {
-    ...handleStyle,
-    marginRight: '2px'
-};
-const outHandleStyle = {
-    ...handleStyle,
-    marginLeft: '2px'
-};
-
-
 const isWidgetType = (type) => {
     return ['number', 'string', 'boolean'].includes(type);
 };
@@ -108,7 +90,7 @@ export function WorkflowStep({ id, data, selected }) {
         runStateShouldChange();
     }, [nodes, edges, API]);
 
-    const borderStyle = useMemo(() => nodeBorderStyle(token, selected, errored, parentSelected), [token, selected, errored, parentSelected]);
+    const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
     const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     return (

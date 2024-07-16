@@ -1,6 +1,5 @@
 import React, { useCallback, useState, useMemo } from 'react';
 import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
-import type { Node } from 'reactflow';
 import { Collapse, Typography, Card, Flex, Descriptions, theme, Input, Button } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import type { DescriptionsProps } from 'antd';
@@ -28,7 +27,7 @@ export function NodeConfig() {
             }
             return {
                 key: node.id,
-                label: node.data.label,
+                label: node.data.label || node.data.name,
                 children: nodeView
             };
         });

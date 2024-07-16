@@ -53,8 +53,6 @@ export const nodeBorderStyle = (token: GlobalToken, errored: boolean, selected: 
 
 const handleStyle = {
     borderRadius: '50%',
-    // top: '50%',
-    // transform: 'translate(0,-50%)',
     left: 0,
     right: 0
 };

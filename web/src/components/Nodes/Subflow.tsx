@@ -5,29 +5,15 @@ import { useAPI, useAPIMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
 import { useReactFlow, useOnSelectionChange, Position, Handle } from 'reactflow';
 import { Graph } from '../../graph';
-import { nodeBorderStyle, recordCountBadgeStyle } from '../../styles';
+import { nodeBorderStyle, recordCountBadgeStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
+import { useFilename } from '../../hooks/Filename';
+import { getGlobalRunningFile } from '../../hooks/RunState';
 const { Text } = Typography;
 const { useToken } = theme;
 
 type Output = {
     node: string,
     pin: string,
-};
-
-const handleStyle = {
-    borderRadius: '50%',
-    top: '0%',
-    right: 0,
-    left: 0,
-    transform: 'translate(0,0)',
-};
-const inHandleStyle = {
-    ...handleStyle,
-    marginRight: '2px'
-};
-const outHandleStyle = {
-    ...handleStyle,
-    marginLeft: '2px'
 };
 
 export function Subflow({ id, data, selected }) {
@@ -39,6 +25,8 @@ export function Subflow({ id, data, selected }) {
     const [recordCount, setRecordCount] = useState({});
     const { getNode, getNodes, getEdges } = useReactFlow();
     const API = useAPI();
+    const filename = useFilename();
+
     const updateRecordCount = useCallback((node, values) => {
         setRecordCount({
             ...recordCount,
@@ -56,13 +44,18 @@ export function Subflow({ id, data, selected }) {
         return subscribedNodes;
     }, [data.properties.stepOutputs]);
 
-    useAPIMessage('stats', (msg: any) => {
+    const updateStats = useCallback((msg: any) => {
         Object.entries<{queue_size: any}>(msg).forEach(([node, values]) => {
-            if (subscribedNodes.has(node)) {
-                updateRecordCount(node, values.queue_size);
+            if (filename === getGlobalRunningFile() && subscribedNodes.has(node)) {
+                setRecordCount(prev => ({
+                    ...prev,
+                    [node]: values.queue_size
+                }));
             }
         });
-    });
+    }, [filename, subscribedNodes, setRecordCount]);
+
+    useAPIMessage('stats', updateStats);
 
     const [inputs, outputs] = useMemo(() => {
         const inputs: any[] = [];
@@ -137,7 +130,7 @@ export function Subflow({ id, data, selected }) {
                                 .sort((a, b) => a.isResource ? -1 : 1)
                                 .map((input, i) => (
                                 <div key={i} className="input">
-                                    <Handle style={inHandleStyle} type="target" position={Position.Left} id={input.id} className={input.isResource ? 'parameter' : ''}/>
+                                    <Handle style={inputHandleStyle()} type="target" position={Position.Left} id={input.id} className={input.isResource ? 'parameter' : ''}/>
                                     <Text style={{alignSelf: 'left'}} className="label">{input.name}</Text>
                                 </div>
                             ))
@@ -155,7 +148,7 @@ export function Subflow({ id, data, selected }) {
                                         <div key={i} className="output">
                                             <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={count} overflowCount={Infinity} />
                                             <Text style={{alignSelf: 'right'}} className="label">{output.name}</Text>
-                                            <Handle style={outHandleStyle} type="source" position={Position.Right} id={output.id} className={output.isResource ? 'parameter' : ''}/>
+                                            <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={output.id} className={output.isResource ? 'parameter' : ''}/>
                                         </div>
                                     );
                                 })
