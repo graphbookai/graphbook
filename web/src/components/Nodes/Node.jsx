@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Image, Descriptions, theme } from 'antd';
+import { Card, Collapse, Badge, Flex, Button, theme } from 'antd';
 import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget } from './Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
+import { recordCountBadgeStyle } from '../../styles';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -53,7 +54,7 @@ export function WorkflowStep({ id, data, selected }) {
 
     const filename = useFilename();
     useAPINodeMessage('stats', id, filename, (msg) => {
-        setRecordCount(msg.queue_size);
+        setRecordCount(msg.queue_size || {});
     });
     useAPINodeMessage('view', id, filename, (msg) => {
         setQuickViewData(msg.data);
@@ -147,15 +148,7 @@ export function WorkflowStep({ id, data, selected }) {
 
     }, [token, errored, selected, parentSelected]);
 
-    const badgeIndicatorStyle = useMemo(() => ({
-        fontSize: 8,
-        padding: '0 1px',
-        borderRadius: '25%',
-        marginRight: 2,
-        backgroundColor: token.colorBgBase,
-        border: `1px solid ${token.colorPrimaryBorder}`,
-        color: token.colorPrimaryText,
-    }), [token]);
+    const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     return (
         <div style={borderStyle}>
@@ -200,7 +193,7 @@ export function WorkflowStep({ id, data, selected }) {
                             outputs.map((output, i) => {
                                 return (
                                     <div key={i} className="output">
-                                        <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={recordCount[output]} overflowCount={Infinity} />
+                                        <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={recordCount[output] || 0} overflowCount={Infinity} />
                                         <span className="label">{output}</span>
                                         <Handle style={outHandleStyle} type="source" position={Position.Right} id={output} />
                                     </div>

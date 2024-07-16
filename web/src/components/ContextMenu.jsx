@@ -16,7 +16,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const NODE_OPTIONS = useMemo(() => [
         {
             name: 'Run',
-            disabled: (runState) => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'stopped',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -28,7 +28,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Step',
-            disabled: (runState) => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'stopped',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -40,7 +40,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Clear Outputs',
-            disabled: (runState) => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'stopped',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -51,7 +51,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Duplicate',
-            disabled: (runState) => runState !== 'stopped',
+            disabled: () => runState !== 'stopped',
             action: () => {
                 const { addNodes } = reactFlowInstance;
                 const position = {
@@ -70,16 +70,16 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         },
         {
             name: 'Delete',
-            disabled: (runState) => runState !== 'stopped',
-            action: (node, reactFlowInstance) => {
+            disabled: () => runState !== 'stopped',
+            action: () => {
                 const { setNodes, setEdges } = reactFlowInstance;
                 setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
                 setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
             }
         },
         {
-            name: (node) => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
-            action: (node, reactFlowInstance) => {
+            name: () => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
+            action: () => {
                 const { setNodes } = reactFlowInstance;
                 setNodes((nodes) => {
                     return nodes.map((n) => {
@@ -131,7 +131,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         };
         return [{
             name: 'Disband Group',
-            disabled: (runState) => runState !== 'stopped',
+            disabled: () => runState !== 'stopped',
             action: () => {
                 const { setNodes, setEdges } = reactFlowInstance;
                 setNodes((nodes) => nodes
@@ -188,7 +188,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
             }
         },
         {
-            name: node => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
+            name: () => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
             action: () => {
                 const { setNodes } = reactFlowInstance;
                 setNodes((nodes) => {
@@ -252,9 +252,9 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const items = useMemo(() => {
         const toReturn = getOptions(node.type).map((option) => {
             return {
-                label: typeof option.name === 'function' ? option.name(node) : option.name,
+                label: typeof option.name === 'function' ? option.name() : option.name,
                 children: option.children,
-                disabled: typeof option.disabled === 'function' ? option.disabled(runState) : option.disabled,
+                disabled: typeof option.disabled === 'function' ? option.disabled() : option.disabled,
             };
         });
         return keyRecursively(toReturn);

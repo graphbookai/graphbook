@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Flex, Card, Typography, theme, Badge } from 'antd';
 import { NodeResizer, Handle, Position, useEdges, useNodes, useUpdateNodeInternals } from 'reactflow';
+import { useAPIMessage } from '../../hooks/API';
+import { recordCountBadgeStyle } from '../../styles';
 import type { Edge, Node } from 'reactflow';
-import { useFilename } from '../../hooks/Filename';
-import { useAPIMessage, useAPINodeMessage } from '../../hooks/API';
 const { Text } = Typography;
 
 const handleStyle = {
@@ -100,15 +100,7 @@ function GroupPins({ id, data }) {
         margin: '1px 0'
     };
 
-    const badgeIndicatorStyle = useMemo(() => ({
-        fontSize: 8,
-        padding: '0 1px',
-        borderRadius: '25%',
-        marginRight: 2,
-        backgroundColor: token.colorBgBase,
-        border: `1px solid ${token.colorPrimaryBorder}`,
-        color: token.colorPrimaryText,
-    }), [token]);
+    const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     const [subscribedNodes, stepOutputs] = useMemo(() => {
         const subscribedNodes = new Set<string>();
@@ -145,14 +137,10 @@ function GroupPins({ id, data }) {
     useAPIMessage('stats', (msg: any) => {
         Object.entries<{queue_size: any}>(msg).forEach(([node, values]) => {
             if (subscribedNodes.has(node)) {
-                console.log('updating record count', node, values);
                 updateRecordCount(node, values.queue_size);
             }
         });
     });
-
-    console.log('stepOutputs', stepOutputs);
-    console.log('recordCounts', recordCount);
 
     return (
         <Flex vertical={true} className="handles">

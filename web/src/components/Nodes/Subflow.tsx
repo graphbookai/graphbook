@@ -1,19 +1,13 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { Card, Typography, Flex, Button, theme } from 'antd';
+import React, { useMemo, useState, useCallback } from 'react';
+import { Card, Typography, Flex, Button, Badge, theme } from 'antd';
 import { CaretRightOutlined } from '@ant-design/icons';
-import { useAPI, useAPINodeMessage } from '../../hooks/API';
+import { useAPI, useAPIMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
 import { useReactFlow, useOnSelectionChange, Position, Handle } from 'reactflow';
 import { Graph } from '../../graph';
-import { useFilename } from '../../hooks/Filename';
-import type { Node, Edge } from 'reactflow';
+import { recordCountBadgeStyle } from '../../styles';
 const { Text } = Typography;
 const { useToken } = theme;
-
-type SubflowGraph = {
-    nodes: Node[],
-    edges: Edge[],
-}
 
 type Output = {
     node: string,
@@ -22,7 +16,6 @@ type Output = {
 
 const handleStyle = {
     borderRadius: '50%',
-    position: 'relative',
     top: '0%',
     right: 0,
     left: 0,
@@ -44,9 +37,8 @@ export function Subflow({ id, data, selected }) {
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
     const [recordCount, setRecordCount] = useState({});
-    const { getNode, getNodes, getEdges, setNodes } = useReactFlow();
+    const { getNode, getNodes, getEdges } = useReactFlow();
     const API = useAPI();
-    const filename = useFilename();
     const updateRecordCount = useCallback((node, values) => {
         setRecordCount({
             ...recordCount,
@@ -54,38 +46,27 @@ export function Subflow({ id, data, selected }) {
         });
     }, [recordCount]);
 
-    useEffect(() => {
+    const subscribedNodes = useMemo(() => {
         const subscribedNodes = new Set<string>();
         for (const outputs of Object.values(data.properties.stepOutputs)) {
             for (const output of outputs as Output[]) {
                 subscribedNodes.add(output.node);
             }
         }
-        for (const node of subscribedNodes) {
-            useAPINodeMessage('stats', node, filename, (msg) => {
-                updateRecordCount(node, msg.queue_size);
-            });
-        }
-    }, [data.properties.stepOutputs, filename]);
+        return subscribedNodes;
+    }, [data.properties.stepOutputs]);
 
-    // for (let [pin, outputs] of Object.entries(data.properties.stepOutputs)) {
-    //     outputs = outputs as Array<Output>;
-
-    //     for (const output of outputs) {
-    //         useAPINodeMessage('stats', output.node, filename, (msg) => {
-    //             // setRecordCount(msg.queue_size);
-    //             updateRecordCount(pin, )
-    //         });
-    //     }
-
-    // }
-
-    console.log('subflow step outputs', data.properties.stepOutputs);
+    useAPIMessage('stats', (msg: any) => {
+        Object.entries<{queue_size: any}>(msg).forEach(([node, values]) => {
+            if (subscribedNodes.has(node)) {
+                updateRecordCount(node, values.queue_size);
+            }
+        });
+    });
 
     const [inputs, outputs] = useMemo(() => {
         const inputs: any[] = [];
         const outputs: any[] = [];
-        let currStepOutput = 0;
         if (!data.properties) {
             return [inputs, outputs];
         }
@@ -99,17 +80,11 @@ export function Subflow({ id, data, selected }) {
                         id: String(inputs.length)
                     });
                 } else {
-                    let numRecords = 0;
-                    for (const output of data.properties.stepOutputs[currStepOutput]) {
-                        numRecords += recordCount[output.node][output.pin] || 0;
-                    }
                     outputs.push({
                         name: node.data.label,
                         isResource: node.data.isResource,
-                        id: String(outputs.length),
-                        numRecords
+                        id: String(outputs.length)
                     });
-                    currStepOutput++;
                 }
             }
         }
@@ -170,6 +145,8 @@ export function Subflow({ id, data, selected }) {
 
     }, [token, errored, selected, parentSelected]);
 
+    const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
+
     const run = useCallback(async () => {
         if (!API) {
             return;
@@ -205,12 +182,18 @@ export function Subflow({ id, data, selected }) {
                         {
                             (outputs || [])
                                 .sort((a, b) => a.isResource ? -1 : 1)
-                                .map((output, i) => (
-                                <div key={i} className="output">
-                                    <Text style={{alignSelf: 'right'}} className="label">{output.name}</Text>
-                                    <Handle style={outHandleStyle} type="source" position={Position.Right} id={output.id} className={output.isResource ? 'parameter' : ''}/>
-                                </div>
-                            ))
+                                .map((output, i) => {
+                                    const count = data.properties.stepOutputs[output.id]?.reduce((acc, { node, pin }) => {
+                                        return acc + (recordCount[node]?.[pin] || 0);
+                                    }, 0) || 0;
+                                    return (
+                                        <div key={i} className="output">
+                                            <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={count} overflowCount={Infinity} />
+                                            <Text style={{alignSelf: 'right'}} className="label">{output.name}</Text>
+                                            <Handle style={outHandleStyle} type="source" position={Position.Right} id={output.id} className={output.isResource ? 'parameter' : ''}/>
+                                        </div>
+                                    );
+                                })
                         }
                     </div>
                 </div>
