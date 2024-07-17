@@ -4,6 +4,7 @@ from .note import Note
 from typing import List
 import queue
 import multiprocessing as mp
+import multiprocessing.connection as mpc
 from graphbook.utils import MP_WORKER_TIMEOUT
 from graphbook.state import GraphState, StepState
 from graphbook.viewer import ViewManagerInterface
@@ -14,6 +15,7 @@ class WebInstanceProcessor:
     def __init__(
         self,
         cmd_queue: mp.Queue,
+        server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
         output_dir: str,
         custom_nodes_path: str,

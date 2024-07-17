@@ -11,6 +11,7 @@ import signal
 import http.server
 import socketserver
 import multiprocessing as mp
+import multiprocessing.connection as mpc
 import asyncio
 import base64
 import argparse
@@ -40,6 +41,7 @@ class GraphServer:
     def __init__(
         self,
         processor_queue: mp.Queue,
+        state_conn: mpc.Connection,
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
         close_event: mp.Event,
@@ -160,10 +162,20 @@ class GraphServer:
         async def get_nodes(request: web.Request) -> web.Response:
             return web.json_response(self.node_hub.get_exported_nodes())
 
-        def validate_ranges(ranges, content_length):
-            return all([int(r[0]) <= int(r[1]) for r in ranges]) and all(
-                [int(x) < content_length for subrange in ranges for x in subrange]
-            )
+        @routes.get("/state/{node_id}/{pin_id}/{index}")
+        async def get_output_note(request: web.Request) -> web.Response:
+            node_id = request.match_info.get("node_id")
+            pin_id = request.match_info.get("pin_id")
+            index = request.match_info.get("index")
+            state_conn.send({
+                "cmd": "get_output_note",
+                "node_id": node_id,
+                "pin_id": pin_id,
+                "index": index
+            })
+            res = state_conn.recv()
+            return web.json_response(res)
+            
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
@@ -349,10 +361,11 @@ def get_args():
 
 
 def create_graph_server(
-    args, cmd_queue, processor_pause_event, view_manager_queue, close_event, root_path, custom_nodes_path
+    args, cmd_queue, state_conn, processor_pause_event, view_manager_queue, close_event, root_path, custom_nodes_path
 ):
     server = GraphServer(
         cmd_queue,
+        state_conn,
         processor_pause_event,
         view_manager_queue,
         close_event,
@@ -379,6 +392,7 @@ def create_web_server(args):
 def main():
     args = get_args()
     cmd_queue = mp.Queue()
+    parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
     close_event = mp.Event()
     pause_event = mp.Event()
@@ -396,6 +410,7 @@ def main():
             args=(
                 args,
                 cmd_queue,
+                child_conn,
                 pause_event,
                 view_manager_queue,
                 close_event,
@@ -424,6 +439,7 @@ def main():
 
     processor = WebInstanceProcessor(
         cmd_queue,
+        parent_conn,
         view_manager_queue,
         args.output_dir,
         custom_nodes_path,

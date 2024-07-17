@@ -1,15 +1,16 @@
 import React, { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import { Button, Flex, Badge, Typography, Space, Table, Empty, theme, Statistic } from "antd";
-import { UpOutlined } from "@ant-design/icons";
+import { Button, Flex, Badge, Typography, Space, Table, Empty, theme, Statistic, Checkbox, Tooltip, Dropdown } from "antd";
+import { UpOutlined, VerticalAlignBottomOutlined, CloseOutlined, PlusOutlined } from "@ant-design/icons";
 import { Resizable } from 're-resizable';
 import { getGlobalRunningFile, useRunState } from "../hooks/RunState";
 import { useAPIMessage } from "../hooks/API";
 import { useOnSelectionChange } from "reactflow";
 import type { Node } from "reactflow";
-import type { TableProps, StatisticProps } from "antd";
+import type { TableProps, StatisticProps, MenuProps } from "antd";
 import { getMergedLogs } from "../utils";
 const { Text } = Typography;
 const hideHeightThreshold = 20;
+const DATA_COLUMNS = ['stats', 'logs', 'view'];
 
 export function Monitor() {
     const [show, setShow] = useState(true);
@@ -69,7 +70,8 @@ function MonitorView({ onResize }) {
     const [runState, _] = useRunState();
     const [nodeStates, setNodeStates] = useState({});
     const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
-    const [viewColumns, setViewColumns] = useState(['stats', 'logs', 'view']);
+    const [viewColumns, setViewColumns] = useState(DATA_COLUMNS);
+    const [shouldScrollLogsToBottom, setShouldScrollLogsToBottom] = useState(true);
     const onSelectionChange = useCallback(({ nodes }: { nodes: Node[] }) => {
         setSelectedNodes(nodes.filter((node) => node.type === 'step'));
     }, []);
@@ -107,8 +109,45 @@ function MonitorView({ onResize }) {
         });
     });
 
+    const onScrollToBottomChange = useCallback((e) => {
+        setShouldScrollLogsToBottom(e.target.checked);
+    }, []);
+
+    const LogsTitleView = () => {
+        return (
+            <Space>
+                logs |
+                <Tooltip title="Scroll to bottom">
+                    <Checkbox checked={shouldScrollLogsToBottom} onChange={onScrollToBottomChange}>
+                        <VerticalAlignBottomOutlined />
+                    </Checkbox>
+                </Tooltip>
+            </Space>
+        );
+    };
+
+    const TableHeader = ({ column }: { column: string }) => {
+        return (
+            <Flex justify="space-between">
+                {
+                    column === 'logs' ? <LogsTitleView /> : <Text>{column}</Text>
+                }
+                <CloseOutlined onClick={() => setViewColumns(prev => prev.filter((c) => c !== column))} />
+            </Flex>
+        );
+    }
+
     const columns: TableProps<any>['columns'] = useMemo(() => {
-        return [
+        const addColumnItems: MenuProps['items'] = 
+            DATA_COLUMNS
+            .filter((column) => !viewColumns.includes(column))
+            .map((column, i) => {
+                return {
+                    key: i,
+                    label: <Text onClick={()=>setViewColumns(prev => [...prev, column])}>{column}</Text>,
+                };
+            });
+        const columns = [
             {
                 title: '',
                 dataIndex: 'label',
@@ -119,7 +158,7 @@ function MonitorView({ onResize }) {
             },
             ...viewColumns.map((column) => {
                 return {
-                    title: column,
+                    title: <TableHeader column={column} />,
                     dataIndex: column,
                     key: column,
                     render: (text, record) => {
@@ -127,14 +166,23 @@ function MonitorView({ onResize }) {
                             return <StatsView data={record[column]} />;
                         }
                         if (column === 'logs') {
-                            return <LogsView data={record[column]} />;
+                            return <LogsView shouldScrollToBottom={shouldScrollLogsToBottom} data={record[column]} />;
                         }
                         return <Text>{JSON.stringify(record[column], null, 2)}</Text>;
                     }
                 };
             })
         ];
-    }, [viewColumns]);
+        if (addColumnItems.length > 0) {
+            columns.push({
+                title: <Dropdown menu={{items: addColumnItems}}><Button icon={<PlusOutlined />}></Button></Dropdown>,
+                dataIndex: 'null',
+                key: 'add',
+                render: () => (<div/>)
+            });
+        }
+        return columns;
+    }, [viewColumns, shouldScrollLogsToBottom]);
 
     const data: any[] = useMemo(() => {
         return selectedNodes.map((node) => {
@@ -181,7 +229,7 @@ function StatsView({ data }) {
             <Space>
                 {Object.entries(value).map(([key, value]) => {
                     return (
-                        <Flex vertical>
+                        <Flex key={key} vertical>
                             <div style={{ lineHeight: .5 }}>{value}</div>
                             <Text style={{ display: 'flex', justifyContent: 'right', color: token.colorBgMask }}>{key}</Text>
                         </Flex>
@@ -205,12 +253,14 @@ function StatsView({ data }) {
     )
 }
 
-function LogsView({ data }) {
+function LogsView({ data, shouldScrollToBottom }) {
     const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [data]);
+        if (shouldScrollToBottom) {
+            bottomRef.current?.scrollIntoView({ behavior: 'instant' });
+        }
+    }, [data, shouldScrollToBottom]);
 
     return (
         data &&

@@ -6,6 +6,8 @@ from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
 from graphbook.viewer import Logger, ViewManagerInterface
 import multiprocessing as mp
+import multiprocessing.connection as mpc
+import asyncio
 import importlib, importlib.util, inspect
 import graphbook.exports as exports
 import sys, os
@@ -118,11 +120,12 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue):
+    def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue, server_request_conn: mpc.Connection):
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.view_manager_queue = view_manager_queue
         self.view_manager = ViewManagerInterface(view_manager_queue)
+        self.graph_state_client = GraphStateClient(server_request_conn)
         self._dict_graph = {}
         self._dict_resources = {}
         self._steps: Dict[str, Step] = {}
@@ -238,6 +241,7 @@ class GraphState:
         self._queues = queues
         self._resource_values = param_values
         self._step_states = step_states
+        self.graph_state_client.update_queues(queues)
 
     def create_parent_subgraph(self, step_id: str):
         new_steps = {}
@@ -385,3 +389,46 @@ class MultiConsumerStateDictionaryQueue:
 
     def reset_consumer_idx(self, consumer_id: int):
         self._consumer_idx[consumer_id] = 0
+        
+class GraphStateClient:
+    def __init__(
+        self,
+        server_request_conn: mpc.Connection
+    ):
+        self.server_request_conn = server_request_conn
+        self.curr_task = None
+        self.queues = {}
+
+    async def _loop(self):
+        while True:
+            await asyncio.sleep(0.1)
+            req = self.server_request_conn.recv()
+            if req["cmd"] == "get_output_note":
+                step_id = req["step_id"]
+                pin_id = req["pin_id"]
+                index = req["index"]
+                output = self.get_output_note(step_id, pin_id, index)
+                self.server_request_conn.send(output)
+            
+    def get_output_note(self, step_id: str, pin_id: str, index: int) -> dict:
+        step_queue = self.queues.get(step_id)
+        if step_queue is None:
+            return {}
+        internal_list = step_queue._dict.get(pin_id)
+        if internal_list is None:
+            return {}
+        if index >= len(internal_list) or index < 0:
+            return {}
+        note = internal_list[index]
+        return note.items
+
+    def update_queues(self, queues: Dict[str, MultiConsumerStateDictionaryQueue]):
+        self.queues = queues
+
+    def start(self):
+        loop = asyncio.get_event_loop()
+        self.curr_task = loop.create_task(self._loop())
+
+    def close(self):
+        if self.curr_task is not None:
+            self.curr_task.cancel()
