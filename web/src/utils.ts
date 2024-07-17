@@ -86,7 +86,27 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
         }
         setNodes(Graph.addNode(node, nodes));
     }
-}
+};
+
+export type LogEntry = {
+    type: string,
+    msg?: string
+};
+
+export const getMergedLogs = (prevLogs: Array<LogEntry>, newLogs: Array<LogEntry>) => {
+    let wipeIndex = -1;
+    for (let i = 0; i < newLogs.length; i++) {
+        if (newLogs[i].type === 'wipe') {
+            wipeIndex = i;
+        }
+    }
+
+    if (wipeIndex > -1) {
+        newLogs = newLogs.slice(wipeIndex + 1);
+    }
+
+    return [...prevLogs, ...newLogs];
+};
 
 /**
  * Types of handles:

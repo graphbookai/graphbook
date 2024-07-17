@@ -80,29 +80,26 @@ NodeStatsViewer (for tracking stats of the pipeline, e.g. time taken per step, m
 class NodeStatsViewer(Viewer):
     def __init__(self):
         super().__init__("stats")
-        self.queue_sizes: Dict[str, int] = {}
+        self.queue_sizes: Dict[str, dict] = {}
         self.record_rate: Dict[str, float] = {}
-        self.output_counts: Dict[str, int] = {}
         self.start_times: Dict[str, float] = {}
 
     def handle_start(self, node_id: str):
         self.start_times[node_id] = time.time()
-        if node_id not in self.output_counts:
-            self.output_counts[node_id] = 0
 
     def handle_end(self):
         self.start_times = {}
 
-    def handle_queue_size(self, node_id: str, size: int):
-        self.queue_sizes[node_id] = size
+    def handle_queue_size(self, node_id: str, sizes: dict):
+        self.queue_sizes[node_id] = sizes
+        
+    def get_total_queue_size(self, node_id: str):
+        return sum(self.queue_sizes[node_id].values())
 
     def handle_outputs(self, node_id: str, outputs: dict):
-        if node_id not in self.output_counts:
-            self.output_counts[node_id] = 0
-        self.output_counts[node_id] += sum([len(v) for v in outputs.values()])
         if node_id not in self.start_times:
             return
-        self.record_rate[node_id] = self.output_counts[node_id] / (
+        self.record_rate[node_id] = self.get_total_queue_size(node_id) / (
             time.time() - self.start_times[node_id]
         )
 
@@ -112,9 +109,6 @@ class NodeStatsViewer(Viewer):
             data_obj[node_id] = {
                 "record_rate": self.record_rate[node_id],
             }
-        for node_id in self.output_counts:
-            data_obj.setdefault(node_id, {})
-            data_obj[node_id]["output_count"] = self.output_counts[node_id]
         for node_id in self.queue_sizes:
             data_obj.setdefault(node_id, {})
             data_obj[node_id]["queue_size"] = self.queue_sizes[node_id]

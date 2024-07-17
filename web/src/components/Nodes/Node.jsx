@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, theme } from 'antd';
+import { Card, Collapse, Badge, Flex, Button, Typography, theme } from 'antd';
 import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget } from './Widgets';
 import { Graph } from '../../graph';
@@ -8,6 +8,8 @@ import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
+import { getMergedLogs } from '../../utils';
+const { Text } = Typography;
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -38,17 +40,7 @@ export function WorkflowStep({ id, data, selected }) {
         setQuickViewData(msg);
     });
     useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
-        let wipeIndex = -1;
-        for (let i = 0; i < newEntries.length; i++) {
-            if (newEntries[i].type === 'wipe') {
-                wipeIndex = i;
-            }
-        }
-
-        if (wipeIndex > -1) {
-            newEntries = newEntries.slice(wipeIndex + 1);
-        }
-        setLogsData(prev => ([...prev, ...newEntries]));
+        setLogsData(prev => getMergedLogs(prev, newEntries));
     }, [setLogsData]));
 
     useEffect(() => {
@@ -189,12 +181,12 @@ function Monitor({ quickViewData, logsData }) {
                     logsData.length == 0 ?
                         <p className='content'>(No logs yet) </p> :
                         (
-                            <div style={{maxHeight: '200px', overflow: 'scroll'}}>
+                            <div style={{maxHeight: '200px', overflow: 'auto'}}>
                                 {
                                     logsData.map((log, i) => {
                                         const { msg } = log;
                                         return (
-                                            <p key={i} className='content'>
+                                            <p style={{fontFamily: 'monospace'}} key={i}>
                                                 {msg}
                                             </p>
                                         );
