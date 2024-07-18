@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@codemirror/lang-python": "^6.1.5",
+    "@microlink/react-json-view": "^1.23.1",
     "@uiw/codemirror-theme-basic": "^4.21.25",
     "@uiw/codemirror-theme-bbedit": "^4.21.25",
     "@uiw/react-codemirror": "^4.21.25",

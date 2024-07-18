@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Typography, theme } from 'antd';
+import { Card, Collapse, Badge, Flex, Button, Typography, Descriptions, Image, theme } from 'antd';
 import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget } from './Widgets';
 import { Graph } from '../../graph';
@@ -8,7 +8,7 @@ import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
-import { getMergedLogs } from '../../utils';
+import { getMergedLogs, keyRecursively, mediaUrl } from '../../utils';
 const { Text } = Typography;
 const { Panel } = Collapse;
 const { useToken } = theme;
@@ -207,24 +207,26 @@ function QuickviewCollapse({ data }) {
             {
                 Object.entries(data).map(([key, value], i) => {
 
-                    // const { items } = value;
-                    // const descriptionItems = keyRecursively(Object.entries(items).filter(([_, itemList]) => {
-                    //     return itemList.filter(item => item.type?.slice(0, 5) === 'image').length > 0;
-                    // }).map(([itemKey, itemList]) => {
-                    //     const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
-                    //     return {
-                    //         label: itemKey,
-                    //         children: (
-                    //             <Flex key={i} vertical>
-                    //                 {
-                    //                     images.map((item, i) => (
-                    //                         <Image key={i} src={mediaUrl(item.item)} width={100} />
-                    //                     ))
-                    //                 }
-                    //             </Flex>
-                    //         )
-                    //     };
-                    // }), "none");
+                    const descriptionItems = keyRecursively(Object.entries(value).filter(([_, itemList]) => {
+                        if (!Array.isArray(itemList)) {
+                            return false;
+                        }
+                        return itemList.filter(item => item.type?.slice(0, 5) === 'image').length > 0;
+                    }).map(([itemKey, itemList]) => {
+                        const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
+                        return {
+                            label: itemKey,
+                            children: (
+                                <Flex key={i} vertical>
+                                    {
+                                        images.map((item, i) => (
+                                            <Image key={i} src={mediaUrl(item.value)} width={100} />
+                                        ))
+                                    }
+                                </Flex>
+                            )
+                        };
+                    }), "none");
                     return (
                         <Panel className='content' header={key} key={i}>
                             <Flex style={{ overflowY: 'scroll', maxHeight: '300px' }}>
@@ -232,7 +234,7 @@ function QuickviewCollapse({ data }) {
                                     {JSON.stringify(value, null, 2)}
                                 </div>
                                 {
-                                    // descriptionItems.length > 0 && <Descriptions layout="vertical" bordered items={descriptionItems} />
+                                    descriptionItems.length > 0 && <Descriptions layout="vertical" bordered items={descriptionItems} />
                                 }
                             </Flex>
                         </Panel>

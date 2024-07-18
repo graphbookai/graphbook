@@ -18,6 +18,7 @@ import argparse
 import hashlib
 from graphbook.state import UIState
 from graphbook.media import MediaServer
+from utils import MP_WORKER_TIMEOUT
 
 
 @web.middleware
@@ -162,20 +163,26 @@ class GraphServer:
         async def get_nodes(request: web.Request) -> web.Response:
             return web.json_response(self.node_hub.get_exported_nodes())
 
-        @routes.get("/state/{node_id}/{pin_id}/{index}")
+        @routes.get("/state/{step_id}/{pin_id}/{index}")
         async def get_output_note(request: web.Request) -> web.Response:
-            node_id = request.match_info.get("node_id")
+            step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
-            index = request.match_info.get("index")
+            index = int(request.match_info.get("index"))
             state_conn.send({
                 "cmd": "get_output_note",
-                "node_id": node_id,
+                "step_id": step_id,
                 "pin_id": pin_id,
-                "index": index
+                "index": int(index)
             })
-            res = state_conn.recv()
+            if state_conn.poll(timeout=MP_WORKER_TIMEOUT):
+                res = state_conn.recv()
+                if res.get("step_id") == step_id and res.get("pin_id") == pin_id and res.get("index") == index:
+                    return web.json_response(res)
+                else:
+                    res = {"error": "Mismatched response"}
+            else:
+                res = {"error": "Timeout"}
             return web.json_response(res)
-            
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
@@ -436,19 +443,21 @@ def main():
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
+    
+    async def start():
+        processor = WebInstanceProcessor(
+            cmd_queue,
+            parent_conn,
+            view_manager_queue,
+            args.output_dir,
+            custom_nodes_path,
+            close_event,
+            pause_event,
+            args.num_workers,
+        )
+        await processor.start_loop()
 
-    processor = WebInstanceProcessor(
-        cmd_queue,
-        parent_conn,
-        view_manager_queue,
-        args.output_dir,
-        custom_nodes_path,
-        close_event,
-        pause_event,
-        args.num_workers,
-    )
-
-    processor.start_loop()
+    asyncio.run(start())
 
 
 if __name__ == "__main__":

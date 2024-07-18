@@ -1,16 +1,18 @@
 import React, { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import { Button, Flex, Badge, Typography, Space, Table, Empty, theme, Statistic, Checkbox, Tooltip, Dropdown } from "antd";
-import { UpOutlined, VerticalAlignBottomOutlined, CloseOutlined, PlusOutlined } from "@ant-design/icons";
+import { Button, Flex, Badge, Typography, Space, Table, Empty, theme, Statistic, Checkbox, Tooltip, Dropdown, InputNumber, Card, Image } from "antd";
+import { UpOutlined, VerticalAlignBottomOutlined, CloseOutlined, PlusOutlined, LeftOutlined, RightOutlined, QuestionOutlined } from "@ant-design/icons";
 import { Resizable } from 're-resizable';
 import { getGlobalRunningFile, useRunState } from "../hooks/RunState";
-import { useAPIMessage } from "../hooks/API";
+import { useAPIMessage, useAPI } from "../hooks/API";
 import { useOnSelectionChange } from "reactflow";
+import ReactJson from "@microlink/react-json-view";
+import { getMergedLogs, mediaUrl } from "../utils";
 import type { Node } from "reactflow";
 import type { TableProps, StatisticProps, MenuProps } from "antd";
-import { getMergedLogs } from "../utils";
+
 const { Text } = Typography;
 const hideHeightThreshold = 20;
-const DATA_COLUMNS = ['stats', 'logs', 'view'];
+const DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
 
 export function Monitor() {
     const [show, setShow] = useState(true);
@@ -138,15 +140,15 @@ function MonitorView({ onResize }) {
     }
 
     const columns: TableProps<any>['columns'] = useMemo(() => {
-        const addColumnItems: MenuProps['items'] = 
+        const addColumnItems: MenuProps['items'] =
             DATA_COLUMNS
-            .filter((column) => !viewColumns.includes(column))
-            .map((column, i) => {
-                return {
-                    key: i,
-                    label: <Text onClick={()=>setViewColumns(prev => [...prev, column])}>{column}</Text>,
-                };
-            });
+                .filter((column) => !viewColumns.includes(column))
+                .map((column, i) => {
+                    return {
+                        key: i,
+                        label: <Text onClick={() => setViewColumns(prev => [...prev, column])}>{column}</Text>,
+                    };
+                });
         const columns = [
             {
                 title: '',
@@ -168,6 +170,12 @@ function MonitorView({ onResize }) {
                         if (column === 'logs') {
                             return <LogsView shouldScrollToBottom={shouldScrollLogsToBottom} data={record[column]} />;
                         }
+                        if (column === 'notes') {
+                            return <NotesView stepId={record.key} numNotes={record?.stats?.queue_size} />;
+                        }
+                        if (column === 'images') {
+                            return <NotesView stepId={record.key} numNotes={record?.stats?.queue_size} type='image' />;
+                        }
                         return <Text>{JSON.stringify(record[column], null, 2)}</Text>;
                     }
                 };
@@ -175,10 +183,10 @@ function MonitorView({ onResize }) {
         ];
         if (addColumnItems.length > 0) {
             columns.push({
-                title: <Dropdown menu={{items: addColumnItems}}><Button icon={<PlusOutlined />}></Button></Dropdown>,
+                title: <Dropdown menu={{ items: addColumnItems }}><Button icon={<PlusOutlined />}></Button></Dropdown>,
                 dataIndex: 'null',
                 key: 'add',
-                render: () => (<div/>)
+                render: () => (<div />)
             });
         }
         return columns;
@@ -227,14 +235,16 @@ function StatsView({ data }) {
     const queueSizeFormatter: StatisticProps['formatter'] = (value) => {
         return (
             <Space>
-                {Object.entries(value).map(([key, value]) => {
-                    return (
-                        <Flex key={key} vertical>
-                            <div style={{ lineHeight: .5 }}>{value}</div>
-                            <Text style={{ display: 'flex', justifyContent: 'right', color: token.colorBgMask }}>{key}</Text>
-                        </Flex>
-                    );
-                })}
+                {
+                    Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => {
+                        return (
+                            <Flex key={key} vertical>
+                                <div style={{ lineHeight: .5 }}>{value}</div>
+                                <Text style={{ display: 'flex', justifyContent: 'right', color: token.colorTextSecondary }}>{key}</Text>
+                            </Flex>
+                        );
+                    })
+                }
             </Space>
         )
     };
@@ -246,8 +256,8 @@ function StatsView({ data }) {
                 <Statistic title="Output Rate" value={Math.round(data.record_rate)} suffix="notes/s" />
             }
             {
-                data.queue_size &&
-                <Statistic title="Queue Size" value={data.queue_size} formatter={queueSizeFormatter} />
+                Object.keys(data.queue_size).length > 0 ?
+                <Statistic title="Queue Size" value={data.queue_size} formatter={queueSizeFormatter} /> : ""
             }
         </Space>
     )
@@ -265,7 +275,7 @@ function LogsView({ data, shouldScrollToBottom }) {
     return (
         data &&
         (
-            <Flex vertical style={{ maxHeight: '200px', overflow: 'auto' }}>
+            <Flex vertical style={{ maxHeight: '410px', overflow: 'auto' }}>
                 {
                     data.map((log, i) => {
                         const { msg } = log;
@@ -280,4 +290,176 @@ function LogsView({ data, shouldScrollToBottom }) {
             </Flex>
         )
     )
+}
+
+type NotesViewType = 'default' | 'image';
+type NotesViewProps = {
+    stepId: string,
+    numNotes: { [key: string]: number },
+    type?: NotesViewType,
+};
+function NotesView({ stepId, numNotes, type }: NotesViewProps) {
+    const [currentIndex, setCurrentIndex] = useState({});
+    const [notes, setNotes] = useState({});
+    const API = useAPI();
+    const usingToken = theme.useToken();
+    const { token } = usingToken;
+    const globalTheme = usingToken.theme;
+
+    useEffect(() => {
+        if (!API || !numNotes) {
+            return;
+        }
+        const initializeKey = async (key) => {
+            const res = await API.getState(stepId, key, 0);
+            setNotes((prev) => {
+                return {
+                    ...prev,
+                    [key]: res
+                }
+            });
+            setCurrentIndex((prev) => {
+                return {
+                    ...prev,
+                    [key]: 0
+                };
+            });
+        };
+        Object.keys(numNotes).forEach(key => {
+            if (currentIndex[key] === undefined) {
+                initializeKey(key);
+            }
+        });
+
+    }, [numNotes, currentIndex, API]);
+
+    const onIndexChange = useCallback(async (key, index) => {
+        if (!API) {
+            return;
+        }
+        index = Math.max(0, Math.min(index, numNotes[key] - 1));
+        const res = await API.getState(stepId, key, index);
+        setNotes((prev) => {
+            console.log(res);
+            return {
+                ...prev,
+                [key]: res
+            }
+        });
+        setCurrentIndex((prev) => {
+            return {
+                ...prev,
+                [key]: index
+            };
+        });
+    }, [API]);
+
+    const noteViews = useMemo(() => {
+        const views = {};
+        Object.entries<any>(notes).map(([pin, note]) => {
+            if (!note?.data) {
+                views[pin] = <QuestionOutlined />;
+            } else {
+                if (!type || type === 'default') {
+                    const style = {
+                        minWidth: '400px',
+                        minHeight: '300px',
+                        maxWidth: '400px',
+                        maxHeight: '300px',
+                        overflow: 'auto',
+                    }
+                    views[pin] = (
+                        <ReactJson
+                            style={style}
+                            theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
+                            name=""
+                            displayDataTypes={false}
+                            indentWidth={2}
+                            src={note.data}
+                        />
+                    );
+                } else if (type === 'image') {
+                    const style = {
+                        minWidth: '400px',
+                        minHeight: '300px',
+                        maxWidth: '400px',
+                        maxHeight: '300px',
+                        overflow: 'hidden',
+                        padding: '5px',
+                    };
+                    const images = {};
+                    Object.entries<any>(note.data).forEach(([key, value]) => {
+                        if (Array.isArray(value)) {
+                            const im = value.filter((v) => v.type === 'image');
+                            if (im.length > 0) {
+                                images[key] = im.map((v) => v.value);
+                            }
+                        }
+                    });
+                    views[pin] = (
+                        <Flex style={style} vertical>
+                            {
+                                Object.entries<any>(images).map(([key, paths]) => {
+                                    return (
+                                        <Flex key={key} align="center" style={{border: `1px solid ${token.colorBorder}`, padding: '5px', borderRadius: '5px'}}>
+                                            <Text ellipsis={true} style={{flex: 1}} >{key}</Text>
+                                            <div style={{flex: 5, flexDirection:"row", overflowX: 'scroll', flexWrap: 'nowrap', whiteSpace: 'nowrap'}}>
+                                                <Image.PreviewGroup>
+                                                    {
+                                                        paths.map((path, i) => {
+                                                            return (
+                                                                <Image height={120} key={i} src={mediaUrl(path)} />
+                                                            );
+                                                        })
+                                                    }
+                                                </Image.PreviewGroup>
+                                            </div>
+                                        </Flex>
+                                    );
+                                })
+                            }
+                        </Flex>
+                    );
+                }
+            }
+        });
+        return views;
+    }, [notes, globalTheme]);
+
+    const noteCardStyle: React.CSSProperties = useMemo(() => {
+        return {
+            minWidth: '400px',
+            minHeight: '300px',
+            maxWidth: '400px',
+            maxHeight: '300px',
+        };
+    }, []);
+
+    return (
+        numNotes ?
+        <Space align="start">
+            {
+                Object.entries<number>(numNotes).sort(([a], [b]) => a.localeCompare(b)).map(([pin, size]) => {
+                    return (
+                        <Space key={pin} direction="vertical" align="center">
+                            <Text>{pin}</Text>
+                            <Card style={noteCardStyle}>
+                                {noteViews[pin]}
+                            </Card>
+                            <Space>
+                                <Button onClick={() => onIndexChange(pin, currentIndex[pin] - 1)} icon={<LeftOutlined />} shape='circle' />
+                                <Space align="center">
+                                    <InputNumber value={currentIndex[pin]} onChange={(value)=>onIndexChange(pin, value)} max={size} min={0} controls={false}/>
+                                    <Text>/ {size - 1}</Text>
+                                </Space>
+                                <Button onClick={() => onIndexChange(pin, currentIndex[pin] + 1)} icon={<RightOutlined />} shape='circle' />
+                            </Space>
+                        </Space>
+                    );
+                })
+            }
+        </Space> :
+        <Empty description="No notes" />
+    )
+
 }

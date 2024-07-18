@@ -9,6 +9,7 @@ from graphbook.utils import MP_WORKER_TIMEOUT
 from graphbook.state import GraphState, StepState
 from graphbook.viewer import ViewManagerInterface
 import traceback
+import asyncio
 
 
 class WebInstanceProcessor:
@@ -27,7 +28,7 @@ class WebInstanceProcessor:
         self.close_event = close_event
         self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
-        self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
+        self.graph_state = GraphState(custom_nodes_path, view_manager_queue, server_request_conn, close_event)
         self.output_dir = output_dir
         self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
@@ -146,7 +147,10 @@ class WebInstanceProcessor:
         except Exception as e:
             traceback.print_exc()
 
-    def start_loop(self):
+    async def start_loop(self):
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, self.graph_state.start_client_loop)
+        print("IN PROCESSOR LOOP")
         while not self.close_event.is_set():
             if self.is_running:
                 self.is_running = False
