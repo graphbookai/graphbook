@@ -93,7 +93,7 @@ export class ServerAPI {
         this.nodes = nodesRes;
     }
 
-    private async post(path, data) {
+    private async post(path, data): Promise<any> {
         try {
             const response = await fetch(`http://${this.host}/${path}`, {
                 method: 'POST',
@@ -111,7 +111,7 @@ export class ServerAPI {
         }
     }
 
-    private async put(path, data) {
+    private async put(path, data): Promise<any> {
         try {
             const response = await fetch(`http://${this.host}/${path}`, {
                 method: 'PUT',
@@ -129,7 +129,7 @@ export class ServerAPI {
         }
     }
 
-    private async get(path) {
+    private async get(path): Promise<any> {
         try {
             const response = await fetch(`http://${this.host}/${path}`);
             if (response.ok) {
@@ -193,6 +193,10 @@ export class ServerAPI {
 
     public async getNodes() {
         return await this.get('nodes');
+    }
+
+    public async getState(stepId: string, pin: string, index: number) {
+        return await this.get(`state/${stepId}/${pin}/${index}`);
     }
 
     /**

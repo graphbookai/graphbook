@@ -11,12 +11,14 @@ import signal
 import http.server
 import socketserver
 import multiprocessing as mp
+import multiprocessing.connection as mpc
 import asyncio
 import base64
 import argparse
 import hashlib
 from graphbook.state import UIState
 from graphbook.media import MediaServer
+from utils import MP_WORKER_TIMEOUT
 
 
 @web.middleware
@@ -40,6 +42,7 @@ class GraphServer:
     def __init__(
         self,
         processor_queue: mp.Queue,
+        state_conn: mpc.Connection,
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
         close_event: mp.Event,
@@ -160,10 +163,26 @@ class GraphServer:
         async def get_nodes(request: web.Request) -> web.Response:
             return web.json_response(self.node_hub.get_exported_nodes())
 
-        def validate_ranges(ranges, content_length):
-            return all([int(r[0]) <= int(r[1]) for r in ranges]) and all(
-                [int(x) < content_length for subrange in ranges for x in subrange]
-            )
+        @routes.get("/state/{step_id}/{pin_id}/{index}")
+        async def get_output_note(request: web.Request) -> web.Response:
+            step_id = request.match_info.get("step_id")
+            pin_id = request.match_info.get("pin_id")
+            index = int(request.match_info.get("index"))
+            state_conn.send({
+                "cmd": "get_output_note",
+                "step_id": step_id,
+                "pin_id": pin_id,
+                "index": int(index)
+            })
+            if state_conn.poll(timeout=MP_WORKER_TIMEOUT):
+                res = state_conn.recv()
+                if res.get("step_id") == step_id and res.get("pin_id") == pin_id and res.get("index") == index:
+                    return web.json_response(res)
+                else:
+                    res = {"error": "Mismatched response"}
+            else:
+                res = {"error": "Timeout"}
+            return web.json_response(res)
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
@@ -349,10 +368,11 @@ def get_args():
 
 
 def create_graph_server(
-    args, cmd_queue, processor_pause_event, view_manager_queue, close_event, root_path, custom_nodes_path
+    args, cmd_queue, state_conn, processor_pause_event, view_manager_queue, close_event, root_path, custom_nodes_path
 ):
     server = GraphServer(
         cmd_queue,
+        state_conn,
         processor_pause_event,
         view_manager_queue,
         close_event,
@@ -379,6 +399,7 @@ def create_web_server(args):
 def main():
     args = get_args()
     cmd_queue = mp.Queue()
+    parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
     close_event = mp.Event()
     pause_event = mp.Event()
@@ -396,6 +417,7 @@ def main():
             args=(
                 args,
                 cmd_queue,
+                child_conn,
                 pause_event,
                 view_manager_queue,
                 close_event,
@@ -421,18 +443,21 @@ def main():
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
+    
+    async def start():
+        processor = WebInstanceProcessor(
+            cmd_queue,
+            parent_conn,
+            view_manager_queue,
+            args.output_dir,
+            custom_nodes_path,
+            close_event,
+            pause_event,
+            args.num_workers,
+        )
+        await processor.start_loop()
 
-    processor = WebInstanceProcessor(
-        cmd_queue,
-        view_manager_queue,
-        args.output_dir,
-        custom_nodes_path,
-        close_event,
-        pause_event,
-        args.num_workers,
-    )
-
-    processor.start_loop()
+    asyncio.run(start())
 
 
 if __name__ == "__main__":
