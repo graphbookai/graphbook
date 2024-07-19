@@ -68,7 +68,7 @@ function View() {
         if (workflowFile) {
             return (
                 <div style={{width: '100%', height: '100%'}}>
-                    {codeEditorView}
+                    {/* {codeEditorView} Disabled: 0.4 */}
                     <Flow filename={workflowFile} />
                 </div>
             );
