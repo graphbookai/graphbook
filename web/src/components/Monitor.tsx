@@ -23,9 +23,17 @@ export function Monitor() {
         }
     }, []);
 
+    const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
+    const onSelectionChange = useCallback(({ nodes }: { nodes: Node[] }) => {
+        setSelectedNodes(nodes.filter((node) => node.type === 'step'));
+    }, []);
+    useOnSelectionChange({
+        onChange: onSelectionChange
+    });
+
     return (
         <div>
-            {show ? <MonitorView onResize={onResize} /> : <HiddenMonitor show={() => setShow(true)} />}
+            {show ? <MonitorView selectedNodes={selectedNodes} onResize={onResize} /> : <HiddenMonitor show={() => setShow(true)} />}
         </div>
 
     );
@@ -46,14 +54,14 @@ function HiddenMonitor({ show }) {
 
     return (
         <div style={style}>
-            <Badge status={runState === 'running' ? 'processing' : 'default'}>
+            <Badge dot status={runState === 'running' ? 'processing': 'default'}>
                 <Button shape={'circle'} onClick={show} icon={<UpOutlined />} />
             </Badge>
         </div>
     );
 }
 
-function MonitorView({ onResize }) {
+function MonitorView({ selectedNodes, onResize }) {
     const { token } = theme.useToken();
     const style: React.CSSProperties = useMemo(() => {
         return {
@@ -71,15 +79,8 @@ function MonitorView({ onResize }) {
     }, [token]);
     const [runState, _] = useRunState();
     const [nodeStates, setNodeStates] = useState({});
-    const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
     const [viewColumns, setViewColumns] = useState(DATA_COLUMNS);
     const [shouldScrollLogsToBottom, setShouldScrollLogsToBottom] = useState(true);
-    const onSelectionChange = useCallback(({ nodes }: { nodes: Node[] }) => {
-        setSelectedNodes(nodes.filter((node) => node.type === 'step'));
-    }, []);
-    useOnSelectionChange({
-        onChange: onSelectionChange
-    });
 
     useAPIMessage('stats', (data) => {
         setNodeStates(prev => {
@@ -155,7 +156,7 @@ function MonitorView({ onResize }) {
                 dataIndex: 'label',
                 key: 'label',
                 render: (text, record) => {
-                    return <Text>[{record.key}] {record.label}</Text>;
+                    return <Text ellipsis={true}>[{record.key}] {record.label}</Text>;
                 }
             },
             ...viewColumns.map((column) => {
@@ -204,17 +205,22 @@ function MonitorView({ onResize }) {
         });
     }, [selectedNodes, nodeStates]);
 
+    const maxMonitorHeight = useMemo(() => {
+        return window.innerHeight - 40;
+    }, [window.innerHeight]);
+
+    const monitoredWorkflow = getGlobalRunningFile();
 
     return (
-        <Resizable onResize={onResize} defaultSize={{ height: 300 }} enable={{ top: true }} style={style} handleStyles={{ top: { backgroundColor: token.colorBorder } }}>
+        <Resizable onResize={onResize} maxHeight={maxMonitorHeight} defaultSize={{ height: 300 }} enable={{ top: true }} style={style} handleStyles={{ top: { backgroundColor: token.colorBorder } }}>
             <Flex justify="center">
                 <Space style={{ margin: 10 }}>
                     <Badge status={runState === 'running' ? 'processing' : 'default'} />
-                    <Text>Data Monitoring</Text>
-                    {
-                        runState === 'running' &&
-                        <Text italic>(running: {getGlobalRunningFile()})</Text>
-                    }
+                    <Text>Data Monitoring{
+                        monitoredWorkflow &&
+                        <span>:<Text italic> {getGlobalRunningFile()}</Text></span>
+                    }</Text>
+                    
                 </Space>
             </Flex>
             {
@@ -232,11 +238,11 @@ function MonitorView({ onResize }) {
 
 function StatsView({ data }) {
     const { token } = theme.useToken();
-    const queueSizeFormatter: StatisticProps['formatter'] = (value) => {
+    const queueSizeFormatter: StatisticProps['formatter'] = useCallback((value) => {
         return (
             <Space>
                 {
-                    Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => {
+                    Object.entries<number>(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => {
                         return (
                             <Flex key={key} vertical>
                                 <div style={{ lineHeight: .5 }}>{value}</div>
@@ -247,10 +253,10 @@ function StatsView({ data }) {
                 }
             </Space>
         )
-    };
+    }, []);
     return (
         data &&
-        <Space align="start" size="large">
+        <Space align="start" direction="vertical">
             {
                 data.record_rate &&
                 <Statistic title="Output Rate" value={Math.round(data.record_rate)} suffix="notes/s" />
@@ -340,7 +346,6 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
         index = Math.max(0, Math.min(index, numNotes[key] - 1));
         const res = await API.getState(stepId, key, index);
         setNotes((prev) => {
-            console.log(res);
             return {
                 ...prev,
                 [key]: res
@@ -352,7 +357,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                 [key]: index
             };
         });
-    }, [API]);
+    }, [numNotes, API]);
 
     const noteViews = useMemo(() => {
         const views = {};
