@@ -150,7 +150,6 @@ class WebInstanceProcessor:
     async def start_loop(self):
         loop = asyncio.get_running_loop()
         loop.run_in_executor(None, self.graph_state.start_client_loop)
-        print("IN PROCESSOR LOOP")
         while not self.close_event.is_set():
             if self.is_running:
                 self.is_running = False

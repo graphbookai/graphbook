@@ -103,6 +103,7 @@ export const getMergedLogs = (prevLogs: Array<LogEntry>, newLogs: Array<LogEntry
 
     if (wipeIndex > -1) {
         newLogs = newLogs.slice(wipeIndex + 1);
+        return newLogs;
     }
 
     return [...prevLogs, ...newLogs];

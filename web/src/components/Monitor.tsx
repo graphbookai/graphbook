@@ -54,7 +54,7 @@ function HiddenMonitor({ show }) {
 
     return (
         <div style={style}>
-            <Badge dot status={runState === 'running' ? 'processing': 'default'}>
+            <Badge dot status={runState === 'running' ? 'processing' : 'default'}>
                 <Button shape={'circle'} onClick={show} icon={<UpOutlined />} />
             </Badge>
         </div>
@@ -131,14 +131,16 @@ function MonitorView({ selectedNodes, onResize }) {
 
     const TableHeader = ({ column }: { column: string }) => {
         return (
-            <Flex justify="space-between">
-                {
-                    column === 'logs' ? <LogsTitleView /> : <Text>{column}</Text>
-                }
-                <CloseOutlined onClick={() => setViewColumns(prev => prev.filter((c) => c !== column))} />
+            <Flex style={{ flex: 1 }} align="center">
+                <Flex style={{ padding: '0 10px', flex: 1 }} justify="space-between">
+                    {
+                        column === 'logs' ? <LogsTitleView /> : <Text>{column}</Text>
+                    }
+                    <CloseOutlined onClick={() => setViewColumns(prev => prev.filter((c) => c !== column))} />
+                </Flex>
             </Flex>
         );
-    }
+    };
 
     const columns: TableProps<any>['columns'] = useMemo(() => {
         const addColumnItems: MenuProps['items'] =
@@ -155,6 +157,7 @@ function MonitorView({ selectedNodes, onResize }) {
                 title: '',
                 dataIndex: 'label',
                 key: 'label',
+                width: '20px',
                 render: (text, record) => {
                     return <Text ellipsis={true}>[{record.key}] {record.label}</Text>;
                 }
@@ -164,6 +167,11 @@ function MonitorView({ selectedNodes, onResize }) {
                     title: <TableHeader column={column} />,
                     dataIndex: column,
                     key: column,
+                    onHeaderCell: (column) => {
+                        return {
+                            style: { padding: '0' }
+                        };
+                    },
                     render: (text, record) => {
                         if (column === 'stats') {
                             return <StatsView data={record[column]} />;
@@ -187,7 +195,13 @@ function MonitorView({ selectedNodes, onResize }) {
                 title: <Dropdown menu={{ items: addColumnItems }}><Button icon={<PlusOutlined />}></Button></Dropdown>,
                 dataIndex: 'null',
                 key: 'add',
-                render: () => (<div />)
+                render: () => (<div />),
+                onHeaderCell: (column) => {
+                    return {
+                        style: { padding: '10px 0px' },
+                        children: column.title
+                    };
+                }
             });
         }
         return columns;
@@ -220,7 +234,7 @@ function MonitorView({ selectedNodes, onResize }) {
                         monitoredWorkflow &&
                         <span>:<Text italic> {getGlobalRunningFile()}</Text></span>
                     }</Text>
-                    
+
                 </Space>
             </Flex>
             {
@@ -263,7 +277,7 @@ function StatsView({ data }) {
             }
             {
                 Object.keys(data.queue_size).length > 0 ?
-                <Statistic title="Queue Size" value={data.queue_size} formatter={queueSizeFormatter} /> : ""
+                    <Statistic title="Queue Size" value={data.queue_size} formatter={queueSizeFormatter} /> : ""
             }
         </Space>
     )
@@ -406,9 +420,9 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                             {
                                 Object.entries<any>(images).map(([key, paths]) => {
                                     return (
-                                        <Flex key={key} align="center" style={{border: `1px solid ${token.colorBorder}`, padding: '5px', borderRadius: '5px'}}>
-                                            <Text ellipsis={true} style={{flex: 1}} >{key}</Text>
-                                            <div style={{flex: 5, flexDirection:"row", overflowX: 'scroll', flexWrap: 'nowrap', whiteSpace: 'nowrap'}}>
+                                        <Flex key={key} align="center" style={{ border: `1px solid ${token.colorBorder}`, padding: '5px', borderRadius: '5px' }}>
+                                            <Text ellipsis={true} style={{ flex: 1 }} >{key}</Text>
+                                            <div style={{ flex: 5, flexDirection: "row", overflowX: 'scroll', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                                                 <Image.PreviewGroup>
                                                     {
                                                         paths.map((path, i) => {
@@ -442,29 +456,28 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
 
     return (
         numNotes ?
-        <Space align="start">
-            {
-                Object.entries<number>(numNotes).sort(([a], [b]) => a.localeCompare(b)).map(([pin, size]) => {
-                    return (
-                        <Space key={pin} direction="vertical" align="center">
-                            <Text>{pin}</Text>
-                            <Card style={noteCardStyle}>
-                                {noteViews[pin]}
-                            </Card>
-                            <Space>
-                                <Button onClick={() => onIndexChange(pin, currentIndex[pin] - 1)} icon={<LeftOutlined />} shape='circle' />
-                                <Space align="center">
-                                    <InputNumber value={currentIndex[pin]} onChange={(value)=>onIndexChange(pin, value)} max={size} min={0} controls={false}/>
-                                    <Text>/ {size - 1}</Text>
+            <Space align="start">
+                {
+                    Object.entries<number>(numNotes).sort(([a], [b]) => a.localeCompare(b)).map(([pin, size]) => {
+                        return (
+                            <Space key={pin} direction="vertical" align="center">
+                                <Text>{pin}</Text>
+                                <Card style={noteCardStyle}>
+                                    {noteViews[pin]}
+                                </Card>
+                                <Space>
+                                    <Button onClick={() => onIndexChange(pin, currentIndex[pin] - 1)} icon={<LeftOutlined />} shape='circle' />
+                                    <Space align="center">
+                                        <InputNumber value={currentIndex[pin]} onChange={(value) => onIndexChange(pin, value)} max={size} min={0} controls={false} />
+                                        <Text>/ {size - 1}</Text>
+                                    </Space>
+                                    <Button onClick={() => onIndexChange(pin, currentIndex[pin] + 1)} icon={<RightOutlined />} shape='circle' />
                                 </Space>
-                                <Button onClick={() => onIndexChange(pin, currentIndex[pin] + 1)} icon={<RightOutlined />} shape='circle' />
                             </Space>
-                        </Space>
-                    );
-                })
-            }
-        </Space> :
-        <Empty description="No notes" />
+                        );
+                    })
+                }
+            </Space> :
+            <Empty description="No notes" />
     )
-
 }
