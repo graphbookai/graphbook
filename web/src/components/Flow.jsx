@@ -8,7 +8,7 @@ import ReactFlow, {
     useNodes,
     useEdges
 } from 'reactflow';
-import { Button, Flex, Typography, notification, theme } from 'antd';
+import { Button, Flex, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph';
 import AddNode from './AddNode';
@@ -23,9 +23,8 @@ import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
-import { useFilename } from '../hooks/Filename.ts';
 import { Monitor } from './Monitor.tsx';
-const { Text } = Typography;
+import { useNotificationInitializer } from '../hooks/Notification';
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
 const onLoadGraph = async (filename, API) => {
@@ -48,8 +47,8 @@ export default function Flow({ filename }) {
     const [paneMenu, setPaneMenu] = useState(null);
     const [runState, _] = useRunState();
     const graphStore = useRef(null);
+    const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
 
-    const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     // Coalesce
     const [isAddNodeActive, setIsAddNodeActive] = useState(false);
     const [eventMousePos, setEventMousePos] = useState({ x: 0, y: 0 });

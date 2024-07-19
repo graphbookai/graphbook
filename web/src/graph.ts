@@ -431,29 +431,60 @@ export const Graph = {
         return [await parseNodes(nodes), edges]
     },
     wouldBeCyclic(nodes, edges, connectingEdge) {
-        if (connectingEdge.sourceHandle.endsWith('_inner') || connectingEdge.targetHandle.endsWith('_inner')) {
-            return false;
-        }
         const adjList = {};
         const isGroup = {};
         for (const node of nodes) {
-            adjList[node.id] = [];
-            isGroup[node.id] = node.type === 'group';
+            if (node.type === 'group') {
+                adjList[`${node.id}-i`] = [];
+                adjList[`${node.id}-o`] = [];
+                isGroup[node.id] = true;
+            } else {
+                adjList[node.id] = [];
+            }
         }
         for (const edge of edges) {
-            if (isGroup[edge.source] && edge.sourceHandle.endsWith('_inner')) {
-                continue;
+            let s = edge.source;
+            let t = edge.target;
+            if (isGroup[s]) {
+                if (edge.sourceHandle.endsWith('_inner')) {
+                    s = `${edge.source}-i`;
+                } else {
+                    s = `${edge.source}-o`;
+                }
             }
-            if (isGroup[edge.target] && edge.targetHandle.endsWith('_inner')) {
-                continue;
+            if (isGroup[t]) {
+                if (edge.targetHandle.endsWith('_inner')) {
+                    t = `${edge.target}-o`;
+                } else {
+                    t = `${edge.target}-i`;
+                }
             }
-            if (!adjList[edge.source].includes(edge.target)) {
-                adjList[edge.source].push(edge.target);
+            adjList[s].push(t);
+        }
+
+        let s = connectingEdge.source;
+        let t = connectingEdge.target;
+        if (isGroup[connectingEdge.source]) {
+            if (connectingEdge.sourceHandle.endsWith('_inner')) {
+                s = `${connectingEdge.source}-i`;
+            } else {
+                s = `${connectingEdge.source}-o`;
             }
         }
-        adjList[connectingEdge.source].push(connectingEdge.target);
+        if (isGroup[connectingEdge.target]) {
+            if (connectingEdge.targetHandle.endsWith('_inner')) {
+                t = `${connectingEdge.target}-o`;
+            } else {
+                t = `${connectingEdge.target}-i`;
+            }
+        }
+
+        console.log(adjList);
+        console.log(s, t);
+
+        adjList[s].push(t);
         const q: string[] = [];
-        const origin = connectingEdge.target;
+        const origin = t;
         q.push(origin);
         while (q.length > 0) {
             const [nodeId] = q.splice(0, 1);
