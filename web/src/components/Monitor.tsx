@@ -7,6 +7,8 @@ import { useAPIMessage, useAPI } from "../hooks/API";
 import { useOnSelectionChange } from "reactflow";
 import ReactJson from "@microlink/react-json-view";
 import { getMergedLogs, mediaUrl } from "../utils";
+import { useFilename } from "../hooks/Filename";
+import { useSettings } from "../hooks/Settings";
 import type { Node } from "reactflow";
 import type { TableProps, StatisticProps, MenuProps } from "antd";
 
@@ -16,6 +18,7 @@ const DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
 
 export function Monitor() {
     const [show, setShow] = useState(true);
+    const filename = useFilename();
 
     const onResize = useCallback((e, direction, ref, d) => {
         if (ref.offsetHeight < hideHeightThreshold) {
@@ -25,8 +28,10 @@ export function Monitor() {
 
     const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
     const onSelectionChange = useCallback(({ nodes }: { nodes: Node[] }) => {
-        setSelectedNodes(nodes.filter((node) => node.type === 'step'));
-    }, []);
+        if (!getGlobalRunningFile() || getGlobalRunningFile() === filename) {
+            setSelectedNodes(nodes.filter((node) => node.type === 'step'));
+        }
+    }, [filename]);
     useOnSelectionChange({
         onChange: onSelectionChange
     });
@@ -79,8 +84,8 @@ function MonitorView({ selectedNodes, onResize }) {
     }, [token]);
     const [runState, _] = useRunState();
     const [nodeStates, setNodeStates] = useState({});
-    const [viewColumns, setViewColumns] = useState(DATA_COLUMNS);
-    const [shouldScrollLogsToBottom, setShouldScrollLogsToBottom] = useState(true);
+    const [settings, setSettings] = useSettings();
+    const viewColumns = settings.monitorDataColumns;
 
     useAPIMessage('stats', (data) => {
         setNodeStates(prev => {
@@ -113,7 +118,7 @@ function MonitorView({ selectedNodes, onResize }) {
     });
 
     const onScrollToBottomChange = useCallback((e) => {
-        setShouldScrollLogsToBottom(e.target.checked);
+        setSettings('monitorLogsShouldScrollToBottom', e.target.checked);
     }, []);
 
     const LogsTitleView = () => {
@@ -121,7 +126,7 @@ function MonitorView({ selectedNodes, onResize }) {
             <Space>
                 logs |
                 <Tooltip title="Scroll to bottom">
-                    <Checkbox checked={shouldScrollLogsToBottom} onChange={onScrollToBottomChange}>
+                    <Checkbox checked={settings.monitorLogsShouldScrollToBottom} onChange={onScrollToBottomChange}>
                         <VerticalAlignBottomOutlined />
                     </Checkbox>
                 </Tooltip>
@@ -136,7 +141,7 @@ function MonitorView({ selectedNodes, onResize }) {
                     {
                         column === 'logs' ? <LogsTitleView /> : <Text>{column}</Text>
                     }
-                    <CloseOutlined onClick={() => setViewColumns(prev => prev.filter((c) => c !== column))} />
+                    <CloseOutlined onClick={() => setSettings('monitorDataColumns', viewColumns.filter((c) => c !== column))} />
                 </Flex>
             </Flex>
         );
@@ -149,7 +154,7 @@ function MonitorView({ selectedNodes, onResize }) {
                 .map((column, i) => {
                     return {
                         key: i,
-                        label: <Text onClick={() => setViewColumns(prev => [...prev, column])}>{column}</Text>,
+                        label: <Text onClick={() => setSettings('monitorDataColumns', [...viewColumns, column])}>{column}</Text>,
                     };
                 });
         const columns = [
@@ -177,7 +182,7 @@ function MonitorView({ selectedNodes, onResize }) {
                             return <StatsView data={record[column]} />;
                         }
                         if (column === 'logs') {
-                            return <LogsView shouldScrollToBottom={shouldScrollLogsToBottom} data={record[column]} />;
+                            return <LogsView shouldScrollToBottom={settings.monitorLogsShouldScrollToBottom} data={record[column]} />;
                         }
                         if (column === 'notes') {
                             return <NotesView stepId={record.key} numNotes={record?.stats?.queue_size} />;
@@ -205,7 +210,7 @@ function MonitorView({ selectedNodes, onResize }) {
             });
         }
         return columns;
-    }, [viewColumns, shouldScrollLogsToBottom]);
+    }, [viewColumns, settings.monitorLogsShouldScrollToBottom]);
 
     const data: any[] = useMemo(() => {
         return selectedNodes.map((node) => {
@@ -214,7 +219,6 @@ function MonitorView({ selectedNodes, onResize }) {
                 label: node.data.label,
                 stats: nodeStates[node.id]?.stats,
                 logs: nodeStates[node.id]?.logs,
-                view: nodeStates[node.id]?.view,
             };
         });
     }, [selectedNodes, nodeStates]);
