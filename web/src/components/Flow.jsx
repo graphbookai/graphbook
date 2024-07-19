@@ -23,6 +23,8 @@ import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
+import { useFilename } from '../hooks/Filename.ts';
+import { Monitor } from './Monitor.tsx';
 const { Text } = Typography;
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -346,8 +348,9 @@ export default function Flow({ filename }) {
                     <NodeConfig />
                 </Panel>
                 <Panel position='bottom-left'>
-                    <Text italic>{filename}</Text>
+                    {/* <Text italic>{filename}</Text> */}
                 </Panel>
+                <Monitor/>
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
                 <Background id="1" variant="lines" gap={20} size={1} color={lineColor1} />

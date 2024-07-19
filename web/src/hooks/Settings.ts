@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 
+const MONITOR_DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
 let settings = {
     theme: "Light",
     graphServerHost: "localhost:8005",
     mediaServerHost: "localhost:8006",
+    monitorDataColumns: MONITOR_DATA_COLUMNS,
+    monitorLogsShouldScrollToBottom: true,
 };
 
 const storedSettings = localStorage.getItem('settings');
@@ -16,7 +19,7 @@ let localSetters: Function[] = [];
 export function useSettings(): [any, (name: string, value: any) => void] {
     const [_, setSettings] = useState(settings);
 
-    const setSetting = (name, value) => {
+    const setSetting = useCallback((name, value) => {
         settings = {
             ...settings,
             [name]: value
@@ -25,7 +28,7 @@ export function useSettings(): [any, (name: string, value: any) => void] {
         for (const setter of localSetters) {
             setter(settings);
         }
-    };
+    }, [settings, localSetters]);
 
     useEffect(() => {
         localSetters.push(setSettings);

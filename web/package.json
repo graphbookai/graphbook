@@ -11,12 +11,14 @@
   },
   "dependencies": {
     "@codemirror/lang-python": "^6.1.5",
+    "@microlink/react-json-view": "^1.23.1",
     "@uiw/codemirror-theme-basic": "^4.21.25",
     "@uiw/codemirror-theme-bbedit": "^4.21.25",
     "@uiw/react-codemirror": "^4.21.25",
     "antd": "^5.15.4",
     "codemirror": "^6.0.1",
     "js-md5": "^0.8.3",
+    "re-resizable": "^6.9.17",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "reactflow": "^11.11.3"
