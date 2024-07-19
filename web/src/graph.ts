@@ -3,12 +3,12 @@ import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
 
-const SERIALIZATION_ERROR = {
+export const SERIALIZATION_ERROR = {
     INPUT_RESOLVE: 'Failed to resolve step input',
     PARAM_RESOLVE: 'Failed to resolve a parameter',
 };
 
-type SerializationError = {
+export type SerializationError = {
     type: string,
     node: string,
     pin?: string,
@@ -53,6 +53,14 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
             }
         });
         Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
+            if (!param) {
+                errors.push({
+                    type: SERIALIZATION_ERROR.PARAM_RESOLVE,
+                    node: id,
+                    pin: key,
+                })
+                return;
+            }
             if (!(typeof param === 'string' || typeof param === 'number')) {
                 if (!resources[param.node]) {
                     errors.push({
@@ -63,7 +71,6 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
                 }
             }
         });
-
     });
     Object.entries<SerializedResource>(resources).forEach(([id, node]) => {
         Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
@@ -78,6 +85,10 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
             }
         });
     });
+
+    if (errors.length > 0) {
+        console.log(errors);
+    }
     return errors;
 };
 

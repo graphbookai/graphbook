@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Card, Typography, Flex, Button, Badge, theme } from 'antd';
+import { Card, Typography, Flex, Button, Badge, theme, notification } from 'antd';
 import { CaretRightOutlined } from '@ant-design/icons';
 import { useAPI, useAPIMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
@@ -8,6 +8,8 @@ import { Graph } from '../../graph';
 import { nodeBorderStyle, recordCountBadgeStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
 import { useFilename } from '../../hooks/Filename';
 import { getGlobalRunningFile } from '../../hooks/RunState';
+import { useNotification } from '../../hooks/Notification';
+import { SerializationErrorMessages } from '../Errors.tsx';
 const { Text } = Typography;
 const { useToken } = theme;
 
@@ -26,6 +28,7 @@ export function Subflow({ id, data, selected }) {
     const { getNode, getNodes, getEdges } = useReactFlow();
     const API = useAPI();
     const filename = useFilename();
+    const notification = useNotification();
 
     const updateRecordCount = useCallback((node, values) => {
         setRecordCount({
@@ -111,10 +114,19 @@ export function Subflow({ id, data, selected }) {
         }
         const nodes = getNodes();
         const edges = getEdges();
-        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+        if (errors.length > 0) {
+            notification.error({
+                key: 'invalid-graph',
+                message: 'Invalid Graph',
+                description: <SerializationErrorMessages errors={errors}/>,
+                duration: 3,
+            })
+            return;
+        }
         API.run(graph, resources, id);
         runStateShouldChange();
-    }, [API, id]);
+    }, [API, id, notification]);
 
     return (
         <div style={borderStyle}>

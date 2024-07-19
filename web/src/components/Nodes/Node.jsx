@@ -9,7 +9,8 @@ import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
 import { getMergedLogs, keyRecursively, mediaUrl } from '../../utils';
-const { Text } = Typography;
+import { useNotification } from '../../hooks/Notification';
+import { SerializationErrorMessages } from '../Errors';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -29,6 +30,7 @@ export function WorkflowStep({ id, data, selected }) {
     const edges = useEdges();
     const { token } = useToken();
     const { getNode } = useReactFlow();
+    const notification = useNotification();
 
     const API = useAPI();
 
@@ -76,10 +78,19 @@ export function WorkflowStep({ id, data, selected }) {
         if (!API) {
             return;
         }
-        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+        if (errors.length > 0) {
+            notification.error({
+                key: 'invalid-graph',
+                message: 'Invalid Graph',
+                description: <SerializationErrorMessages errors={errors}/>,
+                duration: 3,
+            })
+            return;
+        }
         API.run(graph, resources, id);
         runStateShouldChange();
-    }, [nodes, edges, API]);
+    }, [nodes, edges, API, notification]);
 
     const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
     const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);

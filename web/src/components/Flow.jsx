@@ -24,7 +24,8 @@ import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
 import { Monitor } from './Monitor.tsx';
-import { useNotificationInitializer } from '../hooks/Notification';
+import { useNotificationInitializer, useNotification } from '../hooks/Notification';
+import { SerializationErrorMessages } from './Errors.tsx';
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
 const onLoadGraph = async (filename, API) => {
@@ -366,12 +367,22 @@ function ControlRow() {
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();
+    const notification = useNotification();
 
     const run = useCallback(async () => {
-        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+        if (errors.length > 0) {
+            notification.error({
+                key: 'invalid-graph',
+                message: 'Invalid Graph',
+                description: <SerializationErrorMessages errors={errors}/>,
+                duration: 3,
+            })
+            return;
+        }
         API.runAll(graph, resources);
         runStateShouldChange();
-    }, [API, nodes, edges]);
+    }, [API, nodes, edges, notification]);
 
     const pause = useCallback(() => {
         API.pause();
@@ -379,9 +390,18 @@ function ControlRow() {
     }, [API]);
 
     const clear = useCallback(async () => {
-        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+        if (errors.length > 0) {
+            notification.error({
+                key: 'invalid-graph',
+                message: 'Invalid Graph',
+                description: <SerializationErrorMessages errors={errors}/>,
+                duration: 3,
+            })
+            return;
+        }
         API.clearAll(graph, resources);
-    }, [API, nodes, edges]);
+    }, [API, nodes, edges, notification]);
 
     return (
         <div className="control-row">
