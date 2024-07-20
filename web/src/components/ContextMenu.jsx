@@ -5,6 +5,8 @@ import { keyRecursively, uniqueIdFrom } from '../utils';
 import { Graph } from '../graph';
 import { useRunState } from '../hooks/RunState';
 import { useAPI } from '../hooks/API';
+import { useNotification } from '../hooks/Notification';
+import { SerializationErrorMessages } from './Errors.tsx';
 
 export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
@@ -12,6 +14,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const [runState, runStateShouldChange] = useRunState();
     const API = useAPI();
     const updateNodeInternals = useUpdateNodeInternals();
+    const notification = useNotification();
 
     const NODE_OPTIONS = useMemo(() => [
         {
@@ -21,7 +24,16 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
                 const edges = getEdges();
-                const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                if (errors.length > 0) {
+                    notification.error({
+                        key: 'invalid-graph',
+                        message: 'Invalid Graph',
+                        description: <SerializationErrorMessages errors={errors} />,
+                        duration: 3,
+                    })
+                    return;
+                }
                 API.run(graph, resources, node.id);
                 runStateShouldChange();
             }
@@ -33,7 +45,16 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
                 const edges = getEdges();
-                const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                if (errors.length > 0) {
+                    notification.error({
+                        key: 'invalid-graph',
+                        message: 'Invalid Graph',
+                        description: <SerializationErrorMessages errors={errors} />,
+                        duration: 3,
+                    })
+                    return;
+                }
                 API.step(graph, resources, node.id);
                 runStateShouldChange();
             }
@@ -45,7 +66,16 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
                 const edges = getEdges();
-                const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                if (errors.length > 0) {
+                    notification.error({
+                        key: 'invalid-graph',
+                        message: 'Invalid Graph',
+                        description: <SerializationErrorMessages errors={errors} />,
+                        duration: 3,
+                    })
+                    return;
+                }
                 API.clear(graph, resources, node.id);
             }
         },
@@ -58,7 +88,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                     x: node.position.x + 50,
                     y: node.position.y + 50,
                 };
-    
+
                 addNodes({
                     ...node,
                     selected: false,
@@ -98,7 +128,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
             }
         }
     ], [node, reactFlowInstance, runState, runStateShouldChange, API]);
-    
+
     const GROUP_OPTIONS = useMemo(() => {
         const addExport = (isInput, exp) => {
             const currentExports = isInput ? node.data.exports.inputs : node.data.exports.outputs;
@@ -236,7 +266,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
             }
         }
     ], [node, reactFlowInstance]);
-    
+
     const getOptions = (nodeType) => {
         if (nodeType === 'group') {
             return GROUP_OPTIONS;

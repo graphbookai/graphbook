@@ -8,7 +8,7 @@ import ReactFlow, {
     useNodes,
     useEdges
 } from 'reactflow';
-import { Button, Flex, Typography, notification, theme } from 'antd';
+import { Button, Flex, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph';
 import AddNode from './AddNode';
@@ -23,9 +23,9 @@ import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
-import { useFilename } from '../hooks/Filename.ts';
 import { Monitor } from './Monitor.tsx';
-const { Text } = Typography;
+import { useNotificationInitializer, useNotification } from '../hooks/Notification';
+import { SerializationErrorMessages } from './Errors.tsx';
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
 const onLoadGraph = async (filename, API) => {
@@ -48,8 +48,8 @@ export default function Flow({ filename }) {
     const [paneMenu, setPaneMenu] = useState(null);
     const [runState, _] = useRunState();
     const graphStore = useRef(null);
+    const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
 
-    const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     // Coalesce
     const [isAddNodeActive, setIsAddNodeActive] = useState(false);
     const [eventMousePos, setEventMousePos] = useState({ x: 0, y: 0 });
@@ -367,12 +367,22 @@ function ControlRow() {
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();
+    const notification = useNotification();
 
     const run = useCallback(async () => {
-        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+        if (errors.length > 0) {
+            notification.error({
+                key: 'invalid-graph',
+                message: 'Invalid Graph',
+                description: <SerializationErrorMessages errors={errors}/>,
+                duration: 3,
+            })
+            return;
+        }
         API.runAll(graph, resources);
         runStateShouldChange();
-    }, [API, nodes, edges]);
+    }, [API, nodes, edges, notification]);
 
     const pause = useCallback(() => {
         API.pause();
@@ -380,9 +390,18 @@ function ControlRow() {
     }, [API]);
 
     const clear = useCallback(async () => {
-        const [graph, resources] = await Graph.serializeForAPI(nodes, edges);
+        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+        if (errors.length > 0) {
+            notification.error({
+                key: 'invalid-graph',
+                message: 'Invalid Graph',
+                description: <SerializationErrorMessages errors={errors}/>,
+                duration: 3,
+            })
+            return;
+        }
         API.clearAll(graph, resources);
-    }, [API, nodes, edges]);
+    }, [API, nodes, edges, notification]);
 
     return (
         <div className="control-row">

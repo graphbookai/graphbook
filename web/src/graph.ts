@@ -3,6 +3,95 @@ import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
 
+export const SERIALIZATION_ERROR = {
+    INPUT_RESOLVE: 'Failed to resolve step input',
+    PARAM_RESOLVE: 'Failed to resolve a parameter',
+};
+
+export type SerializationError = {
+    type: string,
+    node: string,
+    pin?: string,
+};
+
+type InputRef = {
+    node: string,
+    slot: string,
+    isInner?: boolean,
+};
+
+type ParamRef = InputRef | number | string;
+
+type SerializedStep = {
+    name: string,
+    inputs: InputRef[],
+    parameters: { [key: string]: ParamRef },
+};
+
+type SerializedStepMap = {
+    [id: string]: SerializedStep
+};
+
+type SerializedResource = {
+    name: string,
+    parameters: { [key: string]: ParamRef },
+};
+
+type SerializedResourceMap = {
+    [id: string]: SerializedResource
+};
+
+export const checkForSerializationErrors = (G, resources): SerializationError[] => {
+    const errors: SerializationError[] = [];
+    Object.entries<SerializedStep>(G).forEach(([id, node]) => {
+        node.inputs.forEach(input => {
+            if (!G[input.node]) {
+                errors.push({
+                    type: SERIALIZATION_ERROR.INPUT_RESOLVE,
+                    node: id,
+                });
+            }
+        });
+        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
+            if (!param) {
+                errors.push({
+                    type: SERIALIZATION_ERROR.PARAM_RESOLVE,
+                    node: id,
+                    pin: key,
+                })
+                return;
+            }
+            if (!(typeof param === 'string' || typeof param === 'number')) {
+                if (!resources[param.node]) {
+                    errors.push({
+                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
+                        node: id,
+                        pin: key,
+                    });
+                }
+            }
+        });
+    });
+    Object.entries<SerializedResource>(resources).forEach(([id, node]) => {
+        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
+            if (!(typeof param === 'string' || typeof param === 'number')) {
+                if (!resources[param.node]) {
+                    errors.push({
+                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
+                        node: id,
+                        pin: key,
+                    });
+                }
+            }
+        });
+    });
+
+    if (errors.length > 0) {
+        console.log(errors);
+    }
+    return errors;
+};
+
 export const Graph = {
     addNode(node, nodes) {
         const nextId = uniqueIdFrom(nodes);
@@ -33,8 +122,7 @@ export const Graph = {
         };
         return nodes;
     },
-    serializeForAPI: async (nodes, edges) => {
-        type InputRef = { node: string, slot: string, isInner?: boolean };
+    serializeForAPI: async (nodes, edges): Promise<[[SerializedStepMap, SerializedResourceMap], SerializationError[]]> => {
         const serialize = async (nodes, edges, parentId = "") => {
             const id = (id) => parentId + id;
             const G: { [id: string]: any } = {};
@@ -269,11 +357,13 @@ export const Graph = {
             if (node.type !== 'step') {
                 delete G[id];
             }
+            delete node.type;
         });
 
         console.log(G);
         console.log(resources);
-        return [G, resources];
+        const errors = checkForSerializationErrors(G, resources);
+        return [[G, resources], errors];
     },
     serialize(nodes, edges) {
         return JSON.stringify({ nodes, edges });
@@ -352,29 +442,60 @@ export const Graph = {
         return [await parseNodes(nodes), edges]
     },
     wouldBeCyclic(nodes, edges, connectingEdge) {
-        if (connectingEdge.sourceHandle.endsWith('_inner') || connectingEdge.targetHandle.endsWith('_inner')) {
-            return false;
-        }
         const adjList = {};
         const isGroup = {};
         for (const node of nodes) {
-            adjList[node.id] = [];
-            isGroup[node.id] = node.type === 'group';
+            if (node.type === 'group') {
+                adjList[`${node.id}-i`] = [];
+                adjList[`${node.id}-o`] = [];
+                isGroup[node.id] = true;
+            } else {
+                adjList[node.id] = [];
+            }
         }
         for (const edge of edges) {
-            if (isGroup[edge.source] && edge.sourceHandle.endsWith('_inner')) {
-                continue;
+            let s = edge.source;
+            let t = edge.target;
+            if (isGroup[s]) {
+                if (edge.sourceHandle.endsWith('_inner')) {
+                    s = `${edge.source}-i`;
+                } else {
+                    s = `${edge.source}-o`;
+                }
             }
-            if (isGroup[edge.target] && edge.targetHandle.endsWith('_inner')) {
-                continue;
+            if (isGroup[t]) {
+                if (edge.targetHandle.endsWith('_inner')) {
+                    t = `${edge.target}-o`;
+                } else {
+                    t = `${edge.target}-i`;
+                }
             }
-            if (!adjList[edge.source].includes(edge.target)) {
-                adjList[edge.source].push(edge.target);
+            adjList[s].push(t);
+        }
+
+        let s = connectingEdge.source;
+        let t = connectingEdge.target;
+        if (isGroup[connectingEdge.source]) {
+            if (connectingEdge.sourceHandle.endsWith('_inner')) {
+                s = `${connectingEdge.source}-i`;
+            } else {
+                s = `${connectingEdge.source}-o`;
             }
         }
-        adjList[connectingEdge.source].push(connectingEdge.target);
+        if (isGroup[connectingEdge.target]) {
+            if (connectingEdge.targetHandle.endsWith('_inner')) {
+                t = `${connectingEdge.target}-o`;
+            } else {
+                t = `${connectingEdge.target}-i`;
+            }
+        }
+
+        console.log(adjList);
+        console.log(s, t);
+
+        adjList[s].push(t);
         const q: string[] = [];
-        const origin = connectingEdge.target;
+        const origin = t;
         q.push(origin);
         while (q.length > 0) {
             const [nodeId] = q.splice(0, 1);
