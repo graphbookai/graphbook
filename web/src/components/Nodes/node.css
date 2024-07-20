@@ -154,6 +154,7 @@ textarea.code {
 .workflow-node .handles .outputs {
     display: flex;
     flex-direction: column;
+    align-items: flex-end;
 }
 
 .workflow-node .handles .outputs .output {
