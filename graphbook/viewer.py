@@ -8,7 +8,8 @@ import time
 import multiprocessing as mp
 import queue
 import copy
-from graphbook.utils import MP_WORKER_TIMEOUT
+import psutil
+from graphbook.utils import MP_WORKER_TIMEOUT, get_gpu_util
 
 
 class Viewer:
@@ -37,35 +38,16 @@ and provides a way to access them by node_id and index, so that the data can be 
 the web interface. We will only store a fixed amount of records at a time by implementing a
 sliding window using a double-ended queue per step node.
 """
-
-
 class DataViewer(Viewer):
     def __init__(self, deque_max_size=5):
         super().__init__("view")
         self.deque_max_size = deque_max_size
         self.last_outputs: Dict[str, dict] = {}
 
-    def get_mime_type(self, file):
-        if not osp.exists(file):
-            return None
-        mime = magic.from_file(file, mime=True)
-        if mime is None:
-            return None
-        if mime.split("/")[0] != "image":
-            return None
-        return mime
-
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
         new_entries = {k: v[0].items for k, v in output.items() if len(v) > 0}
-        # for items in new_entries.values():
-        #     for i,item in enumerate(items):
-        #         items[i] = {
-        #             "value": item,
-        #             "type": self.get_mime_type(item)
-        #         }
-
         self.last_outputs[node_id] |= new_entries
 
     def get_next(self):
@@ -75,8 +57,6 @@ class DataViewer(Viewer):
 """
 NodeStatsViewer (for tracking stats of the pipeline, e.g. time taken per step, memory usage, queue sizes.)
 """
-
-
 class NodeStatsViewer(Viewer):
     def __init__(self):
         super().__init__("stats")
@@ -114,7 +94,9 @@ class NodeStatsViewer(Viewer):
             data_obj[node_id]["queue_size"] = self.queue_sizes[node_id]
         return data_obj
 
-
+"""
+Updates client with new set of incoming logs
+"""
 class NodeLogsViewer(Viewer):
     def __init__(self):
         super().__init__("logs")
@@ -135,6 +117,29 @@ class NodeLogsViewer(Viewer):
         self.logs = {}
         return logs
 
+"""
+Tracks system utilization: CPU util, CPU memory, GPU util, GPU memory
+"""
+class SystemUtilViewer(Viewer):
+    def __init__(self):
+        super().__init__("system_util")
+
+    def get_cpu_usage(self):
+        return psutil.cpu_percent()
+
+    def get_mem_usage(self):
+        return psutil.virtual_memory().percent
+
+    def get_gpu_usage(self):
+        gpus = get_gpu_util()
+        return gpus
+
+    def get_next(self):
+        return {
+            "cpu": self.get_cpu_usage(),
+            "mem": self.get_mem_usage(),
+            "gpu": self.get_gpu_usage(),
+        }
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
@@ -177,10 +182,12 @@ class ViewManager:
         self.data_viewer = DataViewer()
         self.node_stats_viewer = NodeStatsViewer()
         self.logs_viewer = NodeLogsViewer()
+        self.system_util_viewer = SystemUtilViewer()
         self.viewers: List[Viewer] = [
             self.data_viewer,
             self.node_stats_viewer,
             self.logs_viewer,
+            self.system_util_viewer,
         ]
         self.clients: Dict[str, Client] = {}
         self.work_queue = work_queue
@@ -312,6 +319,3 @@ class Logger:
 
     def log_exception(self, e: Exception):
         self.view_manager.handle_log(self.node_id, "[ERR] " + str(e), type="error")
-
-
-# TODO: SystemUtilViewer (for tracking system utilization, e.g. CPU, memory, disk, network usage)
