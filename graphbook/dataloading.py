@@ -65,7 +65,9 @@ def worker_loop(
         dump_ctr = rank
         while not close_event.is_set():
             do_load(load_queue, load_result_queue)
-            did_receive_work = do_dump(dump_queue, dump_result_queue, dump_dir, dump_ctr)
+            did_receive_work = do_dump(
+                dump_queue, dump_result_queue, dump_dir, dump_ctr
+            )
             if did_receive_work:
                 dump_ctr += num_processes
     except KeyboardInterrupt:
@@ -163,20 +165,24 @@ class Dataloader:
                     result, consumer_id = q.get(False)
                     consumers[consumer_id].put(result, block=False)
                     self.total_consumer_size += 1
+                    
+    def get_all_sizes(self):
+        return {
+            "load": [q.qsize() for q in self._load_queues],
+            "dump": [q.qsize() for q in self._dump_queues],
+            "load_result": [q.qsize() for q in self._load_result_queues],
+            "dump_result": [q.qsize() for q in self._dump_result_queues],
+            "total_consumer_size": self.total_consumer_size,
+        }
 
     def put_load(
         self, items: list, record_id: int, load_fn: callable, consumer_id: int
-    ) -> bool:
-        try:
-            for i, item in enumerate(items):
-                self._load_queues[self._worker_queue_cycle].put(
-                    (item, i, record_id, load_fn, consumer_id), block=False
-                )
-        except queue.Full:
-            return False
-        finally:
+    ):
+        for i, item in enumerate(items):
+            self._load_queues[self._worker_queue_cycle].put(
+                (item, i, record_id, load_fn, consumer_id), block=False
+            )
             self._worker_queue_cycle = (self._worker_queue_cycle + 1) % self.num_workers
-        return True
 
     def get_load(self, consumer_id):
         self._handle_queues()

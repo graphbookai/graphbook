@@ -1,11 +1,18 @@
+from __future__ import annotations
+from enum import Enum
 from typing import Iterable
 import importlib
 import shutil
 import subprocess
 import os
 import platform
+import multiprocessing.connection as mpc
+
 
 MP_WORKER_TIMEOUT = 5.0
+ProcessorStateRequest = Enum(
+    "ProcessorStateRequest", ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES"]
+)
 
 def is_batchable(obj: any) -> bool:
     return isinstance(obj, Iterable)
@@ -32,6 +39,17 @@ def transform_function_string(func_str):
 
     # Return the function from the module
     return getattr(module, func_name)
+
+def poll_conn_for(conn: mpc.Connection, req: ProcessorStateRequest, body: dict = None) -> dict:
+    req_data = {"cmd": req}
+    if body:
+        req_data.update(body)
+    conn.send(req_data)
+    if conn.poll(timeout=MP_WORKER_TIMEOUT):
+        res = conn.recv()
+        if res.get("res") == req:
+            return res.get("data")
+    return None
 
 def get_gpu_util():
     def safe_float_cast(strNumber):

@@ -5,7 +5,7 @@ from typing import List
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
-from graphbook.utils import MP_WORKER_TIMEOUT
+from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
 from graphbook.state import GraphState, StepState
 from graphbook.viewer import ViewManagerInterface
 import traceback
@@ -29,14 +29,15 @@ class WebInstanceProcessor:
         self.close_event = close_event
         self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
-        self.graph_state = GraphState(
-            custom_nodes_path, view_manager_queue, server_request_conn, close_event
-        )
+        self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.output_dir = output_dir
         self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
         self.steps = {}
         self.dataloader = Dataloader(self.output_dir, self.num_workers)
+        self.state_client = ProcessorStateClient(
+            server_request_conn, close_event, self.graph_state, self.dataloader
+        )
         self.is_running = False
 
     def exec_step(self, step: Step, input: Note = None, flush: bool = False):
@@ -149,17 +150,19 @@ class WebInstanceProcessor:
     def __str__(self):
         return self.root.__str__()
 
-    def try_update_state(self, queue_entry: dict):
+    def try_update_state(self, queue_entry: dict) -> bool:
         try:
             self.graph_state.update_state(
                 queue_entry["graph"], queue_entry["resources"]
             )
+            return True
         except Exception as e:
             traceback.print_exc()
+            return False
 
     async def start_loop(self):
         loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, self.graph_state.start_client_loop)
+        loop.run_in_executor(None, self.state_client.start)
         while not self.close_event.is_set():
             if self.is_running:
                 self.is_running = False
@@ -167,19 +170,74 @@ class WebInstanceProcessor:
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
-                    self.try_update_state(work)
-                    self.run()
+                    if self.try_update_state(work):
+                        self.run()
                 elif work["cmd"] == "run":
-                    self.try_update_state(work)
-                    self.run(work["step_id"])
+                    if self.try_update_state(work):
+                        self.run(work["step_id"])
                 elif work["cmd"] == "step":
-                    self.try_update_state(work)
-                    self.step(work["step_id"])
+                    if self.try_update_state(work):
+                        self.step(work["step_id"])
                 elif work["cmd"] == "clear":
-                    self.try_update_state(work)
-                    self.graph_state.clear_outputs(work.get("step_id"))
+                    if self.try_update_state(work):
+                        self.graph_state.clear_outputs(work.get("step_id"))
             except KeyboardInterrupt:
                 self.cleanup()
                 break
             except queue.Empty:
                 pass
+
+
+class ProcessorStateClient:
+    def __init__(
+        self,
+        server_request_conn: mpc.Connection,
+        close_event: mp.Event,
+        graph_state: GraphState,
+        dataloader: Dataloader,
+    ):
+        self.server_request_conn = server_request_conn
+        self.close_event = close_event
+        self.curr_task = None
+        self.graph_state = graph_state
+        self.dataloader = dataloader
+
+    def _loop(self):
+        while not self.close_event.is_set():
+            if self.server_request_conn.poll(timeout=MP_WORKER_TIMEOUT):
+                req = self.server_request_conn.recv()
+                if req["cmd"] == ProcessorStateRequest.GET_OUTPUT_NOTE:
+                    step_id = req.get("step_id")
+                    pin_id = req.get("pin_id")
+                    index = req.get("index")
+                    if step_id is None or pin_id is None or index is None:
+                        output = {}
+                    else:
+                        output = self.graph_state.get_output_note(step_id, pin_id, index)
+                elif req["cmd"] == ProcessorStateRequest.GET_WORKER_QUEUE_SIZES:
+                    output = self.dataloader.get_all_sizes()
+                else:
+                    output = {}
+                entry = {"res": req["cmd"], "data": output}
+                self.server_request_conn.send(entry)
+
+    def start(self):
+        self._loop()
+
+    def close(self):
+        if self.curr_task is not None:
+            self.curr_task.cancel()
+
+
+def poll_conn_for(
+    conn: mpc.Connection, req: ProcessorStateRequest, body: dict = None
+) -> dict:
+    req_data = {"cmd": req}
+    if body:
+        req_data.update(body)
+    conn.send(req_data)
+    if conn.poll(timeout=MP_WORKER_TIMEOUT):
+        res = conn.recv()
+        if res.get("res") == req:
+            return res.get("data")
+    return {}

@@ -1,15 +1,15 @@
 from typing import Dict, List
-import magic
 import os.path as osp
 from aiohttp.web import WebSocketResponse
 import uuid
 import asyncio
 import time
 import multiprocessing as mp
+import multiprocessing.connection as mpc
 import queue
 import copy
 import psutil
-from graphbook.utils import MP_WORKER_TIMEOUT, get_gpu_util
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for
 
 
 class Viewer:
@@ -143,8 +143,9 @@ Tracks system utilization: CPU util, CPU memory, GPU util, GPU memory
 
 
 class SystemUtilViewer(Viewer):
-    def __init__(self):
+    def __init__(self, processor_state_conn: mpc.Connection):
         super().__init__("system_util")
+        self.processor_state_conn = processor_state_conn
 
     def get_cpu_usage(self):
         return psutil.cpu_percent()
@@ -157,10 +158,14 @@ class SystemUtilViewer(Viewer):
         return gpus
 
     def get_next(self):
+        sizes = poll_conn_for(
+            self.processor_state_conn, ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
+        )
         return {
             "cpu": self.get_cpu_usage(),
             "mem": self.get_mem_usage(),
             "gpu": self.get_gpu_usage(),
+            "worker_queue_sizes": sizes,
         }
 
 
@@ -201,11 +206,16 @@ class Client:
 
 
 class ViewManager:
-    def __init__(self, work_queue: mp.Queue, close_event: mp.Event):
+    def __init__(
+        self,
+        work_queue: mp.Queue,
+        close_event: mp.Event,
+        processor_state_conn: mpc.Connection,
+    ):
         self.data_viewer = DataViewer()
         self.node_stats_viewer = NodeStatsViewer()
         self.logs_viewer = NodeLogsViewer()
-        self.system_util_viewer = SystemUtilViewer()
+        self.system_util_viewer = SystemUtilViewer(processor_state_conn)
         self.viewers: List[Viewer] = [
             self.data_viewer,
             self.node_stats_viewer,

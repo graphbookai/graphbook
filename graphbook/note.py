@@ -2,7 +2,7 @@ import json
 
 class Note:
     """
-    The unit that passes through workflow steps. A Note contains a dictionary of items related to the record.
+    The unit that passes through workflow steps. A Note contains a dictionary of items related to the note.
 
     Args:
         items (Dict[str, any]): An optional dictionary of items to store in the Note

@@ -5,7 +5,7 @@ from aiohttp import web
 
 default_exported_steps = {
     "Split": steps.Split,
-    "SplitRecordsByItems": steps.SplitNotesByItems,
+    "SplitNotesByItems": steps.SplitNotesByItems,
     "SplitItemField": steps.SplitItemField,
     "DumpJSONL": steps.DumpJSONL,
     "LoadJSONL": steps.LoadJSONL,

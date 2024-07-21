@@ -6,8 +6,8 @@ import { LinkOutlined, DisconnectOutlined, SettingFilled } from '@ant-design/ico
 import Settings from './Settings';
 import { useSettings } from '../hooks/Settings';
 import { useAPI, useAPIMessage } from '../hooks/API';
-import { SparklineChart, LinearYAxis, LinearYAxisTickSeries, LineSeries, TooltipArea, ChartTooltip } from 'reaviz';
-import type { ChartShallowDataShape } from 'reaviz';
+import { SparklineChart, LinearYAxis, LinearYAxisTickSeries, LinearXAxis, LinearXAxisTickSeries, LineSeries, TooltipArea, ChartTooltip, StackedBarChart, StackedBarSeries, Bar } from 'reaviz';
+import type { ChartShallowDataShape, ChartNestedDataShape } from 'reaviz';
 import './top-panel.css';
 
 const { Text } = Typography;
@@ -71,6 +71,7 @@ export default function TopPanel() {
                 <h2 className="title">{title}</h2>
                 <div style={iconStyle}>
                     <Space>
+                        <WorkerChart />
                         <SparkChart dataLabel="cpu" />
                         <SparkChart dataLabel="mem" />
                         <GPUSparkCharts />
@@ -99,7 +100,6 @@ type GPUData = {
     mem: number;
 };
 function GPUSparkCharts() {
-
     const [util, setUtil] = useState<{ [id: string]: ChartShallowDataShape[] }>({});
     const [mem, setMem] = useState<{ [id: string]: ChartShallowDataShape[] }>({});
     const { token } = theme.useToken();
@@ -237,6 +237,90 @@ function SparkChart({ dataLabel }: SparkChartProps) {
                     data={data}
                     width={40}
                     height={30}
+                />
+            </div>
+        </Space>
+    );
+}
+
+function WorkerChart() {
+    const [data, setData] = useState<ChartNestedDataShape[]>([]);
+    const { token } = theme.useToken();
+
+    const updateData = useCallback(data => {
+        setData(prev => {
+            const queueSizes = data.worker_queue_sizes;
+            if (queueSizes) {
+                const enqueuedSize =
+                    queueSizes.dump.reduce((acc, val) => acc + val, 0) +
+                    queueSizes.load.reduce((acc, val) => acc + val, 0);
+                const outgoingSize = 
+                    queueSizes.load_result.reduce((acc, val) => acc + val, 0) +
+                    queueSizes.dump_result.reduce((acc, val) => acc + val, 0) +
+                    queueSizes.total_consumer_size;
+                const newData = [
+                    ...prev,
+                    {
+                        data: [{
+                            key: 'enqueued',
+                            data: -enqueuedSize
+                        }, {
+                            key: 'outgoing',
+                            data: outgoingSize
+                        }],
+                        key: new Date()
+                    }
+                ];
+                if (newData.length > SPARK_SIZE_LIMIT) {
+                    newData.shift();
+                }
+                return newData;  
+            }
+            return prev;
+
+        });
+    }, []);
+
+    useAPIMessage('system_util', updateData);
+
+    const Series = useMemo(() => {
+        return (
+            <StackedBarSeries
+                type="stackedDiverging"
+                animated={false}
+                tooltip={null}
+                bar={<Bar gradient={null} />}
+                colorScheme={['#E84045', '#32E845']}
+                padding={0}
+            />
+        );
+    }, []);
+
+    const XAxis = useMemo(() => {
+        return (
+            <LinearXAxis type="category" position="center" tickSeries={<LinearXAxisTickSeries line={null} label={null} />} /> 
+        );
+    }, []);
+
+    const YAxis = useMemo(() => {
+        return (
+            <LinearYAxis type="value" axisLine={null} tickSeries={<LinearYAxisTickSeries line={null} label={null} />} />
+        )
+    }, []);
+
+    return (
+        <Space style={{ display: 'inline-flex' }} align="center">
+            <Text>WORKERS</Text>
+            <div style={{ border: `1px solid ${token.colorBorder}` }}>
+                <StackedBarChart
+                    series={Series}
+                    gridlines={null}
+                    xAxis={XAxis}
+                    yAxis={YAxis}
+                    data={data}
+                    width={40}
+                    height={30}
+                    margins={0}
                 />
             </div>
         </Space>
