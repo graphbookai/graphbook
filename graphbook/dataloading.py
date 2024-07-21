@@ -126,7 +126,7 @@ class Dataloader:
                 self.consumer_dump_queues[c] = queue.Queue()
         unused_ids = set(self.consumer_load_queues.keys()) - set(consumer_ids)
         for c in unused_ids:
-            self.total_consumer_size -= self.consumer_dump_queues[c].qsize()
+            self.total_consumer_size -= self.consumer_load_queues[c].qsize()
             del self.consumer_load_queues[c]
         unused_ids = set(self.consumer_dump_queues.keys()) - set(consumer_ids)
         for c in unused_ids:
