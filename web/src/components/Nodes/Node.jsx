@@ -31,10 +31,9 @@ export function WorkflowStep({ id, data, selected }) {
     const { token } = useToken();
     const { getNode } = useReactFlow();
     const notification = useNotification();
-
     const API = useAPI();
-
     const filename = useFilename();
+
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
     });
