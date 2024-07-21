@@ -272,12 +272,17 @@ function StatsView({ data }) {
             </Space>
         )
     }, []);
+    console.log(data);
     return (
         data &&
         <Space align="start" direction="vertical">
             {
                 data.record_rate &&
                 <Statistic title="Output Rate" value={Math.round(data.record_rate)} suffix="notes/s" />
+            }
+            {
+                data.execution !== undefined &&
+                <Statistic title="Execution Percentage" value={Math.round(data.execution * 100)} suffix="%" />
             }
             {
                 Object.keys(data.queue_size).length > 0 ?

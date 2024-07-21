@@ -109,7 +109,6 @@ function GPUSparkCharts() {
         setUtil(prev => {
             const newUtil = { ...prev };
             gpuUsage.forEach(usage => {
-                console.log("util", usage.util);
                 newUtil[usage.id] = [...(newUtil[usage.id] || []), { key: dateNow, data: usage.util }];
                 if (newUtil[usage.id].length > SPARK_SIZE_LIMIT) {
                     newUtil[usage.id].shift();
@@ -121,7 +120,6 @@ function GPUSparkCharts() {
         setMem(prev => {
             const newMem = { ...prev };
             gpuUsage.forEach(usage => {
-                console.log("mem", usage.mem);
                 newMem[usage.id] = [...(newMem[usage.id] || []), { key: dateNow, data: Math.round(usage.mem) }];
                 if (newMem[usage.id].length > SPARK_SIZE_LIMIT) {
                     newMem[usage.id].shift();

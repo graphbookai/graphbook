@@ -83,7 +83,7 @@ export function WorkflowStep({ id, data, selected }) {
             notification.error({
                 key: 'invalid-graph',
                 message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors}/>,
+                description: <SerializationErrorMessages errors={errors} />,
                 duration: 3,
             })
             return;
@@ -138,7 +138,7 @@ export function WorkflowStep({ id, data, selected }) {
                             outputs.map((output, i) => {
                                 return (
                                     <div key={i} className="output">
-                                        <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={recordCount[output] || 0} overflowCount={Infinity} />
+                                        <Badge size="small" styles={{ indicator: badgeIndicatorStyle }} count={recordCount[output] || 0} overflowCount={Infinity} />
                                         <span className="label">{output}</span>
                                         <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={output} />
                                     </div>
@@ -192,12 +192,12 @@ function Monitor({ quickViewData, logsData }) {
                     logsData.length == 0 ?
                         <p className='content'>(No logs yet) </p> :
                         (
-                            <div style={{maxHeight: '200px', overflow: 'auto'}}>
+                            <div style={{ maxHeight: '200px', overflow: 'auto' }}>
                                 {
                                     logsData.map((log, i) => {
                                         const { msg } = log;
                                         return (
-                                            <p style={{fontFamily: 'monospace'}} key={i}>
+                                            <p style={{ fontFamily: 'monospace' }} key={i}>
                                                 {msg}
                                             </p>
                                         );

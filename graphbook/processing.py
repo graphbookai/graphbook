@@ -10,6 +10,7 @@ from graphbook.state import GraphState, StepState
 from graphbook.viewer import ViewManagerInterface
 import traceback
 import asyncio
+import time
 
 
 class WebInstanceProcessor:
@@ -28,7 +29,9 @@ class WebInstanceProcessor:
         self.close_event = close_event
         self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
-        self.graph_state = GraphState(custom_nodes_path, view_manager_queue, server_request_conn, close_event)
+        self.graph_state = GraphState(
+            custom_nodes_path, view_manager_queue, server_request_conn, close_event
+        )
         self.output_dir = output_dir
         self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
@@ -39,6 +42,7 @@ class WebInstanceProcessor:
     def exec_step(self, step: Step, input: Note = None, flush: bool = False):
         outputs = {}
         step_fn = step if not flush else step.all
+        start_time = time.time()
         try:
             if input is None:
                 outputs = step_fn()
@@ -55,6 +59,8 @@ class WebInstanceProcessor:
         if outputs:
             self.graph_state.handle_outputs(step.id, outputs)
             self.view_manager.handle_outputs(step.id, outputs)
+        self.view_manager.handle_time(step.id, time.time() - start_time)
+
         return outputs
 
     def handle_steps(self, steps: List[Step]) -> bool:
@@ -93,7 +99,9 @@ class WebInstanceProcessor:
         step_executed = False
         while is_active and not step_executed and not self.pause_event.is_set():
             is_active = self.handle_steps(steps)
-            step_executed = self.graph_state.get_state(step_id, StepState.EXECUTED_THIS_RUN)
+            step_executed = self.graph_state.get_state(
+                step_id, StepState.EXECUTED_THIS_RUN
+            )
 
     def run(self, step_id: str = None):
         self.is_running = True
@@ -140,10 +148,12 @@ class WebInstanceProcessor:
 
     def __str__(self):
         return self.root.__str__()
-    
+
     def try_update_state(self, queue_entry: dict):
         try:
-            self.graph_state.update_state(queue_entry["graph"], queue_entry["resources"])
+            self.graph_state.update_state(
+                queue_entry["graph"], queue_entry["resources"]
+            )
         except Exception as e:
             traceback.print_exc()
 

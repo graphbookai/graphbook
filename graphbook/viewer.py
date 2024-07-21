@@ -38,6 +38,8 @@ and provides a way to access them by node_id and index, so that the data can be 
 the web interface. We will only store a fixed amount of records at a time by implementing a
 sliding window using a double-ended queue per step node.
 """
+
+
 class DataViewer(Viewer):
     def __init__(self, deque_max_size=5):
         super().__init__("view")
@@ -57,12 +59,16 @@ class DataViewer(Viewer):
 """
 NodeStatsViewer (for tracking stats of the pipeline, e.g. time taken per step, memory usage, queue sizes.)
 """
+
+
 class NodeStatsViewer(Viewer):
     def __init__(self):
         super().__init__("stats")
         self.queue_sizes: Dict[str, dict] = {}
         self.record_rate: Dict[str, float] = {}
         self.start_times: Dict[str, float] = {}
+        self.execution_times: Dict[str, float] = {}
+        self.total_execution_time: float = 0
 
     def handle_start(self, node_id: str):
         self.start_times[node_id] = time.time()
@@ -72,7 +78,7 @@ class NodeStatsViewer(Viewer):
 
     def handle_queue_size(self, node_id: str, sizes: dict):
         self.queue_sizes[node_id] = sizes
-        
+
     def get_total_queue_size(self, node_id: str):
         return sum(self.queue_sizes[node_id].values())
 
@@ -83,6 +89,10 @@ class NodeStatsViewer(Viewer):
             time.time() - self.start_times[node_id]
         )
 
+    def handle_time(self, node_id: str, time: float):
+        self.total_execution_time += time
+        self.execution_times[node_id] = self.execution_times.get(node_id, 0) + time
+
     def get_next(self):
         data_obj = {}
         for node_id in self.record_rate:
@@ -92,11 +102,20 @@ class NodeStatsViewer(Viewer):
         for node_id in self.queue_sizes:
             data_obj.setdefault(node_id, {})
             data_obj[node_id]["queue_size"] = self.queue_sizes[node_id]
+        for node_id in self.execution_times:
+            data_obj.setdefault(node_id, {})
+            if self.total_execution_time > 0:
+                data_obj[node_id]["execution"] = (
+                    self.execution_times[node_id] / self.total_execution_time
+                )
         return data_obj
+
 
 """
 Updates client with new set of incoming logs
 """
+
+
 class NodeLogsViewer(Viewer):
     def __init__(self):
         super().__init__("logs")
@@ -117,9 +136,12 @@ class NodeLogsViewer(Viewer):
         self.logs = {}
         return logs
 
+
 """
 Tracks system utilization: CPU util, CPU memory, GPU util, GPU memory
 """
+
+
 class SystemUtilViewer(Viewer):
     def __init__(self):
         super().__init__("system_util")
@@ -140,6 +162,7 @@ class SystemUtilViewer(Viewer):
             "mem": self.get_mem_usage(),
             "gpu": self.get_gpu_usage(),
         }
+
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
@@ -219,6 +242,9 @@ class ViewManager:
         for viewer in self.viewers:
             viewer.handle_outputs(node_id, outputs)
 
+    def handle_time(self, node_id: str, time: float):
+        self.node_stats_viewer.handle_time(node_id, time)
+
     def handle_queue_size(self, node_id: str, size: int):
         self.node_stats_viewer.handle_queue_size(node_id, size)
 
@@ -254,6 +280,8 @@ class ViewManager:
                     self.handle_outputs(work["node_id"], work["outputs"])
                 elif work["cmd"] == "handle_queue_size":
                     self.handle_queue_size(work["node_id"], work["size"])
+                elif work["cmd"] == "handle_time":
+                    self.handle_time(work["node_id"], work["time"])
                 elif work["cmd"] == "handle_start":
                     self.handle_start(work["node_id"])
                 elif work["cmd"] == "handle_end":
@@ -288,6 +316,11 @@ class ViewManagerInterface:
             return
         self.view_manager_queue.put(
             {"cmd": "handle_outputs", "node_id": node_id, "outputs": outputs}
+        )
+
+    def handle_time(self, node_id: str, time: float):
+        self.view_manager_queue.put(
+            {"cmd": "handle_time", "node_id": node_id, "time": time}
         )
 
     def handle_queue_size(self, node_id: str, size: dict):
