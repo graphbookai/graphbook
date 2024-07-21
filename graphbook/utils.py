@@ -70,7 +70,7 @@ def get_gpu_util():
             # elif (i == 1):
             #     uuid = vals[i]
             elif (i == 2):
-                gpu_util = safe_float_cast(vals[i])/100
+                gpu_util = safe_float_cast(vals[i])
             elif (i == 3):
                 mem_total = safe_float_cast(vals[i])
             elif (i == 4):
@@ -89,11 +89,11 @@ def get_gpu_util():
             #     display_mode = vals[i]
             # elif (i == 11):
             #     temp_gpu = safe_float_cast(vals[i]);
-        memoryUtil = mem_used / mem_total
+        gpu_mem = (mem_used / mem_total) * 100
         GPUs.append({
             "id": device_id,
             "name": gpu_name,
             "util": gpu_util,
-            "mem": memoryUtil,
+            "mem": gpu_mem,
         })
     return GPUs
