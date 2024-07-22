@@ -5,6 +5,7 @@ import { useAPI } from "../../hooks/API";
 import { keyRecursively } from "../../utils";
 import { filesystemDragBegin } from "../../utils";
 import DefaultWorkflow from "../../DefaultWorkflow.json";
+import type { TreeProps, TreeDataNode } from 'antd';
 const { Text } = Typography;
 const { Search } = Input;
 
@@ -13,17 +14,17 @@ import './filesystem.css';
 const getParentKey = (key: string, tree: any[]): string => {
     let parentKey;
     for (let i = 0; i < tree.length; i++) {
-      const node = tree[i];
-      if (node.children) {
-        if (node.children.some((item) => item.key === key)) {
-          parentKey = node.key;
-        } else if (getParentKey(key, node.children)) {
-          parentKey = getParentKey(key, node.children);
+        const node = tree[i];
+        if (node.children) {
+            if (node.children.some((item) => item.key === key)) {
+                parentKey = node.key;
+            } else if (getParentKey(key, node.children)) {
+                parentKey = getParentKey(key, node.children);
+            }
         }
-      }
     }
     return parentKey;
-  };
+};
 
 export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [files, setFiles] = useState<any[]>([]);
@@ -32,7 +33,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [searchValue, setSearchValue] = useState('');
     const [autoExpandParent, setAutoExpandParent] = useState(true);
     const [addingState, setAddingState] = useState({ isAddingItem: false, isAddingFile: true });
-    const [contextMenu, setContextMenu] = useState<{x: number, y: number, filename: string} | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, filename: string } | null>(null);
     const [renamingState, setRenamingState] = useState({ isRenaming: false, filename: '' });
     const API = useAPI();
 
@@ -56,7 +57,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         const splitPath = files.children[0].from_root.split('/');
-        const filesRoot = splitPath[splitPath.length-1];
+        const filesRoot = splitPath[splitPath.length - 1];
         setFiles(files.children);
         setFilesRoot(filesRoot);
     }, [API]);
@@ -100,8 +101,8 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         if (filename.slice(-3) == '.py') {
-            onBeginEdit({name: filename});
-        } else if(filename.slice(-5) == '.json') {
+            onBeginEdit({ name: filename });
+        } else if (filename.slice(-5) == '.json') {
             setWorkflow(filename);
             onBeginEdit(null);
         } else {
@@ -120,6 +121,13 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         }
         setRenamingState({ isRenaming: false, filename: '' });
     }, [API, renamingState]);
+
+    const onItemDelete = useCallback(async (filename) => {
+        if (API) {
+            await API.rmFile(filename);
+            getFiles();
+        }
+    }, [API]);
 
     const onAddItem = useCallback(async (e, isFile) => {
         const { value } = e.target;
@@ -142,7 +150,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     }, [API]);
 
     const treeData = useMemo(() => {
-        const loop = (data, parentName="") => (
+        const loop = (data, parentName = "") => (
             data.map((item) => {
                 const strTitle = item.title;
                 const filename = parentName + strTitle;
@@ -153,10 +161,10 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                     index > -1 ? (
                         <span>
                             {beforeStr}
-                            <span style={{color: 'orange'}}>{searchValue}</span>
+                            <span style={{ color: 'orange' }}>{searchValue}</span>
                             {afterStr}
                         </span>
-                
+
                     ) : (
                         <span>
                             {strTitle}
@@ -205,7 +213,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         const { isAddingItem, isAddingFile } = addingState;
         const callback = (e) => onAddItem(e, isAddingFile);
         const pendingItem = {
-            title: <span><Input className="add-fs-item-input" autoFocus={true} onBlur={callback} onPressEnter={callback}/></span>,
+            title: <span><Input className="add-fs-item-input" autoFocus={true} onBlur={callback} onPressEnter={callback} /></span>,
             isLeaf: isAddingFile,
             selectable: false,
             disabled: true
@@ -228,31 +236,81 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     }, []);
 
     const onContextMenuClick = useCallback(({ key }) => {
-        if (contextMenu && API) {
+        if (contextMenu) {
             if (key === 'rename') {
                 setRenamingState({ isRenaming: true, filename: contextMenu.filename });
             } else if (key === 'delete') {
-                API.rmFile(contextMenu.filename);
-                getFiles();
+                onItemDelete(contextMenu.filename);
             }
-            console.log(key);
-            console.log(contextMenu);
-        } else {
-            console.error('Context menu is not available');
         }
 
         setContextMenu(null);
-    }, [contextMenu, API]);
+    }, [contextMenu]);
+
+    const onDrop: TreeProps['onDrop'] = useCallback((info) => {
+        console.log(info);
+        const dropKey = info.node.key;
+        const dragKey = info.dragNode.key;
+        const dropPos = info.node.pos.split('-');
+        const dropPosition = info.dropPosition - Number(dropPos[dropPos.length - 1]); // the drop position relative to the drop node, inside 0, top -1, bottom 1
+
+        const loop = (
+            data: TreeDataNode[],
+            key: React.Key,
+            callback: (node: TreeDataNode, i: number, data: TreeDataNode[]) => void,
+        ) => {
+            for (let i = 0; i < data.length; i++) {
+                if (data[i].key === key) {
+                    return callback(data[i], i, data);
+                }
+                if (data[i].children) {
+                    loop(data[i].children!, key, callback);
+                }
+            }
+        };
+        const data = [...files];
+
+        // Find dragObject
+        let dragObj: TreeDataNode;
+        loop(data, dragKey, (item, index, arr) => {
+            arr.splice(index, 1);
+            dragObj = item;
+        });
+
+        if (!info.dropToGap) {
+            // Drop on the content
+            loop(data, dropKey, (item) => {
+                item.children = item.children || [];
+                // where to insert. New item was inserted to the start of the array in this example, but can be anywhere
+                item.children.unshift(dragObj);
+            });
+        } else {
+            let ar: TreeDataNode[] = [];
+            let i: number;
+            loop(data, dropKey, (_item, index, arr) => {
+                ar = arr;
+                i = index;
+            });
+            if (dropPosition === -1) {
+                // Drop on the top of the drop node
+                ar.splice(i!, 0, dragObj!);
+            } else {
+                // Drop on the bottom of the drop node
+                ar.splice(i! + 1, 0, dragObj!);
+            }
+        }
+        setFiles(files);
+    }, [files]);
 
     return (
         <div className="filesystem">
             <Search style={{ marginBottom: 8 }} placeholder="Search" onChange={onSearchChange} />
             <Flex justify="space-between">
                 <Text>{filesRoot}/</Text>
-                <div style={{display: 'flex', flexDirection: 'row'}}>
-                    <Button className="fs-icon" icon={<FileAddOutlined />} onClick={()=>setAddingState({ isAddingItem: true, isAddingFile: true })}/>
-                    <Button className="fs-icon" icon={<FolderAddOutlined style={{fontSize: '17px'}}/>} onClick={()=>setAddingState({ isAddingItem: true, isAddingFile: false })}/>
-                    <Button className="fs-icon" icon={<UndoOutlined style={{fontSize: '15px'}}/>} onClick={getFiles}/>
+                <div style={{ display: 'flex', flexDirection: 'row' }}>
+                    <Button className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
+                    <Button className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />
+                    <Button className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
                 </div>
             </Flex>
             <Tree.DirectoryTree
@@ -260,16 +318,17 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 expandedKeys={expandedKeys}
                 autoExpandParent={autoExpandParent}
                 treeData={treeData}
-                blockNode
                 onSelect={onFileItemClick}
                 onRightClick={onFileItemRightClick}
+                blockNode
+                draggable
             />
             {contextMenu && (
                 <Menu
                     style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
                     onClick={onContextMenuClick}
                     items={contextMenuItems}
-                    />
+                />
             )}
         </div>
     );
@@ -290,7 +349,7 @@ function DirItem({ title, filename, isRenaming, onRename }) {
     if (isRenaming) {
         return (
             <span className="file-item">
-                <Input autoFocus={true} value={currentFilename} onChange={onChange} onBlur={onDone} onPressEnter={onDone}/>
+                <Input autoFocus={true} value={currentFilename} onChange={onChange} onBlur={onDone} onPressEnter={onDone} />
             </span>
         );
     }
@@ -320,7 +379,7 @@ function FileItem({ title, filename, fullpath, isRenaming, onRename }) {
     if (isRenaming) {
         return (
             <span className="file-item">
-                <Input autoFocus={true} value={currentFilename} onChange={onChange} onBlur={onDone} onPressEnter={onDone}/>
+                <Input autoFocus={true} value={currentFilename} onChange={onChange} onBlur={onDone} onPressEnter={onDone} />
             </span>
         );
     }

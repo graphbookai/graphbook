@@ -287,21 +287,19 @@ class GraphServer:
                 f.write(file_contents)
                 return web.json_response({}, status=201)
 
-        @routes.delete("/fs/{path}")
+        @routes.delete("/fs/{path:.+}")
         def delete(request):
-            path = request.match_info["path"]
-            path_components = path.split("/")
-            if "." in path_components or ".." in path_components:
-                return web.json_response(
-                    {"reason": "Path must be absolute."}, status=400
-                )
+            path = request.match_info.get("path")
+            fullpath = osp.join(root_path, path)
+            assert fullpath.startswith(
+                root_path
+            ), f"{fullpath} must be within {root_path}"
 
-            fullpath = "%s/%s" % (root_path, path)
             if osp.exists(fullpath):
                 if osp.isdir(fullpath):
                     if os.listdir(fullpath) == []:
                         os.rmdir(fullpath)
-                        return web.json_response(status=204)
+                        return web.json_response({}, status=204)
                     else:
                         return web.json_response(
                             {"reason": "/%s: Directory is not empty." % path},
@@ -309,7 +307,7 @@ class GraphServer:
                         )
                 else:
                     os.remove(fullpath)
-                    return web.json_response(status=204)
+                    return web.json_response({}, status=204)
             else:
                 return web.json_response(
                     {"reason": "/%s: No such file or directory." % path}, status=404
