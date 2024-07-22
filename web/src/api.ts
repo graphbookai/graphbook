@@ -141,6 +141,22 @@ export class ServerAPI {
         }
     }
 
+    private async delete(path): Promise<any> {
+        try {
+            const response = await fetch(`http://${this.host}/${path}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (response.ok) {
+                return await response.json();
+            }
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    }
 
     public addWsEventListener(eventType: string, callback: EventListenerOrEventListenerObject) {
         this.listeners.add([eventType, callback]);
@@ -207,16 +223,24 @@ export class ServerAPI {
         return workflowFiles;
     }
 
-    public async putFile(filepath, isFile, content = null, hash_key = null) {
+    public async putFile(filepath: string, isFile: boolean, content: string = '', hash_key: string = '') {
         return await this.put(`fs/${filepath}`, {
             is_file: isFile,
-            file_contents: content ?? '',
-            hash_key: hash_key ?? ''
+            file_contents: content,
+            hash_key: hash_key
         });
+    }
+
+    public async mvFile(oldPath, newPath) {
+        return await this.put(`fs/${oldPath}?mv=${newPath}`, {});
     }
 
     public async getFile(filepath) {
         return await this.get(`fs/${filepath}`);
+    }
+
+    public async rmFile(filepath) {
+        return await this.delete(`fs/${filepath}`);
     }
 
     public async getSubflowFromFile(filepath) {

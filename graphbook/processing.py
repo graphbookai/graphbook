@@ -40,7 +40,7 @@ class WebInstanceProcessor:
         )
         self.is_running = False
 
-    def exec_step(self, step: Step, input: Note = None, flush: bool = False):
+    def exec_step(self, step: Step, input: Note | None = None, flush: bool = False):
         outputs = {}
         step_fn = step if not flush else step.all
         start_time = time.time()
@@ -181,6 +181,8 @@ class WebInstanceProcessor:
                 elif work["cmd"] == "clear":
                     if self.try_update_state(work):
                         self.graph_state.clear_outputs(work.get("step_id"))
+                        self.view_manager.handle_clear(work.get("step_id"))
+                        self.dataloader.clear()
             except KeyboardInterrupt:
                 self.cleanup()
                 break

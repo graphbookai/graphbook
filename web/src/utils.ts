@@ -1,4 +1,4 @@
-import { Graph } from "./graph";
+import { Graph, resolveSubflowOutputs } from "./graph";
 import type { ServerAPI } from "./api";
 import type { ReactFlowInstance } from "reactflow";
 import type { Node } from "reactflow";
@@ -60,6 +60,10 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
             return;
         }
 
+        const { setNodes, getNodes } = reactFlowInstance;
+        const dropPosition = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        const nodes = getNodes();
+        const id = uniqueIdFrom(nodes);
         let nodeData: any = {
             name: 'Text',
             parameters: { val: { type: "string", value: data.value } }
@@ -72,24 +76,30 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
                 if (jsonData?.type === 'workflow') {
                     type = 'subflow';
                     const name = data.value.split('/').pop().slice(0, -5);
+                    const stepOutputs = {};
+                    let currentStepOutputId = 0;
+                    for (const n of jsonData.nodes) {
+                        if (n.type === 'export' && n.data.exportType === 'output' && !n.data.isResource) {
+                            stepOutputs[currentStepOutputId++] = resolveSubflowOutputs(n, jsonData.nodes, jsonData.edges, id);
+                        }
+                    }
                     nodeData = {
                         name,
                         label: name,
                         filename: data.value,
                         properties: {
                             nodes: jsonData.nodes,
-                            edges: jsonData.edges
+                            edges: jsonData.edges,
+                            stepOutputs
+
                         }
                     }
                 }
             }
         }
-        const { setNodes, getNodes } = reactFlowInstance;
-        const dropPosition = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
 
-        const nodes = getNodes();
         const node = {
-            id: uniqueIdFrom(nodes),
+            id,
             position: dropPosition,
             type,
             data: nodeData

@@ -119,11 +119,7 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(
-        self,
-        custom_nodes_path: str,
-        view_manager_queue: mp.Queue
-    ):
+    def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue):
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.view_manager_queue = view_manager_queue
@@ -289,7 +285,7 @@ class GraphState:
         self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
         self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
 
-    def clear_outputs(self, step_id: str = None):
+    def clear_outputs(self, step_id: str | None = None):
         if step_id is None:
             for q in self._queues.values():
                 q.clear()

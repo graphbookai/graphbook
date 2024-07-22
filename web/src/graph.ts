@@ -41,6 +41,40 @@ type SerializedResourceMap = {
     [id: string]: SerializedResource
 };
 
+export const resolveSubflowOutputs = (exportNode: Node, nodes: Node[], edges: Edge[], parent = "") => {
+    const outputs: Array<{ node: string, pin: string }> = [];
+    const sourceEdges = edges.filter((edge) => edge.target === exportNode.id);
+    for (const edge of sourceEdges) {
+        const exported = nodes.find((n) => n.id === edge.source);
+        if (!exported) {
+            continue;
+        }
+        if (exported.type === 'step') {
+            outputs.push({ node: parent + "/" + exported.id, pin: edge.sourceHandle || '' });
+        } else {
+            if (exported.type === 'group') {
+                const innerSourceHandle = `${edge.sourceHandle}_inner`;
+                for (const edge of edges) {
+                    if (edge.targetHandle === innerSourceHandle) {
+                        const innerExported = nodes.find((n) => n.id === edge.source);
+                        if (!innerExported) {
+                            continue;
+                        }
+                        if (innerExported.type === 'step') {
+                            outputs.push({ node: parent + "/" + innerExported.id, pin: edge.sourceHandle || '' });
+                        } else if (innerExported.type === 'subflow') {
+                            outputs.push(...innerExported.data.properties.stepOutputs[edge.sourceHandle || '']);
+                        }
+                    }
+                }
+            } else if (exported.type === 'subflow') {
+                outputs.push(...exported.data.properties.stepOutputs[edge.sourceHandle || '']);
+            }
+        }
+    }
+    return outputs;
+};
+
 export const checkForSerializationErrors = (G, resources): SerializationError[] => {
     const errors: SerializationError[] = [];
     Object.entries<SerializedStep>(G).forEach(([id, node]) => {
@@ -375,40 +409,6 @@ export const Graph = {
         localStorage.setItem('graph', Graph.serialize(nodes, edges));
     },
     parseGraph: async (graph: any, API: ServerAPI) => {
-        const resolveSubflowOutputs = (exportNode: Node, nodes: Node[], edges: Edge[], parent = "") => {
-            const outputs: Array<{ node: string, pin: string }> = [];
-            const sourceEdges = edges.filter((edge) => edge.target === exportNode.id);
-            for (const edge of sourceEdges) {
-                const exported = nodes.find((n) => n.id === edge.source);
-                if (!exported) {
-                    continue;
-                }
-                if (exported.type === 'step') {
-                    outputs.push({ node: parent + "/" + exported.id, pin: edge.sourceHandle || '' });
-                } else {
-                    if (exported.type === 'group') {
-                        const innerSourceHandle = `${edge.sourceHandle}_inner`;
-                        for (const edge of edges) {
-                            if (edge.targetHandle === innerSourceHandle) {
-                                const innerExported = nodes.find((n) => n.id === edge.source);
-                                if (!innerExported) {
-                                    continue;
-                                }
-                                if (innerExported.type === 'step') {
-                                    outputs.push({ node: parent + "/" + innerExported.id, pin: edge.sourceHandle || '' });
-                                } else if (innerExported.type === 'subflow') {
-                                    outputs.push(...innerExported.data.properties.stepOutputs[edge.sourceHandle || '']);
-                                }
-                            }
-                        }
-                    } else if (exported.type === 'subflow') {
-                        outputs.push(...exported.data.properties.stepOutputs[edge.sourceHandle || '']);
-                    }
-                }
-            }
-            return outputs;
-        };
-
         const parseNodes = async (nodes: Array<Node>) => {
             for (const node of nodes) {
                 if (node.type === 'subflow') {

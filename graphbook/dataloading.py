@@ -163,9 +163,11 @@ class Dataloader:
                     not q.empty() and self.total_consumer_size < MAX_RESULT_QUEUE_SIZE
                 ):
                     result, consumer_id = q.get(False)
+                    if consumer_id not in consumers:
+                        continue
                     consumers[consumer_id].put(result, block=False)
                     self.total_consumer_size += 1
-                    
+
     def get_all_sizes(self):
         return {
             "load": [q.qsize() for q in self._load_queues],
@@ -174,6 +176,29 @@ class Dataloader:
             "dump_result": [q.qsize() for q in self._dump_result_queues],
             "total_consumer_size": self.total_consumer_size,
         }
+
+    def clear(self):
+        def clear_queue(q):
+            while not q.empty():
+                try:
+                    q.get(False)
+                except queue.Empty:
+                    print("Emptying an empty queue. Is the graph still executing?")
+                    break
+
+        for q in self._load_queues:
+            clear_queue(q)
+        for q in self._dump_queues:
+            clear_queue(q)
+        for q in self._load_result_queues:
+            clear_queue(q)
+        for q in self._dump_result_queues:
+            clear_queue(q)
+        for q in self.consumer_load_queues:
+            clear_queue(q)
+        for q in self.consumer_dump_queues:
+            clear_queue(q)
+        self.total_consumer_size = 0
 
     def put_load(
         self, items: list, record_id: int, load_fn: callable, consumer_id: int

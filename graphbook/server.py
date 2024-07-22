@@ -187,10 +187,10 @@ class GraphServer:
         @routes.get(r"/fs/{path:.+}")
         def get(request: web.Request):
             path = request.match_info.get("path", "")
-            fullpath = osp.join(root_path, path)
+            fullpath = osp.join(abs_root_path, path)
             assert fullpath.startswith(
-                root_path
-            ), f"{fullpath} must be within {root_path}"
+                abs_root_path
+            ), f"{fullpath} must be within {abs_root_path}"
 
             def handle_fs_tree(p: str, fn: callable) -> dict:
                 if osp.isdir(p):
@@ -207,9 +207,11 @@ class GraphServer:
 
                     def get_stat(path):
                         stat = os.stat(path)
+                        rel_path = osp.relpath(path, abs_root_path)
                         st = {
-                            "title": osp.basename(path),
-                            "path": path,
+                            "title": osp.basename(rel_path),
+                            "path": rel_path,
+                            "dirname": osp.dirname(rel_path),
                             "from_root": abs_root_path,
                             "access_time": int(stat.st_atime),
                             "modification_time": int(stat.st_mtime),
@@ -252,11 +254,16 @@ class GraphServer:
                 )
 
         @routes.put("/fs")
-        @routes.put(r"/fs/{path:[\w\d\./\-\+]+}")
+        @routes.put(r"/fs/{path:.+}")
         async def put(request: web.Request):
             path = request.match_info.get("path")
             fullpath = osp.join(root_path, path)
             data = await request.json()
+            if request.query.get("mv"):
+                topath = osp.join(root_path, request.query.get("mv"))
+                os.rename(fullpath, topath)
+                return web.json_response({}, status=200)
+
             is_file = data.get("is_file", False)
             file_contents = data.get("file_contents", "")
             hash_key = data.get("hash_key", "")
@@ -282,21 +289,19 @@ class GraphServer:
                 f.write(file_contents)
                 return web.json_response({}, status=201)
 
-        @routes.delete("/fs/{path}")
+        @routes.delete("/fs/{path:.+}")
         def delete(request):
-            path = request.match_info["path"]
-            path_components = path.split("/")
-            if "." in path_components or ".." in path_components:
-                return web.json_response(
-                    {"reason": "Path must be absolute."}, status=400
-                )
+            path = request.match_info.get("path")
+            fullpath = osp.join(root_path, path)
+            assert fullpath.startswith(
+                root_path
+            ), f"{fullpath} must be within {root_path}"
 
-            fullpath = "%s/%s" % (root_path, path)
             if osp.exists(fullpath):
                 if osp.isdir(fullpath):
                     if os.listdir(fullpath) == []:
                         os.rmdir(fullpath)
-                        return web.json_response(status=204)
+                        return web.json_response({"success": True}, status=204)
                     else:
                         return web.json_response(
                             {"reason": "/%s: Directory is not empty." % path},
@@ -304,7 +309,7 @@ class GraphServer:
                         )
                 else:
                     os.remove(fullpath)
-                    return web.json_response(status=204)
+                    return web.json_response({"success": True}, status=204)
             else:
                 return web.json_response(
                     {"reason": "/%s: No such file or directory." % path}, status=404
