@@ -252,11 +252,16 @@ class GraphServer:
                 )
 
         @routes.put("/fs")
-        @routes.put(r"/fs/{path:[\w\d\./\-\+]+}")
+        @routes.put(r"/fs/{path:.+}")
         async def put(request: web.Request):
             path = request.match_info.get("path")
             fullpath = osp.join(root_path, path)
             data = await request.json()
+            if request.query.get("mv"):
+                topath = osp.join(root_path, request.query.get("mv"))
+                os.rename(fullpath, topath)
+                return web.json_response({}, status=200)
+
             is_file = data.get("is_file", False)
             file_contents = data.get("file_contents", "")
             hash_key = data.get("hash_key", "")

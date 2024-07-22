@@ -1,5 +1,5 @@
-import { Flex, Input, Tree, Button, Typography } from "antd";
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { Flex, Input, Tree, Button, Typography, Menu } from "antd";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
 import { keyRecursively } from "../../utils";
@@ -10,9 +10,7 @@ const { Search } = Input;
 
 import './filesystem.css';
 
-const initialFiles = [];
-
-const getParentKey = (key, tree) => {
+const getParentKey = (key: string, tree: any[]): string => {
     let parentKey;
     for (let i = 0; i < tree.length; i++) {
       const node = tree[i];
@@ -28,13 +26,26 @@ const getParentKey = (key, tree) => {
   };
 
 export default function Filesystem({ setWorkflow, onBeginEdit }) {
-    const [files, setFiles] = useState(initialFiles);
+    const [files, setFiles] = useState<any[]>([]);
     const [filesRoot, setFilesRoot] = useState('.');
-    const [expandedKeys, setExpandedKeys] = useState([]);
+    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
     const [searchValue, setSearchValue] = useState('');
     const [autoExpandParent, setAutoExpandParent] = useState(true);
     const [addingState, setAddingState] = useState({ isAddingItem: false, isAddingFile: true });
+    const [contextMenu, setContextMenu] = useState<{x: number, y: number, filename: string} | null>(null);
+    const [renamingState, setRenamingState] = useState({ isRenaming: false, filename: '' });
     const API = useAPI();
+
+    useEffect(() => {
+        const removeContextMenu = () => {
+            setContextMenu(null);
+        };
+
+        window.addEventListener('click', removeContextMenu);
+        return () => {
+            window.removeEventListener('click', removeContextMenu);
+        };
+    }, []);
 
     const getFiles = useCallback(async () => {
         if (API === null) {
@@ -61,7 +72,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
 
     const onSearchChange = (e) => {
         const { value } = e.target;
-        const newExpandedKeys = [];
+        const newExpandedKeys: string[] = [];
         const findExpandedKeys = (data) => {
             data.forEach((item) => {
                 if (item.children) {
@@ -96,7 +107,19 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         } else {
             onBeginEdit(null);
         }
-    });
+    }, []);
+
+    const onFileItemRightClick = useCallback(({ event, node }) => {
+        setContextMenu({ x: event.clientX, y: event.clientY, filename: node.title.props.filename });
+    }, []);
+
+    const onItemRename = useCallback(async (newFilename) => {
+        if (API) {
+            await API.mvFile(renamingState.filename, newFilename);
+            getFiles();
+        }
+        setRenamingState({ isRenaming: false, filename: '' });
+    }, [API, renamingState]);
 
     const onAddItem = useCallback(async (e, isFile) => {
         const { value } = e.target;
@@ -105,16 +128,18 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         try {
-            const filename = e.target.value;
-            const content = filename.endsWith('.json') ? DefaultWorkflow : "";
-            await API.putFile(filename, isFile, JSON.stringify(content));
-            setWorkflow(filename);
-            getFiles();
+            if (API) {
+                const filename = e.target.value;
+                const content = filename.endsWith('.json') ? DefaultWorkflow : "";
+                await API.putFile(filename, isFile, JSON.stringify(content));
+                setWorkflow(filename);
+                getFiles();
+            }
         } catch (e) {
             console.error(e);
         }
         setAddingState({ isAddingItem: false, isAddingFile: true });
-    });
+    }, [API]);
 
     const treeData = useMemo(() => {
         const loop = (data, parentName="") => (
@@ -139,11 +164,27 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                     );
 
                 if (item.children) {
-                    title = <DirItem title={title}/>;
+                    title = (
+                        <DirItem
+                            title={title}
+                            filename={filename}
+                            isRenaming={renamingState.isRenaming && filename === renamingState.filename}
+                            onRename={onItemRename}
+                        />
+                    );
                     return { ...item, title, children: loop(item.children, filename + "/"), isLeaf: false, strTitle };
                 }
 
-                title = <FileItem title={title} filename={filename} fullpath={item.path} onClick={()=>onFileItemClick(title, filename)}/>;
+                title = (
+                    <FileItem
+                        title={title}
+                        filename={filename}
+                        fullpath={item.path}
+                        isRenaming={renamingState.isRenaming && filename === renamingState.filename}
+                        onRename={onItemRename}
+                    />
+                );
+
 
                 return {
                     ...item,
@@ -171,7 +212,37 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         };
         const items = isAddingItem ? [...currItems, pendingItem] : currItems;
         return keyRecursively(items);
-    }, [searchValue, files, addingState]);
+    }, [searchValue, files, addingState, renamingState]);
+
+    const contextMenuItems = useMemo(() => {
+        return [
+            {
+                key: 'rename',
+                label: 'Rename',
+            },
+            {
+                key: 'delete',
+                label: 'Delete',
+            }
+        ];
+    }, []);
+
+    const onContextMenuClick = useCallback(({ key }) => {
+        if (contextMenu && API) {
+            if (key === 'rename') {
+                setRenamingState({ isRenaming: true, filename: contextMenu.filename });
+            } else if (key === 'delete') {
+                API.rmFile(contextMenu.filename);
+                getFiles();
+            }
+            console.log(key);
+            console.log(contextMenu);
+        } else {
+            console.error('Context menu is not available');
+        }
+
+        setContextMenu(null);
+    }, [contextMenu, API]);
 
     return (
         <div className="filesystem">
@@ -191,13 +262,39 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 treeData={treeData}
                 blockNode
                 onSelect={onFileItemClick}
+                onRightClick={onFileItemRightClick}
             />
+            {contextMenu && (
+                <Menu
+                    style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
+                    onClick={onContextMenuClick}
+                    items={contextMenuItems}
+                    />
+            )}
         </div>
     );
 
 }
 
-function DirItem({ title }) {
+function DirItem({ title, filename, isRenaming, onRename }) {
+    const [currentFilename, setCurrentFilename] = useState(filename);
+
+    const onChange = useCallback((e) => {
+        setCurrentFilename(e.target.value);
+    }, []);
+
+    const onDone = useCallback(() => {
+        onRename(currentFilename);
+    }, [currentFilename, onRename]);
+
+    if (isRenaming) {
+        return (
+            <span className="file-item">
+                <Input autoFocus={true} value={currentFilename} onChange={onChange} onBlur={onDone} onPressEnter={onDone}/>
+            </span>
+        );
+    }
+
     return (
         <span className="dir-item">
             {title}
@@ -205,13 +302,31 @@ function DirItem({ title }) {
     );
 }
 
-function FileItem({ title, filename, fullpath, onClick }) {
+function FileItem({ title, filename, fullpath, isRenaming, onRename }) {
+    const [currentFilename, setCurrentFilename] = useState(filename);
+
     const onDragStart = useCallback((e) => {
         filesystemDragBegin(filename, e);
     }, [filename]);
 
+    const onChange = useCallback((e) => {
+        setCurrentFilename(e.target.value);
+    }, []);
+
+    const onDone = useCallback(() => {
+        onRename(currentFilename);
+    }, [currentFilename, onRename]);
+
+    if (isRenaming) {
+        return (
+            <span className="file-item">
+                <Input autoFocus={true} value={currentFilename} onChange={onChange} onBlur={onDone} onPressEnter={onDone}/>
+            </span>
+        );
+    }
+
     return (
-        <span className="file-item" onDragStart={onDragStart} draggable onClick={onClick}>
+        <span className="file-item" onDragStart={onDragStart} draggable>
             {title}
         </span>
     );
