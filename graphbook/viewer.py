@@ -28,6 +28,9 @@ class Viewer:
     def handle_end(self):
         pass
 
+    def handle_clear(self, node_id: str):
+        pass
+
     def get_next(self):
         return None
 
@@ -51,6 +54,12 @@ class DataViewer(Viewer):
             self.last_outputs[node_id] = {}
         new_entries = {k: v[0].items for k, v in output.items() if len(v) > 0}
         self.last_outputs[node_id] |= new_entries
+
+    def handle_clear(self, node_id: str | None = None):
+        if node_id is None:
+            self.last_outputs = {}
+        if node_id in self.last_outputs:
+            del self.last_outputs[node_id]
 
     def get_next(self):
         return self.last_outputs
@@ -262,6 +271,10 @@ class ViewManager:
         for viewer in self.viewers:
             viewer.handle_start(node_id)
 
+    def handle_clear(self, node_id: str | None):
+        for viewer in self.viewers:
+            viewer.handle_clear(node_id)
+
     def handle_log(self, node_id: str, log: str, type: str):
         self.logs_viewer.handle_log(node_id, log, type)
 
@@ -300,6 +313,8 @@ class ViewManager:
                     self.handle_log(work["node_id"], work["log"], work["type"])
                 elif work["cmd"] == "handle_run_state":
                     self.handle_run_state(work["is_running"])
+                elif work["cmd"] == "handle_clear":
+                    self.handle_clear(work["node_id"])
             except queue.Empty:
                 pass
 
@@ -348,6 +363,9 @@ class ViewManagerInterface:
         self.view_manager_queue.put(
             {"cmd": "handle_run_state", "is_running": is_running}
         )
+
+    def handle_clear(self, node_id: str | None):
+        self.view_manager_queue.put({"cmd": "handle_clear", "node_id": node_id})
 
 
 class Logger:

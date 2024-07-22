@@ -20,6 +20,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [addingState, setAddingState] = useState({ isAddingItem: false, isAddingFile: true });
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, filename: string } | null>(null);
     const [renamingState, setRenamingState] = useState({ isRenaming: false, filename: '' });
+    const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
     const API = useAPI();
 
     useEffect(() => {
@@ -99,6 +100,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             onBeginEdit({ name: filename });
         } else if (filename.slice(-5) == '.json') {
             setWorkflow(filename);
+            setSelectedWorkflow(filename);
             onBeginEdit(null);
         } else {
             onBeginEdit(null);
@@ -121,8 +123,12 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         if (API) {
             await API.rmFile(filename);
             getFiles();
+            if (filename === selectedWorkflow) {
+                setWorkflow(null);
+                setSelectedWorkflow(null);
+            }
         }
-    }, [API]);
+    }, [API, selectedWorkflow]);
 
     const onAddItem = useCallback(async (e, isFile) => {
         const { value } = e.target;
@@ -138,6 +144,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 await API.putFile(filename, isFile, JSON.stringify(content));
                 if (isJSON) {
                     setWorkflow(filename);
+                    setSelectedWorkflow(filename);
                 }
                 getFiles();
             }
@@ -280,6 +287,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 onExpand={onExpand}
                 expandedKeys={expandedKeys}
                 autoExpandParent={autoExpandParent}
+                selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
                 treeData={treeData}
                 onSelect={onFileItemClick}
                 onRightClick={onFileItemRightClick}
