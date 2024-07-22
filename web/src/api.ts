@@ -144,7 +144,10 @@ export class ServerAPI {
     private async delete(path): Promise<any> {
         try {
             const response = await fetch(`http://${this.host}/${path}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
             if (response.ok) {
                 return await response.json();

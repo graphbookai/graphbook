@@ -163,6 +163,8 @@ class Dataloader:
                     not q.empty() and self.total_consumer_size < MAX_RESULT_QUEUE_SIZE
                 ):
                     result, consumer_id = q.get(False)
+                    if consumer_id not in consumers:
+                        continue
                     consumers[consumer_id].put(result, block=False)
                     self.total_consumer_size += 1
                     

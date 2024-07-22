@@ -2,29 +2,14 @@ import { Flex, Input, Tree, Button, Typography, Menu } from "antd";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
-import { keyRecursively } from "../../utils";
 import { filesystemDragBegin } from "../../utils";
 import DefaultWorkflow from "../../DefaultWorkflow.json";
-import type { TreeProps, TreeDataNode } from 'antd';
+import type { TreeProps } from 'antd';
 const { Text } = Typography;
 const { Search } = Input;
 
 import './filesystem.css';
 
-const getParentKey = (key: string, tree: any[]): string => {
-    let parentKey;
-    for (let i = 0; i < tree.length; i++) {
-        const node = tree[i];
-        if (node.children) {
-            if (node.children.some((item) => item.key === key)) {
-                parentKey = node.key;
-            } else if (getParentKey(key, node.children)) {
-                parentKey = getParentKey(key, node.children);
-            }
-        }
-    }
-    return parentKey;
-};
 
 export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [files, setFiles] = useState<any[]>([]);
@@ -56,8 +41,18 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         if (!files) {
             return;
         }
+
         const splitPath = files.children[0].from_root.split('/');
         const filesRoot = splitPath[splitPath.length - 1];
+        const setKey = (data) => {
+            data.forEach((item) => {
+                item.key = item.path;
+                if (item.children) {
+                    setKey(item.children);
+                }
+            });
+        };
+        setKey(files.children);
         setFiles(files.children);
         setFilesRoot(filesRoot);
     }, [API]);
@@ -71,31 +66,31 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         setAutoExpandParent(false);
     };
 
-    const onSearchChange = (e) => {
+    const onSearchChange = useCallback((e) => {
         const { value } = e.target;
         const newExpandedKeys: string[] = [];
-        const findExpandedKeys = (data) => {
+        const findExpandedKeys = (data, parentKey: string | null) => {
             data.forEach((item) => {
                 if (item.children) {
-                    findExpandedKeys(item.children);
+                    findExpandedKeys(item.children, item.key);
                 }
-                if (item.title.indexOf(value) > -1) {
-                    newExpandedKeys.push(getParentKey(item.key, files));
+                if (item.path.indexOf(value) > -1 && parentKey) {
+                    newExpandedKeys.push(parentKey);
                 }
             });
-        }
-        findExpandedKeys(files);
+        };
+        findExpandedKeys(files, null);
         setExpandedKeys(newExpandedKeys);
         setSearchValue(value);
         setAutoExpandParent(true);
-    };
+    }, [files]);
 
     const onFileItemClick = useCallback((selectedKeys, { node }) => {
         if (!node) {
             onBeginEdit(null);
             return;
         }
-        const { filename } = node.title.props;
+        const filename = node.path;
         if (!filename) {
             onBeginEdit(null);
             return;
@@ -111,7 +106,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     }, []);
 
     const onFileItemRightClick = useCallback(({ event, node }) => {
-        setContextMenu({ x: event.clientX, y: event.clientY, filename: node.title.props.filename });
+        setContextMenu({ x: event.clientX, y: event.clientY, filename: node.path });
     }, []);
 
     const onItemRename = useCallback(async (newFilename) => {
@@ -138,9 +133,12 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         try {
             if (API) {
                 const filename = e.target.value;
-                const content = filename.endsWith('.json') ? DefaultWorkflow : "";
+                const isJSON = filename.endsWith('.json');
+                const content = isJSON ? DefaultWorkflow : "";
                 await API.putFile(filename, isFile, JSON.stringify(content));
-                setWorkflow(filename);
+                if (isJSON) {
+                    setWorkflow(filename);
+                }
                 getFiles();
             }
         } catch (e) {
@@ -150,10 +148,10 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     }, [API]);
 
     const treeData = useMemo(() => {
-        const loop = (data, parentName = "") => (
+        const loop = (data) => (
             data.map((item) => {
                 const strTitle = item.title;
-                const filename = parentName + strTitle;
+                const filename = item.path;
                 const index = strTitle.indexOf(searchValue);
                 const beforeStr = strTitle.substring(0, index);
                 const afterStr = strTitle.slice(index + searchValue.length);
@@ -180,7 +178,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                             onRename={onItemRename}
                         />
                     );
-                    return { ...item, title, children: loop(item.children, filename + "/"), isLeaf: false, strTitle };
+                    return { ...item, title, children: loop(item.children), isLeaf: false, strTitle };
                 }
 
                 title = (
@@ -219,7 +217,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             disabled: true
         };
         const items = isAddingItem ? [...currItems, pendingItem] : currItems;
-        return keyRecursively(items);
+        return items;
     }, [searchValue, files, addingState, renamingState]);
 
     const contextMenuItems = useMemo(() => {
@@ -247,64 +245,29 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         setContextMenu(null);
     }, [contextMenu]);
 
-    const onDrop: TreeProps['onDrop'] = useCallback((info) => {
-        console.log(info);
-        const dropKey = info.node.key;
-        const dragKey = info.dragNode.key;
-        const dropPos = info.node.pos.split('-');
-        const dropPosition = info.dropPosition - Number(dropPos[dropPos.length - 1]); // the drop position relative to the drop node, inside 0, top -1, bottom 1
-
-        const loop = (
-            data: TreeDataNode[],
-            key: React.Key,
-            callback: (node: TreeDataNode, i: number, data: TreeDataNode[]) => void,
-        ) => {
-            for (let i = 0; i < data.length; i++) {
-                if (data[i].key === key) {
-                    return callback(data[i], i, data);
-                }
-                if (data[i].children) {
-                    loop(data[i].children!, key, callback);
-                }
-            }
-        };
-        const data = [...files];
-
-        // Find dragObject
-        let dragObj: TreeDataNode;
-        loop(data, dragKey, (item, index, arr) => {
-            arr.splice(index, 1);
-            dragObj = item;
-        });
-
-        if (!info.dropToGap) {
-            // Drop on the content
-            loop(data, dropKey, (item) => {
-                item.children = item.children || [];
-                // where to insert. New item was inserted to the start of the array in this example, but can be anywhere
-                item.children.unshift(dragObj);
-            });
-        } else {
-            let ar: TreeDataNode[] = [];
-            let i: number;
-            loop(data, dropKey, (_item, index, arr) => {
-                ar = arr;
-                i = index;
-            });
-            if (dropPosition === -1) {
-                // Drop on the top of the drop node
-                ar.splice(i!, 0, dragObj!);
-            } else {
-                // Drop on the bottom of the drop node
-                ar.splice(i! + 1, 0, dragObj!);
-            }
+    const onDrop: TreeProps['onDrop'] = useCallback(async (info) => {
+        if (!API) {
+            return;
         }
-        setFiles(files);
-    }, [files]);
+        const basename = (p) => {
+            const parts = p.split('/');
+            return parts[parts.length - 1];
+        };
+        const itemDragged = info.dragNode.path;
+        const itemDraggedBasename = basename(itemDragged);
+        const newDir = !info.dropToGap ? info.node.dirname + "/" + basename(info.node.path) : info.node.dirname;
+        let newItemDraggedName = newDir + "/" + itemDraggedBasename;
+        if (newItemDraggedName[0] === '/') {
+            newItemDraggedName = newItemDraggedName.slice(1);
+        }
+
+        await API.mvFile(itemDragged, newItemDraggedName);
+        getFiles();
+    }, [API]);
 
     return (
         <div className="filesystem">
-            <Search style={{ marginBottom: 8 }} placeholder="Search" onChange={onSearchChange} />
+            <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
             <Flex justify="space-between">
                 <Text>{filesRoot}/</Text>
                 <div style={{ display: 'flex', flexDirection: 'row' }}>
@@ -320,6 +283,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 treeData={treeData}
                 onSelect={onFileItemClick}
                 onRightClick={onFileItemRightClick}
+                onDrop={onDrop}
                 blockNode
                 draggable
             />
