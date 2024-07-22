@@ -220,7 +220,30 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         {
             name: () => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
             action: () => {
-                const { setNodes } = reactFlowInstance;
+                const { setNodes, getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                // Validate group is collapsible
+                for (const edge of edges) {
+                    if (edge.source === node.id || edge.target === node.id) {
+                        continue;
+                    }
+                    const src = nodes.find((n) => n.id === edge.source);
+                    const tgt = nodes.find((n) => n.id === edge.target);
+                    if ( (
+                        (src.parentId !== node.id && tgt.parentId === node.id) ||
+                        (src.parentId === node.id && tgt.parentId !== node.id)))
+                    {
+                        console.log(src, tgt);
+                        notification.error({
+                            key: 'uncollapsible-group',
+                            message: 'Uncollapsible Group',
+                            description: "Group contains nodes that are connected to nodes outside the group. Export their pins before collapsing.",
+                            duration: 3,
+                        });
+                        return;
+                    }
+                }
                 setNodes((nodes) => {
                     return nodes.map((n) => {
                         if (n.parentId === node.id) {
@@ -242,7 +265,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                 });
             }
         }];
-    }, [node, reactFlowInstance]);
+    }, [node, reactFlowInstance, notification]);
 
     const EXPORT_OPTIONS = useMemo(() => [
         {
