@@ -119,11 +119,7 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(
-        self,
-        custom_nodes_path: str,
-        view_manager_queue: mp.Queue
-    ):
+    def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue):
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.view_manager_queue = view_manager_queue
