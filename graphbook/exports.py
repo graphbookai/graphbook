@@ -13,7 +13,8 @@ default_exported_steps = {
 
 default_exported_resources = {
     "Text": rbase.Resource,
-    "Function": rbase.FunctionResource
+    "Number": rbase.NumberResource,
+    "Function": rbase.FunctionResource,
 }
 
 
