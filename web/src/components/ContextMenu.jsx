@@ -230,11 +230,9 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                     }
                     const src = nodes.find((n) => n.id === edge.source);
                     const tgt = nodes.find((n) => n.id === edge.target);
-                    if ( (
-                        (src.parentId !== node.id && tgt.parentId === node.id) ||
-                        (src.parentId === node.id && tgt.parentId !== node.id)))
+                    if ((src.parentId !== node.id && tgt.parentId === node.id) ||
+                        (src.parentId === node.id && tgt.parentId !== node.id))
                     {
-                        console.log(src, tgt);
                         notification.error({
                             key: 'uncollapsible-group',
                             message: 'Uncollapsible Group',
