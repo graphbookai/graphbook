@@ -490,9 +490,6 @@ export const Graph = {
             }
         }
 
-        console.log(adjList);
-        console.log(s, t);
-
         adjList[s].push(t);
         const q: string[] = [];
         const origin = t;
