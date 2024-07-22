@@ -6,7 +6,7 @@ import { getGlobalRunningFile, useRunState } from "../hooks/RunState";
 import { useAPIMessage, useAPI } from "../hooks/API";
 import { useOnSelectionChange } from "reactflow";
 import ReactJson from "@microlink/react-json-view";
-import { getMergedLogs, mediaUrl } from "../utils";
+import { getMergedLogs, getMediaPath } from "../utils";
 import { useFilename } from "../hooks/Filename";
 import { useSettings } from "../hooks/Settings";
 import type { Node } from "reactflow";
@@ -17,7 +17,7 @@ const hideHeightThreshold = 20;
 const DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
 
 export function Monitor() {
-    const [show, setShow] = useState(true);
+    const [show, setShow] = useState(false);
     const filename = useFilename();
 
     const onResize = useCallback((e, direction, ref, d) => {
@@ -332,8 +332,9 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
     const [notes, setNotes] = useState({});
     const API = useAPI();
     const usingToken = theme.useToken();
-    const { token } = usingToken;
     const globalTheme = usingToken.theme;
+    const [settings, _] = useSettings();
+    const { token } = usingToken;
 
     useEffect(() => {
         if (!API || !numNotes) {
@@ -436,7 +437,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                                                     {
                                                         paths.map((path, i) => {
                                                             return (
-                                                                <Image height={120} key={i} src={mediaUrl(path)} />
+                                                                <Image height={120} key={i} src={getMediaPath(settings.mediaServerHost, path)} />
                                                             );
                                                         })
                                                     }

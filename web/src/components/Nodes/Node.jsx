@@ -8,8 +8,9 @@ import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
-import { getMergedLogs, keyRecursively, mediaUrl } from '../../utils';
+import { getMergedLogs, keyRecursively, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
+import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
 const { Panel } = Collapse;
 const { useToken } = theme;
@@ -212,6 +213,7 @@ function Monitor({ quickViewData, logsData }) {
 }
 
 function QuickviewCollapse({ data }) {
+    const [settings, _] = useSettings();
     return (
         <Collapse className='quickview' defaultActiveKey={[]} bordered={false}>
             {
@@ -230,7 +232,7 @@ function QuickviewCollapse({ data }) {
                                 <Flex key={i} vertical>
                                     {
                                         images.map((item, i) => (
-                                            <Image key={i} src={mediaUrl(item.value)} width={100} />
+                                            <Image key={i} src={getMediaPath(settings.mediaServerHost, item.value)} width={100} />
                                         ))
                                     }
                                 </Flex>
