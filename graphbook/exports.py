@@ -5,7 +5,7 @@ from aiohttp import web
 
 default_exported_steps = {
     "Split": steps.Split,
-    "SplitRecordsByItems": steps.SplitNotesByItems,
+    "SplitNotesByItems": steps.SplitNotesByItems,
     "SplitItemField": steps.SplitItemField,
     "DumpJSONL": steps.DumpJSONL,
     "LoadJSONL": steps.LoadJSONL,
@@ -13,7 +13,8 @@ default_exported_steps = {
 
 default_exported_resources = {
     "Text": rbase.Resource,
-    "Function": rbase.FunctionResource
+    "Number": rbase.NumberResource,
+    "Function": rbase.FunctionResource,
 }
 
 

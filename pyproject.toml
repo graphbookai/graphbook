@@ -31,6 +31,8 @@ pillow = "^10.3.0"
 python-magic = "^0.4.27"
 watchdog = "^4.0.0"
 torchvision = "^0.18.1"
+gputil = "^1.4.0"
+psutil = "^6.0.0"
 
 [tool.poetry.group.dev]
 optional = true

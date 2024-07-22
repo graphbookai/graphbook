@@ -24,8 +24,18 @@ export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"
     return keyRec(obj);
 }
 
-export const mediaUrl = (url: string): string => {
-    return `http://localhost:8006/${url}`; // TODO: change in settings
+export const getMediaPath = (mediaHost: string, path: string): string => {
+    if (!mediaHost.startsWith('http')) {
+        mediaHost = 'http://' + mediaHost;
+    }
+
+    try {
+        const url = new URL(path, mediaHost);
+        return url.toString();
+    } catch (e) {
+        console.warn("Failed to parse URL", e);
+        return mediaHost + path;
+    }
 }
 
 export const uniqueIdFrom = (obj: any): string => {

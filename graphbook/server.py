@@ -18,7 +18,7 @@ import argparse
 import hashlib
 from graphbook.state import UIState
 from graphbook.media import MediaServer
-from utils import MP_WORKER_TIMEOUT
+from graphbook.utils import poll_conn_for, ProcessorStateRequest
 
 
 @web.middleware
@@ -57,7 +57,7 @@ class GraphServer:
         self.ui_state = None
         routes = web.RouteTableDef()
         self.routes = routes
-        self.view_manager = ViewManager(view_manager_queue, close_event)
+        self.view_manager = ViewManager(view_manager_queue, close_event, state_conn)
         abs_root_path = osp.abspath(root_path)
         middlewares = [cors_middleware]
         max_upload_size = 100  # MB
@@ -168,28 +168,29 @@ class GraphServer:
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
-            state_conn.send({
-                "cmd": "get_output_note",
-                "step_id": step_id,
-                "pin_id": pin_id,
-                "index": int(index)
-            })
-            if state_conn.poll(timeout=MP_WORKER_TIMEOUT):
-                res = state_conn.recv()
-                if res.get("step_id") == step_id and res.get("pin_id") == pin_id and res.get("index") == index:
-                    return web.json_response(res)
-                else:
-                    res = {"error": "Mismatched response"}
-            else:
-                res = {"error": "Timeout"}
-            return web.json_response(res)
+            res = poll_conn_for(
+                state_conn,
+                ProcessorStateRequest.GET_OUTPUT_NOTE,
+                {"step_id": step_id, "pin_id": pin_id, "index": int(index)},
+            )
+            if (
+                res
+                and res.get("step_id") == step_id
+                and res.get("pin_id") == pin_id
+                and res.get("index") == index
+            ):
+                return web.json_response(res)
+            
+            return web.json_response({"error": "Could not get output note."})
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
         def get(request: web.Request):
             path = request.match_info.get("path", "")
             fullpath = osp.join(root_path, path)
-            assert fullpath.startswith(root_path), f"{fullpath} must be within {root_path}"
+            assert fullpath.startswith(
+                root_path
+            ), f"{fullpath} must be within {root_path}"
 
             def handle_fs_tree(p: str, fn: callable) -> dict:
                 if osp.isdir(p):
@@ -340,7 +341,9 @@ class WebServer:
 
     def start(self):
         if not osp.isdir(self.cwd):
-            print(f"Couldn't find web files inside {self.cwd}. Will not start web server.")
+            print(
+                f"Couldn't find web files inside {self.cwd}. Will not start web server."
+            )
             return
         os.chdir(self.cwd)
         with socketserver.TCPServer((self.address, self.port), self.server) as httpd:
@@ -368,7 +371,14 @@ def get_args():
 
 
 def create_graph_server(
-    args, cmd_queue, state_conn, processor_pause_event, view_manager_queue, close_event, root_path, custom_nodes_path
+    args,
+    cmd_queue,
+    state_conn,
+    processor_pause_event,
+    view_manager_queue,
+    close_event,
+    root_path,
+    custom_nodes_path,
 ):
     server = GraphServer(
         cmd_queue,
@@ -443,7 +453,7 @@ def main():
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     async def start():
         processor = WebInstanceProcessor(
             cmd_queue,

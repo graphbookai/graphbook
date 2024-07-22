@@ -47,7 +47,6 @@ export default function Settings() {
             <SettingsEntryInput name="Media Server Host" value={clientSettings.mediaServerHost} addonBefore="http://" onApply={setMediaServerHost}/>
             <Title level={4}>Server Settings</Title>
             <SettingsEntryInput name="Media Root Path" value={mediaSettings.root_path} onChange={(value)=>setMediaVar('root_path', value)}/>
-            
         </div>
     );
 }

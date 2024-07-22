@@ -8,8 +8,9 @@ import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
-import { getMergedLogs, keyRecursively, mediaUrl } from '../../utils';
+import { getMergedLogs, keyRecursively, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
+import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
 const { Panel } = Collapse;
 const { useToken } = theme;
@@ -31,10 +32,9 @@ export function WorkflowStep({ id, data, selected }) {
     const { token } = useToken();
     const { getNode } = useReactFlow();
     const notification = useNotification();
-
     const API = useAPI();
-
     const filename = useFilename();
+
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
     });
@@ -83,7 +83,7 @@ export function WorkflowStep({ id, data, selected }) {
             notification.error({
                 key: 'invalid-graph',
                 message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors}/>,
+                description: <SerializationErrorMessages errors={errors} />,
                 duration: 3,
             })
             return;
@@ -138,7 +138,7 @@ export function WorkflowStep({ id, data, selected }) {
                             outputs.map((output, i) => {
                                 return (
                                     <div key={i} className="output">
-                                        <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={recordCount[output] || 0} overflowCount={Infinity} />
+                                        <Badge size="small" styles={{ indicator: badgeIndicatorStyle }} count={recordCount[output] || 0} overflowCount={Infinity} />
                                         <span className="label">{output}</span>
                                         <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={output} />
                                     </div>
@@ -192,12 +192,12 @@ function Monitor({ quickViewData, logsData }) {
                     logsData.length == 0 ?
                         <p className='content'>(No logs yet) </p> :
                         (
-                            <div style={{maxHeight: '200px', overflow: 'auto'}}>
+                            <div style={{ maxHeight: '200px', overflow: 'auto' }}>
                                 {
                                     logsData.map((log, i) => {
                                         const { msg } = log;
                                         return (
-                                            <p style={{fontFamily: 'monospace'}} key={i}>
+                                            <p style={{ fontFamily: 'monospace' }} key={i}>
                                                 {msg}
                                             </p>
                                         );
@@ -213,6 +213,7 @@ function Monitor({ quickViewData, logsData }) {
 }
 
 function QuickviewCollapse({ data }) {
+    const [settings, _] = useSettings();
     return (
         <Collapse className='quickview' defaultActiveKey={[]} bordered={false}>
             {
@@ -231,7 +232,7 @@ function QuickviewCollapse({ data }) {
                                 <Flex key={i} vertical>
                                     {
                                         images.map((item, i) => (
-                                            <Image key={i} src={mediaUrl(item.value)} width={100} />
+                                            <Image key={i} src={getMediaPath(settings.mediaServerHost, item.value)} width={100} />
                                         ))
                                     }
                                 </Flex>

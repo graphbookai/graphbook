@@ -1,14 +1,15 @@
 from typing import Dict, List
-import magic
 import os.path as osp
 from aiohttp.web import WebSocketResponse
 import uuid
 import asyncio
 import time
 import multiprocessing as mp
+import multiprocessing.connection as mpc
 import queue
 import copy
-from graphbook.utils import MP_WORKER_TIMEOUT
+import psutil
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for
 
 
 class Viewer:
@@ -45,27 +46,10 @@ class DataViewer(Viewer):
         self.deque_max_size = deque_max_size
         self.last_outputs: Dict[str, dict] = {}
 
-    def get_mime_type(self, file):
-        if not osp.exists(file):
-            return None
-        mime = magic.from_file(file, mime=True)
-        if mime is None:
-            return None
-        if mime.split("/")[0] != "image":
-            return None
-        return mime
-
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
         new_entries = {k: v[0].items for k, v in output.items() if len(v) > 0}
-        # for items in new_entries.values():
-        #     for i,item in enumerate(items):
-        #         items[i] = {
-        #             "value": item,
-        #             "type": self.get_mime_type(item)
-        #         }
-
         self.last_outputs[node_id] |= new_entries
 
     def get_next(self):
@@ -83,6 +67,8 @@ class NodeStatsViewer(Viewer):
         self.queue_sizes: Dict[str, dict] = {}
         self.record_rate: Dict[str, float] = {}
         self.start_times: Dict[str, float] = {}
+        self.execution_times: Dict[str, float] = {}
+        self.total_execution_time: float = 0
 
     def handle_start(self, node_id: str):
         self.start_times[node_id] = time.time()
@@ -92,7 +78,7 @@ class NodeStatsViewer(Viewer):
 
     def handle_queue_size(self, node_id: str, sizes: dict):
         self.queue_sizes[node_id] = sizes
-        
+
     def get_total_queue_size(self, node_id: str):
         return sum(self.queue_sizes[node_id].values())
 
@@ -103,6 +89,10 @@ class NodeStatsViewer(Viewer):
             time.time() - self.start_times[node_id]
         )
 
+    def handle_time(self, node_id: str, time: float):
+        self.total_execution_time += time
+        self.execution_times[node_id] = self.execution_times.get(node_id, 0) + time
+
     def get_next(self):
         data_obj = {}
         for node_id in self.record_rate:
@@ -112,7 +102,18 @@ class NodeStatsViewer(Viewer):
         for node_id in self.queue_sizes:
             data_obj.setdefault(node_id, {})
             data_obj[node_id]["queue_size"] = self.queue_sizes[node_id]
+        for node_id in self.execution_times:
+            data_obj.setdefault(node_id, {})
+            if self.total_execution_time > 0:
+                data_obj[node_id]["execution"] = (
+                    self.execution_times[node_id] / self.total_execution_time
+                )
         return data_obj
+
+
+"""
+Updates client with new set of incoming logs
+"""
 
 
 class NodeLogsViewer(Viewer):
@@ -134,6 +135,38 @@ class NodeLogsViewer(Viewer):
         logs = copy.deepcopy(self.logs)
         self.logs = {}
         return logs
+
+
+"""
+Tracks system utilization: CPU util, CPU memory, GPU util, GPU memory
+"""
+
+
+class SystemUtilViewer(Viewer):
+    def __init__(self, processor_state_conn: mpc.Connection):
+        super().__init__("system_util")
+        self.processor_state_conn = processor_state_conn
+
+    def get_cpu_usage(self):
+        return psutil.cpu_percent()
+
+    def get_mem_usage(self):
+        return psutil.virtual_memory().percent
+
+    def get_gpu_usage(self):
+        gpus = get_gpu_util()
+        return gpus
+
+    def get_next(self):
+        sizes = poll_conn_for(
+            self.processor_state_conn, ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
+        )
+        return {
+            "cpu": self.get_cpu_usage(),
+            "mem": self.get_mem_usage(),
+            "gpu": self.get_gpu_usage(),
+            "worker_queue_sizes": sizes,
+        }
 
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
@@ -173,14 +206,21 @@ class Client:
 
 
 class ViewManager:
-    def __init__(self, work_queue: mp.Queue, close_event: mp.Event):
+    def __init__(
+        self,
+        work_queue: mp.Queue,
+        close_event: mp.Event,
+        processor_state_conn: mpc.Connection,
+    ):
         self.data_viewer = DataViewer()
         self.node_stats_viewer = NodeStatsViewer()
         self.logs_viewer = NodeLogsViewer()
+        self.system_util_viewer = SystemUtilViewer(processor_state_conn)
         self.viewers: List[Viewer] = [
             self.data_viewer,
             self.node_stats_viewer,
             self.logs_viewer,
+            self.system_util_viewer,
         ]
         self.clients: Dict[str, Client] = {}
         self.work_queue = work_queue
@@ -211,6 +251,9 @@ class ViewManager:
             return
         for viewer in self.viewers:
             viewer.handle_outputs(node_id, outputs)
+
+    def handle_time(self, node_id: str, time: float):
+        self.node_stats_viewer.handle_time(node_id, time)
 
     def handle_queue_size(self, node_id: str, size: int):
         self.node_stats_viewer.handle_queue_size(node_id, size)
@@ -247,6 +290,8 @@ class ViewManager:
                     self.handle_outputs(work["node_id"], work["outputs"])
                 elif work["cmd"] == "handle_queue_size":
                     self.handle_queue_size(work["node_id"], work["size"])
+                elif work["cmd"] == "handle_time":
+                    self.handle_time(work["node_id"], work["time"])
                 elif work["cmd"] == "handle_start":
                     self.handle_start(work["node_id"])
                 elif work["cmd"] == "handle_end":
@@ -283,6 +328,11 @@ class ViewManagerInterface:
             {"cmd": "handle_outputs", "node_id": node_id, "outputs": outputs}
         )
 
+    def handle_time(self, node_id: str, time: float):
+        self.view_manager_queue.put(
+            {"cmd": "handle_time", "node_id": node_id, "time": time}
+        )
+
     def handle_queue_size(self, node_id: str, size: dict):
         self.view_manager_queue.put(
             {"cmd": "handle_queue_size", "node_id": node_id, "size": size}
@@ -312,6 +362,3 @@ class Logger:
 
     def log_exception(self, e: Exception):
         self.view_manager.handle_log(self.node_id, "[ERR] " + str(e), type="error")
-
-
-# TODO: SystemUtilViewer (for tracking system utilization, e.g. CPU, memory, disk, network usage)

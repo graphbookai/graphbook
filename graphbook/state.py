@@ -14,7 +14,6 @@ import os.path as osp
 import json
 import hashlib
 from enum import Enum
-from utils import MP_WORKER_TIMEOUT
 
 
 class UIState:
@@ -120,12 +119,15 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue, server_request_conn: mpc.Connection, close_event: mp.Event):
+    def __init__(
+        self,
+        custom_nodes_path: str,
+        view_manager_queue: mp.Queue
+    ):
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.view_manager_queue = view_manager_queue
         self.view_manager = ViewManagerInterface(view_manager_queue)
-        self.graph_state_client = GraphStateClient(server_request_conn, close_event)
         self._dict_graph = {}
         self._dict_resources = {}
         self._steps: Dict[str, Step] = {}
@@ -136,9 +138,6 @@ class GraphState:
         self._node_catalog = NodeCatalog(custom_nodes_path)
         self._updated_nodes: Dict[str, Dict[str, bool]] = {}
         self._step_states: Dict[str, Set[StepState]] = {}
-        
-    def start_client_loop(self):
-        self.graph_state_client.start()
 
     def update_state(self, graph: dict, graph_resources: dict):
         nodes, is_updated = self._node_catalog.get_nodes()
@@ -244,7 +243,6 @@ class GraphState:
         self._queues = queues
         self._resource_values = param_values
         self._step_states = step_states
-        self.graph_state_client.update_queues(queues)
 
     def create_parent_subgraph(self, step_id: str):
         new_steps = {}
@@ -322,6 +320,20 @@ class GraphState:
         step_id = step.id if isinstance(step, Step) else step
         return state in self._step_states[step_id]
 
+    def get_output_note(self, step_id: str, pin_id: str, index: int) -> dict:
+        step_queue = self._queues.get(step_id)
+        entry = {"step_id": step_id, "pin_id": pin_id, "index": index, "data": None}
+        if step_queue is None:
+            return entry
+        internal_list = step_queue._dict.get(pin_id)
+        if internal_list is None:
+            return entry
+        if index >= len(internal_list) or index < 0:
+            return entry
+        note = internal_list[index]
+        entry.update(data=note.items)
+        return entry
+
 
 class MultiConsumerStateDictionaryQueue:
     def __init__(self):
@@ -379,7 +391,7 @@ class MultiConsumerStateDictionaryQueue:
 
     def size(self):
         return len(self._order)
-    
+
     def dict_sizes(self):
         return {k: len(v) for k, v in self._dict.items()}
 
@@ -392,51 +404,3 @@ class MultiConsumerStateDictionaryQueue:
 
     def reset_consumer_idx(self, consumer_id: int):
         self._consumer_idx[consumer_id] = 0
-        
-class GraphStateClient:
-    def __init__(
-        self,
-        server_request_conn: mpc.Connection,
-        close_event: mp.Event,
-    ):
-        self.server_request_conn = server_request_conn
-        self.close_event = close_event
-        self.curr_task = None
-        self.queues = {}
-
-    def _loop(self):
-        while not self.close_event.is_set():
-            if self.server_request_conn.poll(timeout=MP_WORKER_TIMEOUT):
-                req = self.server_request_conn.recv()
-                if req["cmd"] == "get_output_note":
-                    step_id = req.get("step_id")
-                    pin_id = req.get("pin_id")
-                    index = req.get("index")
-                    if step_id is None or pin_id is None or index is None:
-                        continue
-                    output = self.get_output_note(step_id, pin_id, index)
-                    self.server_request_conn.send(output)
-            
-    def get_output_note(self, step_id: str, pin_id: str, index: int) -> dict:
-        step_queue = self.queues.get(step_id)
-        entry = { "step_id": step_id, "pin_id": pin_id, "index": index, "data": None }
-        if step_queue is None:
-            return entry
-        internal_list = step_queue._dict.get(pin_id)
-        if internal_list is None:
-            return entry
-        if index >= len(internal_list) or index < 0:
-            return entry
-        note = internal_list[index]
-        entry.update(data=note.items)
-        return entry
-
-    def update_queues(self, queues: Dict[str, MultiConsumerStateDictionaryQueue]):
-        self.queues = queues
-
-    def start(self):
-        self._loop()
-
-    def close(self):
-        if self.curr_task is not None:
-            self.curr_task.cancel()
