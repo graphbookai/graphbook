@@ -358,7 +358,9 @@ export function PaneContextMenu({ top, left, close }) {
     useEffect(() => {
         const setData = async () => {
             const nodes = await API.getNodes();
-            setApiNodes(nodes);
+            if (nodes?.steps && nodes?.resources) {
+                setApiNodes(nodes);
+            }
         };
         if (API) {
             setData();

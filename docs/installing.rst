@@ -1,19 +1,46 @@
 Installing
-*****************
-We are currently working on docker containers and binaries, so that users can quickly get started. But for now, to install Graphbook from source:
+##########
 
-#. Clone the repository and cd into the root of the repo
+Requirements
+============
+#. Python 3.11+
 
-#. Install the web frontend
+Install from PyPI
+=================
+
+#. ``pip install graphbook``
+#. ``graphbook``
+#. Visit http://localhost:8007
+
+Install with Docker
+===================
+
+#. Pull and run the latest image
 
    .. code-block:: bash
-        
-        make web
 
-#. Optionally, create and activate your venv
+       docker run --rm -p 8005:8005 -p 8006:8006 -p 8007:8007 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
 
-#. Install the requirements
+#. Visit http://localhost:8007
 
-   .. code-block:: bash
 
-        pip install -r requirements.txt
+Install from Source
+===================
+
+.. note::
+
+    If you wish to run graphbook in development mode, visit the :ref:`contributing` section.
+
+.. _Poetry: https://python-poetry.org/docs/
+.. _Node.js: https://nodejs.org/
+
+Installing from source requires Poetry_ and Node.js_.
+
+#. Clone the repository
+#. ``cd graphbook``
+#. ``make web``
+#. ``poetry install```
+#. ``poetry shell``
+#. cd into the directory you want to create your workflows in
+#. ``<PATH_TO_REPO>/scripts/graphbook``
+
