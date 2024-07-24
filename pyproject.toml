@@ -4,10 +4,10 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "graphbook"
-version = "0.3.6"
+version = "0.4.0"
 authors = ["Richard Franklin <rsamf@graphbook.ai>"]
-description = "An extensible ML workflow editor built for data scientists and ML engineers."
-keywords = ["ml", "workflow", "pytorch", "data science", "machine learning", "ai"]
+description = "An extensible ML workflow framework built for data scientists and ML engineers."
+keywords = ["ml", "workflow", "framework", "pytorch", "data science", "machine learning", "ai"]
 readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
