@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://graphbook.ai">
-    <img src="docs/_static/graphbook.png" alt="Logo" width=128>
+    <img src="docs/_static/graphbook.png" alt="Logo" width=256>
   </a>
 
   <h1 align="center">Graphbook</h1>
@@ -14,7 +14,7 @@
   </p>
 
   <p align="center">
-    <a href="#what">What</a> •
+    <a href="#overview">Overview</a> •
     <a href="#current-features">Current Features</a> •
     <a href="#getting-started">Getting Started</a> •
     <a href="#collaboration">Collaboration</a>
