@@ -6,4 +6,4 @@ SERVER_PATH=$REPO_PATH/graphbook/server.py
 WEB_PATH=$REPO_PATH/web
 WEB_BUILD_PATH=$WEB_PATH/dist
 
-python $SERVER_PATH --web --web_dir $WEB_BUILD_PATH --workflow_dir . --nodes_dir ./nodes $@
+python $SERVER_PATH --web_dir $WEB_BUILD_PATH --workflow_dir . --nodes_dir ./nodes $@
