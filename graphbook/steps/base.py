@@ -318,10 +318,31 @@ class BatchStep(AsyncStep):
             [],
         )
         return batch
-
+    
     def dump_data(self, note: Note, item_key, output):
+        """
+        Dumps data to be processed by the worker pool. This is called after the step processes the batch of items.
+        The class must have a dump_fn method that takes in the output data and returns a string path to the dumped data.
+        
+        Args:
+            note (Note): The Note input
+            item_key (str): The item key to dump
+            output (any): The output data to
+        """
         self.dumped_item_holders.handle_note(note)
         self.dl.put_dump(output, item_key, id(note), self.dump_fn, id(self))
+    
+    @staticmethod
+    def dump_fn(data: any, output_dir: str, uid: int):
+        """
+        The dump function to be overriden by BatchSteps that write outputs to disk.
+        
+        Args:
+            data (any): The data to be dumped
+            output_dir (str): The output directory
+            uid (int): A unique identifier for the data
+        """
+        raise NotImplementedError("dump_fn must be implemented for BatchStep")
 
     def handle_batch(self, batch: StepData):
         items, notes, completed = batch
@@ -375,6 +396,9 @@ class BatchStep(AsyncStep):
     def __call__(self, flush: bool = False):
         """
         Batches input and executes the step if accumulated batch is equal to batch_size. Returns true if step is executed.
+        
+        Args:
+            flush (bool): If True, will force the step to execute even if the batch size is not met
         """
         batch = self.get_batch(flush)
         if batch:

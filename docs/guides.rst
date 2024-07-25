@@ -17,6 +17,7 @@ Naturally, the development lifecycle of a Graphbook workflow can be illustrated 
 
 Build Your First ML Workflow
 =============================
+
 All of your custom nodes should be located inside a directory that was automatically created for you upon running ``graphbook``.
 Graphbook is tracking that directory for any files ending with **.py** and will automatically load classes that inherit from `Step` or `Resource` as custom nodes.
 Inside this directory, create a new Python file called `my_first_nodes.py`, and create the below step inside of it:
@@ -102,6 +103,12 @@ Voila! You have successfully created your first workflow, but there's not much M
 
 Pokemon Image Classification
 =============================
+
+.. _transformers: https://huggingface.co/docs/transformers
+
+.. note::
+    Requires Huggingface transformers_
+
 In this guide, we will use a pre-trained PyTorch model to classify Pokemon images.
 First, we need to choose where we get our source of Pokemon images from.
 Here's a good source: https://www.kaggle.com/datasets/hlrhegemony/pokemon-image-dataset.
@@ -115,6 +122,9 @@ Create a new Source Step that loads the images and their labels:
 .. code-block:: python
 
     from graphbook.steps import SourceStep
+    from graphbook import Note
+    import os
+    import os.path as osp
 
     class LoadImageDataset(SourceStep):
         RequiresInput = False
@@ -160,6 +170,10 @@ Let's create the below BatchStep class that uses this model to classify the imag
 
     from graphbook.steps import BatchStep
     from transformers import ViTForImageClassification, ViTImageProcessor
+    import torch
+    import torchvision.transforms.functional as F
+    from PIL import Image
+    from typing import List
 
     class PokemonClassifier(BatchStep):
         RequiresInput = True
@@ -186,7 +200,7 @@ Let's create the below BatchStep class that uses this model to classify the imag
             self.num_samples = 0
 
         @staticmethod
-        def load_fn(item: str) -> torch.Tensor:
+        def load_fn(item: dict) -> torch.Tensor:
             im = Image.open(item["value"])
             image = F.to_tensor(im)
             if image.shape[0] == 1:
@@ -332,6 +346,146 @@ Now, your final workflow should look like this:
     :align: center
 
 Congratulations! You have successfully created a Pokemon image classifier workflow using a pre-trained model from Huggingface.
+What if we need to use a model to generate outputs and supply our Notes with those outputs?
+Follow the next guide to learn how.
+
+Image Segmentation
+==================
+
+In this guide, we will use a pre-trained model, RMBG-1.4, from Bria AI downloadable from Huggingface to remove the background from images.
+We can use the same dataset from the Pokemon Image Classification guide, so let's reuse the LoadImageDataset source step.
+
+First, let's create a new Resource class that will store the RMBG-1.4 model:
+
+.. code-block:: python
+
+    from graphbook.resources import Resource
+    from transformers import AutoModelForImageSegmentation
+
+    class RMBGModel(Resource):
+        Category = "Custom"
+        Parameters = {
+            "model_name": {
+                "type": "string",
+                "description": "The name of the image processor.",
+            }
+        }
+
+        def __init__(self, model_name: str):
+            super().__init__(
+                AutoModelForImageSegmentation.from_pretrained(
+                    model_name, trust_remote_code=True
+                ).to("cuda")
+            )
+
+Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the background from the images:
+
+.. code-block:: python
+
+    from graphbook.steps import BatchStep, SourceStep
+    from graphbook import Note
+    import torchvision.transforms.functional as F
+    import torch.nn.functional
+    import torch
+    from typing import List
+    from PIL import Image
+    import os
+    import os.path as osp
+
+    class RemoveBackground(BatchStep):
+        RequiresInput = True
+        Parameters = {
+            "model": {
+                "type": "resource",
+            },
+            "batch_size": {
+                "type": "number",
+                "default": 8,
+            },
+            "item_key": {
+                "type": "string",
+                "default": "image",
+            },
+        }
+        Outputs = ["out"]
+        Category = "Custom"
+
+        def __init__(
+            self,
+            id,
+            logger,
+            batch_size,
+            item_key,
+            model: AutoModelForImageSegmentation,
+        ):
+            super().__init__(id, logger, batch_size, item_key)
+            self.model = model
+
+        @staticmethod
+        def load_fn(item: dict) -> torch.Tensor:
+            im = Image.open(item["value"])
+            image = F.to_tensor(im)
+            if image.shape[0] == 1:
+                image = image.repeat(3, 1, 1)
+            elif image.shape[0] == 4:
+                image = image[:3]
+
+            return image
+
+        @staticmethod
+        def dump_fn(t: torch.Tensor, output_dir: str, uid: int):
+            img = F.to_pil_image(t)
+            img.save(osp.join(output_dir, f"{uid}.png"))
+
+        @torch.no_grad()
+        def on_item_batch(
+            self, tensors: List[torch.Tensor], items: List[dict], notes: List[Note]
+        ):
+            og_sizes = [t.shape[1:] for t in tensors]
+
+            images = [
+                F.normalize(
+                    torch.nn.functional.interpolate(
+                        torch.unsqueeze(image, 0), size=[1024, 1024], mode="bilinear"
+                    ),
+                    [0.5, 0.5, 0.5],
+                    [1.0, 1.0, 1.0],
+                )
+                for image in tensors
+            ]
+            images = torch.stack(images).to("cuda")
+            images = torch.squeeze(images, 1)
+            tup = self.model(images)
+            result = tup[0][0]
+            ma = torch.max(result)
+            mi = torch.min(result)
+            result = (result - mi) / (ma - mi)
+            resized = [
+                torch.squeeze(
+                    torch.nn.functional.interpolate(
+                        torch.unsqueeze(image, 0), size=og_size, mode="bilinear"
+                    ),
+                    0,
+                )
+                for image, og_size in zip(result, og_sizes)
+            ]
+            return {"removed_bg": resized}
+
+This node will generate masks of the foreground using the RMBG-1.4 model and output the resulting mask as images by saving them to disk.
+See that there is one notable difference in ``RemoveBackground`` compared to ``PokemonClassifier``.
+In addition to loading data from disk, it is now dumping data to the disk. 
+It is important that we offload this work, too, to background processes to have an efficient data pipeline.
+To do this, we return a dictionary of tensors in the ``on_item_batch`` method which tells Graphbook to send the resulting items to the worker processes to be saved.
+The ``dump_fn`` method is our custom function used to save the resulting image masks to disk.
+
+Lastly, connect your nodes like so:
+
+.. image:: _static/6_segm_workflow.png
+    :alt: Remove Background Workflow
+    :align: center
+
+Note that we use another built-in node called DumpJSONL that saves the resulting Notes as serialized JSONs.
+This is useful for saving the results of the workflow to disk.
 
 .. note::
 
