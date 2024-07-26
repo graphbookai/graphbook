@@ -14,6 +14,7 @@ from graphbook.resources import Resource, FunctionResource
 BUILT_IN_STEPS = [Step, BatchStep, SourceStep, AsyncStep, Split, SplitNotesByItems, SplitItemField]
 BUILT_IN_RESOURCES = [Resource, FunctionResource]
 
+# TODO: Make reusable
 class CustomModuleEventHandler(FileSystemEventHandler):
     def __init__(self, root_path, handler):
         super().__init__()

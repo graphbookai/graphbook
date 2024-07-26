@@ -372,6 +372,7 @@ def get_args():
     parser.add_argument("--workflow_dir", type=str, default="./workflow")
     parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
     parser.add_argument("--num_workers", type=int, default=1)
+    parser.add_argument("--continue_on_failure", type=bool, action="store_true")
     return parser.parse_args()
 
 
@@ -465,6 +466,7 @@ def main():
             parent_conn,
             view_manager_queue,
             args.output_dir,
+            args.continue_on_failure,
             custom_nodes_path,
             close_event,
             pause_event,

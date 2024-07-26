@@ -11,7 +11,7 @@ import multiprocessing.connection as mpc
 
 MP_WORKER_TIMEOUT = 5.0
 ProcessorStateRequest = Enum(
-    "ProcessorStateRequest", ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES"]
+    "ProcessorStateRequest", ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"]
 )
 
 def is_batchable(obj: any) -> bool:

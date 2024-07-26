@@ -1,19 +1,20 @@
 from typing import List
 import queue
 import torch.multiprocessing as mp
+import traceback
+from .utils import MP_WORKER_TIMEOUT
 
-MP_WORKER_TIMEOUT = 5.0
 MAX_RESULT_QUEUE_SIZE = 32
 
 
-def do_load(work_queue: mp.Queue, result_queue: mp.Queue):
+def do_load(work_queue: mp.Queue, result_queue: mp.Queue) -> bool:
     if result_queue.full():
-        return
+        return True
 
     try:
         item, index, record_id, load_fn, consumer_id = work_queue.get(False)
     except queue.Empty:
-        return
+        return True
 
     try:
         result_tensor = load_fn(item)
@@ -21,31 +22,32 @@ def do_load(work_queue: mp.Queue, result_queue: mp.Queue):
         to_return = ((result, record_id), consumer_id)
     except Exception as e:
         to_return = ((None, record_id), consumer_id)
-        print(
-            f"Worker Error: Could not process input {item}. The following exception was raised: {e}. Check your load_fn."
-        )
+        print(f"Worker Error loading {item}:")
+        traceback.print_exc()
+        return False
 
     result_queue.put(to_return, block=False)
+    return True
 
 
-def do_dump(
-    work_queue: mp.Queue, result_queue: mp.Queue, output_dir: str, uid: int
-) -> bool:
+def do_dump(work_queue: mp.Queue, result_queue: mp.Queue, output_dir: str) -> bool:
     if result_queue.full():
-        return False
+        return True
 
     try:
         data, item_key, record_id, dump_fn, consumer_id = work_queue.get(False)
     except queue.Empty:
-        return False
+        return True
 
     try:
-        output_fn = dump_fn(data, output_dir, uid)
+        output_fn = dump_fn(data, output_dir)
         result = (item_key, output_fn)
         to_return = ((result, record_id), consumer_id)
     except Exception as e:
-        print(f"Could not dump input {data}. The following exception was raised: {e}")
         to_return = ((None, record_id), consumer_id)
+        print(f"Worker Error on dumping {data}:")
+        traceback.print_exc()
+        return False
 
     result_queue.put(to_return, block=False)
     return True
@@ -60,23 +62,33 @@ def worker_loop(
     dump_result_queue: mp.Queue,
     dump_dir: str,
     close_event: mp.Event,
+    fail_event: mp.Event,
 ):
     try:
-        dump_ctr = rank
-        while not close_event.is_set():
-            do_load(load_queue, load_result_queue)
-            did_receive_work = do_dump(
-                dump_queue, dump_result_queue, dump_dir, dump_ctr
-            )
-            if did_receive_work:
-                dump_ctr += num_processes
+        while True:
+            # Load
+            if close_event.is_set():
+                return
+            succeeded = do_load(load_queue, load_result_queue)
+            if not succeeded:
+                fail_event.set()
+                return
+
+            # Dump
+            if close_event.is_set():
+                return
+            succeeded = do_dump(dump_queue, dump_result_queue, dump_dir)
+            if not succeeded:
+                fail_event.set()
+                return
     except KeyboardInterrupt:
         pass
 
 
 class Dataloader:
-    def __init__(self, dump_dir: str, num_workers: int = 1):
+    def __init__(self, dump_dir: str, fail_event: mp.Event, num_workers: int = 1):
         self.dump_dir = dump_dir
+        self.fail_event = fail_event
         self.num_workers = num_workers
         self.context = mp.get_context("spawn")
         self.consumer_load_queues = {}
@@ -110,6 +122,7 @@ class Dataloader:
                     dump_result_queue,
                     self.dump_dir,
                     self._close_event,
+                    self.fail_event,
                 ),
             )
             w.daemon = True
@@ -248,3 +261,10 @@ class Dataloader:
             return record_id
         except queue.Empty:
             return None
+
+class DataDumper:
+    def __init__(self):
+        pass
+
+    def dump(self, data: any, path: str):
+        raise NotImplementedError()
