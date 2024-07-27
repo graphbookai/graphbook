@@ -158,15 +158,9 @@ class GraphState:
                 dict_resources[resource_id] = curr_resource
                 resource_has_changed[resource_id] = False
             else:
-                print("Creating new resource", resource_id)
-                print(curr_resource is not None)
-                print(curr_resource == resource_data)
-                print(not is_updated_resource.get(resource_name, False))
                 if curr_resource is not None:
                     del self._dict_resources[resource_id]
-                resource = resource_hub[resource_name](
-                    **resource_data["parameters"]
-                )
+                resource = resource_hub[resource_name](**resource_data["parameters"])
                 param_values[resource_id] = resource.value()
                 dict_resources[resource_id] = resource_data
                 resource_has_changed[resource_id] = True
@@ -186,7 +180,7 @@ class GraphState:
                 else:
                     step_input[param_name] = lookup
             curr_step = self._dict_graph.get(step_id)
-            
+
             if (
                 curr_step is not None
                 and curr_step == step_data
@@ -197,9 +191,7 @@ class GraphState:
                 queues[step_id] = self._queues[step_id]
                 step_states[step_id] = self._step_states[step_id]
                 step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
-                print("Reusing step", step_id, "reusing q")
             else:
-                print("Creating new step", step_id)
                 logger = Logger(self.view_manager_queue, step_id, step_name)
                 step = step_hub[step_name](**step_input, id=step_id, logger=logger)
                 steps[step_id] = step

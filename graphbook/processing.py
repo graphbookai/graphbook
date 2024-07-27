@@ -68,7 +68,6 @@ class WebInstanceProcessor:
         return outputs
 
     def handle_steps(self, steps: List[Step]) -> bool:
-        print("handle steps")
         is_active = False
         for step in steps:
             output = {}
@@ -102,8 +101,6 @@ class WebInstanceProcessor:
             else:
                 if not is_active:
                     is_active = any(len(v) > 0 for v in output.values())
-                    
-            print(step.id, is_active)
 
         return is_active
 
@@ -122,7 +119,6 @@ class WebInstanceProcessor:
             )
 
     def run(self, step_id: str = None):
-        print("running")
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         self.setup_dataloader(steps)
         for step in steps:
@@ -195,7 +191,6 @@ class WebInstanceProcessor:
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
-                    print("running all")
                     if self.try_update_state(work):
                         self.set_is_running(True)
                         self.run()

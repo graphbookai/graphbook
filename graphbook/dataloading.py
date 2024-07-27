@@ -146,23 +146,19 @@ class Dataloader:
         consumer_load_fn: List[callable],
         consumer_dump_fn: List[callable],
     ):
-        d = {}
+        c = {}
         for id, load_fn, dump_fn in zip(consumer_ids, consumer_load_fn, consumer_dump_fn):
-            d[id] = (load_fn, dump_fn)
+            c[id] = (load_fn, dump_fn)
         consumer_ids = set(consumer_ids)
         curr_ids = set(self.consumer_load_fn.keys())
-        print(consumer_ids, curr_ids)
         new_ids = consumer_ids - curr_ids
         old_ids = curr_ids - consumer_ids
-        print(new_ids)
-        print(old_ids)
 
         for id in new_ids:
             self.consumer_load_queues[id] = self.context.Queue()
             self.consumer_dump_queues[id] = self.context.Queue()
-            self.consumer_load_fn[id] = d[id][0]
-            self.consumer_dump_fn[id] = d[id][1]
-        print("A")
+            self.consumer_load_fn[id] = c[id][0]
+            self.consumer_dump_fn[id] = c[id][1]
 
         for id in old_ids:
             self.total_consumer_size -= self.consumer_load_queues[id].qsize()
@@ -171,7 +167,6 @@ class Dataloader:
             del self.consumer_dump_queues[id]
             del self.consumer_load_fn[id]
             del self.consumer_dump_fn[id]
-        print("B")
 
     def shutdown(self):
         if len(self._workers) == 0:

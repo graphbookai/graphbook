@@ -416,7 +416,6 @@ class Split(Step):
     def __init__(self, id, logger, split_fn):
         super().__init__(id, logger)
         self.split_fn = split_fn
-        print("recreating fn string")
         self.fn = transform_function_string(split_fn)
 
     def forward_note(self, note) -> str:
