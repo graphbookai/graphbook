@@ -180,7 +180,7 @@ class GraphServer:
                 and res.get("index") == index
             ):
                 return web.json_response(res)
-            
+
             return web.json_response({"error": "Could not get output note."})
 
         @routes.get("/fs")

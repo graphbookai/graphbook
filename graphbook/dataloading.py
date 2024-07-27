@@ -89,6 +89,7 @@ def worker_loop(
     except KeyboardInterrupt:
         pass
 
+
 class Dataloader:
     def __init__(self, num_workers: int = 1):
         self.num_workers = num_workers
@@ -147,7 +148,9 @@ class Dataloader:
         consumer_dump_fn: List[callable],
     ):
         c = {}
-        for id, load_fn, dump_fn in zip(consumer_ids, consumer_load_fn, consumer_dump_fn):
+        for id, load_fn, dump_fn in zip(
+            consumer_ids, consumer_load_fn, consumer_dump_fn
+        ):
             c[id] = (load_fn, dump_fn)
         consumer_ids = set(consumer_ids)
         curr_ids = set(self.consumer_load_fn.keys())
@@ -195,7 +198,7 @@ class Dataloader:
                         continue
                     consumers[consumer_id].put(result, block=False)
                     self.total_consumer_size += 1
-                    
+
     def _close_queues(self):
         for q in self._load_queues:
             q.cancel_join_thread()
@@ -248,9 +251,7 @@ class Dataloader:
             clear_queue(q)
         self.total_consumer_size = 0
 
-    def put_load(
-        self, items: list, note_id: int, consumer_id: int
-    ):
+    def put_load(self, items: list, note_id: int, consumer_id: int):
         for i, item in enumerate(items):
             self._load_queues[self._worker_queue_cycle].put(
                 (item, i, note_id, consumer_id), block=False
@@ -294,6 +295,6 @@ class Dataloader:
             return note_id
         except queue.Empty:
             return None
-        
+
     def is_failed(self):
         return self._fail_event.is_set()

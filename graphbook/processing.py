@@ -163,8 +163,12 @@ class WebInstanceProcessor:
     def setup_dataloader(self, steps: List[Step]):
         dataloader_consumers = [step for step in steps if isinstance(step, AsyncStep)]
         consumer_ids = [id(c) for c in dataloader_consumers]
-        consumer_load_fn = [c.load_fn if hasattr(c, "load_fn") else None for c in dataloader_consumers]
-        consumer_dump_fn = [c.dump_fn if hasattr(c, "dump_fn") else None for c in dataloader_consumers]
+        consumer_load_fn = [
+            c.load_fn if hasattr(c, "load_fn") else None for c in dataloader_consumers
+        ]
+        consumer_dump_fn = [
+            c.dump_fn if hasattr(c, "dump_fn") else None for c in dataloader_consumers
+        ]
         self.dataloader.setup(consumer_ids, consumer_load_fn, consumer_dump_fn)
         for c in dataloader_consumers:
             c.set_dataloader(self.dataloader)

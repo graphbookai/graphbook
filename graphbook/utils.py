@@ -11,11 +11,14 @@ import multiprocessing.connection as mpc
 
 MP_WORKER_TIMEOUT = 5.0
 ProcessorStateRequest = Enum(
-    "ProcessorStateRequest", ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"]
+    "ProcessorStateRequest",
+    ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"],
 )
+
 
 def is_batchable(obj: any) -> bool:
     return isinstance(obj, Iterable)
+
 
 """
 This function is used to convert a string to a function
@@ -23,6 +26,8 @@ by interpreting the string as a python-typed function
 definition. This is used to allow the user to define
 custom functions in the graphbook UI.
 """
+
+
 def transform_function_string(func_str):
     func_str = func_str.strip()
     if not func_str.startswith("def"):
@@ -40,7 +45,10 @@ def transform_function_string(func_str):
     # Return the function from the module
     return getattr(module, func_name)
 
-def poll_conn_for(conn: mpc.Connection, req: ProcessorStateRequest, body: dict = None) -> dict:
+
+def poll_conn_for(
+    conn: mpc.Connection, req: ProcessorStateRequest, body: dict = None
+) -> dict:
     req_data = {"cmd": req}
     if body:
         req_data.update(body)
@@ -51,53 +59,65 @@ def poll_conn_for(conn: mpc.Connection, req: ProcessorStateRequest, body: dict =
             return res.get("data")
     return None
 
+
 def get_gpu_util():
     def safe_float_cast(strNumber):
         try:
             number = float(strNumber)
         except ValueError:
-            number = float('nan')
+            number = float("nan")
         return number
+
     if platform.system() == "Windows":
-        # If the platform is Windows and nvidia-smi 
-        # could not be found from the environment path, 
+        # If the platform is Windows and nvidia-smi
+        # could not be found from the environment path,
         # try to find it from system drive with default installation path
-        nvidia_smi = shutil.which('nvidia-smi')
+        nvidia_smi = shutil.which("nvidia-smi")
         if nvidia_smi is None:
-            nvidia_smi = "%s\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe" % os.environ['systemdrive']
+            nvidia_smi = (
+                "%s\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"
+                % os.environ["systemdrive"]
+            )
     else:
         nvidia_smi = "nvidia-smi"
-	
+
     # Get ID, processing and memory utilization for all GPUs
     try:
-        p = subprocess.Popen([nvidia_smi,"--query-gpu=index,uuid,utilization.gpu,memory.total,memory.used,memory.free,driver_version,name,gpu_serial,display_active,display_mode,temperature.gpu", "--format=csv,noheader,nounits"], stdout=subprocess.PIPE)
+        p = subprocess.Popen(
+            [
+                nvidia_smi,
+                "--query-gpu=index,uuid,utilization.gpu,memory.total,memory.used,memory.free,driver_version,name,gpu_serial,display_active,display_mode,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            stdout=subprocess.PIPE,
+        )
         stdout, _ = p.communicate()
     except:
         return []
 
-    output = stdout.decode('UTF-8')
+    output = stdout.decode("UTF-8")
     lines = output.split(os.linesep)
-    numDevices = len(lines)-1
+    numDevices = len(lines) - 1
     GPUs = []
     for g in range(numDevices):
         line = lines[g]
-        vals = line.split(', ')
+        vals = line.split(", ")
         for i in range(12):
-            if (i == 0):
+            if i == 0:
                 device_id = int(vals[i])
             # elif (i == 1):
             #     uuid = vals[i]
-            elif (i == 2):
+            elif i == 2:
                 gpu_util = safe_float_cast(vals[i])
-            elif (i == 3):
+            elif i == 3:
                 mem_total = safe_float_cast(vals[i])
-            elif (i == 4):
+            elif i == 4:
                 mem_used = safe_float_cast(vals[i])
             # elif (i == 5):
             #     memFree = safe_float_cast(vals[i])
             # elif (i == 6):
             #     driver = vals[i]
-            elif (i == 7):
+            elif i == 7:
                 gpu_name = vals[i]
             # elif (i == 8):
             #     serial = vals[i]
@@ -108,10 +128,12 @@ def get_gpu_util():
             # elif (i == 11):
             #     temp_gpu = safe_float_cast(vals[i]);
         gpu_mem = (mem_used / mem_total) * 100
-        GPUs.append({
-            "id": device_id,
-            "name": gpu_name,
-            "util": gpu_util,
-            "mem": gpu_mem,
-        })
+        GPUs.append(
+            {
+                "id": device_id,
+                "name": gpu_name,
+                "util": gpu_util,
+                "mem": gpu_mem,
+            }
+        )
     return GPUs
