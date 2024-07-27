@@ -1,5 +1,4 @@
 from typing import Dict, List
-import os.path as osp
 from aiohttp.web import WebSocketResponse
 import uuid
 import asyncio
@@ -287,13 +286,15 @@ class ViewManager:
         asyncio.set_event_loop(loop)
         sends = []
         for client in self.clients.values():
-            entry = {"type": type} | data
+            entry = {"type": type, "data": data}
             sends.append(client.ws.send_json(entry))
         loop.run_until_complete(asyncio.gather(*sends))
         loop.close()
 
-    def handle_run_state(self, is_running: bool):
-        self.send_to_clients("run_state", {"is_running": is_running})
+    def handle_run_state(self, is_running: bool, filename: str):
+        self.send_to_clients(
+            "run_state", {"is_running": is_running, "filename": filename}
+        )
 
     def _loop(self):
         while not self.close_event.is_set():
@@ -312,7 +313,7 @@ class ViewManager:
                 elif work["cmd"] == "handle_log":
                     self.handle_log(work["node_id"], work["log"], work["type"])
                 elif work["cmd"] == "handle_run_state":
-                    self.handle_run_state(work["is_running"])
+                    self.handle_run_state(work["is_running"], work["filename"])
                 elif work["cmd"] == "handle_clear":
                     self.handle_clear(work["node_id"])
             except queue.Empty:
@@ -359,10 +360,8 @@ class ViewManagerInterface:
     def handle_end(self):
         self.view_manager_queue.put({"cmd": "handle_end"})
 
-    def handle_run_state(self, is_running: bool):
-        self.view_manager_queue.put(
-            {"cmd": "handle_run_state", "is_running": is_running}
-        )
+    def handle_run_state(self, run_state: dict):
+        self.view_manager_queue.put({"cmd": "handle_run_state"} | run_state)
 
     def handle_clear(self, node_id: str | None):
         self.view_manager_queue.put({"cmd": "handle_clear", "node_id": node_id})

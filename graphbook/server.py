@@ -100,8 +100,14 @@ class GraphServer:
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
+            filename = data.get("filename", "")
             processor_queue.put(
-                {"cmd": "run_all", "graph": graph, "resources": resources}
+                {
+                    "cmd": "run_all",
+                    "graph": graph,
+                    "resources": resources,
+                    "filename": filename,
+                }
             )
             return web.json_response({"success": True})
 
@@ -111,12 +117,14 @@ class GraphServer:
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
+            filename = data.get("filename", "")
             processor_queue.put(
                 {
                     "cmd": "run",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,
+                    "filename": filename,
                 }
             )
             return web.json_response({"success": True})
@@ -127,12 +135,14 @@ class GraphServer:
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
+            filename = data.get("filename", "")
             processor_queue.put(
                 {
                     "cmd": "step",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,
+                    "filename": filename,
                 }
             )
             return web.json_response({"success": True})
@@ -182,6 +192,11 @@ class GraphServer:
                 return web.json_response(res)
 
             return web.json_response({"error": "Could not get output note."})
+        
+        @routes.get("/state")
+        async def get_run_state(request: web.Request) -> web.Response:
+            res = poll_conn_for(state_conn, ProcessorStateRequest.GET_RUNNING_STATE)
+            return web.json_response(res)
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")

@@ -88,9 +88,9 @@ export function WorkflowStep({ id, data, selected }) {
             })
             return;
         }
-        API.run(graph, resources, id);
+        API.run(graph, resources, id, filename);
         runStateShouldChange();
-    }, [nodes, edges, API, notification]);
+    }, [nodes, edges, API, notification, filename]);
 
     const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
     const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);

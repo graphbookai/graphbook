@@ -41,6 +41,7 @@ class WebInstanceProcessor:
             server_request_conn, close_event, self.graph_state, self.dataloader
         )
         self.is_running = False
+        self.filename = None
 
     def exec_step(
         self, step: Step, input: Note | None = None, flush: bool = False
@@ -152,10 +153,14 @@ class WebInstanceProcessor:
             for step in steps:
                 step.on_end()
 
-    def set_is_running(self, is_running: bool = True):
-        self.is_running = is_running
-        self.view_manager.handle_run_state(is_running)
-        self.state_client.set_running_state({"is_running": is_running})
+    def set_is_running(self, is_running: bool = True, filename: str | None = None):
+        if self.is_running != is_running:
+            self.is_running = is_running
+            if filename is not None:
+                self.filename = filename
+            run_state = {"is_running": is_running, "filename": self.filename}
+            self.view_manager.handle_run_state(run_state)
+            self.state_client.set_running_state(run_state)
 
     def cleanup(self):
         self.dataloader.shutdown()
@@ -190,21 +195,20 @@ class WebInstanceProcessor:
         loop = asyncio.get_running_loop()
         loop.run_in_executor(None, self.state_client.start)
         while not self.close_event.is_set():
-            if self.is_running:
-                self.set_is_running(False)
+            self.set_is_running(False)
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
                     if self.try_update_state(work):
-                        self.set_is_running(True)
+                        self.set_is_running(True, work["filename"])
                         self.run()
                 elif work["cmd"] == "run":
                     if self.try_update_state(work):
-                        self.set_is_running(True)
+                        self.set_is_running(True, work["filename"])
                         self.run(work["step_id"])
                 elif work["cmd"] == "step":
                     if self.try_update_state(work):
-                        self.set_is_running(True)
+                        self.set_is_running(True, work["filename"])
                         self.step(work["step_id"])
                 elif work["cmd"] == "clear":
                     if self.try_update_state(work):

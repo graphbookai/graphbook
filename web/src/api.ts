@@ -183,16 +183,16 @@ export class ServerAPI {
     /**
      * Processor API
      */
-    public async runAll(graph, resources) {
-        return await this.post('run', { graph, resources });
+    public async runAll(graph, resources, filename) {
+        return await this.post('run', { graph, resources, filename });
     }
 
-    public async run(graph, resources, stepId) {
-        return await this.post(`run/${stepId}`, { graph, resources });
+    public async run(graph, resources, stepId, filename) {
+        return await this.post(`run/${stepId}`, { graph, resources, filename });
     }
 
-    public async step(graph, resources, stepId) {
-        return await this.post(`step/${stepId}`, { graph, resources });
+    public async step(graph, resources, stepId, filename) {
+        return await this.post(`step/${stepId}`, { graph, resources, filename });
     }
 
     public async pause() {
@@ -213,6 +213,10 @@ export class ServerAPI {
 
     public async getState(stepId: string, pin: string, index: number) {
         return await this.get(`state/${stepId}/${pin}/${index}`);
+    }
+
+    public async getRunState() {
+        return await this.get('state');
     }
 
     /**

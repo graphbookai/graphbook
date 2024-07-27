@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Card, Typography, Flex, Button, Badge, theme, notification } from 'antd';
+import { Card, Typography, Flex, Button, Badge, theme } from 'antd';
 import { CaretRightOutlined } from '@ant-design/icons';
 import { useAPI, useAPIMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
@@ -124,9 +124,9 @@ export function Subflow({ id, data, selected }) {
             })
             return;
         }
-        API.run(graph, resources, id);
+        API.run(graph, resources, id, filename);
         runStateShouldChange();
-    }, [API, id, notification]);
+    }, [API, id, notification, filename]);
 
     return (
         <div style={borderStyle}>
