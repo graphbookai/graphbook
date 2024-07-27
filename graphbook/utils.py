@@ -20,15 +20,13 @@ def is_batchable(obj: any) -> bool:
     return isinstance(obj, Iterable)
 
 
-"""
-This function is used to convert a string to a function
-by interpreting the string as a python-typed function
-definition. This is used to allow the user to define
-custom functions in the graphbook UI.
-"""
-
-
 def transform_function_string(func_str):
+    """
+    This function is used to convert a string to a function
+    by interpreting the string as a python-typed function
+    definition. This is used to allow the user to define
+    custom functions in the graphbook UI.
+    """
     func_str = func_str.strip()
     if not func_str.startswith("def"):
         raise ValueError("Function string must start with def")
