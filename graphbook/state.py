@@ -127,7 +127,6 @@ class GraphState:
         self._dict_graph = {}
         self._dict_resources = {}
         self._steps: Dict[str, Step] = {}
-        self._resources: Dict[str, Resource] = {}
         self._queues: Dict[str, MultiConsumerStateDictionaryQueue] = {}
         self._resource_values: dict = {}
         self._parent_iterators: Dict[str, Iterator] = {}
@@ -145,21 +144,26 @@ class GraphState:
 
         # First, create resources that the steps depend on
         param_values = {}
-        resources = {}
+        dict_resources = {}
+        resource_has_changed = {}
         for resource_id, resource_data in graph_resources.items():
             curr_resource = self._dict_resources.get(resource_id)
             resource_name = resource_data["name"]
-            resources[resource_id] = resource_hub[resource_name](
-                **resource_data["parameters"]
-            )
             if (
                 curr_resource is not None
                 and curr_resource == resource_data
                 and not is_updated_resource.get(resource_name, False)
             ):
                 param_values[resource_id] = self._resource_values[resource_id]
+                dict_resources[resource_id] = curr_resource
+                resource_has_changed[resource_id] = False
             else:
-                param_values[resource_id] = resources[resource_id].value()
+                if curr_resource is not None:
+                    del self._dict_resources[resource_id]
+                resource = resource_hub[resource_name](**resource_data["parameters"])
+                param_values[resource_id] = resource.value()
+                dict_resources[resource_id] = resource_data
+                resource_has_changed[resource_id] = True
 
         # Next, create all steps
         steps = {}
@@ -168,15 +172,19 @@ class GraphState:
         for step_id, step_data in graph.items():
             step_name = step_data["name"]
             step_input = {}
+            step_input_has_changed = False
             for param_name, lookup in step_data["parameters"].items():
                 if isinstance(lookup, dict):
                     step_input[param_name] = param_values[lookup["node"]]
+                    step_input_has_changed |= resource_has_changed[lookup["node"]]
                 else:
                     step_input[param_name] = lookup
             curr_step = self._dict_graph.get(step_id)
+
             if (
                 curr_step is not None
                 and curr_step == step_data
+                and not step_input_has_changed
                 and not is_updated_step.get(step_name, False)
             ):
                 steps[step_id] = self._steps[step_id]
@@ -194,9 +202,7 @@ class GraphState:
                 if previous_obj is not None:
                     for parent in previous_obj.parents:
                         if parent.id in self._queues:
-                            self._queues[parent.id].update_consumer(
-                                id(previous_obj), id(step)
-                            )
+                            self._queues[parent.id].remove_consumer(id(previous_obj))
 
         # Next, connect the steps
         for step_id, step_data in graph.items():
@@ -233,9 +239,8 @@ class GraphState:
 
         # Update current graph and resource state
         self._dict_graph = graph
-        self._dict_resources = resources
+        self._dict_resources = dict_resources
         self._steps = steps
-        self._resources = resources
         self._queues = queues
         self._resource_values = param_values
         self._step_states = step_states
@@ -351,8 +356,9 @@ class MultiConsumerStateDictionaryQueue:
         del self._consumer_subs[old_id]
 
     def remove_consumer(self, consumer_id: int):
-        del self._consumer_idx[consumer_id]
-        del self._consumer_subs[consumer_id]
+        if self._consumer_idx.get(consumer_id):
+            del self._consumer_idx[consumer_id]
+            del self._consumer_subs[consumer_id]
 
     def remove_except(self, consumer_ids: List[int]):
         self._consumer_idx = {

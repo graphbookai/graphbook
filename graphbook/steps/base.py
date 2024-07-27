@@ -192,7 +192,7 @@ class AsyncStep(Step):
     def set_dataloader(self, dataloader: Dataloader):
         self.dl = dataloader
 
-    def in_q(self, note: Note):
+    def in_q(self, note: Note | None):
         if note is None:
             return
         self._in_queue.append(note)
@@ -215,12 +215,8 @@ class NoteItemHolders:
             self.item_counts[note_id] = 0
         self.item_counts[note_id] += 1
 
-    def handle_item(self, note_id, item_response):
+    def handle_item(self, note_id):
         self.item_counts[note_id] -= 1
-        if item_response is None:
-            return
-        item_key, output_fn = item_response
-        self.notes[note_id].put_item(item_key, output_fn)
 
     def set_completed(self, note: Note):
         note_id = id(note)
@@ -260,7 +256,7 @@ class BatchStep(AsyncStep):
         self.dumped_item_holders = NoteItemHolders()
         self.accumulated_items = [[], [], []]
 
-    def in_q(self, note: Note):
+    def in_q(self, note: Note | None):
         """
         Enqueue a note to be processed by the step
 
@@ -275,11 +271,11 @@ class BatchStep(AsyncStep):
         # Load
         if hasattr(self, "load_fn"):
             if len(items) > 0:
-                dr_id = id(note)
-                self.dl.put_load(items, dr_id, self.load_fn, id(self))
+                note_id = id(note)
+                self.dl.put_load(items, note_id, id(self))
 
-                self.loaded_notes[dr_id] = note
-                self.num_loaded_notes[dr_id] = len(items)
+                self.loaded_notes[note_id] = note
+                self.num_loaded_notes[note_id] = len(items)
 
     def get_batch(self, flush: bool = False) -> StepData:
         items, notes, completed = self.accumulated_items
@@ -319,9 +315,9 @@ class BatchStep(AsyncStep):
         )
         return batch
 
-    def dump_data(self, note: Note, item_key, output):
+    def dump_data(self, note: Note, output):
         self.dumped_item_holders.handle_note(note)
-        self.dl.put_dump(output, item_key, id(note), self.dump_fn, id(self))
+        self.dl.put_dump(output, id(note), id(self))
 
     def handle_batch(self, batch: StepData):
         items, notes, completed = batch
@@ -339,16 +335,15 @@ class BatchStep(AsyncStep):
                     )
                 else:
                     for note, out in zip(notes, v):
-                        self.dump_data(note, k, out)
+                        self.dump_data(note, out)
 
         for note in completed:
             self.dumped_item_holders.set_completed(note)
 
     def handle_completed_notes(self):
-        data = self.dl.get_dump(id(self))
-        if data is not None:
-            note_id, item_response = data
-            self.dumped_item_holders.handle_item(note_id, item_response)
+        note_id = self.dl.get_dump(id(self))
+        if note_id is not None:
+            self.dumped_item_holders.handle_item(note_id)
         output = {}
         for note in self.dumped_item_holders.pop_all_completed():
             self.on_after_items(note)
@@ -358,7 +353,7 @@ class BatchStep(AsyncStep):
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, tensor, items, notes):
+    def on_item_batch(self, tensors, items, notes):
         """
         Called when B items are loaded into PyTorch tensors and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
