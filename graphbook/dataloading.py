@@ -18,7 +18,9 @@ def do_load(
     except queue.Empty:
         return True
 
-    load_fn = consumer_load_fn[consumer_id]
+    load_fn = consumer_load_fn.get(consumer_id)
+    if load_fn is None:
+        return True
     try:
         result_tensor = load_fn(item)
         result = (result_tensor, index)
@@ -44,7 +46,9 @@ def do_dump(
     except queue.Empty:
         return True
 
-    dump_fn = consumer_dump_fn[consumer_id]
+    dump_fn = consumer_dump_fn.get(consumer_id)
+    if dump_fn is None:
+        return True
     to_return = (note_id, consumer_id)
     try:
         dump_fn(data)

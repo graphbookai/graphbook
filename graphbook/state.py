@@ -6,7 +6,6 @@ from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
 from graphbook.viewer import Logger, ViewManagerInterface
 import multiprocessing as mp
-import multiprocessing.connection as mpc
 import importlib, importlib.util, inspect
 import graphbook.exports as exports
 import sys, os
@@ -15,6 +14,12 @@ import json
 import hashlib
 from enum import Enum
 
+class NodeInstantiationError(Exception):
+    def __init__(self, message: str, node_id: str, node_name: str):
+        message = f"Error instantiating node {node_name} with id {node_id}:\n{message}"
+        super().__init__(message)
+        self.node_id = node_id
+        self.node_name = node_name
 
 class UIState:
     def __init__(self, root_path: str, websocket: WebSocketResponse):
@@ -160,7 +165,10 @@ class GraphState:
             else:
                 if curr_resource is not None:
                     del self._dict_resources[resource_id]
-                resource = resource_hub[resource_name](**resource_data["parameters"])
+                try:
+                    resource = resource_hub[resource_name](**resource_data["parameters"])
+                except Exception as e:
+                    raise NodeInstantiationError(str(e), resource_id, resource_name)
                 param_values[resource_id] = resource.value()
                 dict_resources[resource_id] = resource_data
                 resource_has_changed[resource_id] = True
@@ -193,7 +201,10 @@ class GraphState:
                 step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
             else:
                 logger = Logger(self.view_manager_queue, step_id, step_name)
-                step = step_hub[step_name](**step_input, id=step_id, logger=logger)
+                try:
+                    step = step_hub[step_name](**step_input, id=step_id, logger=logger)
+                except Exception as e:
+                    raise NodeInstantiationError(str(e), step_id, step_name)
                 steps[step_id] = step
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()

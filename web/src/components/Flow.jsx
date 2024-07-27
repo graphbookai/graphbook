@@ -26,6 +26,7 @@ import { Subflow } from './Nodes/Subflow.tsx';
 import { Monitor } from './Monitor.tsx';
 import { useNotificationInitializer, useNotification } from '../hooks/Notification';
 import { SerializationErrorMessages } from './Errors.tsx';
+import { useFilename } from '../hooks/Filename.ts';
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
 const onLoadGraph = async (filename, API) => {
@@ -368,6 +369,7 @@ function ControlRow() {
     const nodes = useNodes();
     const edges = useEdges();
     const notification = useNotification();
+    const filename = useFilename();
 
     const run = useCallback(async () => {
         const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
@@ -380,9 +382,9 @@ function ControlRow() {
             })
             return;
         }
-        API.runAll(graph, resources);
+        API.runAll(graph, resources, filename);
         runStateShouldChange();
-    }, [API, nodes, edges, notification]);
+    }, [API, nodes, edges, notification, filename]);
 
     const pause = useCallback(() => {
         API.pause();
