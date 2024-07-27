@@ -372,7 +372,7 @@ def get_args():
     parser.add_argument("--workflow_dir", type=str, default="./workflow")
     parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
     parser.add_argument("--num_workers", type=int, default=1)
-    parser.add_argument("--continue_on_failure", type=bool, action="store_true")
+    parser.add_argument("--continue_on_failure", action="store_true")
     return parser.parse_args()
 
 
