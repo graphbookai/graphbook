@@ -6,7 +6,7 @@ import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
 from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
-from graphbook.state import GraphState, StepState
+from graphbook.state import GraphState, StepState, NodeInstantiationError
 from graphbook.viewer import ViewManagerInterface
 import traceback
 import asyncio
@@ -154,13 +154,12 @@ class WebInstanceProcessor:
                 step.on_end()
 
     def set_is_running(self, is_running: bool = True, filename: str | None = None):
-        if self.is_running != is_running:
-            self.is_running = is_running
-            if filename is not None:
-                self.filename = filename
-            run_state = {"is_running": is_running, "filename": self.filename}
-            self.view_manager.handle_run_state(run_state)
-            self.state_client.set_running_state(run_state)
+        self.is_running = is_running
+        if filename is not None:
+            self.filename = filename
+        run_state = {"is_running": is_running, "filename": self.filename}
+        self.view_manager.handle_run_state(run_state)
+        self.state_client.set_running_state(run_state)
 
     def cleanup(self):
         self.dataloader.shutdown()
@@ -187,9 +186,12 @@ class WebInstanceProcessor:
                 queue_entry["graph"], queue_entry["resources"]
             )
             return True
+        except NodeInstantiationError as e:
+            traceback.print_exc()
+            self.view_manager.handle_log(e.node_id, str(e), "error")
         except Exception as e:
             traceback.print_exc()
-            return False
+        return False
 
     async def start_loop(self):
         loop = asyncio.get_running_loop()
@@ -199,16 +201,16 @@ class WebInstanceProcessor:
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
+                    self.set_is_running(True, work["filename"])
                     if self.try_update_state(work):
-                        self.set_is_running(True, work["filename"])
                         self.run()
                 elif work["cmd"] == "run":
+                    self.set_is_running(True, work["filename"])
                     if self.try_update_state(work):
-                        self.set_is_running(True, work["filename"])
                         self.run(work["step_id"])
                 elif work["cmd"] == "step":
+                    self.set_is_running(True, work["filename"])
                     if self.try_update_state(work):
-                        self.set_is_running(True, work["filename"])
                         self.step(work["step_id"])
                 elif work["cmd"] == "clear":
                     if self.try_update_state(work):

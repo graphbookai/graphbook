@@ -47,7 +47,7 @@ export function useRunState(): [RunState, () => void] {
         (async () => {
             if (!initialized && API) {
                 initialized = true;
-                API.addWSMessageListener(globalEventListener)
+                API.addWSMessageListener(globalEventListener);
                 const runState = await API?.getRunState();
                 updateRunState(runState);
             }
