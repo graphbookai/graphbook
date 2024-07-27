@@ -210,9 +210,7 @@ class GraphState:
                 if previous_obj is not None:
                     for parent in previous_obj.parents:
                         if parent.id in self._queues:
-                            self._queues[parent.id].update_consumer(
-                                id(previous_obj), id(step)
-                            )
+                            self._queues[parent.id].remove_consumer(id(previous_obj))
 
         # Next, connect the steps
         for step_id, step_data in graph.items():
@@ -366,8 +364,9 @@ class MultiConsumerStateDictionaryQueue:
         del self._consumer_subs[old_id]
 
     def remove_consumer(self, consumer_id: int):
-        del self._consumer_idx[consumer_id]
-        del self._consumer_subs[consumer_id]
+        if self._consumer_idx.get(consumer_id):
+            del self._consumer_idx[consumer_id]
+            del self._consumer_subs[consumer_id]
 
     def remove_except(self, consumer_ids: List[int]):
         self._consumer_idx = {
