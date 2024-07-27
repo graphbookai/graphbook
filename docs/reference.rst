@@ -9,3 +9,6 @@ Reference
 
 .. automodule:: graphbook.resources.base
    :members:
+
+.. automodule:: graphbook.utils
+   :members:
