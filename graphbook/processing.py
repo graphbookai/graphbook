@@ -177,9 +177,6 @@ class WebInstanceProcessor:
         for c in dataloader_consumers:
             c.set_dataloader(self.dataloader)
 
-    def __str__(self):
-        return self.root.__str__()
-
     def try_update_state(self, queue_entry: dict) -> bool:
         try:
             self.graph_state.update_state(
