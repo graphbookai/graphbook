@@ -18,7 +18,7 @@ import { getHandle, filesystemDragEnd } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
-import { useAPI } from '../hooks/API.ts';
+import { useAPI, useAPIMessage } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
@@ -57,7 +57,7 @@ export default function Flow({ filename }) {
     const [nodeToPos, setNodeToPos] = useState({ x: 0, y: 0 });
     const reactFlowInstance = useRef(null);
     const reactFlowRef = useRef(null);
-    
+
 
     useEffect(() => {
         graphStore.current = null;
@@ -256,54 +256,62 @@ export default function Flow({ filename }) {
         return true;
     }, [reactFlowInstance]);
 
-    useEffect(() => {
+    const nodeUpdatedCallback = useCallback(async () => {
         if (!API) {
             return;
         }
-        // Add WebSocket event listener for node updates
-        const handleNodeUpdate = async (event) => {
-            const message = JSON.parse(event.data);
-            if (message.event !== 'node_updated') {
-                return;
+
+        const searchNodes = (catalogue, name, category) => {
+            if (!category) {
+                return null;
             }
+            const categories = category.split('/');
+            let c = catalogue[categories[0]];
+            for (let i = 1; i < categories.length; i++) {
+                c = c?.children[categories[i]];
+            }
+            if (!c) {
+                return null;
+            }
+            return c.children?.[name];
+        };
 
-            const updatedNodes = await API.getNodes();
-            const mergedNodes = nodes.map(node => {
-                const updatedNodeData = updatedNodes.steps[node.data.category]?.children[node.data.name];
-                if (updatedNodeData) {
-                    // Create a new parameters object by keeping only the common parameters between the old and new
-                    const newParameters = Object.keys(updatedNodeData.parameters).reduce((acc, key) => {
-                        if (node.data.parameters.hasOwnProperty(key)) {
-                            acc[key] = node.data.parameters[key];
-                        } else {
-                            acc[key] = updatedNodeData.parameters[key];
-                        }
-                        return acc;
-                    }, {});
+        const updatedNodes = await API.getNodes();
+        const mergedNodes = nodes.map(node => {
+            const updatedNodeData = (
+                node.type === 'step' ?
+                    searchNodes(updatedNodes.steps, node.data.name, node.data.category) :
+                    searchNodes(updatedNodes.resources, node.data.name, node.data.category)
+            );
+            if (updatedNodeData) {
+                // Create a new parameters object by keeping only the common parameters between the old and new
+                const newParameters = Object.keys(updatedNodeData.parameters).reduce((acc, key) => {
+                    if (node.data.parameters.hasOwnProperty(key)) {
+                        acc[key] = node.data.parameters[key];
+                    } else {
+                        acc[key] = updatedNodeData.parameters[key];
+                    }
+                    return acc;
+                }, {});
 
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            ...updatedNodeData,
-                            parameters: {
-                                ...newParameters,
-                            },
+                return {
+                    ...node,
+                    data: {
+                        ...node.data,
+                        ...updatedNodeData,
+                        parameters: {
+                            ...newParameters,
                         },
-                    };
-                }
-                return node;
-            });
+                    },
+                };
+            }
+            return node;
+        });
 
-            setNodes(mergedNodes);
-        };
-
-        API.addWsEventListener('message', handleNodeUpdate);
-
-        return () => {
-            API.removeWsEventListener('message', handleNodeUpdate);
-        };
+        setNodes(mergedNodes);
     }, [nodes, setNodes, API]);
+
+    useAPIMessage('node_updated', nodeUpdatedCallback);
 
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
@@ -351,7 +359,7 @@ export default function Flow({ filename }) {
                 <Panel position='bottom-left'>
                     {/* <Text italic>{filename}</Text> */}
                 </Panel>
-                <Monitor/>
+                <Monitor />
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
                 <Background id="1" variant="lines" gap={20} size={1} color={lineColor1} />
@@ -377,7 +385,7 @@ function ControlRow() {
             notification.error({
                 key: 'invalid-graph',
                 message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors}/>,
+                description: <SerializationErrorMessages errors={errors} />,
                 duration: 3,
             })
             return;
@@ -397,7 +405,7 @@ function ControlRow() {
             notification.error({
                 key: 'invalid-graph',
                 message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors}/>,
+                description: <SerializationErrorMessages errors={errors} />,
                 duration: 3,
             })
             return;
@@ -413,7 +421,7 @@ function ControlRow() {
                     runState !== 'stopped' ? (
                         <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
-                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} disabled={!API}/>
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} disabled={!API} />
                     )
                 }
             </Flex>
