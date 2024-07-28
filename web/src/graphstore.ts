@@ -1,6 +1,5 @@
 import type { Node, Edge } from 'reactflow';
 import type { ServerAPI } from './api';
-import { properties } from './properties';
 
 /**
  * Note:
@@ -59,7 +58,12 @@ export class GraphStore {
             delete storedNode.data.properties;
             return storedNode;
         });
-        this.API.putGraph(this.filename, storedNodes, edges);
+        const storedEdges = edges.map(edge => {
+            const storedEdge = { ...edge, data: { ...edge.data } };
+            delete storedEdge.data.properties;
+            return storedEdge;
+        });
+        this.API.putGraph(this.filename, storedNodes, storedEdges);
     }
 
     private isChanged(prev: GraphState, next: GraphState) {

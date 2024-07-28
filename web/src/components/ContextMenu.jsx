@@ -7,6 +7,7 @@ import { useRunState } from '../hooks/RunState';
 import { useAPI } from '../hooks/API';
 import { useNotification } from '../hooks/Notification';
 import { SerializationErrorMessages } from './Errors.tsx';
+import { useFilename } from '../hooks/Filename.ts';
 
 export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const reactFlowInstance = useReactFlow();
@@ -15,6 +16,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const API = useAPI();
     const updateNodeInternals = useUpdateNodeInternals();
     const notification = useNotification();
+    const filename = useFilename();
 
     const NODE_OPTIONS = useMemo(() => [
         {
@@ -34,7 +36,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                     })
                     return;
                 }
-                API.run(graph, resources, node.id);
+                API.run(graph, resources, node.id, filename);
                 runStateShouldChange();
             }
         },
@@ -55,7 +57,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                     })
                     return;
                 }
-                API.step(graph, resources, node.id);
+                API.step(graph, resources, node.id, filename);
                 runStateShouldChange();
             }
         },
@@ -127,7 +129,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                 });
             }
         }
-    ], [node, reactFlowInstance, runState, runStateShouldChange, API]);
+    ], [node, reactFlowInstance, runState, runStateShouldChange, API, filename]);
 
     const GROUP_OPTIONS = useMemo(() => {
         const addExport = (isInput, exp) => {

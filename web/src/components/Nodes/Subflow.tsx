@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Card, Typography, Flex, Button, Badge, theme, notification } from 'antd';
-import { CaretRightOutlined } from '@ant-design/icons';
+import { Card, Typography, Badge, theme } from 'antd';
 import { useAPI, useAPIMessage } from '../../hooks/API';
 import { useRunState } from '../../hooks/RunState';
 import { useReactFlow, useOnSelectionChange, Position, Handle } from 'reactflow';
@@ -124,17 +123,16 @@ export function Subflow({ id, data, selected }) {
             })
             return;
         }
-        API.run(graph, resources, id);
+        API.run(graph, resources, id, filename);
         runStateShouldChange();
-    }, [API, id, notification]);
+    }, [API, id, notification, filename]);
 
     return (
         <div style={borderStyle}>
             <Card className='workflow-node'>
-                <Flex gap="small" justify='space-between' className='title'>
-                    <div>{name}</div>
-                    <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped'}/>
-                </Flex>
+                <div className='title'>
+                    {name}
+                </div>
                 <div className="handles">
                     <div className="inputs">
                         {

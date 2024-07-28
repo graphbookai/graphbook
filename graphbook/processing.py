@@ -1,4 +1,4 @@
-from graphbook.steps import Step, SourceStep, AsyncStep
+from graphbook.steps import Step, SourceStep, AsyncStep, StepOutput
 from graphbook.dataloading import Dataloader
 from .note import Note
 from typing import List
@@ -6,7 +6,7 @@ import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
 from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
-from graphbook.state import GraphState, StepState
+from graphbook.state import GraphState, StepState, NodeInstantiationError
 from graphbook.viewer import ViewManagerInterface
 import traceback
 import asyncio
@@ -20,6 +20,7 @@ class WebInstanceProcessor:
         server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
         output_dir: str,
+        continue_on_failure: bool,
         custom_nodes_path: str,
         close_event: mp.Event,
         pause_event: mp.Event,
@@ -31,16 +32,20 @@ class WebInstanceProcessor:
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.output_dir = output_dir
+        self.continue_on_failure = continue_on_failure
         self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
         self.steps = {}
-        self.dataloader = Dataloader(self.output_dir, self.num_workers)
+        self.dataloader = Dataloader(self.num_workers)
         self.state_client = ProcessorStateClient(
             server_request_conn, close_event, self.graph_state, self.dataloader
         )
         self.is_running = False
+        self.filename = None
 
-    def exec_step(self, step: Step, input: Note | None = None, flush: bool = False):
+    def exec_step(
+        self, step: Step, input: Note | None = None, flush: bool = False
+    ) -> StepOutput | None:
         outputs = {}
         step_fn = step if not flush else step.all
         start_time = time.time()
@@ -49,25 +54,24 @@ class WebInstanceProcessor:
                 outputs = step_fn()
             else:
                 if isinstance(step, AsyncStep):
-                    outputs = step.in_q(input)
+                    step.in_q(input)
                 else:
                     outputs = step_fn(input)
         except Exception as e:
             step.logger.log_exception(e)
             traceback.print_exc()
-            return {}
+            return None
 
-        if outputs:
+        if outputs is not None:
             self.graph_state.handle_outputs(step.id, outputs)
             self.view_manager.handle_outputs(step.id, outputs)
         self.view_manager.handle_time(step.id, time.time() - start_time)
-
         return outputs
 
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
         for step in steps:
-            output = None
+            output = {}
             if isinstance(step, SourceStep):
                 if not self.graph_state.get_state(step, StepState.EXECUTED):
                     output = self.exec_step(step)
@@ -90,23 +94,32 @@ class WebInstanceProcessor:
                     if input:
                         output = self.exec_step(step, input)
 
-            if not is_active and output:
-                is_active = any(len(v) > 0 for v in output.values())
+            if output is None:
+                if not self.continue_on_failure:
+                    return False
+                else:
+                    output = {}
+            else:
+                if not is_active:
+                    is_active = any(len(v) > 0 for v in output.values())
 
         return is_active
 
     def step_until_received_output(self, steps: List[Step], step_id: str):
         is_active = True
         step_executed = False
-        while is_active and not step_executed and not self.pause_event.is_set():
+        while (
+            is_active
+            and not step_executed
+            and not self.pause_event.is_set()
+            and not self.dataloader.is_failed()
+        ):
             is_active = self.handle_steps(steps)
             step_executed = self.graph_state.get_state(
                 step_id, StepState.EXECUTED_THIS_RUN
             )
 
     def run(self, step_id: str = None):
-        self.is_running = True
-        self.view_manager.handle_run_state(True)
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         self.setup_dataloader(steps)
         for step in steps:
@@ -115,7 +128,11 @@ class WebInstanceProcessor:
         self.pause_event.clear()
         dag_is_active = True
         try:
-            while dag_is_active and not self.pause_event.is_set():
+            while (
+                dag_is_active
+                and not self.pause_event.is_set()
+                and not self.dataloader.is_failed()
+            ):
                 dag_is_active = self.handle_steps(steps)
         finally:
             self.view_manager.handle_end()
@@ -123,8 +140,6 @@ class WebInstanceProcessor:
                 step.on_end()
 
     def step(self, step_id: str = None):
-        self.is_running = True
-        self.view_manager.handle_run_state(True)
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         self.setup_dataloader(steps)
         for step in steps:
@@ -138,17 +153,29 @@ class WebInstanceProcessor:
             for step in steps:
                 step.on_end()
 
+    def set_is_running(self, is_running: bool = True, filename: str | None = None):
+        self.is_running = is_running
+        if filename is not None:
+            self.filename = filename
+        run_state = {"is_running": is_running, "filename": self.filename}
+        self.view_manager.handle_run_state(run_state)
+        self.state_client.set_running_state(run_state)
+
     def cleanup(self):
         self.dataloader.shutdown()
 
     def setup_dataloader(self, steps: List[Step]):
         dataloader_consumers = [step for step in steps if isinstance(step, AsyncStep)]
-        self.dataloader.setup([id(c) for c in dataloader_consumers])
+        consumer_ids = [id(c) for c in dataloader_consumers]
+        consumer_load_fn = [
+            c.load_fn if hasattr(c, "load_fn") else None for c in dataloader_consumers
+        ]
+        consumer_dump_fn = [
+            c.dump_fn if hasattr(c, "dump_fn") else None for c in dataloader_consumers
+        ]
+        self.dataloader.setup(consumer_ids, consumer_load_fn, consumer_dump_fn)
         for c in dataloader_consumers:
             c.set_dataloader(self.dataloader)
-
-    def __str__(self):
-        return self.root.__str__()
 
     def try_update_state(self, queue_entry: dict) -> bool:
         try:
@@ -156,26 +183,30 @@ class WebInstanceProcessor:
                 queue_entry["graph"], queue_entry["resources"]
             )
             return True
+        except NodeInstantiationError as e:
+            traceback.print_exc()
+            self.view_manager.handle_log(e.node_id, str(e), "error")
         except Exception as e:
             traceback.print_exc()
-            return False
+        return False
 
     async def start_loop(self):
         loop = asyncio.get_running_loop()
         loop.run_in_executor(None, self.state_client.start)
         while not self.close_event.is_set():
-            if self.is_running:
-                self.is_running = False
-                self.view_manager.handle_run_state(False)
+            self.set_is_running(False)
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] == "run_all":
+                    self.set_is_running(True, work["filename"])
                     if self.try_update_state(work):
                         self.run()
                 elif work["cmd"] == "run":
+                    self.set_is_running(True, work["filename"])
                     if self.try_update_state(work):
                         self.run(work["step_id"])
                 elif work["cmd"] == "step":
+                    self.set_is_running(True, work["filename"])
                     if self.try_update_state(work):
                         self.step(work["step_id"])
                 elif work["cmd"] == "clear":
@@ -203,6 +234,7 @@ class ProcessorStateClient:
         self.curr_task = None
         self.graph_state = graph_state
         self.dataloader = dataloader
+        self.running_state = {}
 
     def _loop(self):
         while not self.close_event.is_set():
@@ -215,9 +247,13 @@ class ProcessorStateClient:
                     if step_id is None or pin_id is None or index is None:
                         output = {}
                     else:
-                        output = self.graph_state.get_output_note(step_id, pin_id, index)
+                        output = self.graph_state.get_output_note(
+                            step_id, pin_id, index
+                        )
                 elif req["cmd"] == ProcessorStateRequest.GET_WORKER_QUEUE_SIZES:
                     output = self.dataloader.get_all_sizes()
+                elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:
+                    output = self.running_state
                 else:
                     output = {}
                 entry = {"res": req["cmd"], "data": output}
@@ -229,6 +265,9 @@ class ProcessorStateClient:
     def close(self):
         if self.curr_task is not None:
             self.curr_task.cancel()
+
+    def set_running_state(self, state: dict):
+        self.running_state = state
 
 
 def poll_conn_for(
