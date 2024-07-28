@@ -127,8 +127,22 @@ export default function Flow({ filename }) {
     });
 
     const onConnect = useCallback((params) => {
-        setEdges((eds) => addEdge(params, eds));
-    }, [setEdges, edges]);
+        const targetNode = nodes.find(n => n.id === params.target);
+        const sourceNode = nodes.find(n => n.id === params.source);
+        const targetHandle = getHandle(targetNode, params.targetHandle, true);
+        const sourceHandle = getHandle(sourceNode, params.sourceHandle, false);
+        const edge = {
+            ...params,
+            data: {
+                properties: {
+                    targetHandle,
+                    sourceHandle,
+                    type: sourceHandle.type,
+                }
+            }
+        };
+        setEdges((eds) => addEdge(edge, eds));
+    }, [setEdges, edges, nodes]);
 
     const onNodesDelete = useCallback((deletedNodes) => {
         const deletedNodesMap = {};
@@ -218,14 +232,20 @@ export default function Flow({ filename }) {
             return false;
         }
 
-        if (srcHandle.nodeType === 'group' && srcHandle.inner) {
-            if (tgtNode.parentId !== srcNode.id) {
+        if (srcHandle.nodeType === 'group') {
+            if (srcHandle.inner && tgtNode.parentId !== srcNode.id) {
+                return false;
+            }
+            if (!srcHandle.inner && tgtNode.parentId === srcNode.id) {
                 return false;
             }
         }
 
-        if (tgtHandle.nodeType === 'group' && tgtHandle.inner) {
-            if (srcNode.parentId !== tgtNode.id) {
+        if (tgtHandle.nodeType === 'group') {
+            if (tgtHandle.inner && srcNode.parentId !== tgtNode.id) {
+                return false;
+            }
+            if (!tgtHandle.inner && srcNode.parentId === tgtNode.id) {
                 return false;
             }
         }
