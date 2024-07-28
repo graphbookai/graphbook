@@ -47,12 +47,18 @@ class DataViewer(Viewer):
         super().__init__("view")
         self.deque_max_size = deque_max_size
         self.last_outputs: Dict[str, dict] = {}
+        self.filename = None
 
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
         new_entries = {k: v[0].items for k, v in output.items() if len(v) > 0}
         self.last_outputs[node_id] |= new_entries
+
+    def set_filename(self, filename: str):
+        if filename != self.filename:
+            self.filename = filename
+            self.last_outputs = {}
 
     def handle_clear(self, node_id: str | None = None):
         if node_id is None:
@@ -292,6 +298,7 @@ class ViewManager:
         loop.close()
 
     def handle_run_state(self, is_running: bool, filename: str):
+        self.data_viewer.set_filename(filename)
         self.send_to_clients(
             "run_state", {"is_running": is_running, "filename": filename}
         )
