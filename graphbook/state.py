@@ -200,7 +200,6 @@ class GraphState:
                 step_states[step_id] = self._step_states[step_id]
                 step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
             else:
-                print("Creating new step", step_id, step_name)
                 logger = Logger(self.view_manager_queue, step_id, step_name)
                 try:
                     step = step_hub[step_name](**step_input, id=step_id, logger=logger)
