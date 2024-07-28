@@ -203,7 +203,7 @@ class Dataloader:
             del self.consumer_dump_queues[id]
             del self.consumer_load_fn[id]
             del self.consumer_dump_fn[id]
-            
+
         self._fail_event.clear()
 
     def shutdown(self):
@@ -338,6 +338,6 @@ class Dataloader:
 
     def is_failed(self):
         return self._fail_event.is_set()
-    
+
     def clear_failed(self):
         self._fail_event.clear()

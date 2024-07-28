@@ -128,7 +128,7 @@ class CustomNodeImporter:
                     await self.resource_handler(filename, name, obj)
 
         if self.websocket is not None and not self.websocket.closed:
-            await self.websocket.send_json({"event": "node_updated"})
+            await self.websocket.send_json({"type": "node_updated"})
 
     def start_observer(self):
         self.observer.schedule(self.event_handler, self.path, recursive=True)
