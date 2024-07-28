@@ -1,7 +1,10 @@
 Guides
 ###########
 
-Naturally, the development lifecycle of a Graphbook workflow can be illustrated in a few simple steps:
+All of the guides in this section are meant to help you get started with building ML workflows in Graphbook.
+The resulting workflows and custom nodes can be found in :ref:`examples`.
+
+Keep in mind that when working with Graphbook, the development cycle in building a workflow can be illustrated in a few simple steps:
 
 #. **Build in Python**
 
@@ -158,6 +161,7 @@ Create a new Source Step that loads the images and their labels:
 
             return {"out": [create_note(subdir) for subdir in subdirs]}
 
+Make sure to change the default image path to where you extracted the Pokemon image dataset.
 The above node will load all the images from the dataset and output them as a list of notes containing the Pokemon's name and a list of images.
 Notice how each image is structured.
 It contains a ``value`` and a ``type``.
@@ -228,10 +232,17 @@ Let's create the below BatchStep class that uses this model to classify the imag
                 self.logger.log(f"Accuracy: {self.tp/self.num_samples:.2f}")
 
 
+.. _PyTorch: https://pytorch.org/
+
 The above node will classify the images using the pre-trained model and output the predictions while also calculating its own accuracy given the labels on the images.
-It also specifies how the workers should load the images from disk onto Pytorch Tensors.
+It also specifies how the workers should load the images from disk onto Pytorch Tensors with the custom ``load_fn`` method which must return a PyTorch_ Tensor.
 Also, notice how the PokemonClassifier has a parameter called ``item_key``.
 This tells the BatchStep parent class what key should be batched upon receiving Notes.
+
+.. warning::
+
+    It is recommended to place each Step in its own file because when a .py is saved, it reloads all of the Step classes in that file, clearing any active outputs that could have belonged to a Step.
+    But for the sake of simplicity, we have placed all of the steps in one file for this guide.
 
 Now, go into the web UI and create a new workflow.
 Add the LoadImageDataset and PokemonClassifer nodes, connect them, and step through the PokemonClassifer like so:
@@ -247,7 +258,7 @@ This is useful for debugging and testing.
 In addition to limiting the number of images processed at a time, we can also filter what is fed into our PokemonClassifer node.
 We can do that by filtering the pokemon by their name.
 Add a node called Split (Add Step > Filtering > Split).
-The node accepts a FunctionResource as a parameter.
+The node accepts a **FunctionResource** as a parameter.
 Add a new Function (Add Resource > Util > Function) and write the following code inside of it:
 
 .. code-block:: python
@@ -264,8 +275,8 @@ Now, connect the nodes together like so:
 Now, when you run the workflow, you can observe that the classification only happens for Pikachu, Charmander, and Bulbasaur.
 
 Last but not least, let's create two resource nodes that will store the model and image processor and feed it to the PokemonClassifier step.
-This is important because models are heavy and we don't want to load them every time we add a new PokemonClassifer to our workflow.
-But, the way we did it is okay if we're just using one of those pokemon classifier models.
+This is important because models are heavy and we don't want to load them every time that we add a new PokemonClassifer to our workflow.
+Note that the way we did it is fine for now since we're just using one of those pokemon classifier models, but normally, it is good practice to separate the model and it's execution.
 The top of your PokemonClassifier node should look like this:
 
 .. code-block:: python
@@ -337,7 +348,7 @@ Also, create two Resource classes to store the model and image processor.
         def value(self):
             return self.image_processor
 
-The reason we did this, is because if we wanted to instantiate multiple PokemonClassifier steps, we can reuse the large models without consuming more of our memory.
+Again, the reason we did this is because if we wanted to instantiate multiple PokemonClassifier steps, we can reuse the large models without consuming more of our memory.
 
 Now, your final workflow should look like this:
 
@@ -406,6 +417,9 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
                 "type": "string",
                 "default": "image",
             },
+            "output_dir": {
+                "type": "string",
+            },
         }
         Outputs = ["out"]
         Category = "Custom"
@@ -416,10 +430,13 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
             logger,
             batch_size,
             item_key,
+            output_dir,
             model: AutoModelForImageSegmentation,
         ):
             super().__init__(id, logger, batch_size, item_key)
             self.model = model
+            self.output_dir = output_dir
+            os.makedirs(output_dir, exist_ok=True)
 
         @staticmethod
         def load_fn(item: dict) -> torch.Tensor:
@@ -433,9 +450,15 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
             return image
 
         @staticmethod
-        def dump_fn(t: torch.Tensor, output_dir: str, uid: int):
+        def dump_fn(data: Tuple[torch.Tensor, str]):
+            t, output_path = data
+            dir = osp.dirname(output_path)
+            os.makedirs(dir, exist_ok=True)
             img = F.to_pil_image(t)
-            img.save(osp.join(output_dir, f"{uid}.png"))
+            img.save(output_path)
+
+        def get_output_path(self, note, input_path):
+            return osp.join(self.output_dir, note["name"], osp.basename(input_path))
 
         @torch.no_grad()
         def on_item_batch(
@@ -466,16 +489,29 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
                         torch.unsqueeze(image, 0), size=og_size, mode="bilinear"
                     ),
                     0,
-                )
+                ).cpu()
                 for image, og_size in zip(result, og_sizes)
             ]
-            return {"removed_bg": resized}
+            paths = [
+                self.get_output_path(note, input["value"])
+                for input, note in zip(items, notes)
+            ]
+            removed_bg = list(zip(resized, paths))
+            for path, note in zip(paths, notes):
+                masks = note["masks"]
+                if masks is None:
+                    masks = []
+                masks.append({"value": path, "type": "image"})
+                note["masks"] = masks
+            
+            return {"removed_bg": removed_bg}
 
 This node will generate masks of the foreground using the RMBG-1.4 model and output the resulting mask as images by saving them to disk.
-See that there is one notable difference in ``RemoveBackground`` compared to ``PokemonClassifier``.
-In addition to loading data from disk, it is now dumping data to the disk. 
+See that there is one notable difference in RemoveBackground compared to PokemonClassifier.
+In addition to loading data from disk, it is now dumping data to the disk, the model outputs. 
 It is important that we offload this work, too, to background processes to have an efficient data pipeline.
 To do this, we return a dictionary of tensors in the ``on_item_batch`` method which tells Graphbook to send the resulting items to the worker processes to be saved.
+Each element inside ``removed_bg`` is sent to the ``dump_fn`` method which executes our saving under one of the worker processes.
 The ``dump_fn`` method is our custom function used to save the resulting image masks to disk.
 
 Lastly, connect your nodes like so:
@@ -484,8 +520,11 @@ Lastly, connect your nodes like so:
     :alt: Remove Background Workflow
     :align: center
 
-Note that we use another built-in node called DumpJSONL that saves the resulting Notes as serialized JSONs.
-This is useful for saving the results of the workflow to disk.
+Make sure to specify the output directory in the RemoveBackground node, and where your image dataset is inside the LoadImageDataset node.
+Note that we use another built-in node called DumpJSONL that saves the resulting output Notes as serialized JSON lines to a file.
+This is useful for us to check on our outputs later on.
+
+If you remember that game "Who's that Pokemon?" from the Pokemon TV show, you can now play it with your friends using these generated masks!
 
 .. note::
 
