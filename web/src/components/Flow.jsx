@@ -297,39 +297,41 @@ export default function Flow({ filename }) {
         };
 
         const updatedNodes = await API.getNodes();
-        const mergedNodes = nodes.map(node => {
-            const updatedNodeData = (
-                node.type === 'step' ?
-                    searchNodes(updatedNodes.steps, node.data.name, node.data.category) :
-                    searchNodes(updatedNodes.resources, node.data.name, node.data.category)
-            );
-            if (updatedNodeData) {
-                // Create a new parameters object by keeping only the common parameters between the old and new
-                const newParameters = Object.keys(updatedNodeData.parameters).reduce((acc, key) => {
-                    if (node.data.parameters.hasOwnProperty(key)) {
-                        acc[key] = node.data.parameters[key];
-                    } else {
-                        acc[key] = updatedNodeData.parameters[key];
-                    }
-                    return acc;
-                }, {});
 
-                return {
-                    ...node,
-                    data: {
-                        ...node.data,
-                        ...updatedNodeData,
-                        parameters: {
-                            ...newParameters,
+        setNodes(nodes => {
+            const mergedNodes = nodes.map(node => {
+                const updatedNodeData = (
+                    node.type === 'step' ?
+                        searchNodes(updatedNodes.steps, node.data.name, node.data.category) :
+                        searchNodes(updatedNodes.resources, node.data.name, node.data.category)
+                );
+                if (updatedNodeData) {
+                    // Create a new parameters object by keeping only the common parameters between the old and new
+                    const newParameters = Object.keys(updatedNodeData.parameters).reduce((acc, key) => {
+                        if (node.data.parameters.hasOwnProperty(key)) {
+                            acc[key] = node.data.parameters[key];
+                        } else {
+                            acc[key] = updatedNodeData.parameters[key];
+                        }
+                        return acc;
+                    }, {});
+
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            ...updatedNodeData,
+                            parameters: {
+                                ...newParameters,
+                            },
                         },
-                    },
-                };
-            }
-            return node;
+                    };
+                }
+                return node;
+            });
+            return mergedNodes
         });
-
-        setNodes(mergedNodes);
-    }, [nodes, setNodes, API]);
+    }, [setNodes, API]);
 
     useAPIMessage('node_updated', nodeUpdatedCallback);
 
