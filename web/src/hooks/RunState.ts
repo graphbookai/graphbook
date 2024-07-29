@@ -1,44 +1,33 @@
 import { useState, useEffect, useCallback } from "react";
-import { API } from "../api";
-import { getGlobalFilename } from "./Filename";
+import { useAPI } from "./API";
 
 export type RunState = 'changing' | 'running' | 'stopped';
 let globalRunState: RunState = 'stopped';
 let globalRunningFile: string = '';
 let localSetters: Function[] = [];
-let globalListenerIsSet = false;
+let initialized = false;
+
+const updateRunState = (msg) => {
+    if (msg) {
+        if (msg.is_running) {
+            globalRunState = 'running';
+        } else {
+            globalRunState = 'stopped';
+        }
+        globalRunningFile = msg.filename;
+    } else {
+        globalRunState = 'changing';
+        globalRunningFile = '';
+    }
+
+    for (const setter of localSetters) {
+        setter(globalRunState);
+    }
+};
 
 export function useRunState(): [RunState, () => void] {
     const [_, setRunState] = useState<RunState>(globalRunState);
-
-    useEffect(() => {
-        const callback = (event) => {
-            const message = JSON.parse(event.data);
-            if (message.type !== 'run_state') {
-                return;
-            }
-            if (message.is_running) {
-                globalRunState = 'running';
-            } else {
-                globalRunState = 'stopped';
-            }
-            for (const setter of localSetters) {
-                setter(globalRunState);
-            }
-        };
-        
-        if (!globalListenerIsSet) {
-            API.addWSMessageListener(callback);
-            globalListenerIsSet = true;
-        }
-
-        return () => {
-            if (localSetters.length === 0) {
-                API.removeWSMessageListener(callback);
-                globalListenerIsSet = false;
-            }
-        }
-    }, []);
+    const API = useAPI();
 
     useEffect(() => {
         localSetters.push(setRunState);
@@ -47,9 +36,33 @@ export function useRunState(): [RunState, () => void] {
         };
     }, []);
 
+    useEffect(() => {
+        const globalEventListener = res => {
+            const msg = JSON.parse(res.data);
+            if (msg.type === 'run_state') {
+                updateRunState(msg.data);
+            }
+        };
+
+        (async () => {
+            if (!initialized && API) {
+                initialized = true;
+                API.addWSMessageListener(globalEventListener);
+                const runState = await API?.getRunState();
+                updateRunState(runState);
+            }
+
+            return () => {
+                if (localSetters.length === 0) {
+                    API?.removeWSMessageListener(globalEventListener);
+                    initialized = false;
+                }
+            };
+        })();
+    }, [API]);
+
     const runStateShouldChange = useCallback(() => {
         globalRunState = 'changing';
-        globalRunningFile = getGlobalFilename();
 
         for (const setter of localSetters) {
             setter(globalRunState);

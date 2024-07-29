@@ -1,4 +1,4 @@
-import { uniqueIdFrom } from './utils';
+import { uniqueIdFrom, getHandle } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
@@ -409,7 +409,7 @@ export const Graph = {
         localStorage.setItem('graph', Graph.serialize(nodes, edges));
     },
     parseGraph: async (graph: any, API: ServerAPI) => {
-        const parseNodes = async (nodes: Array<Node>) => {
+        const parseNodes = async (nodes: Node[]) => {
             for (const node of nodes) {
                 if (node.type === 'subflow') {
                     const file = await API.getFile(node.data.filename);
@@ -435,16 +435,39 @@ export const Graph = {
                 }
             }
             return nodes;
+        };
 
+        const parseEdges = (nodes: Node[], edges: Edge[]) => {
+            return edges.map((edge) => {
+                const targetNode = nodes.find(n => n.id === edge.target)!;
+                const sourceNode = nodes.find(n => n.id === edge.source)!;
+                const targetHandle = getHandle(targetNode, edge.targetHandle!, true);
+                const sourceHandle = getHandle(sourceNode, edge.sourceHandle!, false);
+                return {
+                    ...edge,
+                    data: {
+                        properties: {
+                            targetHandle,
+                            sourceHandle,
+                            type: sourceHandle.type,
+                        }
+
+                    }
+                };
+            });
         };
 
         const { nodes, edges } = graph;
-        return [await parseNodes(nodes), edges]
+        return [await parseNodes(nodes), parseEdges(nodes, edges)];
     },
     wouldBeCyclic(nodes, edges, connectingEdge) {
         const adjList = {};
         const isGroup = {};
+        let targetNode = null;
         for (const node of nodes) {
+            if (node.id === connectingEdge.target) {
+                targetNode = node;
+            }
             if (node.type === 'group') {
                 adjList[`${node.id}-i`] = [];
                 adjList[`${node.id}-o`] = [];
@@ -453,7 +476,16 @@ export const Graph = {
                 adjList[node.id] = [];
             }
         }
+        if (!targetNode) {
+            return false;
+        }
+        const handle = getHandle(targetNode, connectingEdge.targetHandle, true);
+        const edgeType = handle.type;
+
         for (const edge of edges) {
+            if (edge.data.properties.type !== edgeType) {
+                continue;
+            }
             let s = edge.source;
             let t = edge.target;
             if (isGroup[s]) {

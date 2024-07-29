@@ -18,7 +18,7 @@ import { getHandle, filesystemDragEnd } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
-import { useAPI } from '../hooks/API.ts';
+import { useAPI, useAPIMessage } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
@@ -26,6 +26,7 @@ import { Subflow } from './Nodes/Subflow.tsx';
 import { Monitor } from './Monitor.tsx';
 import { useNotificationInitializer, useNotification } from '../hooks/Notification';
 import { SerializationErrorMessages } from './Errors.tsx';
+import { useFilename } from '../hooks/Filename.ts';
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
 const onLoadGraph = async (filename, API) => {
@@ -56,7 +57,7 @@ export default function Flow({ filename }) {
     const [nodeToPos, setNodeToPos] = useState({ x: 0, y: 0 });
     const reactFlowInstance = useRef(null);
     const reactFlowRef = useRef(null);
-    
+
 
     useEffect(() => {
         graphStore.current = null;
@@ -126,8 +127,22 @@ export default function Flow({ filename }) {
     });
 
     const onConnect = useCallback((params) => {
-        setEdges((eds) => addEdge(params, eds));
-    }, [setEdges, edges]);
+        const targetNode = nodes.find(n => n.id === params.target);
+        const sourceNode = nodes.find(n => n.id === params.source);
+        const targetHandle = getHandle(targetNode, params.targetHandle, true);
+        const sourceHandle = getHandle(sourceNode, params.sourceHandle, false);
+        const edge = {
+            ...params,
+            data: {
+                properties: {
+                    targetHandle,
+                    sourceHandle,
+                    type: sourceHandle.type,
+                }
+            }
+        };
+        setEdges((eds) => addEdge(edge, eds));
+    }, [setEdges, edges, nodes]);
 
     const onNodesDelete = useCallback((deletedNodes) => {
         const deletedNodesMap = {};
@@ -217,14 +232,20 @@ export default function Flow({ filename }) {
             return false;
         }
 
-        if (srcHandle.nodeType === 'group' && srcHandle.inner) {
-            if (tgtNode.parentId !== srcNode.id) {
+        if (srcHandle.nodeType === 'group') {
+            if (srcHandle.inner && tgtNode.parentId !== srcNode.id) {
+                return false;
+            }
+            if (!srcHandle.inner && tgtNode.parentId === srcNode.id) {
                 return false;
             }
         }
 
-        if (tgtHandle.nodeType === 'group' && tgtHandle.inner) {
-            if (srcNode.parentId !== tgtNode.id) {
+        if (tgtHandle.nodeType === 'group') {
+            if (tgtHandle.inner && srcNode.parentId !== tgtNode.id) {
+                return false;
+            }
+            if (!tgtHandle.inner && srcNode.parentId === tgtNode.id) {
                 return false;
             }
         }
@@ -255,20 +276,35 @@ export default function Flow({ filename }) {
         return true;
     }, [reactFlowInstance]);
 
-    useEffect(() => {
+    const nodeUpdatedCallback = useCallback(async () => {
         if (!API) {
             return;
         }
-        // Add WebSocket event listener for node updates
-        const handleNodeUpdate = async (event) => {
-            const message = JSON.parse(event.data);
-            if (message.event !== 'node_updated') {
-                return;
-            }
 
-            const updatedNodes = await API.getNodes();
+        const searchNodes = (catalogue, name, category) => {
+            if (!category) {
+                return null;
+            }
+            const categories = category.split('/');
+            let c = catalogue[categories[0]];
+            for (let i = 1; i < categories.length; i++) {
+                c = c?.children[categories[i]];
+            }
+            if (!c) {
+                return null;
+            }
+            return c.children?.[name];
+        };
+
+        const updatedNodes = await API.getNodes();
+
+        setNodes(nodes => {
             const mergedNodes = nodes.map(node => {
-                const updatedNodeData = updatedNodes.steps[node.data.category]?.children[node.data.name];
+                const updatedNodeData = (
+                    node.type === 'step' ?
+                        searchNodes(updatedNodes.steps, node.data.name, node.data.category) :
+                        searchNodes(updatedNodes.resources, node.data.name, node.data.category)
+                );
                 if (updatedNodeData) {
                     // Create a new parameters object by keeping only the common parameters between the old and new
                     const newParameters = Object.keys(updatedNodeData.parameters).reduce((acc, key) => {
@@ -293,16 +329,11 @@ export default function Flow({ filename }) {
                 }
                 return node;
             });
+            return mergedNodes
+        });
+    }, [setNodes, API]);
 
-            setNodes(mergedNodes);
-        };
-
-        API.addWsEventListener('message', handleNodeUpdate);
-
-        return () => {
-            API.removeWsEventListener('message', handleNodeUpdate);
-        };
-    }, [nodes, setNodes, API]);
+    useAPIMessage('node_updated', nodeUpdatedCallback);
 
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
@@ -350,7 +381,7 @@ export default function Flow({ filename }) {
                 <Panel position='bottom-left'>
                     {/* <Text italic>{filename}</Text> */}
                 </Panel>
-                <Monitor/>
+                <Monitor />
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
                 {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
                 <Background id="1" variant="lines" gap={20} size={1} color={lineColor1} />
@@ -368,6 +399,7 @@ function ControlRow() {
     const nodes = useNodes();
     const edges = useEdges();
     const notification = useNotification();
+    const filename = useFilename();
 
     const run = useCallback(async () => {
         const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
@@ -375,14 +407,14 @@ function ControlRow() {
             notification.error({
                 key: 'invalid-graph',
                 message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors}/>,
+                description: <SerializationErrorMessages errors={errors} />,
                 duration: 3,
             })
             return;
         }
-        API.runAll(graph, resources);
+        API.runAll(graph, resources, filename);
         runStateShouldChange();
-    }, [API, nodes, edges, notification]);
+    }, [API, nodes, edges, notification, filename]);
 
     const pause = useCallback(() => {
         API.pause();
@@ -395,7 +427,7 @@ function ControlRow() {
             notification.error({
                 key: 'invalid-graph',
                 message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors}/>,
+                description: <SerializationErrorMessages errors={errors} />,
                 duration: 3,
             })
             return;
@@ -411,7 +443,7 @@ function ControlRow() {
                     runState !== 'stopped' ? (
                         <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
-                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} disabled={!API}/>
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} disabled={!API} />
                     )
                 }
             </Flex>

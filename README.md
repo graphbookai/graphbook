@@ -17,8 +17,9 @@
     <a href="#overview">Overview</a> •
     <a href="#current-features">Current Features</a> •
     <a href="#getting-started">Getting Started</a> •
+    <a href="#examples">Examples</a> •
     <a href="#collaboration">Collaboration</a>
-    </p>
+  </p>
 </p>
 
 ## Overview
@@ -55,6 +56,9 @@ Graphbook is a framework for building efficient, visual DAG-structured ML workfl
 1. Visit http://localhost:8007
 
 Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
+
+## Examples
+We continually post examples of workflows and custom nodes in our [examples repo](https://github.com/graphbookai/graphbook-examples).
 
 ## Collaboration
 This is a guide on how to get started developing Graphbook. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.

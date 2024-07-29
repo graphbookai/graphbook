@@ -8,11 +8,28 @@ import sys
 import os
 import os.path as osp
 import inspect
-from graphbook.steps import Step, BatchStep, SourceStep, AsyncStep, Split, SplitNotesByItems, SplitItemField
+from graphbook.steps import (
+    Step,
+    BatchStep,
+    SourceStep,
+    AsyncStep,
+    Split,
+    SplitNotesByItems,
+    SplitItemField,
+)
 from graphbook.resources import Resource, FunctionResource
 
-BUILT_IN_STEPS = [Step, BatchStep, SourceStep, AsyncStep, Split, SplitNotesByItems, SplitItemField]
+BUILT_IN_STEPS = [
+    Step,
+    BatchStep,
+    SourceStep,
+    AsyncStep,
+    Split,
+    SplitNotesByItems,
+    SplitItemField,
+]
 BUILT_IN_RESOURCES = [Resource, FunctionResource]
+
 
 class CustomModuleEventHandler(FileSystemEventHandler):
     def __init__(self, root_path, handler):
@@ -111,7 +128,7 @@ class CustomNodeImporter:
                     await self.resource_handler(filename, name, obj)
 
         if self.websocket is not None and not self.websocket.closed:
-            await self.websocket.send_json({"event": "node_updated"})
+            await self.websocket.send_json({"type": "node_updated"})
 
     def start_observer(self):
         self.observer.schedule(self.event_handler, self.path, recursive=True)

@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "graphbook"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Richard Franklin <rsamf@graphbook.ai>"]
 description = "An extensible ML workflow framework built for data scientists and ML engineers."
 keywords = ["ml", "workflow", "framework", "pytorch", "data science", "machine learning", "ai"]
@@ -31,7 +31,6 @@ pillow = "^10.3.0"
 python-magic = "^0.4.27"
 watchdog = "^4.0.0"
 torchvision = "^0.18.1"
-gputil = "^1.4.0"
 psutil = "^6.0.0"
 
 [tool.poetry.group.dev]

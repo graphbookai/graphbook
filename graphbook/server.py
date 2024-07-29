@@ -100,8 +100,14 @@ class GraphServer:
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
+            filename = data.get("filename", "")
             processor_queue.put(
-                {"cmd": "run_all", "graph": graph, "resources": resources}
+                {
+                    "cmd": "run_all",
+                    "graph": graph,
+                    "resources": resources,
+                    "filename": filename,
+                }
             )
             return web.json_response({"success": True})
 
@@ -111,12 +117,14 @@ class GraphServer:
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
+            filename = data.get("filename", "")
             processor_queue.put(
                 {
                     "cmd": "run",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,
+                    "filename": filename,
                 }
             )
             return web.json_response({"success": True})
@@ -127,12 +135,14 @@ class GraphServer:
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
+            filename = data.get("filename", "")
             processor_queue.put(
                 {
                     "cmd": "step",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,
+                    "filename": filename,
                 }
             )
             return web.json_response({"success": True})
@@ -180,8 +190,13 @@ class GraphServer:
                 and res.get("index") == index
             ):
                 return web.json_response(res)
-            
+
             return web.json_response({"error": "Could not get output note."})
+        
+        @routes.get("/state")
+        async def get_run_state(request: web.Request) -> web.Response:
+            res = poll_conn_for(state_conn, ProcessorStateRequest.GET_RUNNING_STATE)
+            return web.json_response(res)
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
@@ -372,6 +387,7 @@ def get_args():
     parser.add_argument("--workflow_dir", type=str, default="./workflow")
     parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
     parser.add_argument("--num_workers", type=int, default=1)
+    parser.add_argument("--continue_on_failure", action="store_true")
     return parser.parse_args()
 
 
@@ -465,6 +481,7 @@ def main():
             parent_conn,
             view_manager_queue,
             args.output_dir,
+            args.continue_on_failure,
             custom_nodes_path,
             close_event,
             pause_event,

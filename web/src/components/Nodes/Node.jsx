@@ -88,9 +88,9 @@ export function WorkflowStep({ id, data, selected }) {
             })
             return;
         }
-        API.run(graph, resources, id);
+        API.run(graph, resources, id, filename);
         runStateShouldChange();
-    }, [nodes, edges, API, notification]);
+    }, [nodes, edges, API, notification, filename]);
 
     const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
     const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
@@ -219,7 +219,7 @@ function QuickviewCollapse({ data }) {
             {
                 Object.entries(data).map(([key, value], i) => {
 
-                    const descriptionItems = keyRecursively(Object.entries(value).filter(([_, itemList]) => {
+                    const descriptionItems = Object.entries(value).filter(([_, itemList]) => {
                         if (!Array.isArray(itemList)) {
                             return false;
                         }
@@ -227,7 +227,9 @@ function QuickviewCollapse({ data }) {
                     }).map(([itemKey, itemList]) => {
                         const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
                         return {
+                            key: itemKey,
                             label: itemKey,
+                            span: 1,
                             children: (
                                 <Flex key={i} vertical>
                                     {
@@ -238,7 +240,8 @@ function QuickviewCollapse({ data }) {
                                 </Flex>
                             )
                         };
-                    }), "none");
+                    });
+
                     return (
                         <Panel className='content' header={key} key={i}>
                             <Flex style={{ overflowY: 'scroll', maxHeight: '300px' }}>

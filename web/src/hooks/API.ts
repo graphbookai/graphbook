@@ -1,6 +1,5 @@
 import { API, ServerAPI } from "../api";
 import { useState, useEffect, useCallback } from "react";
-import { useFilename } from "./Filename";
 import { getGlobalRunningFile } from "./RunState";
 
 let globalAPI: ServerAPI | null = null;
