@@ -174,7 +174,7 @@ export default function Flow({ filename }) {
             return;
         }
         if (event.type === 'dblclick' && !isAddNodeActive) {
-            setIsAddNodeActive(true);
+            // setIsAddNodeActive(true);
             setEventMousePos({ x: event.clientX, y: event.clientY });
             setNodeToPos(reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
         }
