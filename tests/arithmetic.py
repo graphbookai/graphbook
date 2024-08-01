@@ -3,16 +3,13 @@ from typing import List
 
 
 class NumNote(Note):
-    def __init__(self, key: str, num: int):
-        super().__init__(key)
-        self.items = {"num": [any(num)]}
+    def __init__(self, num: int):
+        super().__init__({"num": [num]})
 
 
 class NumListNote(Note):
-    def __init__(self, key: str, nums: List[int]):
-        super().__init__(key)
-        self.items = {"num": [any(num) for num in nums]}
-
+    def __init__(self, nums: List[int]):
+        super().__init__({"num": nums})
 
 class NumStep(BatchStep):
     def __init__(self, batch_size=-1):

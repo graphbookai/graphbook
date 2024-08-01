@@ -1,5 +1,5 @@
-from graphbook.processor import Sequential, TreeProcessor, Print, Copy, LoadJSONL, Step, Note, SplitRecordsByItems, StepOutput, StepData, BatchStep
-from arithmetic import SumByConstant, DivByConstant, MulByConstant, NumNote, NumListNote
+from graphbook.steps import Step, StepOutput
+from graphbook import SumByConstant, DivByConstant, MulByConstant, NumNote, NumListNote
 from typing import List
 import os
 
@@ -9,13 +9,9 @@ class AssertStep(Step):
         self.assertions = assertions
         self.current_assertion = 0
 
-    def exec(self, data: StepData) -> StepOutput:
-        items, _, completed = data
-        assert self.assertions[self.current_assertion](items)
+    def on_item(self, item: any) -> StepOutput:
+        assert self.assertions[self.current_assertion](item)
         self.current_assertion = (self.current_assertion + 1) % len(self.assertions)
-        return {
-            "next": completed
-        }
 
 def test_single_step():
     steps = AssertStep([lambda items: items[0].item == 1])
