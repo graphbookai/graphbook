@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Typography, Descriptions, Image, theme } from 'antd';
-import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { Card, Collapse, Badge, Flex, Button, Descriptions, Image, theme } from 'antd';
+import { SearchOutlined, FileTextOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget } from './Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
-import { getMergedLogs, keyRecursively, getMediaPath } from '../../utils';
+import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
+import type { LogEntry, Parameter } from '../../utils';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -19,10 +20,14 @@ const isWidgetType = (type) => {
     return ['number', 'string', 'boolean'].includes(type);
 };
 
+type QuickViewEntry = {
+    [key: string]: object;
+};
+
 export function WorkflowStep({ id, data, selected }) {
     const { name, parameters, inputs, outputs } = data;
-    const [quickViewData, setQuickViewData] = useState(null);
-    const [logsData, setLogsData] = useState([]);
+    const [quickViewData, setQuickViewData] = useState<QuickViewEntry>({});
+    const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [recordCount, setRecordCount] = useState({});
     const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
@@ -115,7 +120,7 @@ export function WorkflowStep({ id, data, selected }) {
                             })
                         }
                         {
-                            Object.entries(parameters).map(([parameterName, parameter], i) => {
+                            Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                                 if (!isWidgetType(parameter.type)) {
                                     return (
                                         <div key={i} className="input">
@@ -150,11 +155,11 @@ export function WorkflowStep({ id, data, selected }) {
                 <div className='widgets'>
                     {
                         !data.isCollapsed &&
-                        Object.entries(parameters).map(([parameterName, parameter], i) => {
+                        Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                             if (isWidgetType(parameter.type)) {
                                 return (
                                     <div style={{ marginBottom: '2px' }} key={i} className="parameter">
-                                        <Widget id={id} name={parameterName} {...parameter} />
+                                        <Widget id={id} type={parameter.type} name={parameterName} value={parameter.value} />
                                     </div>
                                 );
                             }
@@ -170,12 +175,12 @@ export function WorkflowStep({ id, data, selected }) {
 
 function Monitor({ quickViewData, logsData }) {
     return (
-        <Collapse className='quickview' defaultActiveKey={[]} bordered={false} expandIcon={({ panelKey }) => {
-            switch (panelKey) {
-                case '1':
-                    return <SearchOutlined size="small" />;
-                case '2':
-                    return <ProfileOutlined size="small" />;
+        <Collapse className='quickview' defaultActiveKey={[]} bordered={false} expandIcon={({ header }) => {
+            switch (header) {
+                case "Quickview":
+                    return <SearchOutlined />;
+                case "Logs":
+                    return <FileTextOutlined />;
                 default:
                     return null;
             }
@@ -217,9 +222,9 @@ function QuickviewCollapse({ data }) {
     return (
         <Collapse className='quickview' defaultActiveKey={[]} bordered={false}>
             {
-                Object.entries(data).map(([key, value], i) => {
+                Object.entries<QuickViewEntry>(data).map(([key, value], i) => {
 
-                    const descriptionItems = Object.entries(value).filter(([_, itemList]) => {
+                    const imageItems = Object.entries<any>(value).filter(([_, itemList]) => {
                         if (!Array.isArray(itemList)) {
                             return false;
                         }
@@ -249,7 +254,7 @@ function QuickviewCollapse({ data }) {
                                     {JSON.stringify(value, null, 2)}
                                 </div>
                                 {
-                                    descriptionItems.length > 0 && <Descriptions layout="vertical" bordered items={descriptionItems} />
+                                    imageItems.length > 0 && <Descriptions layout="vertical" bordered items={imageItems} />
                                 }
                             </Flex>
                         </Panel>

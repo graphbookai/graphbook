@@ -257,3 +257,10 @@ export function getSubflowHandle(node: Node, handleId: string, isTarget: boolean
     const type = output.data.isResource ? 'resource' : 'step';
     return { id: handleId, type, inner: false, nodeType: 'subflow' };
 }
+
+export type Parameter = {
+    type: string;
+    value?: any;
+    default?: any;
+    description?: string;
+};
