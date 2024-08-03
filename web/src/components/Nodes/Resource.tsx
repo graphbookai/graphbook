@@ -1,8 +1,9 @@
-import { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { Handle, Position, useOnSelectionChange, useReactFlow } from 'reactflow';
 import { Card, theme } from 'antd';
 import { Widget } from './Widgets';
 import { outputHandleStyle, nodeBorderStyle } from '../../styles';
+import { Parameter } from '../../utils';
 const { useToken } = theme;
 
 const collapsedStyle = {
@@ -18,7 +19,7 @@ export function Resource({ id, data, selected }) {
     const borderStyle = useMemo(() => nodeBorderStyle(token, false, selected, parentSelected), [token, selected, parentSelected]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
-        const parentId = getNode(id).parentId;
+        const parentId = getNode(id)?.parentId;
         if (!parentId) {
             return;
         }
@@ -35,7 +36,7 @@ export function Resource({ id, data, selected }) {
         onChange: onSelectionChange
     });
 
-    const firstParamValue = Object.values(parameters)[0].value;
+    const firstParamValue = Object.values<Parameter>(parameters)[0]?.value;
     const baseStyle = { backgroundColor: token.colorInfoBg };
     const style = isCollapsed ? { ...baseStyle, ...collapsedStyle } : baseStyle;
     return (
@@ -57,10 +58,10 @@ export function Resource({ id, data, selected }) {
                             {parameters &&
                                 <div className='widgets'>
                                     {
-                                        Object.entries(parameters).map(([parameterName, parameter], i) => {
+                                        Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                                             return (
                                                 <div key={i} className="parameter">
-                                                    <Widget id={id} name={parameterName} {...parameter} />
+                                                    <Widget id={id} type={parameter.type} name={parameterName} value={parameter.value}/>
                                                 </div>
                                             );
                                         })

@@ -10,26 +10,27 @@ import ReactFlow, {
 } from 'reactflow';
 import { Button, Flex, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
-import { Graph } from '../graph';
-import AddNode from './AddNode';
+import { Graph } from '../graph.ts';
+import AddNode from './AddNode.tsx';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
 import { getHandle, filesystemDragEnd } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
-import { NodeContextMenu, PaneContextMenu } from './ContextMenu';
+import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
 import { useAPI, useAPIMessage } from '../hooks/API.ts';
-import { useRunState } from '../hooks/RunState';
+import { useRunState } from '../hooks/RunState.ts';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
 import { Subflow } from './Nodes/Subflow.tsx';
 import { Monitor } from './Monitor.tsx';
-import { useNotificationInitializer, useNotification } from '../hooks/Notification';
+import { useNotificationInitializer, useNotification } from '../hooks/Notification.ts';
 import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
+import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
-const onLoadGraph = async (filename, API) => {
+const onLoadGraph = async (filename, API): Promise<[Node[], Edge[]]> => {
     const file = await API.getFile(filename);
     if (file?.content) {
         const graph = JSON.parse(file.content);
@@ -40,44 +41,51 @@ const onLoadGraph = async (filename, API) => {
     return [[], []];
 };
 
+type NodeMenu = {
+    nodeId: string;
+    top: number;
+    left: number;
+};
+
+type PaneMenu = {
+    top: number;
+    left: number;
+};
+
 export default function Flow({ filename }) {
     const { token } = useToken();
     const API = useAPI();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [nodeMenu, setNodeMenu] = useState(null);
-    const [paneMenu, setPaneMenu] = useState(null);
+    const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
+    const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
     const [runState, _] = useRunState();
-    const graphStore = useRef(null);
+    const graphStore = useRef<GraphStore | null>(null);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
 
     // Coalesce
     const [isAddNodeActive, setIsAddNodeActive] = useState(false);
     const [eventMousePos, setEventMousePos] = useState({ x: 0, y: 0 });
     const [nodeToPos, setNodeToPos] = useState({ x: 0, y: 0 });
-    const reactFlowInstance = useRef(null);
-    const reactFlowRef = useRef(null);
-
-
-    useEffect(() => {
-        graphStore.current = null;
-    }, [filename]);
+    const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
     useEffect(() => {
         const loadGraph = async () => {
-            const [nodes, edges] = await onLoadGraph(filename, API);
-            setNodes(nodes);
-            setEdges(edges);
-            graphStore.current = new GraphStore(filename, API, nodes, edges);
-        };
-        graphStore.current = null;
+            if (API) {
+                /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
+                setNodes([]);
+                setEdges([]);
 
-        if (API) {
-            /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
-            setNodes([]);
-            setEdges([]);
-            loadGraph();
-        }
+                const [nodes, edges] = await onLoadGraph(filename, API);
+                setNodes(nodes);
+                setEdges(edges);
+                graphStore.current = new GraphStore(filename, API!, nodes, edges);
+            }
+        };
+
+        graphStore.current = null;
+        loadGraph();
+
     }, [API, filename]);
 
     const nodeTypes = useMemo(() => ({
@@ -88,9 +96,9 @@ export default function Flow({ filename }) {
         subflow: Subflow,
     }), []);
 
-    const onInitReactFlow = (instance) => {
+    const onInitReactFlow = useCallback((instance) => {
         reactFlowInstance.current = instance;
-    };
+    }, [reactFlowInstance]);
 
     const onNodesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
@@ -107,7 +115,7 @@ export default function Flow({ filename }) {
             return onNodesChange(newChanges);
         }
         onNodesChange(changes);
-    });
+    }, []);
 
     const onEdgesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
@@ -124,11 +132,14 @@ export default function Flow({ filename }) {
             return onEdgesChange(newChanges);
         }
         onEdgesChange(changes);
-    });
+    }, []);
 
     const onConnect = useCallback((params) => {
         const targetNode = nodes.find(n => n.id === params.target);
         const sourceNode = nodes.find(n => n.id === params.source);
+        if (!targetNode || !sourceNode) {
+            return;
+        }
         const targetHandle = getHandle(targetNode, params.targetHandle, true);
         const sourceHandle = getHandle(sourceNode, params.sourceHandle, false);
         const edge = {
@@ -153,12 +164,12 @@ export default function Flow({ filename }) {
             if (n.parentId) {
                 const parent = deletedNodesMap[n.parentId];
                 if (parent) {
-                    n.parentId = null;
+                    n.parentId = undefined;
                     n.position = { x: n.position.x + parent.position.x, y: n.position.y + parent.position.y };
                 }
             }
         });
-    });
+    }, []);
 
     useEffect(() => {
         if (graphStore.current) {
@@ -173,12 +184,12 @@ export default function Flow({ filename }) {
         if (!event) {
             return;
         }
-        if (event.type === 'dblclick' && !isAddNodeActive) {
-            setIsAddNodeActive(true);
+        if (event.type === 'dblclick' && !isAddNodeActive && reactFlowInstance.current) {
+            // setIsAddNodeActive(true);
             setEventMousePos({ x: event.clientX, y: event.clientY });
             setNodeToPos(reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
         }
-    });
+    }, []);
 
     const handleMouseClick = useCallback((event) => {
         if (event.type === 'click') {
@@ -195,6 +206,9 @@ export default function Flow({ filename }) {
     }, [handleMouseClick]);
 
     const onDrop = useCallback((event) => {
+        if (!reactFlowInstance.current || !API) {
+            return;
+        }
         filesystemDragEnd(reactFlowInstance.current, API, event);
     }, [reactFlowInstance, API]);
 
@@ -218,9 +232,15 @@ export default function Flow({ filename }) {
     }, []);
 
     const isValidConnection = useCallback((connection) => {
+        if (!reactFlowInstance.current) {
+            return false;
+        }
         const { getNode, getNodes, getEdges } = reactFlowInstance.current;
         const srcNode = getNode(connection.source);
         const tgtNode = getNode(connection.target);
+        if (!srcNode || !tgtNode) {
+            return false;
+        }
         const srcHandle = getHandle(srcNode, connection.sourceHandle, false);
         const tgtHandle = getHandle(tgtNode, connection.targetHandle, true);
 
@@ -350,7 +370,6 @@ export default function Flow({ filename }) {
         <div style={{ height: '100%', width: '100%' }}>
             <ReactFlow
                 key={filename}
-                ref={reactFlowRef}
                 onPaneClick={handleMouseClickComp}
                 onMove={handleMouseClickComp}
                 zoomOnDoubleClick={false}
@@ -378,14 +397,11 @@ export default function Flow({ filename }) {
                 <Panel position='top-left'>
                     <NodeConfig />
                 </Panel>
-                <Panel position='bottom-left'>
-                    {/* <Text italic>{filename}</Text> */}
-                </Panel>
                 <Monitor />
                 {nodeMenu && <NodeContextMenu {...nodeMenu} />}
-                {paneMenu && <PaneContextMenu onClick={handleMouseClickComp} close={() => setPaneMenu(null)} {...paneMenu} />}
-                <Background id="1" variant="lines" gap={20} size={1} color={lineColor1} />
-                <Background id="2" variant="lines" gap={200} size={1} color={lineColor2} />
+                {paneMenu && <PaneContextMenu close={() => setPaneMenu(null)} top={paneMenu.top} left={paneMenu.left} />}
+                <Background id="1" variant={BackgroundVariant.Lines} gap={20} size={1} color={lineColor1} />
+                <Background id="2" variant={BackgroundVariant.Lines} gap={200} size={1} color={lineColor2} />
             </ReactFlow>
             {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
         </div>
@@ -402,6 +418,9 @@ function ControlRow() {
     const filename = useFilename();
 
     const run = useCallback(async () => {
+        if (!API) {
+            return;
+        }
         const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
         if (errors.length > 0) {
             notification.error({
@@ -417,11 +436,17 @@ function ControlRow() {
     }, [API, nodes, edges, notification, filename]);
 
     const pause = useCallback(() => {
+        if (!API) {
+            return;
+        }
         API.pause();
         runStateShouldChange();
     }, [API]);
 
     const clear = useCallback(async () => {
+        if (!API) {
+            return;
+        }
         const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
         if (errors.length > 0) {
             notification.error({
@@ -443,7 +468,7 @@ function ControlRow() {
                     runState !== 'stopped' ? (
                         <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
-                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} loading={runState === 'changing'} disabled={!API} />
+                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />
                     )
                 }
             </Flex>

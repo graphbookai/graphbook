@@ -1,5 +1,6 @@
 import './panel.css';
 
+import React from 'react';
 import { FileFilled, AppstoreOutlined } from '@ant-design/icons';
 import { Tabs } from 'antd';
 
