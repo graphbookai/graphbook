@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { basicDark } from '@uiw/codemirror-theme-basic';
@@ -25,9 +25,9 @@ const generateMD5 = (content) => {
     return hash.hex();
 };
 
-export function CodeEditor({closeEditor, name}) {
+export function CodeEditor({ closeEditor, name }) {
     const [codeEditorState, setCodeEditorState] = useState(defaultEditorState);
-    const [currTimeout, setCurrTimeout] = useState(null);
+    const [currTimeout, setCurrTimeout] = useState<number | null>(null);
     const API = useAPI();
     const token = useToken();
 
@@ -38,18 +38,19 @@ export function CodeEditor({closeEditor, name}) {
 
     useEffect(() => {
         const getFile = async () => {
-            try {
-                const file = await API.getFile(filepath);
-                setCodeEditorState({ ...codeEditorState, isLoading: false, prevHash: generateMD5(file.content), value: file.content });
-            } catch {
-                setCodeEditorState({ ...codeEditorState, isLoading: true });
-                console.log("Error getting file");
+            if (API && filepath) {
+                try {
+                    const file = await API.getFile(filepath);
+                    setCodeEditorState({ ...codeEditorState, isLoading: false, prevHash: generateMD5(file.content), value: file.content });
+                } catch {
+                    setCodeEditorState({ ...codeEditorState, isLoading: true });
+                    console.log("Error getting file");
+                }
             }
         };
-        if (API && filepath) {
-            getFile();
-        }
-    }, [API]);
+
+        getFile();
+    }, [API, codeEditorState, filepath]);
 
     const onChange = useCallback((val, viewUpdate) => {
         if (!API) {
@@ -76,21 +77,21 @@ export function CodeEditor({closeEditor, name}) {
     }, [currTimeout, filepath, codeEditorState, API]);
 
     return (
-        <div style={{height: '100%', display: 'flex', flexDirection: 'column'}}>
-            <div style={{height: '24px', display: 'flex', flexDirection: 'row', justifyContent: 'space-between'}}>
-                <div style={{display: 'flex', flexDirection: 'row'}}>
-                    <div style={{margin: '5px', lineHeight: 1}}>{name}</div>
-                    <div style={{margin: '5px', lineHeight: 1}}>
-                        { codeEditorState.isSaved ?
-                        <div><CheckOutlined style={{color:'green'}}/> Saved</div>
-                        :
-                        <div><LoadingOutlined/> Pending changes</div>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: '24px', display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'row' }}>
+                    <div style={{ margin: '5px', lineHeight: 1 }}>{name}</div>
+                    <div style={{ margin: '5px', lineHeight: 1 }}>
+                        {codeEditorState.isSaved ?
+                            <div><CheckOutlined style={{ color: 'green' }} /> Saved</div>
+                            :
+                            <div><LoadingOutlined /> Pending changes</div>
                         }
                     </div>
                 </div>
-                <CloseOutlined style={{float: 'right', margin: '5px'}} onClick={closeEditor}/>
+                <CloseOutlined style={{ float: 'right', margin: '5px' }} onClick={closeEditor} />
             </div>
-            <div style={{overflowY: 'scroll', resize: 'horizontal', paddingRight: '10px'}}>
+            <div style={{ overflowY: 'scroll', resize: 'horizontal', paddingRight: '10px' }}>
                 <CodeMirror
                     className='code-editor'
                     height='100%'
