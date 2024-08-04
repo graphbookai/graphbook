@@ -14,12 +14,14 @@ import json
 import hashlib
 from enum import Enum
 
+
 class NodeInstantiationError(Exception):
     def __init__(self, message: str, node_id: str, node_name: str):
         message = f"Error instantiating node {node_name} with id {node_id}:\n{message}"
         super().__init__(message)
         self.node_id = node_id
         self.node_name = node_name
+
 
 class UIState:
     def __init__(self, root_path: str, websocket: WebSocketResponse):
@@ -148,30 +150,48 @@ class GraphState:
         is_updated_resource = is_updated["resources"]
 
         # First, create resources that the steps depend on
-        param_values = {}
+        resource_values = {}
         dict_resources = {}
         resource_has_changed = {}
-        for resource_id, resource_data in graph_resources.items():
+
+        def set_resource_value(resource_id, resource_data):
             curr_resource = self._dict_resources.get(resource_id)
             resource_name = resource_data["name"]
+
+            p = {}
+            input_resources_have_changed = False
+            for p_key, p_value in resource_data["parameters"].items():
+                if isinstance(p_value, dict):
+                    p_id = p_value["node"]
+                    p[p_key] = set_resource_value(p_id, graph_resources[p_id])
+                    input_resources_have_changed |= resource_has_changed[p_id]
+                else:
+                    p[p_key] = p_value
+                    
             if (
                 curr_resource is not None
                 and curr_resource == resource_data
                 and not is_updated_resource.get(resource_name, False)
+                and not input_resources_have_changed
             ):
-                param_values[resource_id] = self._resource_values[resource_id]
+                resource_values[resource_id] = self._resource_values[resource_id]
                 dict_resources[resource_id] = curr_resource
                 resource_has_changed[resource_id] = False
             else:
                 if curr_resource is not None:
                     del self._dict_resources[resource_id]
                 try:
-                    resource = resource_hub[resource_name](**resource_data["parameters"])
+                    resource = resource_hub[resource_name](**p)
                 except Exception as e:
                     raise NodeInstantiationError(str(e), resource_id, resource_name)
-                param_values[resource_id] = resource.value()
+                resource_values[resource_id] = resource.value()
                 dict_resources[resource_id] = resource_data
                 resource_has_changed[resource_id] = True
+                return resource_values[resource_id]
+
+        for resource_id, resource_data in graph_resources.items():
+            if resource_id not in resource_values:
+                set_resource_value(resource_id, resource_data)
 
         # Next, create all steps
         steps = {}
@@ -183,7 +203,7 @@ class GraphState:
             step_input_has_changed = False
             for param_name, lookup in step_data["parameters"].items():
                 if isinstance(lookup, dict):
-                    step_input[param_name] = param_values[lookup["node"]]
+                    step_input[param_name] = resource_values[lookup["node"]]
                     step_input_has_changed |= resource_has_changed[lookup["node"]]
                 else:
                     step_input[param_name] = lookup
@@ -253,7 +273,7 @@ class GraphState:
         self._dict_resources = dict_resources
         self._steps = steps
         self._queues = queues
-        self._resource_values = param_values
+        self._resource_values = resource_values
         self._step_states = step_states
 
     def create_parent_subgraph(self, step_id: str):
