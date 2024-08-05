@@ -199,12 +199,12 @@ export class ServerAPI {
         return await this.post('pause', {});
     }
 
-    public async clearAll(graph, resources) {
-        return await this.post('clear', { graph, resources });
+    public async clearAll() {
+        return await this.post('clear', {});
     }
 
-    public async clear(graph, resources, stepId) {
-        return await this.post(`clear/${stepId}`, { graph, resources });
+    public async clear(nodeId) {
+        return await this.post(`clear/${nodeId}`, {});
     }
 
     public async getNodes() {

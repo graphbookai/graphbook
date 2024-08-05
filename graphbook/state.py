@@ -155,6 +155,8 @@ class GraphState:
         resource_has_changed = {}
 
         def set_resource_value(resource_id, resource_data):
+            if resource_id in resource_values:
+                return
             curr_resource = self._dict_resources.get(resource_id)
             resource_name = resource_data["name"]
 
@@ -163,7 +165,8 @@ class GraphState:
             for p_key, p_value in resource_data["parameters"].items():
                 if isinstance(p_value, dict):
                     p_id = p_value["node"]
-                    p[p_key] = set_resource_value(p_id, graph_resources[p_id])
+                    set_resource_value(p_id, graph_resources[p_id])
+                    p[p_key] = resource_values[p_id]
                     input_resources_have_changed |= resource_has_changed[p_id]
                 else:
                     p[p_key] = p_value
@@ -179,7 +182,7 @@ class GraphState:
                 resource_has_changed[resource_id] = False
             else:
                 if curr_resource is not None:
-                    del self._dict_resources[resource_id]
+                    del curr_resource, self._dict_resources[resource_id]
                 try:
                     resource = resource_hub[resource_name](**p)
                 except Exception as e:
@@ -190,8 +193,7 @@ class GraphState:
                 return resource_values[resource_id]
 
         for resource_id, resource_data in graph_resources.items():
-            if resource_id not in resource_values:
-                set_resource_value(resource_id, resource_data)
+            set_resource_value(resource_id, resource_data)
 
         # Next, create all steps
         steps = {}
@@ -321,20 +323,25 @@ class GraphState:
         self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
         self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
 
-    def clear_outputs(self, step_id: str | None = None):
-        if step_id is None:
+    def clear_outputs(self, node_id: str | None = None):
+        if node_id is None:
             for q in self._queues.values():
                 q.clear()
             for step_id in self._step_states:
-                self.view_manager.handle_queue_size(step_id, 0)
+                self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
                 self._step_states[step_id] = set()
+            self._dict_resources.clear()
+            self._resource_values.clear()
         else:
-            self._queues[step_id].clear()
-            step = self._steps[step_id]
-            for p in step.parents:
-                self._queues[p.id].reset_consumer_idx(id(step))
-            self._step_states[step_id] = set()
-        self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
+            if node_id in self._queues:
+                self._queues[node_id].clear()
+                step = self._steps[node_id]
+                for p in step.parents:
+                    self._queues[p.id].reset_consumer_idx(id(step))
+                self._step_states[node_id] = set()
+                self.view_manager.handle_queue_size(node_id, self._queues[node_id].dict_sizes())
+            elif node_id in self._dict_resources:
+                del self._resource_values[node_id], self._dict_resources[node_id]
 
     def get_input(self, step: Step) -> Note:
         num_parents = len(step.parents)
