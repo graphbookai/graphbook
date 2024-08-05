@@ -1,8 +1,8 @@
 import React, { useCallback, useState, useMemo } from 'react';
 import { Handle, Position, useOnSelectionChange, useReactFlow } from 'reactflow';
 import { Card, theme } from 'antd';
-import { Widget } from './Widgets';
-import { outputHandleStyle, nodeBorderStyle } from '../../styles';
+import { Widget, isWidgetType } from './Widgets';
+import { outputHandleStyle, inputHandleStyle, nodeBorderStyle } from '../../styles';
 import { Parameter } from '../../utils';
 const { useToken } = theme;
 
@@ -55,26 +55,49 @@ export function Resource({ id, data, selected }) {
                         </div> :
                         <div>
                             <span className="title">{name}</span>
-                            {parameters &&
-                                <div className='widgets'>
+                            <div className="handles">
+                                <div className="inputs">
                                     {
+                                        parameters &&
                                         Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
+                                            if (!isWidgetType(parameter.type)) {
+                                                return (
+                                                    <div key={i} className="input">
+                                                        <Handle
+                                                            className="parameter"
+                                                            style={inputHandleStyle()}
+                                                            type="target"
+                                                            position={Position.Left}
+                                                            id={parameterName}
+                                                        />
+                                                        <span className="label">{parameterName}</span>
+                                                    </div>
+                                                );
+                                            }
+                                        })
+                                    }
+                                </div>
+                                <div className='outputs'>
+                                    <div className="output">
+                                        <span className="label">out</span>
+                                        <Handle style={outputHandleStyle()} type="source" position={Position.Right} id="resource" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className='widgets'>
+                                {
+                                    parameters && !data.isCollapsed &&
+                                    Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
+                                        if (isWidgetType(parameter.type)) {
                                             return (
                                                 <div key={i} className="parameter">
                                                     <Widget id={id} type={parameter.type} name={parameterName} value={parameter.value}/>
                                                 </div>
                                             );
-                                        })
-                                    }
-                                </div>
-                            }
-                            <div className="handles" style={{marginBottom: '5px'}}>
-                                <div className="inputs"></div>
-                                <div className='outputs'>
-                                    <div className="output">
-                                        <Handle style={outputHandleStyle()} type="source" position={Position.Right} id="resource" />
-                                    </div>
-                                </div>
+                                        }
+                                        return null;
+                                    }).filter(x => x)
+                                }
                             </div>
                         </div>
                 }

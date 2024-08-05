@@ -155,7 +155,7 @@ class GraphServer:
         @routes.post("/clear")
         @routes.post("/clear/{id}")
         async def clear(request: web.Request) -> web.Response:
-            step_id = request.match_info.get("id")
+            node_id = request.match_info.get("id")
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
@@ -164,7 +164,7 @@ class GraphServer:
                     "cmd": "clear",
                     "graph": graph,
                     "resources": resources,
-                    "step_id": step_id,
+                    "node_id": node_id,
                 }
             )
             return web.json_response({"success": True})

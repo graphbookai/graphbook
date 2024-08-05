@@ -210,9 +210,9 @@ class WebInstanceProcessor:
                     if self.try_update_state(work):
                         self.step(work["step_id"])
                 elif work["cmd"] == "clear":
-                    if self.try_update_state(work):
-                        self.graph_state.clear_outputs(work.get("step_id"))
-                        self.view_manager.handle_clear(work.get("step_id"))
+                    self.graph_state.clear_outputs(work.get("node_id"))
+                    self.view_manager.handle_clear(work.get("node_id"))
+                    if work.get("node_id") is None:
                         self.dataloader.clear()
             except KeyboardInterrupt:
                 self.cleanup()

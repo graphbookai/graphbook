@@ -20,65 +20,10 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
 
     const NODE_OPTIONS = useMemo(() => !node || !API ? [] : [
         {
-            name: 'Run',
-            disabled: () => API && runState !== 'stopped',
-            action: async () => {
-                const { getNodes, getEdges } = reactFlowInstance;
-                const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
-                }
-                API.run(graph, resources, node.id, filename);
-                runStateShouldChange();
-            }
-        },
-        {
-            name: 'Step',
-            disabled: () => API && runState !== 'stopped',
-            action: async () => {
-                const { getNodes, getEdges } = reactFlowInstance;
-                const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
-                }
-                API.step(graph, resources, node.id, filename);
-                runStateShouldChange();
-            }
-        },
-        {
             name: 'Clear Outputs',
             disabled: () => API && runState !== 'stopped',
             action: async () => {
-                const { getNodes, getEdges } = reactFlowInstance;
-                const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
-                }
-                API.clear(graph, resources, node.id);
+                API.clear(node.id);
             }
         },
         {
@@ -130,6 +75,54 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
             }
         }
     ], [node, reactFlowInstance, runState, runStateShouldChange, API, filename]);
+
+    const STEP_OPTIONS = useMemo(() => !node || !API ? [] : [
+        {
+            name: 'Run',
+            disabled: () => API && runState !== 'stopped',
+            action: async () => {
+                const { getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                if (errors.length > 0) {
+                    notification.error({
+                        key: 'invalid-graph',
+                        message: 'Invalid Graph',
+                        description: <SerializationErrorMessages errors={errors} />,
+                        duration: 3,
+                    })
+                    return;
+                }
+                API.run(graph, resources, node.id, filename);
+                runStateShouldChange();
+            }
+        },
+        {
+            name: 'Step',
+            disabled: () => API && runState !== 'stopped',
+            action: async () => {
+                const { getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                if (errors.length > 0) {
+                    notification.error({
+                        key: 'invalid-graph',
+                        message: 'Invalid Graph',
+                        description: <SerializationErrorMessages errors={errors} />,
+                        duration: 3,
+                    })
+                    return;
+                }
+                API.step(graph, resources, node.id, filename);
+                runStateShouldChange();
+            }
+        },
+        ...NODE_OPTIONS
+    ], [node, reactFlowInstance, runState, runStateShouldChange, API, filename, NODE_OPTIONS]);
+
+    const RESOURCE_OPTIONS = useMemo(() => !node ? [] : [ ...NODE_OPTIONS ], [NODE_OPTIONS]);
 
     const GROUP_OPTIONS = useMemo(() => {
         if (!node || !API) {
@@ -303,10 +296,13 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         if (nodeType === 'export') {
             return EXPORT_OPTIONS;
         }
-        if (nodeType === 'step' || nodeType === 'resource') {
-            return NODE_OPTIONS;
+        if (nodeType === 'step') {
+            return STEP_OPTIONS;
         }
-        return NODE_OPTIONS;
+        if (nodeType === 'resource') {
+            return RESOURCE_OPTIONS;
+        }
+        return [];
     };
 
     const items = useMemo(() => {

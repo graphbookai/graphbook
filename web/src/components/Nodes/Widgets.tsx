@@ -137,3 +137,7 @@ function Input({ onChange, label, defaultValue }) {
         </div>
     );
 }
+
+export const isWidgetType = (type) => {
+    return ['number', 'string', 'boolean', 'function'].includes(type);
+};

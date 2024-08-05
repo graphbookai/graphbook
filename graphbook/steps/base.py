@@ -433,7 +433,7 @@ class Split(Step):
     """
 
     RequiresInput = True
-    Parameters = {"split_fn": {"type": "function"}}
+    Parameters = {"split_fn": {"type": "resource"}}
     Outputs = ["A", "B"]
     Category = "Filtering"
 
@@ -462,7 +462,7 @@ class SplitNotesByItems(Step):
 
     RequiresInput = True
     Parameters = {
-        "split_items_fn": {"type": "function"},
+        "split_items_fn": {"type": "resource"},
         "item_key": {"type": "string"},
     }
     Outputs = ["A", "B"]
@@ -498,7 +498,7 @@ class SplitItemField(Step):
     """
 
     RequiresInput = True
-    Parameters = {"split_fn": {"type": "function"}, "item_key": {"type": "string"}}
+    Parameters = {"split_fn": {"type": "resource"}, "item_key": {"type": "string"}}
     Category = "Filtering"
     Outputs = ["out"]
 

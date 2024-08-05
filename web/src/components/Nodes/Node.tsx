@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
 import { Card, Collapse, Badge, Flex, Button, Descriptions, Image, theme } from 'antd';
 import { SearchOutlined, FileTextOutlined, CaretRightOutlined } from '@ant-design/icons';
-import { Widget } from './Widgets';
+import { Widget, isWidgetType } from './Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
@@ -15,10 +15,6 @@ import { SerializationErrorMessages } from '../Errors';
 import type { LogEntry, Parameter } from '../../utils';
 const { Panel } = Collapse;
 const { useToken } = theme;
-
-const isWidgetType = (type) => {
-    return ['number', 'string', 'boolean'].includes(type);
-};
 
 type QuickViewEntry = {
     [key: string]: object;

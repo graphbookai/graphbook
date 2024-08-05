@@ -447,18 +447,9 @@ function ControlRow() {
         if (!API) {
             return;
         }
-        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-        if (errors.length > 0) {
-            notification.error({
-                key: 'invalid-graph',
-                message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors} />,
-                duration: 3,
-            })
-            return;
-        }
-        API.clearAll(graph, resources);
-    }, [API, nodes, edges, notification]);
+
+        API.clearAll();
+    }, [API]);
 
     return (
         <div className="control-row">
