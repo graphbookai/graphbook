@@ -230,6 +230,7 @@ class GraphServer:
                         st = {
                             "title": osp.basename(rel_path),
                             "path": rel_path,
+                            "path_from_cwd": osp.join(root_path, rel_path),
                             "dirname": osp.dirname(rel_path),
                             "from_root": abs_root_path,
                             "access_time": int(stat.st_atime),

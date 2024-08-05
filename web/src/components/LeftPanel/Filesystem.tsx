@@ -192,7 +192,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                     <FileItem
                         title={title}
                         filename={filename}
-                        fullpath={item.path}
+                        nameFromCwd={item.path_from_cwd}
                         isRenaming={renamingState.isRenaming && filename === renamingState.filename}
                         onRename={onItemRename}
                     />
@@ -333,11 +333,11 @@ function DirItem({ title, filename, isRenaming, onRename }) {
     );
 }
 
-function FileItem({ title, filename, fullpath, isRenaming, onRename }) {
+function FileItem({ title, filename, nameFromCwd, isRenaming, onRename }) {
     const [currentFilename, setCurrentFilename] = useState(filename);
 
     const onDragStart = useCallback((e) => {
-        filesystemDragBegin(filename, e);
+        filesystemDragBegin(nameFromCwd, e);
     }, [filename]);
 
     const onChange = useCallback((e) => {
