@@ -20,10 +20,7 @@ class LoadJSONL(SourceStep):
     def load(self) -> StepOutput:
         with open(self.jsonl_path, "r") as f:
             data = [json.loads(line) for line in f][self.start_from :]
-        notes = [
-            Note(entry.get("key"), entry.get("annotation"), entry.get("items"))
-            for entry in data
-        ]
+        notes = [Note(entry) for entry in data]
         return {"out": notes}
 
 
