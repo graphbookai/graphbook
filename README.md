@@ -73,7 +73,7 @@ Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custo
 We continually post examples of workflows and custom nodes in our [examples repo](https://github.com/graphbookai/graphbook-examples).
 
 ## Collaboration
-Graphbook is in active development and very much welcomes contributors. This is a guide on how to run Graphbook in development mode. If you are simply using Graphbook, view the [Getting Started](#getting-started) section. 
+Graphbook is in active development and very much welcomes contributors. This is a guide on how to run Graphbook in development mode. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.
 
 ### Run Graphbook in Development Mode
 You can use any other virtual environment solution, but it is highly adviced to use [poetry](https://python-poetry.org/docs/) since our dependencies are specified in poetry's format.
