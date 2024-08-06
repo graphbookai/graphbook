@@ -5,7 +5,6 @@ from graphbook.viewer import ViewManager
 from graphbook.exports import NodeHub
 import os, sys
 import os.path as osp
-import magic
 import re
 import signal
 import http.server
@@ -19,6 +18,11 @@ import hashlib
 from graphbook.state import UIState
 from graphbook.media import MediaServer
 from graphbook.utils import poll_conn_for, ProcessorStateRequest
+try:
+    import magic
+except ImportError:
+    magic = None
+    print("Warn: Optional libmagic library not found. Filesystem will not be able to determine MIME types.")
 
 
 @web.middleware
@@ -226,20 +230,22 @@ class GraphServer:
                         st = {
                             "title": osp.basename(rel_path),
                             "path": rel_path,
+                            "path_from_cwd": osp.join(root_path, rel_path),
                             "dirname": osp.dirname(rel_path),
                             "from_root": abs_root_path,
                             "access_time": int(stat.st_atime),
                             "modification_time": int(stat.st_mtime),
                             "change_time": int(stat.st_ctime),
                         }
-                        if not osp.isdir(fullpath):
+                        if not osp.isdir(path):
                             st["size"] = int(stat.st_size)
-                            mime = magic.from_file(fullpath, mime=True)
-                            if mime is None:
-                                mime = "application/octet-stream"
-                            else:
-                                mime = mime.replace(" [ [", "")
-                            st["mime"] = mime
+                            if magic is not None:
+                                mime = magic.from_file(path, mime=True)
+                                if mime is None:
+                                    mime = "application/octet-stream"
+                                else:
+                                    mime = mime.replace(" [ [", "")
+                                st["mime"] = mime
                         return st
 
                     stats = handle_fs_tree(fullpath, get_stat)
