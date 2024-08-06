@@ -3,7 +3,7 @@ Installing
 
 Requirements
 ============
-#. Python 3.11+
+#. Python 3.10+
 
 Install from PyPI
 =================

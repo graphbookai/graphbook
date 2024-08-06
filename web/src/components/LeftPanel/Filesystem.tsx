@@ -192,7 +192,6 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                     <FileItem
                         title={title}
                         filename={filename}
-                        fullpath={item.path}
                         isRenaming={renamingState.isRenaming && filename === renamingState.filename}
                         onRename={onItemRename}
                     />
@@ -252,6 +251,11 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         setContextMenu(null);
     }, [contextMenu]);
 
+    const onDragStart: TreeProps['onDragStart'] = useCallback(({ event, node }) => {
+        const nameFromCwd = node.path_from_cwd;
+        filesystemDragBegin(nameFromCwd, event);
+    }, []);
+
     const onDrop: TreeProps['onDrop'] = useCallback(async (info) => {
         if (!API) {
             return;
@@ -292,6 +296,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 onSelect={onFileItemClick}
                 onRightClick={onFileItemRightClick}
                 onDrop={onDrop}
+                onDragStart={onDragStart}
                 blockNode
                 draggable
             />
@@ -333,12 +338,8 @@ function DirItem({ title, filename, isRenaming, onRename }) {
     );
 }
 
-function FileItem({ title, filename, fullpath, isRenaming, onRename }) {
+function FileItem({ title, filename, isRenaming, onRename }) {
     const [currentFilename, setCurrentFilename] = useState(filename);
-
-    const onDragStart = useCallback((e) => {
-        filesystemDragBegin(filename, e);
-    }, [filename]);
 
     const onChange = useCallback((e) => {
         setCurrentFilename(e.target.value);
@@ -357,7 +358,7 @@ function FileItem({ title, filename, fullpath, isRenaming, onRename }) {
     }
 
     return (
-        <span className="file-item" onDragStart={onDragStart} draggable>
+        <span className="file-item">
             {title}
         </span>
     );
