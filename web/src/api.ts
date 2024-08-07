@@ -1,15 +1,19 @@
 import { Node, Edge } from 'reactflow';
 
+const RECONNECT_INTERVAL = 2; // Number of seconds to wait before attempting to reconnect
+
 export class ServerAPI {
     private host: string;
     private mediaHost: string;
     private nodes: any;
     private websocket: WebSocket | null;
     private listeners: Set<[string, EventListenerOrEventListenerObject]>
+    private reconnectListeners: Set<Function>;
 
     constructor() {
         this.nodes = {};
         this.listeners = new Set();
+        this.reconnectListeners = new Set();
     }
 
     public connect(host: string, mediaHost: string) {
@@ -28,7 +32,12 @@ export class ServerAPI {
 
     private connectWebSocket() {
         const connect = () => {
-            this.websocket = new WebSocket(`ws://${this.host}/ws`);
+            try {
+                this.websocket = new WebSocket(`ws://${this.host}/ws`);
+            } catch (e) {
+                console.error(e);
+                return;
+            }
             for (const [eventType, callback] of this.listeners) {
                 this.websocket.addEventListener(eventType, callback);
             }
@@ -54,12 +63,24 @@ export class ServerAPI {
     }
 
     private retryWebSocketConnection() {
-        setTimeout(() => {
-            if (this.websocket) {
-                console.log("Retrying connection to server...");
-                this.connectWebSocket();
-            }
-        }, 2000);
+        const reconnectSecond = (i) => {
+            setTimeout(() => {
+                if (this.isWebSocketOpen()) {
+                    return;
+                }
+
+                if (i <= 0 && this.websocket) {
+                    console.log("Retrying connection to server...");
+                    this.connectWebSocket();
+                } else {
+                    reconnectSecond(i - 1);
+                }
+                for (const callback of this.reconnectListeners) {
+                    callback(i);
+                }
+            }, 1000);
+        };
+        reconnectSecond(RECONNECT_INTERVAL);
     }
 
     private isWebSocketOpen(): boolean {
@@ -178,6 +199,14 @@ export class ServerAPI {
 
     public removeWSMessageListener(callback: EventListenerOrEventListenerObject) {
         this.removeWsEventListener('message', callback);
+    }
+
+    public addReconnectListener(callback: Function) {
+        this.reconnectListeners.add(callback);
+    }
+
+    public removeReconnectListener(callback: Function) {
+        this.reconnectListeners.delete(callback);
     }
 
     /**

@@ -28,6 +28,8 @@ import { useNotificationInitializer, useNotification } from '../hooks/Notificati
 import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
 import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
+import { ActiveOverlay } from './ActiveOverlay.tsx';
+
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
 const onLoadGraph = async (filename, API): Promise<[Node[], Edge[]]> => {
@@ -368,42 +370,44 @@ export default function Flow({ filename }) {
 
     return (
         <div style={{ height: '100%', width: '100%' }}>
-            <ReactFlow
-                key={filename}
-                onPaneClick={handleMouseClickComp}
-                onMove={handleMouseClickComp}
-                zoomOnDoubleClick={false}
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChangeCallback}
-                onEdgesChange={onEdgesChangeCallback}
-                onConnect={onConnect}
-                deleteKeyCode={"Delete"}
-                onInit={onInitReactFlow}
-                nodeTypes={nodeTypes}
-                onDrop={onDrop}
-                onDragOver={makeDroppable}
-                onDragEnter={makeDroppable}
-                onNodeContextMenu={onNodeContextMenu}
-                onPaneContextMenu={onPaneContextMenu}
-                isValidConnection={isValidConnection}
-                onNodeDragStop={onNodeDragStop}
-                onNodesDelete={onNodesDelete}
-            >
-                {notificationCtxt}
-                <Panel position='top-right'>
-                    <ControlRow />
-                </Panel>
-                <Panel position='top-left'>
-                    <NodeConfig />
-                </Panel>
-                <Monitor />
-                {nodeMenu && <NodeContextMenu {...nodeMenu} />}
-                {paneMenu && <PaneContextMenu close={() => setPaneMenu(null)} top={paneMenu.top} left={paneMenu.left} />}
-                <Background id="1" variant={BackgroundVariant.Lines} gap={20} size={1} color={lineColor1} />
-                <Background id="2" variant={BackgroundVariant.Lines} gap={200} size={1} color={lineColor2} />
-            </ReactFlow>
-            {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
+            <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
+                <ReactFlow
+                    key={filename}
+                    onPaneClick={handleMouseClickComp}
+                    onMove={handleMouseClickComp}
+                    zoomOnDoubleClick={false}
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChangeCallback}
+                    onEdgesChange={onEdgesChangeCallback}
+                    onConnect={onConnect}
+                    deleteKeyCode={"Delete"}
+                    onInit={onInitReactFlow}
+                    nodeTypes={nodeTypes}
+                    onDrop={onDrop}
+                    onDragOver={makeDroppable}
+                    onDragEnter={makeDroppable}
+                    onNodeContextMenu={onNodeContextMenu}
+                    onPaneContextMenu={onPaneContextMenu}
+                    isValidConnection={isValidConnection}
+                    onNodeDragStop={onNodeDragStop}
+                    onNodesDelete={onNodesDelete}
+                >
+                    {notificationCtxt}
+                    <Panel position='top-right'>
+                        <ControlRow />
+                    </Panel>
+                    <Panel position='top-left'>
+                        <NodeConfig />
+                    </Panel>
+                    <Monitor />
+                    {nodeMenu && <NodeContextMenu {...nodeMenu} />}
+                    {paneMenu && <PaneContextMenu close={() => setPaneMenu(null)} top={paneMenu.top} left={paneMenu.left} />}
+                    {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
+                    <Background id="1" variant={BackgroundVariant.Lines} gap={20} size={1} color={lineColor1} />
+                    <Background id="2" variant={BackgroundVariant.Lines} gap={200} size={1} color={lineColor2} />
+                </ReactFlow>
+            </ActiveOverlay>
         </div>
     );
 }

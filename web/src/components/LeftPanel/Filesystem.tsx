@@ -1,8 +1,9 @@
-import { Flex, Input, Tree, Button, Typography, Menu } from "antd";
+import { Flex, Input, Tree, Button, Typography, Menu, theme } from "antd";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
 import { filesystemDragBegin } from "../../utils";
+import { ActiveOverlay } from "../ActiveOverlay";
 import DefaultWorkflow from "../../DefaultWorkflow.json";
 import type { TreeProps } from 'antd';
 const { Text } = Typography;
@@ -21,6 +22,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, filename: string } | null>(null);
     const [renamingState, setRenamingState] = useState({ isRenaming: false, filename: '' });
     const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
+    const { token } = theme.useToken();
     const API = useAPI();
 
     useEffect(() => {
@@ -277,37 +279,40 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     }, [API]);
 
     return (
-        <div className="filesystem">
-            <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
-            <Flex justify="space-between">
-                <Text>{filesRoot}/</Text>
-                <div style={{ display: 'flex', flexDirection: 'row' }}>
-                    <Button className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
-                    <Button className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />
-                    <Button className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
-                </div>
-            </Flex>
-            <Tree.DirectoryTree
-                onExpand={onExpand}
-                expandedKeys={expandedKeys}
-                autoExpandParent={autoExpandParent}
-                selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
-                treeData={treeData}
-                onSelect={onFileItemClick}
-                onRightClick={onFileItemRightClick}
-                onDrop={onDrop}
-                onDragStart={onDragStart}
-                blockNode
-                draggable
-            />
-            {contextMenu && (
-                <Menu
-                    style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
-                    onClick={onContextMenuClick}
-                    items={contextMenuItems}
+        <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
+            <div className="filesystem">
+                <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
+                <Flex justify="space-between">
+                    <Text>{filesRoot}/</Text>
+                    <div style={{ display: 'flex', flexDirection: 'row' }}>
+                        <Button className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
+                        <Button className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />
+                        <Button className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
+                    </div>
+                </Flex>
+                <Tree.DirectoryTree
+                    onExpand={onExpand}
+                    expandedKeys={expandedKeys}
+                    autoExpandParent={autoExpandParent}
+                    selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
+                    treeData={treeData}
+                    onSelect={onFileItemClick}
+                    onRightClick={onFileItemRightClick}
+                    onDrop={onDrop}
+                    onDragStart={onDragStart}
+                    blockNode
+                    draggable
                 />
-            )}
-        </div>
+                {contextMenu && (
+                    <Menu
+                        style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
+                        onClick={onContextMenuClick}
+                        items={contextMenuItems}
+                    />
+                )}
+            </div>
+        </ActiveOverlay>
+
     );
 
 }
