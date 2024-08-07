@@ -1,11 +1,11 @@
 
 
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { Popover, Input, Modal, Typography, Space, theme } from 'antd';
+import { Popover, Input, Modal, Typography, Space, Popconfirm, theme } from 'antd';
 import { LinkOutlined, DisconnectOutlined, SettingFilled } from '@ant-design/icons';
 import Settings from './Settings';
 import { useSettings } from '../hooks/Settings';
-import { useAPI, useAPIMessage } from '../hooks/API';
+import { useAPI, useAPIMessage, useAPIReconnectTimer } from '../hooks/API';
 import { SparklineChart, LinearYAxis, LinearYAxisTickSeries, LinearXAxis, LinearXAxisTickSeries, LineSeries, TooltipArea, ChartTooltip, StackedBarChart, StackedBarSeries, Bar } from 'reaviz';
 import type { ChartShallowDataShape, ChartNestedDataShape } from 'reaviz';
 import './top-panel.css';
@@ -17,53 +17,31 @@ const disconnectedStyle = { ...iconStyle, color: 'red' };
 
 export default function TopPanel() {
     const title = 'Graphbook';
-    const [settings, setSetting] = useSettings();
     const [connected, setConnected] = useState(false);
-    const [host, setHost] = useState(settings.graphServerHost);
-    const [hostEditorOpen, setHostEditorOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [popconfirmOpen, setPopconfirmOpen] = useState(false);
+    const reconnectTime = useAPIReconnectTimer();
     const API = useAPI();
 
     useEffect(() => {
         if (!API) {
             setConnected(false);
+            setPopconfirmOpen(true);
         } else {
             setConnected(true);
+            setPopconfirmOpen(false);
         }
     }, [API]);
 
-    const setAPIHost = useCallback(host => {
-        setSetting("graphServerHost", host);
-    }, []);
-
-    const onHostChange = useCallback((e) => {
-        setHost(e.target.value);
-    }, [host]);
-
-    const onOpenChange = useCallback(isOpen => {
-        setHostEditorOpen(isOpen);
-        if (!isOpen) {
-            setAPIHost(host);
-        }
-    }, [host]);
-
-    const closeAndUpdateHost = useCallback(() => {
-        setHostEditorOpen(false);
-        setAPIHost(host);
-    }, []);
 
     const setSettingsModal = useCallback((shouldOpen) => {
         setSettingsOpen(shouldOpen);
     }, []);
 
-    const hostEditor = (
-        <Input
-            onChange={onHostChange}
-            onPressEnter={closeAndUpdateHost}
-            addonBefore="http://"
-            defaultValue={host}
-        />
-    );
+    const closePopconfirm = useCallback(() => {
+        setPopconfirmOpen(false);
+    }, []);
+
 
     return (
         <div className="top-panel">
@@ -78,9 +56,20 @@ export default function TopPanel() {
                     </Space>
 
                     <SettingFilled style={iconStyle} onClick={() => setSettingsModal(true)} />
-                    <Popover content={hostEditor} title="Host" placement="leftTop" onOpenChange={onOpenChange} open={hostEditorOpen}>
-                        {connected ? <LinkOutlined style={connectedStyle} /> : <DisconnectOutlined style={disconnectedStyle} />}
-                    </Popover>
+                    {connected ?
+                        <LinkOutlined style={connectedStyle} /> :
+                        <Popconfirm
+                            placement="bottomRight"
+                            title={"Disconnected"}
+                            description={`Graphbook is not connected to the server. Attempting to reconnect in ${reconnectTime} seconds.`}
+                            okText="Ok"
+                            showCancel={false}
+                            open={popconfirmOpen}
+                            onConfirm={closePopconfirm}
+                        >
+                            <DisconnectOutlined style={disconnectedStyle} />
+                        </Popconfirm>
+                    }
                 </div>
             </div>
 
@@ -254,7 +243,7 @@ function WorkerChart() {
                 const enqueuedSize =
                     queueSizes.dump.reduce((acc, val) => acc + val, 0) +
                     queueSizes.load.reduce((acc, val) => acc + val, 0);
-                const outgoingSize = 
+                const outgoingSize =
                     queueSizes.load_result.reduce((acc, val) => acc + val, 0) +
                     queueSizes.dump_result.reduce((acc, val) => acc + val, 0) +
                     queueSizes.total_consumer_size;
@@ -274,7 +263,7 @@ function WorkerChart() {
                 if (newData.length > SPARK_SIZE_LIMIT) {
                     newData.shift();
                 }
-                return newData;  
+                return newData;
             }
             return prev;
 
@@ -298,7 +287,7 @@ function WorkerChart() {
 
     const XAxis = useMemo(() => {
         return (
-            <LinearXAxis type="category" position="center" tickSeries={<LinearXAxisTickSeries line={null} label={null} />} /> 
+            <LinearXAxis type="category" position="center" tickSeries={<LinearXAxisTickSeries line={null} label={null} />} />
         );
     }, []);
 
