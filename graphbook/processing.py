@@ -11,6 +11,7 @@ from graphbook.viewer import ViewManagerInterface
 import traceback
 import asyncio
 import time
+import copy
 
 
 class WebInstanceProcessor:
@@ -21,6 +22,7 @@ class WebInstanceProcessor:
         view_manager_queue: mp.Queue,
         output_dir: str,
         continue_on_failure: bool,
+        copy_outputs: bool,
         custom_nodes_path: str,
         close_event: mp.Event,
         pause_event: mp.Event,
@@ -33,6 +35,7 @@ class WebInstanceProcessor:
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.output_dir = output_dir
         self.continue_on_failure = continue_on_failure
+        self.copy_outputs = copy_outputs
         self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
         self.steps = {}
@@ -63,7 +66,7 @@ class WebInstanceProcessor:
             return None
 
         if outputs is not None:
-            self.graph_state.handle_outputs(step.id, outputs)
+            self.graph_state.handle_outputs(step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs))
             self.view_manager.handle_outputs(step.id, outputs)
         self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
