@@ -13,7 +13,6 @@ import multiprocessing as mp
 import multiprocessing.connection as mpc
 import asyncio
 import base64
-import argparse
 import hashlib
 from graphbook.state import UIState
 from graphbook.media import create_media_server
