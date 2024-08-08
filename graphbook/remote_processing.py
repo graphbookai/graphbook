@@ -14,7 +14,7 @@ import time
 import copy
 
 
-class WebInstanceProcessor:
+class RemoteInstanceProcessor:
     def __init__(
         self,
         cmd_queue: mp.Queue,

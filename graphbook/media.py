@@ -21,11 +21,11 @@ async def cors_middleware(request: web.Request, handler):
 class MediaServer:
     def __init__(
         self,
-        address="0.0.0.0",
+        host="0.0.0.0",
         port=8006,
         root_path="./workflow",
     ):
-        self.address = address
+        self.host = host
         self.port = port
         self.root_path = root_path
         routes = web.RouteTableDef()
@@ -57,14 +57,21 @@ class MediaServer:
     async def _async_start(self):
         runner = web.AppRunner(self.app)
         await runner.setup()
-        site = web.TCPSite(runner, self.address, self.port, shutdown_timeout=0.5)
+        site = web.TCPSite(runner, self.host, self.port, shutdown_timeout=0.5)
         await site.start()
         await asyncio.Event().wait()
 
     def start(self):
         self.app.router.add_routes(self.routes)
-        print(f"Starting media server at {self.address}:{self.port}")
+        print(f"Starting media server at {self.host}:{self.port}")
         try:
             asyncio.run(self._async_start())
         except KeyboardInterrupt:
             print("Exiting media server")
+
+
+def create_media_server(args):
+    server = MediaServer(
+        host=args.host, port=args.media_port, root_path=args.media_dir
+    )
+    server.start()

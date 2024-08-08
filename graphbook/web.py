@@ -16,7 +16,7 @@ import base64
 import argparse
 import hashlib
 from graphbook.state import UIState
-from graphbook.media import MediaServer
+from graphbook.media import create_media_server
 from graphbook.utils import poll_conn_for, ProcessorStateRequest
 try:
     import magic
@@ -50,12 +50,12 @@ class GraphServer:
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
         close_event: mp.Event,
-        address="0.0.0.0",
+        host="0.0.0.0",
         port=8005,
         root_path="./workflow",
         custom_nodes_path="./workflow/custom_nodes",
     ):
-        self.address = address
+        self.host = host
         self.port = port
         self.node_hub = NodeHub(custom_nodes_path)
         self.ui_state = None
@@ -339,7 +339,7 @@ class GraphServer:
     async def _async_start(self):
         runner = web.AppRunner(self.app)
         await runner.setup()
-        site = web.TCPSite(runner, self.address, self.port, shutdown_timeout=0.5)
+        site = web.TCPSite(runner, self.host, self.port, shutdown_timeout=0.5)
         loop = asyncio.get_running_loop()
         await site.start()
         await loop.run_in_executor(None, self.view_manager.start)
@@ -347,7 +347,7 @@ class GraphServer:
 
     def start(self):
         self.app.router.add_routes(self.routes)
-        print(f"Starting graph server at {self.address}:{self.port}")
+        print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()
         try:
             asyncio.run(self._async_start())
@@ -357,8 +357,8 @@ class GraphServer:
 
 
 class WebServer:
-    def __init__(self, address, port, web_dir):
-        self.address = address
+    def __init__(self, host, port, web_dir):
+        self.host = host
         self.port = port
         if web_dir is None:
             web_dir = osp.join(osp.dirname(__file__), "web")
@@ -372,31 +372,13 @@ class WebServer:
             )
             return
         os.chdir(self.cwd)
-        with socketserver.TCPServer((self.address, self.port), self.server) as httpd:
-            print(f"Starting web server at {self.address}:{self.port}")
+        with socketserver.TCPServer((self.host, self.port), self.server) as httpd:
+            print(f"Starting web server at {self.host}:{self.port}")
             print(f"Visit http://127.0.0.1:{self.port}")
             try:
                 httpd.serve_forever()
             except KeyboardInterrupt:
                 print("Exiting web server")
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output_dir", type=str, default="./output")
-    parser.add_argument("--media_dir", type=str, default="/")
-    parser.add_argument("--web_dir", type=str)
-    parser.add_argument("--address", type=str, default="0.0.0.0")
-    parser.add_argument("--graph_port", type=int, default=8005)
-    parser.add_argument("--media_port", type=int, default=8006)
-    parser.add_argument("--web_port", type=int, default=8007)
-    parser.add_argument("--workflow_dir", type=str, default="./workflow")
-    parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
-    parser.add_argument("--num_workers", type=int, default=1)
-    parser.add_argument("--continue_on_failure", action="store_true")
-    parser.add_argument("--copy_outputs", action="store_true")
-    return parser.parse_args()
-
 
 def create_graph_server(
     args,
@@ -416,26 +398,18 @@ def create_graph_server(
         close_event,
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
-        address=args.address,
+        host=args.host,
         port=args.graph_port,
     )
     server.start()
 
 
-def create_media_server(args):
-    server = MediaServer(
-        address=args.address, port=args.media_port, root_path=args.media_dir
-    )
-    server.start()
-
-
 def create_web_server(args):
-    server = WebServer(address=args.address, port=args.web_port, web_dir=args.web_dir)
+    server = WebServer(host=args.host, port=args.web_port, web_dir=args.web_dir)
     server.start()
 
 
-def main():
-    args = get_args()
+def start_web(args):
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
@@ -487,7 +461,6 @@ def main():
             cmd_queue,
             parent_conn,
             view_manager_queue,
-            args.output_dir,
             args.continue_on_failure,
             args.copy_outputs,
             custom_nodes_path,
@@ -498,7 +471,3 @@ def main():
         await processor.start_loop()
 
     asyncio.run(start())
-
-
-if __name__ == "__main__":
-    main()
