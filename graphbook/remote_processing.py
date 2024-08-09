@@ -198,18 +198,12 @@ class RemoteInstanceProcessor:
             self.set_is_running(False)
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
-                if work["cmd"] == "run_all":
+                if work["cmd"] == "update_graph":
                     self.set_is_running(True, work["filename"])
                     if self.try_update_state(work):
                         self.run()
-                elif work["cmd"] == "run":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.run(work["step_id"])
-                elif work["cmd"] == "step":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.step(work["step_id"])
+                elif work["cmd"] == "handle_note":
+                    self.handle_note(work)
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
