@@ -7,6 +7,8 @@ import subprocess
 import os
 import platform
 import multiprocessing.connection as mpc
+import pickle
+from asyncio.streams import StreamWriter
 
 
 MP_WORKER_TIMEOUT = 5.0
@@ -135,3 +137,14 @@ def get_gpu_util():
             }
         )
     return GPUs
+
+async def send_remote_packet(writer: StreamWriter, header: str, payload: any = None):
+    writer.write(header.encode())
+    writer.write(b"\n")
+    if payload is not None:
+        buf = pickle.dumps(payload)
+        writer.write(f"{len(buf)}\n".encode())
+        writer.write(buf)
+    else:
+        writer.write(b"0\n")
+    await writer.drain()

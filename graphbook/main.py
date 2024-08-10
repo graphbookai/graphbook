@@ -35,6 +35,7 @@ def get_args():
     serve_parser = subparsers.add_parser("serve")
     serve_parser.add_argument("--host", type=str, default="0.0.0.0")
     serve_parser.add_argument("--port", type=int, default=8008)
+    serve_parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
 
     return parser.parse_args()
 

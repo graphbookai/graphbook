@@ -6,6 +6,8 @@ import multiprocessing as mp
 import os, sys, signal
 import os.path as osp
 import pickle
+from typing import Tuple
+import traceback
 
 
 class GraphbookService:
@@ -13,36 +15,57 @@ class GraphbookService:
         self.host = host
         self.port = port
 
-    async def handle_update_dag(self, data):
+    def handle_update_dag(self, data):
         print("received dag update")
 
-    async def handle_note(self, note):
+    def handle_note(self, note):
         print("received note")
+
+    def handle_ok(self):
+        print("received ok")
+
+    async def get_packet(self, reader: StreamReader) -> Tuple[str, any] | None:
+        try:
+            data_header = await reader.readuntil()
+            data_header = data_header.decode().strip()
+            print(data_header)
+            data_len = await reader.readuntil()
+            data_len = int(data_len.decode().strip())
+            print(data_len)
+            if data_len == 0:
+                return data_header, None
+            payload = await reader.readexactly(data_len)
+            print(len(payload))
+            payload = pickle.loads(payload)
+            print(payload.items)
+            return data_header, payload
+        except asyncio.exceptions.IncompleteReadError:
+            return None
+        except:
+            traceback.print_exc()
+            print("error reading data")
+            return None
 
     async def handle_connection(self, reader: StreamReader, writer: StreamWriter):
         while not reader.at_eof():
-            data_header = await reader.readuntil()
-            data_header = data_header.decode()
-            print(data_header)
-            data_len = await reader.readuntil()
-            data_len = int(data_len.decode())
-            print(data_len)
-            payload = await reader.readexactly(data_len)
-            payload = pickle.loads(payload)
-            print(payload)
-
-            # Simple protocol to determine action
-            if data_header == "DAG":
-                await self.handle_update_dag(payload)
-            elif data_header == "NOTE":
-                await self.handle_note(payload)
+            packet = await self.get_packet(reader)
+            if packet is not None:
+                header, payload = packet
+                if header == "DAG":
+                    self.handle_update_dag(payload)
+                elif header == "NOTE":
+                    self.handle_note(payload)
+                elif header == "OK":
+                    self.handle_ok()
+                    writer.write("OK\n".encode())
+                else:
+                    print("Unknown header", header)
 
         writer.close()
 
     async def _async_start(self):
-        service = GraphbookService()
         server = await asyncio.start_server(
-            service.handle_connection, self.host, self.port
+            self.handle_connection, self.host, self.port
         )
 
         addr = server.sockets[0].getsockname()
@@ -60,8 +83,8 @@ class GraphbookService:
 
 
 def start_serve(args):
-    def create_service():
-        svc = GraphbookService()
+    def create_service(host, port):
+        svc = GraphbookService(host, port)
         svc.start()
 
     cmd_queue = mp.Queue()
@@ -69,10 +92,7 @@ def start_serve(args):
     view_manager_queue = mp.Queue()
     close_event = mp.Event()
     pause_event = mp.Event()
-    root_path = args.workflow_dir
     custom_nodes_path = args.nodes_dir
-    if not osp.exists(root_path):
-        os.mkdir(root_path)
     if not osp.exists(custom_nodes_path):
         os.mkdir(custom_nodes_path)
     processes = [
@@ -80,14 +100,8 @@ def start_serve(args):
         mp.Process(
             target=create_service,
             args=(
-                args,
-                cmd_queue,
-                child_conn,
-                pause_event,
-                view_manager_queue,
-                close_event,
-                root_path,
-                custom_nodes_path,
+                args.host,
+                args.port,
             ),
         ),
     ]
