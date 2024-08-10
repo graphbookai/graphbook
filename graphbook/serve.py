@@ -1,51 +1,55 @@
 import asyncio
+from asyncio.streams import StreamReader, StreamWriter
 from graphbook.remote_processing import RemoteInstanceProcessor
 from graphbook.media import create_media_server
 import multiprocessing as mp
 import os, sys, signal
 import os.path as osp
+import pickle
+
 
 class GraphbookService:
-    def __init__(self):
-        pass
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
 
-    async def handle_update_state(self, data):
-        # Assuming data is a dictionary for state updates
-        self.graphbook.update_state(data)
+    async def handle_update_dag(self, data):
+        print("received dag update")
 
-    async def handle_add_note(self, note):
-        # Assuming note is a string
-        self.graphbook.add_note(note)
+    async def handle_note(self, note):
+        print("received note")
 
-    async def handle_connection(self, reader, writer):
-        data = await reader.read(100)
-        message = data.decode()
-        addr = writer.get_extra_info('peername')
+    async def handle_connection(self, reader: StreamReader, writer: StreamWriter):
+        while not reader.at_eof():
+            data_header = await reader.readuntil()
+            data_header = data_header.decode()
+            print(data_header)
+            data_len = await reader.readuntil()
+            data_len = int(data_len.decode())
+            print(data_len)
+            payload = await reader.readexactly(data_len)
+            payload = pickle.loads(payload)
+            print(payload)
 
-        print(f"Received {message} from {addr}")
-
-        # Simple protocol to determine action
-        if message.startswith("UPDATE_STATE"):
-            state_data = eval(message[len("UPDATE_STATE "):])
-            await self.handle_update_state(state_data)
-        elif message.startswith("ADD_NOTE"):
-            note = message[len("ADD_NOTE "):]
-            await self.handle_add_note(note)
+            # Simple protocol to determine action
+            if data_header == "DAG":
+                await self.handle_update_dag(payload)
+            elif data_header == "NOTE":
+                await self.handle_note(payload)
 
         writer.close()
-        
+
     async def _async_start(self):
-        asyncio.run(start())
         service = GraphbookService()
         server = await asyncio.start_server(
-            service.handle_connection, args.host, args.port)
+            service.handle_connection, self.host, self.port
+        )
 
         addr = server.sockets[0].getsockname()
-        print(f'Serving on {addr}')
+        print(f"Serving on {addr}")
 
         async with server:
             await server.serve_forever()
-        
 
     def start(self):
         print(f"Starting graphbook service at {self.host}:{self.port}")
@@ -53,6 +57,7 @@ class GraphbookService:
             asyncio.run(self._async_start())
         except KeyboardInterrupt:
             print("Exiting media server")
+
 
 def start_serve(args):
     def create_service():
@@ -103,7 +108,6 @@ def start_serve(args):
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-
 
     async def start():
         processor = RemoteInstanceProcessor(
