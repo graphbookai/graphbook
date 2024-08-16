@@ -1,5 +1,5 @@
 import asyncio
-from graphbook.remote_processing import RemoteInstanceProcessor
+from graphbook.processing.serve_processor import RemoteInstanceProcessor
 from graphbook.media import create_media_server
 from graphbook.transport import NetworkService
 import multiprocessing as mp

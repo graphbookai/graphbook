@@ -1,6 +1,6 @@
 import aiohttp
 from aiohttp import web
-from graphbook.processing import WebInstanceProcessor
+from graphbook.processing.web_processor import WebInstanceProcessor
 from graphbook.viewer import ViewManager
 from graphbook.exports import NodeHub
 import os, sys
