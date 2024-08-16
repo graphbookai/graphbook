@@ -1,19 +1,21 @@
 import asyncio
-from asyncio.streams import StreamReader, StreamWriter
 from graphbook.remote_processing import RemoteInstanceProcessor
 from graphbook.media import create_media_server
+from graphbook.transport import NetworkService
 import multiprocessing as mp
 import os, sys, signal
 import os.path as osp
-import pickle
-from typing import Tuple
-import traceback
 
 
 class GraphbookService:
     def __init__(self, host, port):
         self.host = host
         self.port = port
+        routes = {
+            "DAG": self.handle_update_dag,
+            "NOTE": self.handle_note,
+        }
+        self.network_service = NetworkService(host, port, routes)
 
     def handle_update_dag(self, data):
         print("received dag update")
@@ -21,63 +23,10 @@ class GraphbookService:
     def handle_note(self, note):
         print("received note")
 
-    def handle_ok(self):
-        print("received ok")
-
-    async def get_packet(self, reader: StreamReader) -> Tuple[str, any] | None:
-        try:
-            data_header = await reader.readuntil()
-            data_header = data_header.decode().strip()
-            print(data_header)
-            data_len = await reader.readuntil()
-            data_len = int(data_len.decode().strip())
-            print(data_len)
-            if data_len == 0:
-                return data_header, None
-            payload = await reader.readexactly(data_len)
-            print(len(payload))
-            payload = pickle.loads(payload)
-            print(payload.items)
-            return data_header, payload
-        except asyncio.exceptions.IncompleteReadError:
-            return None
-        except:
-            traceback.print_exc()
-            print("error reading data")
-            return None
-
-    async def handle_connection(self, reader: StreamReader, writer: StreamWriter):
-        while not reader.at_eof():
-            packet = await self.get_packet(reader)
-            if packet is not None:
-                header, payload = packet
-                if header == "DAG":
-                    self.handle_update_dag(payload)
-                elif header == "NOTE":
-                    self.handle_note(payload)
-                elif header == "OK":
-                    self.handle_ok()
-                    writer.write("OK\n".encode())
-                else:
-                    print("Unknown header", header)
-
-        writer.close()
-
-    async def _async_start(self):
-        server = await asyncio.start_server(
-            self.handle_connection, self.host, self.port
-        )
-
-        addr = server.sockets[0].getsockname()
-        print(f"Serving on {addr}")
-
-        async with server:
-            await server.serve_forever()
-
     def start(self):
         print(f"Starting graphbook service at {self.host}:{self.port}")
         try:
-            asyncio.run(self._async_start())
+            asyncio.run(self.network_service.start())
         except KeyboardInterrupt:
             print("Exiting media server")
 
