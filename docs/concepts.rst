@@ -16,6 +16,28 @@ Resource
 
 Resource is the second fundamental node type in Graphbook and is also an extendible class. It simply holds static information, or is a Python object, that is fed as a parameter to another Resource or Step. A prime example of a Resource is a model. Tip: If a larger object such as a model is being used in multiple Steps in your workflow, it is best to reuse them by putting them in Resources and use the model as a parameter.
 
+Workers
+********
+
+In order to maximize the utilization of the GPU during graph execution, we parallelize the preparation of inputs and outputs
+for each BatchStep (an extension of Step) across a number of workers. Each worker is a separate process that can run in parallel with others.
+Each worker has its own work queue and result queue for incoming work and outgoing results, respectively.
+A worker is dedicated to either preparing inputs or saving outputs, but not both. Whether it is preparing inputs or saving outputs, the worker logic
+is relatively the same.
+
+# Explain worker logic ...
+
+Sometimes we do not know exactly how many workers we will need. For this reason, Graphbook will offer an auto-scaling feature that will automatically adjust the number of workers based on the workload. 
+For now, Graphbook offers a visualization about the performance of the workers that can indicate to the user when there are too many or too few workers, so that they can manually adjust the number of workers that they need.
+The visualization is in the form of a centered bar chart that shows the number of items that are enqueued in the work queues as red bars and the number of items that are in the result and consumer queues as green bars. Refer to the following when reading this chart:
+
+#. If the red bars are consistently longer than the green bars and there's hardly any green, it indicates that there are too few workers.
+#. If the red bars are consistently longer than the green bars but there is some green, then it indicates that the graph execution on the main process is just too slow to consume all of the results which, in turn, creates a conjestion in the workers work queues.
+This is because the result queues have a max size, and if they are full, the workers will be blocked until space is available. A max size per result queue is enforced to help prevent memory overloading issues.
+#. If the green bars are consistently longer than the red bars, it indicates that there are too many workers.
+#. If there are no visible bars, it indicates that the workers are not being utilized.
+
+
 Step Lifecycle
 **************
 
