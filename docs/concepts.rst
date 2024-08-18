@@ -58,7 +58,7 @@ The actual function, implemented by the BatchStep, is stored inside of a shared 
 
 #. A BatchStep enqueues the item in one of the load and dump queues, so that the workers can access them.
 
-#. The workers will then dequeue the work from their work queues and execute the corresponding BatchStep's function on the item (if the BatchStep still exists), but before they do that, they need to check the size of the result queue.
+#. The workers will then dequeue the work from their work queues and execute the corresponding BatchStep's function (`load_fn()` and `dump_fn()`) on the item if the BatchStep still exists, but before they do that, they need to check the size of the result queue.
 If the result queue is full, the worker will block until space is available.
 
 #. After the worker has finished processing the item, it will enqueue the result in the result queue. The workers cannot deliver the results directly to the consumer queues because they are provisioned
