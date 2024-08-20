@@ -44,11 +44,11 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 - Autosaving and shareable serialized workflow files
 - Registers node code changes without needing a restart
 - Monitorable CPU and GPU resource usage
+- (BETA) Remote subgraphs for scaling workflows on other Graphbook services
 
 ### Planned Features
-- Graphbook services and remote DAGs for scalable workflows
 - A `graphbook run` command to execute workflows in a CLI
-- Step/Resource functions to reduce verbosity
+- Step/Resource functions with decorators to reduce verbosity
 - Human-in-the-loop Steps for manual feedback/control during DAG execution
 - All-code workflows, so users never have to leave their IDE
 - UI extensibility
