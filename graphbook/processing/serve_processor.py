@@ -64,7 +64,9 @@ class RemoteInstanceProcessor:
             return None
 
         if outputs is not None:
-            self.graph_state.handle_outputs(step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs))
+            self.graph_state.handle_outputs(
+                step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
+            )
             self.view_manager.handle_outputs(step.id, outputs)
         self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
@@ -198,17 +200,28 @@ class RemoteInstanceProcessor:
             self.set_is_running(False)
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
-                if work["cmd"] == "update_graph":
-                    self.set_is_running(True, work["filename"])
+                if work["cmd"] == "update_dag":
+                    self.try_update_state(work)
+                    self.filename = work.get("filename")
+                elif work["cmd"] == "handle_run":
                     if self.try_update_state(work):
-                        self.run()
+                        self.set_is_running(True, work.get("filename"))
+                        self.run(work.get("step_id"))
+                elif work["cmd"] == "handle_step":
+                    if self.try_update_state(work):
+                        self.set_is_running(True, work.get("filename"))
+                        self.step(work.get("step_id"))
                 elif work["cmd"] == "handle_note":
-                    self.handle_note(work)
-                elif work["cmd"] == "clear":
+                    self.handle_note(work.get("step_id"), work.get("note"))
+                elif work["cmd"] == "handle_resource":
+                    self.handle_resource(work.get("step_id"), work.get("resource"))
+                elif work["cmd"] == "handle_clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
                     if work.get("node_id") is None:
                         self.dataloader.clear()
+                elif work["cmd"] == "handle_pause":
+                    self.pause_event.set()
             except KeyboardInterrupt:
                 self.cleanup()
                 break

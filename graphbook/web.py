@@ -159,14 +159,9 @@ class GraphServer:
         @routes.post("/clear/{id}")
         async def clear(request: web.Request) -> web.Response:
             node_id = request.match_info.get("id")
-            data = await request.json()
-            graph = data.get("graph", {})
-            resources = data.get("resources", {})
             processor_queue.put(
                 {
                     "cmd": "clear",
-                    "graph": graph,
-                    "resources": resources,
                     "node_id": node_id,
                 }
             )
