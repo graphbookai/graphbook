@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import argparse
 from graphbook.web import start_web
-from graphbook.serve import start_serve
 
 DESCRIPTION = """
 Graphbook | ML Workflow Framework
@@ -32,8 +31,7 @@ def get_args():
 def main():
     args = get_args()
 
-    if args.command == "web":
-        start_web(args)
+    start_web(args)
 
 
 if __name__ == "__main__":

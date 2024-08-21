@@ -8,7 +8,6 @@ import multiprocessing.connection as mpc
 from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
 from graphbook.state import GraphState, StepState, NodeInstantiationError
 from graphbook.viewer import ViewManagerInterface
-from graphbook.transport import NetworkClient
 import traceback
 import asyncio
 import time
