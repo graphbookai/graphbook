@@ -62,15 +62,20 @@ class NetworkService:
             await server.serve_forever()
             
 class NetworkClient:
-    def __init__(self, host, port=8008):
+    DefaultPort = 8008
+    def __init__(self, host, port=DefaultPort):
         self.host = host
         self.port = port
+        self.reader, self.writer = None, None
         
     async def connect(self):
         reader, writer = await asyncio.open_connection(self.host, self.port)
         self.reader, self.writer = reader, writer
         
-    def send(self, header, payload):
+    def close(self):
+        self.writer.close()
+
+    def send(self, header: str, payload: any):
         header = header + "\n"
         header = header.encode()
         self.writer.write(header)

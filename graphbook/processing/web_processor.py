@@ -1,13 +1,14 @@
 from graphbook.steps import Step, SourceStep, AsyncStep, StepOutput
 from graphbook.dataloading import Dataloader
 from ..note import Note
-from typing import List
+from typing import List, Dict
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
 from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
 from graphbook.state import GraphState, StepState, NodeInstantiationError
 from graphbook.viewer import ViewManagerInterface
+from graphbook.transport import NetworkClient
 import traceback
 import asyncio
 import time
@@ -41,6 +42,7 @@ class WebInstanceProcessor:
         self.state_client = ProcessorStateClient(
             server_request_conn, close_event, self.graph_state, self.dataloader
         )
+        self.remote_subgraphs: Dict[str, NetworkClient] = {}
         self.is_running = False
         self.filename = None
 
@@ -213,13 +215,18 @@ class WebInstanceProcessor:
         partition_type("resources")
         return local, remotes
     
-    def setup_transport(self, remotes: dict):
-        return
-    
+    def setup_transport(self, address: str, remote: dict):
+        parts = address.split(":")
+        host = parts[0]
+        port = int(parts[1]) if len(parts) > 1 else NetworkClient.DefaultPort
+        client = NetworkClient(host, port)
+        self.remote_subgraphs[address] = client
+        client.send("DAG", remote)
+
     def exec(self, work: dict):
         self.set_is_running(True, work["filename"])
         local, remotes = self.parition_remote_subgraphs(work)
-        if not self.try_update_state(local):
+        if not self.try_update_state(local): # needs to coordinate with other remote subgraph nodes
             return
 
         for address, remote in remotes.items():
