@@ -1,15 +1,11 @@
 from graphbook.steps.base import Step
 from graphbook.note import Note
-import queue
-
+import multiprocessing as mp
 
 class RemoteReadStep(Step):
-    def __init__(self, id, logger):
+    def __init__(self, id, logger, queue: mp.Queue):
         super().__init__(id, logger)
-        self._queue = queue.Queue()
-
-    def enqueue_note(self, step_id: str, note: Note):
-        self._queue.put((step_id, note))
+        self._queue = queue
 
     def __call__(self, note: Note):
         if self._queue.empty():
@@ -19,9 +15,9 @@ class RemoteReadStep(Step):
 
 
 class RemoteWriteStep(Step):
-    def __init__(self, id, logger):
+    def __init__(self, id, logger, queue: mp.Queue):
         super().__init__(id, logger)
-        self._queue = queue.Queue()
+        self._queue = queue
 
     def dequeue_note(self) -> Note | None:
         if self._queue.empty():

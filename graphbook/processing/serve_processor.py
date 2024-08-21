@@ -1,4 +1,5 @@
 from graphbook.steps import Step, SourceStep, AsyncStep, StepOutput
+from graphbook.steps.remote import RemoteReadStep, RemoteWriteStep
 from graphbook.dataloading import Dataloader
 from ..note import Note
 from typing import List
@@ -18,6 +19,8 @@ class RemoteInstanceProcessor:
     def __init__(
         self,
         cmd_queue: mp.Queue,
+        in_queue: mp.Queue,
+        out_queue: mp.Queue,
         server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
         continue_on_failure: bool,
@@ -28,6 +31,8 @@ class RemoteInstanceProcessor:
         num_workers: int = 1,
     ):
         self.cmd_queue = cmd_queue
+        self.in_step = RemoteReadStep("in", None, in_queue)
+        self.out_step = RemoteWriteStep("out", None, out_queue)
         self.close_event = close_event
         self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
@@ -211,8 +216,6 @@ class RemoteInstanceProcessor:
                     if self.try_update_state(work):
                         self.set_is_running(True, work.get("filename"))
                         self.step(work.get("step_id"))
-                elif work["cmd"] == "handle_note":
-                    self.handle_note(work.get("step_id"), work.get("note"))
                 elif work["cmd"] == "handle_resource":
                     self.handle_resource(work.get("step_id"), work.get("resource"))
                 elif work["cmd"] == "handle_clear":
@@ -220,8 +223,6 @@ class RemoteInstanceProcessor:
                     self.view_manager.handle_clear(work.get("node_id"))
                     if work.get("node_id") is None:
                         self.dataloader.clear()
-                elif work["cmd"] == "handle_pause":
-                    self.pause_event.set()
             except KeyboardInterrupt:
                 self.cleanup()
                 break
