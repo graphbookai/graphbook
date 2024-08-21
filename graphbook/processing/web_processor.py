@@ -195,42 +195,10 @@ class WebInstanceProcessor:
             traceback.print_exc()
         return False
 
-    def parition_remote_subgraphs(self, queue_entry: dict):
-        resources = queue_entry["resources"]
-        local = {"graph": {}, "resources": {}}
-        remotes = {}
-
-        def partition_type(key: str):
-            for node_id, node in queue_entry[key].items():
-                remote_id = node.get("remote_id")
-                if remote_id:
-                    address = resources.get(remote_id, {}).get("address")
-                    if address not in remotes:
-                        remotes[address] = {"graph": {}, "resources": {}}
-                    remotes[address][key][node_id] = node
-                else:
-                    local[key][node_id] = node
-
-        partition_type("graph")
-        partition_type("resources")
-        return local, remotes
-    
-    def setup_transport(self, address: str, remote: dict):
-        parts = address.split(":")
-        host = parts[0]
-        port = int(parts[1]) if len(parts) > 1 else NetworkClient.DefaultPort
-        client = NetworkClient(host, port)
-        self.remote_subgraphs[address] = client
-        client.send("DAG", remote)
-
     def exec(self, work: dict):
         self.set_is_running(True, work["filename"])
-        local, remotes = self.parition_remote_subgraphs(work)
-        if not self.try_update_state(local): # needs to coordinate with other remote subgraph nodes
+        if not self.try_update_state(work):
             return
-
-        for address, remote in remotes.items():
-            self.setup_transport(address, remote)
 
         if work["cmd"] == "run_all":
             self.run()
@@ -238,7 +206,7 @@ class WebInstanceProcessor:
             self.run(work["step_id"])
         elif work["cmd"] == "step":
             self.step(work["step_id"])
-    
+
     async def start_loop(self):
         loop = asyncio.get_running_loop()
         loop.run_in_executor(None, self.state_client.start)
