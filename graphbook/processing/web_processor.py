@@ -64,7 +64,9 @@ class WebInstanceProcessor:
             return None
 
         if outputs is not None:
-            self.graph_state.handle_outputs(step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs))
+            self.graph_state.handle_outputs(
+                step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
+            )
             self.view_manager.handle_outputs(step.id, outputs)
         self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
@@ -178,10 +180,10 @@ class WebInstanceProcessor:
         for c in dataloader_consumers:
             c.set_dataloader(self.dataloader)
 
-    def try_update_state(self, queue_entry: dict) -> bool:
+    def try_update_state(self, local_graph: dict) -> bool:
         try:
             self.graph_state.update_state(
-                queue_entry["graph"], queue_entry["resources"]
+                local_graph["graph"], local_graph["resources"]
             )
             return True
         except NodeInstantiationError as e:
@@ -191,25 +193,55 @@ class WebInstanceProcessor:
             traceback.print_exc()
         return False
 
+    def parition_remote_subgraphs(self, queue_entry: dict):
+        resources = queue_entry["resources"]
+        local = {"graph": {}, "resources": {}}
+        remotes = {}
+
+        def partition_type(key: str):
+            for node_id, node in queue_entry[key].items():
+                remote_id = node.get("remote_id")
+                if remote_id:
+                    address = resources.get(remote_id, {}).get("address")
+                    if address not in remotes:
+                        remotes[address] = {"graph": {}, "resources": {}}
+                    remotes[address][key][node_id] = node
+                else:
+                    local[key][node_id] = node
+
+        partition_type("graph")
+        partition_type("resources")
+        return local, remotes
+    
+    def setup_transport(self, remotes: dict):
+        return
+    
+    def exec(self, work: dict):
+        self.set_is_running(True, work["filename"])
+        local, remotes = self.parition_remote_subgraphs(work)
+        if not self.try_update_state(local):
+            return
+
+        for address, remote in remotes.items():
+            self.setup_transport(address, remote)
+
+        if work["cmd"] == "run_all":
+            self.run()
+        elif work["cmd"] == "run":
+            self.run(work["step_id"])
+        elif work["cmd"] == "step":
+            self.step(work["step_id"])
+    
     async def start_loop(self):
         loop = asyncio.get_running_loop()
         loop.run_in_executor(None, self.state_client.start)
+        exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
-                if work["cmd"] == "run_all":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.run()
-                elif work["cmd"] == "run":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.run(work["step_id"])
-                elif work["cmd"] == "step":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.step(work["step_id"])
+                if work["cmd"] in exec_cmds:
+                    self.exec(work)
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))

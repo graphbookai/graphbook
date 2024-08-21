@@ -60,3 +60,22 @@ class NetworkService:
 
         async with server:
             await server.serve_forever()
+            
+class NetworkClient:
+    def __init__(self, host, port=8008):
+        self.host = host
+        self.port = port
+        
+    async def connect(self):
+        reader, writer = await asyncio.open_connection(self.host, self.port)
+        self.reader, self.writer = reader, writer
+        
+    def send(self, header, payload):
+        header = header + "\n"
+        header = header.encode()
+        self.writer.write(header)
+        payload = pickle.dumps(payload)
+        payload_len = len(payload)
+        payload_len = f"{payload_len}\n".encode()
+        self.writer.write(payload_len)
+        self.writer.write(payload)
