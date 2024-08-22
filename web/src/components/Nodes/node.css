@@ -280,6 +280,10 @@ textarea.code {
     align-items: center;
 }
 
+.workflow-node .quickview .ant-tabs .ant-tabs-tab {
+    font-size: .6rem;
+}
+
 .react-flow__node.react-flow__node-group:has(.collapsed) {
     width: auto !important;
     height: auto !important;

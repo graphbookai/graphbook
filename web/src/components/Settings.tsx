@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Switch, Input, Typography, Flex, theme, Button, Space } from 'antd';
+import { Switch, Input, Typography, Flex, theme, Button, Space, Checkbox } from 'antd';
 import { API } from '../api';
 import { useSettings } from '../hooks/Settings';
 import React from 'react';
@@ -21,7 +21,6 @@ export default function Settings() {
     }, []);
 
     const setMediaVar = useCallback((name, value) => {
-        console.log(value);
         setMediaSettings({ ...mediaSettings, [name]: value });
         API.setMediaServerVar(name, value);
     }, [mediaSettings]);
@@ -34,8 +33,16 @@ export default function Settings() {
         setClientSetting('mediaServerHost', value);
     }, []);
 
+    const setShowNotes = useCallback((event) => {
+        setClientSetting('quickviewShowNotes', event.target.checked);
+    }, []);
+
+    const setShowImages = useCallback((event) => {
+        setClientSetting('quickviewShowImages', event.target.checked);
+    }, []);
+
     return (
-        <div style={{ height: '60vh' }}>
+        <div style={{ height: '60vh', overflow: 'auto' }}>
             <Title level={4}>Client Settings</Title>
             <SettingsEntrySwitch
                 name="Theme"
@@ -48,6 +55,9 @@ export default function Settings() {
             <SettingsEntryInput name="Media Server Host" value={clientSettings.mediaServerHost} addonBefore="http://" onApply={setMediaServerHost} />
             <Title level={4}>Server Settings</Title>
             <SettingsEntryInput name="Media Root Path" value={mediaSettings.root_path} onChange={(value) => setMediaVar('root_path', value)} />
+            <Title level={4}>Quickview Settings</Title>
+            <Checkbox onChange={setShowNotes} checked={clientSettings.quickviewShowNotes}>Show Notes</Checkbox>
+            <Checkbox onChange={setShowImages} checked={clientSettings.quickviewShowImages}>Show Images</Checkbox>
         </div>
     );
 }

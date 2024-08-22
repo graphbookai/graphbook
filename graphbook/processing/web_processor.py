@@ -1,7 +1,7 @@
 from graphbook.steps import Step, SourceStep, AsyncStep, StepOutput
 from graphbook.dataloading import Dataloader
-from .note import Note
-from typing import List
+from ..note import Note
+from typing import List, Dict
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
@@ -20,7 +20,6 @@ class WebInstanceProcessor:
         cmd_queue: mp.Queue,
         server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
-        output_dir: str,
         continue_on_failure: bool,
         copy_outputs: bool,
         custom_nodes_path: str,
@@ -33,7 +32,6 @@ class WebInstanceProcessor:
         self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
-        self.output_dir = output_dir
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
         self.custom_nodes_path = custom_nodes_path
@@ -43,6 +41,7 @@ class WebInstanceProcessor:
         self.state_client = ProcessorStateClient(
             server_request_conn, close_event, self.graph_state, self.dataloader
         )
+        self.remote_subgraphs: Dict[str, NetworkClient] = {}
         self.is_running = False
         self.filename = None
 
@@ -66,7 +65,9 @@ class WebInstanceProcessor:
             return None
 
         if outputs is not None:
-            self.graph_state.handle_outputs(step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs))
+            self.graph_state.handle_outputs(
+                step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
+            )
             self.view_manager.handle_outputs(step.id, outputs)
         self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
@@ -180,10 +181,10 @@ class WebInstanceProcessor:
         for c in dataloader_consumers:
             c.set_dataloader(self.dataloader)
 
-    def try_update_state(self, queue_entry: dict) -> bool:
+    def try_update_state(self, local_graph: dict) -> bool:
         try:
             self.graph_state.update_state(
-                queue_entry["graph"], queue_entry["resources"]
+                local_graph["graph"], local_graph["resources"]
             )
             return True
         except NodeInstantiationError as e:
@@ -193,25 +194,28 @@ class WebInstanceProcessor:
             traceback.print_exc()
         return False
 
+    def exec(self, work: dict):
+        self.set_is_running(True, work["filename"])
+        if not self.try_update_state(work):
+            return
+
+        if work["cmd"] == "run_all":
+            self.run()
+        elif work["cmd"] == "run":
+            self.run(work["step_id"])
+        elif work["cmd"] == "step":
+            self.step(work["step_id"])
+
     async def start_loop(self):
         loop = asyncio.get_running_loop()
         loop.run_in_executor(None, self.state_client.start)
+        exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
-                if work["cmd"] == "run_all":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.run()
-                elif work["cmd"] == "run":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.run(work["step_id"])
-                elif work["cmd"] == "step":
-                    self.set_is_running(True, work["filename"])
-                    if self.try_update_state(work):
-                        self.step(work["step_id"])
+                if work["cmd"] in exec_cmds:
+                    self.exec(work)
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
