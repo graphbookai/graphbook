@@ -24,6 +24,7 @@ def get_args():
     parser.add_argument("--web_port", type=int, default=8007)
     parser.add_argument("--workflow_dir", type=str, default="./workflow")
     parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
+    parser.add_argument("--docs_dir", type=str, default="./workflow/docs")
 
     return parser.parse_args()
 

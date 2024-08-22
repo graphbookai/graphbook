@@ -280,7 +280,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
 
     return (
         <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
-            <div className="filesystem">
+            <Flex vertical className="filesystem">
                 <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
                 <Flex justify="space-between">
                     <Text>{filesRoot}/</Text>
@@ -310,7 +310,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                         items={contextMenuItems}
                     />
                 )}
-            </div>
+            </Flex>
         </ActiveOverlay>
 
     );

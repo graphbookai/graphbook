@@ -53,6 +53,7 @@ class GraphServer:
         port=8005,
         root_path="./workflow",
         custom_nodes_path="./workflow/custom_nodes",
+        docs_path="./workflow/docs",
     ):
         self.host = host
         self.port = port
@@ -195,6 +196,32 @@ class GraphServer:
         async def get_run_state(request: web.Request) -> web.Response:
             res = poll_conn_for(state_conn, ProcessorStateRequest.GET_RUNNING_STATE)
             return web.json_response(res)
+        
+        @routes.get(r"/docs/{path:.+}")
+        async def get_docs(request: web.Request):
+            path = request.match_info.get("path")
+            fullpath = osp.join(docs_path, path)
+            if osp.exists(fullpath):
+                with open(fullpath, "r") as f:
+                    file_contents = f.read()
+                    d = {"content": file_contents}
+                    return web.json_response(d)
+            else:
+                return web.json_response(
+                    {"reason": "/%s: No such file or directory." % fullpath}, status=404
+                )
+                
+        @routes.get("/step_docstring/{name}")
+        async def get_step_docstring(request: web.Request):
+            name = request.match_info.get("name")
+            docstring = self.node_hub.get_step_docstring(name)
+            return web.json_response({"content": docstring})
+        
+        @routes.get("/resource_docstring/{name}")
+        async def get_resource_docstring(request: web.Request):
+            name = request.match_info.get("name")
+            docstring = self.node_hub.get_resource_docstring(name)
+            return web.json_response({"content": docstring})
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
@@ -411,10 +438,13 @@ def start_web(args):
     pause_event = mp.Event()
     root_path = args.workflow_dir
     custom_nodes_path = args.nodes_dir
+    docs_path = args.docs_dir
     if not osp.exists(root_path):
         os.mkdir(root_path)
     if not osp.exists(custom_nodes_path):
         os.mkdir(custom_nodes_path)
+    if not osp.exists(docs_path):
+        os.mkdir(docs_path)
     processes = [
         mp.Process(target=create_media_server, args=(args,)),
         mp.Process(target=create_web_server, args=(args,)),

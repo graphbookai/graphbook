@@ -1,4 +1,4 @@
-.filesystem .ant-tree-node-content-wrapper{
+.filesystem .ant-tree-node-content-wrapper {
     display: flex;
     flex-direction: row;
     text-overflow: ellipsis;
