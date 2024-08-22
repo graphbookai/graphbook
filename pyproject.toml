@@ -32,7 +32,6 @@ python-magic = "^0.4.27"
 watchdog = "^4.0.0"
 torchvision = "^0.18.1"
 psutil = "^6.0.0"
-pdoc = "^14.6.0"
 
 [tool.poetry.group.dev]
 optional = true

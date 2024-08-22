@@ -994,25 +994,6 @@ files = [
 ]
 
 [[package]]
-name = "pdoc"
-version = "14.6.0"
-description = "API Documentation for Python Projects"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "pdoc-14.6.0-py3-none-any.whl", hash = "sha256:36c42c546a317d8e3e8c0b39645f24161374de0c7066ccaae76628d721e49ba5"},
-    {file = "pdoc-14.6.0.tar.gz", hash = "sha256:6e98a24c5e0ca5d188397969cf82581836eaef13f172fc3820047bfe15c61c9a"},
-]
-
-[package.dependencies]
-Jinja2 = ">=2.11.0"
-MarkupSafe = "*"
-pygments = ">=2.12.0"
-
-[package.extras]
-dev = ["hypothesis", "mypy", "pdoc-pyo3-sample-library (==1.0.11)", "pygments (>=2.14.0)", "pytest", "pytest-cov", "pytest-timeout", "ruff", "tox", "types-pygments"]
-
-[[package]]
 name = "pillow"
 version = "10.4.0"
 description = "Python Imaging Library (Fork)"
@@ -2220,4 +2201,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "2ff227e461ebb1b8453375bab38a471adb6cf9cf0f9c7e14e8e7c2eaf38d1c88"
+content-hash = "eae7ecdee218a49478ecbda7b95c22a49aa490fac7163cf74700ea3be40139ab"
