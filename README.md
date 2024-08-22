@@ -80,7 +80,7 @@ You can use any other virtual environment solution, but it is highly adviced to 
 1. Clone the repo and `cd graphbook`
 1. `poetry install --with dev`
 1. `poetry shell`
-1. `python graphbook/server.py`
+1. `python graphbook/main.py`
 1. `cd web`
 1. `npm install`
 1. `npm run dev`

@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Descriptions, Image, theme } from 'antd';
-import { SearchOutlined, FileTextOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space } from 'antd';
+import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
 import { Widget, isWidgetType } from './Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
@@ -13,11 +13,12 @@ import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
 import type { LogEntry, Parameter } from '../../utils';
+import ReactJson from '@microlink/react-json-view';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
 type QuickViewEntry = {
-    [key: string]: object;
+    [key: string]: any;
 };
 
 export function WorkflowStep({ id, data, selected }) {
@@ -215,48 +216,102 @@ function Monitor({ quickViewData, logsData }) {
 
 function QuickviewCollapse({ data }) {
     const [settings, _] = useSettings();
+    const globalTheme = theme.useToken().theme;
+
+    const tabItems = useCallback((noteData) => {
+        let data: any = [];
+        if (settings.quickviewShowNotes) {
+            data.push({
+                key: '0',
+                label: 'Note',
+                icon: <CodeOutlined />,
+                children: (
+                    <ReactJson
+                        style={{ maxHeight: '200px', overflow: 'auto', fontSize: '0.6em' }}
+                        theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
+                        name=""
+                        displayDataTypes={false}
+                        indentWidth={2}
+                        src={noteData}
+                    />
+                ),
+            });
+        }
+        if (settings.quickviewShowImages) {
+            data.push({
+                key: '1',
+                label: 'Images',
+                icon: <FileImageOutlined />,
+                children: (
+                    <EntryImages
+                        style={{ maxHeight: '200px', overflow: 'auto' }}
+                        entry={noteData}
+                    />
+                ),
+            });
+        }
+        return data;
+    }, [settings]);
+
     return (
         <Collapse className='quickview' defaultActiveKey={[]} bordered={false}>
             {
                 Object.entries<QuickViewEntry>(data).map(([key, value], i) => {
-
-                    const imageItems = Object.entries<any>(value).filter(([_, itemList]) => {
-                        if (!Array.isArray(itemList)) {
-                            return false;
-                        }
-                        return itemList.filter(item => item.type?.slice(0, 5) === 'image').length > 0;
-                    }).map(([itemKey, itemList]) => {
-                        const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
-                        return {
-                            key: itemKey,
-                            label: itemKey,
-                            span: 1,
-                            children: (
-                                <Flex key={i} vertical>
-                                    {
-                                        images.map((item, i) => (
-                                            <Image key={i} src={getMediaPath(settings.mediaServerHost, item.value)} width={100} />
-                                        ))
-                                    }
-                                </Flex>
-                            )
-                        };
-                    });
-
                     return (
-                        <Panel className='content' header={key} key={i}>
-                            <Flex style={{ overflowY: 'scroll', maxHeight: '300px' }}>
-                                <div style={{ marginRight: '5px' }}>
-                                    {JSON.stringify(value, null, 2)}
-                                </div>
-                                {
-                                    imageItems.length > 0 && <Descriptions layout="vertical" bordered items={imageItems} />
-                                }
-                            </Flex>
+                        <Panel className='content nowheel' header={key} key={i} style={{ overflow: 'auto' }}>
+                            <Tabs
+                                tabBarStyle={{ fontSize: '2px' }}
+                                defaultActiveKey="0"
+                                items={tabItems(value)}
+                            />
                         </Panel>
                     );
                 })
             }
         </Collapse>
+    );
+}
+
+function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProperties | undefined }) {
+    const [settings, _] = useSettings();
+
+    const imageEntries = useMemo(() => {
+        let entries: any = {};
+        Object.entries<QuickViewEntry>(entry).forEach(([key, item]) => {
+            let imageItems: any = [];
+            if (Array.isArray(item)) {
+                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image').map(item => item.value);
+            } else {
+                if (item.type?.slice(0, 5) === 'image') {
+                    imageItems.push(item.value);
+                }
+            }
+            if (imageItems.length > 0) {
+                entries[key] = imageItems;
+            }
+        });
+        return entries;
+    }, [entry]);
+
+    return (
+        <Flex style={style}>
+            {
+                Object.entries<string[]>(imageEntries).map(([key, images]) => {
+                    return (
+                        <Space direction="vertical" align='center'>
+                            <div>{key}</div>
+                            <Flex key={key} vertical>
+                                {
+                                    images.map((image, i) => (
+                                        <Image key={i} src={getMediaPath(settings.mediaServerHost, image)} width={100} />
+                                    ))
+                                }
+                            </Flex>
+                        </Space>
+
+                    );
+                })
+            }
+        </Flex>
     );
 }

@@ -250,6 +250,7 @@ class WebInstanceProcessor:
                 if work["cmd"] in exec_cmds:
                     self.exec(work)
                 elif work["cmd"] == "clear":
+
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
                     if work.get("node_id") is None:

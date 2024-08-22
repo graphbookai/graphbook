@@ -7,6 +7,8 @@ let settings = {
     mediaServerHost: "localhost:8006",
     monitorDataColumns: MONITOR_DATA_COLUMNS,
     monitorLogsShouldScrollToBottom: true,
+    quickviewShowNotes: true,
+    quickviewShowImages: true,
 };
 
 const storedSettings = localStorage.getItem('settings');
