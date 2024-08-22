@@ -392,6 +392,7 @@ export default function Flow({ filename }) {
                     isValidConnection={isValidConnection}
                     onNodeDragStop={onNodeDragStop}
                     onNodesDelete={onNodesDelete}
+                    preventScrolling={true}
                 >
                     {notificationCtxt}
                     <Panel position='top-right'>
