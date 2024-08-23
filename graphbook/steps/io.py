@@ -3,6 +3,13 @@ import json
 
 
 class LoadJSONL(SourceStep):
+    """
+    Loads input JSONL file and returns a list of Note objects.
+
+    Args:
+        jsonl_path (str): Path to the JSONL file.
+    """
+
     RequiresInput = False
     Parameters = {
         "jsonl_path": {
@@ -25,6 +32,13 @@ class LoadJSONL(SourceStep):
 
 
 class DumpJSONL(Step):
+    """
+    Writes Note objects as individual JSONs into a JSONL file.
+
+    Args:
+        jsonl_path (str): Path to the JSONL file.
+    """
+
     RequiresInput = True
     Parameters = {
         "jsonl_path": {

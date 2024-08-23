@@ -19,12 +19,12 @@ const DefaultDoc =
 ### No documentation found.
 
 To add documentation place a markdown file with the same name as the workflow file (with the .md extension) inside your specified docs directory.
-By default, this is located in \`workflow/docs\`.
+By default, this is located in your \`docs/\` directory.
 
 `;
 
 const getExampleStr = (name: string) => {
-    return `For example, make a file named \`workflow/docs/${name}.md\` and add your documentation there.`;
+    return `For example, make a file named \`docs/${name}.md\` and add your documentation there.`;
 };
 
 export function Docs() {

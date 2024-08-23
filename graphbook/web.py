@@ -49,11 +49,11 @@ class GraphServer:
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
         close_event: mp.Event,
+        root_path: str,
+        custom_nodes_path: str,
+        docs_path: str,
         host="0.0.0.0",
         port=8005,
-        root_path="./workflow",
-        custom_nodes_path="./workflow/custom_nodes",
-        docs_path="./workflow/docs",
     ):
         self.host = host
         self.port = port
@@ -410,6 +410,7 @@ def create_graph_server(
     close_event,
     root_path,
     custom_nodes_path,
+    docs_path,
 ):
     server = GraphServer(
         cmd_queue,
@@ -419,6 +420,7 @@ def create_graph_server(
         close_event,
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
+        docs_path=docs_path,
         host=args.host,
         port=args.graph_port,
     )
@@ -436,11 +438,11 @@ def start_web(args):
     view_manager_queue = mp.Queue()
     close_event = mp.Event()
     pause_event = mp.Event()
-    root_path = args.workflow_dir
+    workflow_dir = args.workflow_dir
     custom_nodes_path = args.nodes_dir
     docs_path = args.docs_dir
-    if not osp.exists(root_path):
-        os.mkdir(root_path)
+    if not osp.exists(workflow_dir):
+        os.mkdir(workflow_dir)
     if not osp.exists(custom_nodes_path):
         os.mkdir(custom_nodes_path)
     if not osp.exists(docs_path):
@@ -457,8 +459,9 @@ def start_web(args):
                 pause_event,
                 view_manager_queue,
                 close_event,
-                root_path,
+                workflow_dir,
                 custom_nodes_path,
+                docs_path
             ),
         ),
     ]
