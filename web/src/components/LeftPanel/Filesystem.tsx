@@ -166,16 +166,16 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 const afterStr = strTitle.slice(index + searchValue.length);
                 let title =
                     index > -1 ? (
-                        <span>
+                        <Text ellipsis>
                             {beforeStr}
                             <span style={{ color: 'orange' }}>{searchValue}</span>
                             {afterStr}
-                        </span>
+                        </Text>
 
                     ) : (
-                        <span>
+                        <Text ellipsis>
                             {strTitle}
-                        </span>
+                        </Text>
                     );
 
                 if (item.children) {
@@ -290,19 +290,21 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                         <Button className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
                     </div>
                 </Flex>
-                <Tree.DirectoryTree
-                    onExpand={onExpand}
-                    expandedKeys={expandedKeys}
-                    autoExpandParent={autoExpandParent}
-                    selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
-                    treeData={treeData}
-                    onSelect={onFileItemClick}
-                    onRightClick={onFileItemRightClick}
-                    onDrop={onDrop}
-                    onDragStart={onDragStart}
-                    blockNode
-                    draggable
-                />
+                <div style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+                    <Tree.DirectoryTree
+                        onExpand={onExpand}
+                        expandedKeys={expandedKeys}
+                        autoExpandParent={autoExpandParent}
+                        selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
+                        treeData={treeData}
+                        onSelect={onFileItemClick}
+                        onRightClick={onFileItemRightClick}
+                        onDrop={onDrop}
+                        onDragStart={onDragStart}
+                        blockNode
+                        draggable
+                    />
+                </div>
                 {contextMenu && (
                     <Menu
                         style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
@@ -312,9 +314,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 )}
             </Flex>
         </ActiveOverlay>
-
     );
-
 }
 
 function DirItem({ title, filename, isRenaming, onRename }) {

@@ -13,15 +13,30 @@ type NodeDoc = {
     name: string;
     content: string;
 };
+
+const DefaultDoc =
+    `
+### No documentation found.
+
+To add documentation place a markdown file with the same name as the workflow file (with the .md extension) inside your specified docs directory.
+By default, this is located in \`workflow/docs\`.
+
+`;
+
+const getExampleStr = (name: string) => {
+    return `For example, make a file named \`workflow/docs/${name}.md\` and add your documentation there.`;
+};
+
 export function Docs() {
     const { token } = useToken();
     const [hidden, setHidden] = useState(false);
-    const [workflowDoc, setWorkflowDoc] = useState(null);
     const [nodeDocs, setNodeDocs] = useState<NodeDoc[]>([]);
     const [windowHeight, setWindowHeight] = useState(0);
     const nodes = useNodes();
     const API = useAPI();
     const filename = useFilename();
+    const initialDocStr = useMemo(() => DefaultDoc + getExampleStr(filename.split('.')[0]), [filename]);
+    const [workflowDoc, setWorkflowDoc] = useState(initialDocStr);
 
     useEffect(() => {
         const loadDocs = async () => {
@@ -54,14 +69,13 @@ export function Docs() {
 
         const loadNodeDocs = async () => {
             const n = nodes as any[];
-            const uniqueNodes = new Set(n.map(node => node.data.name));
+            const uniqueNodes = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.data.name));
             const nodeMap = {};
             n.forEach(node => { nodeMap[node.data.name] = node });
 
             const docs = await Promise.all([...uniqueNodes].map(async (nodeName) => {
                 const node = nodeMap[nodeName];
                 const doc = node.type === 'step' ? await API.getStepDocstring(nodeName) : await API.getResourceDocstring(nodeName);
-                console.log(JSON.stringify(doc?.content));
                 return {
                     name: node.data.name,
                     content: doc?.content || '(No docstring)'
@@ -118,22 +132,22 @@ export function Docs() {
         <Flex vertical style={containerStyle}>
             <Flex justify="space-between">
                 <MenuFoldOutlined onClick={() => setHidden(true)} />
-                <Text style={{ fontSize: '1.6em' }}>{filename}</Text>
+                <Text style={{ fontSize: '1.6em', marginLeft: 10 }} ellipsis>{filename}</Text>
             </Flex>
             <Divider style={{ margin: '10px 0' }} />
-                {
-                    workflowDoc &&
-                    <div style={{ ...docSectionStyle, padding: '5px', marginBottom: '10px' }}>
-                        <Markdown>{workflowDoc}</Markdown>
-                    </div>
-                }
-                {
-                    nodeDocs.length > 0 &&
-                    <Flex vertical style={{flex: 1, height: 0}}>
-                        <Text style={{ padding: '5px', fontSize: '1.2em' }}>Included Nodes</Text>
-                        <Collapse style={docSectionStyle} items={items} defaultActiveKey={['0']} />
-                    </Flex>
-                }
+            {
+                workflowDoc &&
+                <div style={{ ...docSectionStyle, padding: '5px', marginBottom: '10px' }}>
+                    <Markdown>{workflowDoc}</Markdown>
+                </div>
+            }
+            {
+                nodeDocs.length > 0 &&
+                <Flex vertical style={{ flex: 1, height: 0 }}>
+                    <Text style={{ padding: '5px', fontSize: '1.2em' }}>Included Nodes</Text>
+                    <Collapse style={docSectionStyle} items={items} defaultActiveKey={['0']} />
+                </Flex>
+            }
         </Flex>
     );
 }

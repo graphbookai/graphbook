@@ -1,9 +1,22 @@
+.filesystem {
+    height: 100%;
+}
+
+.ant-tabs-content.ant-tabs-content-top {
+    height: 100%;
+}
+
+.ant-tabs-tabpane.ant-tabs-tabpane-active {
+    height: 100%;
+}
+
 .filesystem .ant-tree-node-content-wrapper {
     display: flex;
     flex-direction: row;
     text-overflow: ellipsis;
     white-space: nowrap;
     width: 100%;
+    height: 100%;
 }
 
 .filesystem .ant-tree-title .file-item {
