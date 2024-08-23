@@ -1,14 +1,12 @@
-.left-panel {
-    position: absolute;
-    left:0;
+.ant-layout-sider-children {
+    display: flex;
+    flex-direction: column;
 }
 
-/* .ant-tree-title {
-    width: 100%;
-    display: inline-block;
+.ant-tabs-content.ant-tabs-content-top {
+    height: 100%;
 }
 
-.ant-tree-title .file-item {
-    width: 100%;
-    display: inline-block;
-} */
+.ant-tabs-tabpane.ant-tabs-tabpane-active {
+    height: 100%;
+}

@@ -287,6 +287,19 @@ export class ServerAPI {
         return null;
     }
 
+    public async getWorkflowDoc(workflowFilename: string) {
+        const filename = workflowFilename.replace('.json', '.md');
+        return await this.get(`docs/${filename}`);
+    }
+
+    public async getStepDocstring(name: string) {
+        return await this.get(`step_docstring/${name}`);
+    }
+
+    public async getResourceDocstring(name: string) {
+        return await this.get(`resource_docstring/${name}`);
+    }
+
     /**
      * Graph API
      */

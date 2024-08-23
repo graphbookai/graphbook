@@ -1,6 +1,7 @@
 import graphbook.steps as steps
 import graphbook.resources.base as rbase
 import graphbook.custom_nodes as custom_nodes
+from graphbook.doc2md import convert_to_md
 from aiohttp import web
 
 default_exported_steps = {
@@ -54,6 +55,22 @@ class NodeHub:
 
     def get_all(self):
         return {"steps": self.get_steps(), "resources": self.get_resources()}
+
+    def get_step_docstring(self, name):
+        if name in self.exported_steps:
+            docstring = self.exported_steps[name].__doc__
+            if docstring is not None:
+                docstring = convert_to_md(docstring)
+                return docstring
+        return None
+
+    def get_resource_docstring(self, name):
+        if name in self.exported_resources:
+            docstring = self.exported_resources[name].__doc__
+            if docstring is not None:
+                docstring = convert_to_md(docstring)
+                return docstring
+        return None
 
     def get_exported_nodes(self):
         # Create directory structure for nodes based on their category

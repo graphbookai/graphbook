@@ -8,7 +8,7 @@ import ReactFlow, {
     useNodes,
     useEdges
 } from 'reactflow';
-import { Button, Flex, theme } from 'antd';
+import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph.ts';
 import AddNode from './AddNode.tsx';
@@ -29,6 +29,7 @@ import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
 import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
 import { ActiveOverlay } from './ActiveOverlay.tsx';
+import { Docs } from './Docs.tsx';
 
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -395,9 +396,14 @@ export default function Flow({ filename }) {
                     preventScrolling={true}
                 >
                     {notificationCtxt}
-                    <Panel position='top-right'>
-                        <ControlRow />
-                    </Panel>
+                    <Space direction="horizontal" align="start" style={{position: 'absolute', top: '10px', right: '0px', zIndex: 9}}>
+                        <div>
+                            <div style={{position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)'}}>
+                                <ControlRow/>
+                            </div>
+                            <Docs />
+                        </div>
+                    </Space>
                     <Panel position='top-left'>
                         <NodeConfig />
                     </Panel>
@@ -458,7 +464,7 @@ function ControlRow() {
 
     return (
         <div className="control-row">
-            <Flex gap="small" wrap="wrap">
+            <Flex gap="small">
                 <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} /> {/* Clear */}
                 {
                     runState !== 'stopped' ? (

@@ -49,10 +49,11 @@ class GraphServer:
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
         close_event: mp.Event,
+        root_path: str,
+        custom_nodes_path: str,
+        docs_path: str,
         host="0.0.0.0",
         port=8005,
-        root_path="./workflow",
-        custom_nodes_path="./workflow/custom_nodes",
     ):
         self.host = host
         self.port = port
@@ -195,6 +196,32 @@ class GraphServer:
         async def get_run_state(request: web.Request) -> web.Response:
             res = poll_conn_for(state_conn, ProcessorStateRequest.GET_RUNNING_STATE)
             return web.json_response(res)
+        
+        @routes.get(r"/docs/{path:.+}")
+        async def get_docs(request: web.Request):
+            path = request.match_info.get("path")
+            fullpath = osp.join(docs_path, path)
+            if osp.exists(fullpath):
+                with open(fullpath, "r") as f:
+                    file_contents = f.read()
+                    d = {"content": file_contents}
+                    return web.json_response(d)
+            else:
+                return web.json_response(
+                    {"reason": "/%s: No such file or directory." % fullpath}, status=404
+                )
+                
+        @routes.get("/step_docstring/{name}")
+        async def get_step_docstring(request: web.Request):
+            name = request.match_info.get("name")
+            docstring = self.node_hub.get_step_docstring(name)
+            return web.json_response({"content": docstring})
+        
+        @routes.get("/resource_docstring/{name}")
+        async def get_resource_docstring(request: web.Request):
+            name = request.match_info.get("name")
+            docstring = self.node_hub.get_resource_docstring(name)
+            return web.json_response({"content": docstring})
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
@@ -383,6 +410,7 @@ def create_graph_server(
     close_event,
     root_path,
     custom_nodes_path,
+    docs_path,
 ):
     server = GraphServer(
         cmd_queue,
@@ -392,6 +420,7 @@ def create_graph_server(
         close_event,
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
+        docs_path=docs_path,
         host=args.host,
         port=args.graph_port,
     )
@@ -409,12 +438,15 @@ def start_web(args):
     view_manager_queue = mp.Queue()
     close_event = mp.Event()
     pause_event = mp.Event()
-    root_path = args.workflow_dir
+    workflow_dir = args.workflow_dir
     custom_nodes_path = args.nodes_dir
-    if not osp.exists(root_path):
-        os.mkdir(root_path)
+    docs_path = args.docs_dir
+    if not osp.exists(workflow_dir):
+        os.mkdir(workflow_dir)
     if not osp.exists(custom_nodes_path):
         os.mkdir(custom_nodes_path)
+    if not osp.exists(docs_path):
+        os.mkdir(docs_path)
     processes = [
         mp.Process(target=create_media_server, args=(args,)),
         mp.Process(target=create_web_server, args=(args,)),
@@ -427,8 +459,9 @@ def start_web(args):
                 pause_event,
                 view_manager_queue,
                 close_event,
-                root_path,
+                workflow_dir,
                 custom_nodes_path,
+                docs_path
             ),
         ),
     ]

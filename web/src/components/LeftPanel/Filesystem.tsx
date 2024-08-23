@@ -166,16 +166,16 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                 const afterStr = strTitle.slice(index + searchValue.length);
                 let title =
                     index > -1 ? (
-                        <span>
+                        <Text ellipsis>
                             {beforeStr}
                             <span style={{ color: 'orange' }}>{searchValue}</span>
                             {afterStr}
-                        </span>
+                        </Text>
 
                     ) : (
-                        <span>
+                        <Text ellipsis>
                             {strTitle}
-                        </span>
+                        </Text>
                     );
 
                 if (item.children) {
@@ -280,7 +280,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
 
     return (
         <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
-            <div className="filesystem">
+            <Flex vertical className="filesystem">
                 <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
                 <Flex justify="space-between">
                     <Text>{filesRoot}/</Text>
@@ -290,19 +290,21 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                         <Button className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
                     </div>
                 </Flex>
-                <Tree.DirectoryTree
-                    onExpand={onExpand}
-                    expandedKeys={expandedKeys}
-                    autoExpandParent={autoExpandParent}
-                    selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
-                    treeData={treeData}
-                    onSelect={onFileItemClick}
-                    onRightClick={onFileItemRightClick}
-                    onDrop={onDrop}
-                    onDragStart={onDragStart}
-                    blockNode
-                    draggable
-                />
+                <div style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+                    <Tree.DirectoryTree
+                        onExpand={onExpand}
+                        expandedKeys={expandedKeys}
+                        autoExpandParent={autoExpandParent}
+                        selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
+                        treeData={treeData}
+                        onSelect={onFileItemClick}
+                        onRightClick={onFileItemRightClick}
+                        onDrop={onDrop}
+                        onDragStart={onDragStart}
+                        blockNode
+                        draggable
+                    />
+                </div>
                 {contextMenu && (
                     <Menu
                         style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
@@ -310,11 +312,9 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                         items={contextMenuItems}
                     />
                 )}
-            </div>
+            </Flex>
         </ActiveOverlay>
-
     );
-
 }
 
 function DirItem({ title, filename, isRenaming, onRename }) {
