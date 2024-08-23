@@ -2,3 +2,11 @@
     display: flex;
     flex-direction: column;
 }
+
+.ant-tabs-content.ant-tabs-content-top {
+    height: 100%;
+}
+
+.ant-tabs-tabpane.ant-tabs-tabpane-active {
+    height: 100%;
+}

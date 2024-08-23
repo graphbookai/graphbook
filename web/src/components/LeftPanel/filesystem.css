@@ -2,14 +2,6 @@
     height: 100%;
 }
 
-.ant-tabs-content.ant-tabs-content-top {
-    height: 100%;
-}
-
-.ant-tabs-tabpane.ant-tabs-tabpane-active {
-    height: 100%;
-}
-
 .filesystem .ant-tree-node-content-wrapper {
     display: flex;
     flex-direction: row;
@@ -27,6 +19,10 @@
     display: block;
 }
 
+.filesystem .ant-tree-title {
+    overflow: hidden;
+}
+
 .filesystem .fs-icon {
     margin: 0 2px;
     padding: 1px;
@@ -38,4 +34,8 @@
     width: auto;
     padding: 1px 4px;
     border-radius: 0%;
+}
+
+.filesystem .ant-tree-node-content-wrapper.ant-tree-node-content-wrapper-normal {
+    overflow: hidden;
 }
