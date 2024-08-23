@@ -7,8 +7,6 @@ import os, sys
 import os.path as osp
 import re
 import signal
-import http.server
-import socketserver
 import multiprocessing as mp
 import multiprocessing.connection as mpc
 import asyncio
@@ -17,11 +15,14 @@ import hashlib
 from graphbook.state import UIState
 from graphbook.media import create_media_server
 from graphbook.utils import poll_conn_for, ProcessorStateRequest
+
 try:
     import magic
 except ImportError:
     magic = None
-    print("Warn: Optional libmagic library not found. Filesystem will not be able to determine MIME types.")
+    print(
+        "Warn: Optional libmagic library not found. Filesystem will not be able to determine MIME types."
+    )
 
 
 @web.middleware
@@ -52,6 +53,7 @@ class GraphServer:
         root_path: str,
         custom_nodes_path: str,
         docs_path: str,
+        web_dir: str | None = None,
         host="0.0.0.0",
         port=8005,
     ):
@@ -69,6 +71,15 @@ class GraphServer:
         self.app = web.Application(
             client_max_size=max_upload_size, middlewares=middlewares
         )
+        
+        self.web_dir = web_dir
+        if self.web_dir is None:
+            self.web_dir = osp.join(osp.dirname(__file__), "web")
+        if not osp.isdir(self.web_dir):
+            print(
+                f"Couldn't find web files inside {self.web_dir}. Will not serve web files."
+            )
+            self.web_dir = None
 
         @routes.get("/ws")
         async def websocket_handler(request):
@@ -97,7 +108,9 @@ class GraphServer:
 
         @routes.get("/")
         async def get(request: web.Request) -> web.Response:
-            return web.Response(text="Ok")
+            if self.web_dir is None:
+                return web.HTTPNotFound("No web files found.")
+            return web.FileResponse(osp.join(self.web_dir, "index.html"))
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
@@ -191,12 +204,12 @@ class GraphServer:
                 return web.json_response(res)
 
             return web.json_response({"error": "Could not get output note."})
-        
+
         @routes.get("/state")
         async def get_run_state(request: web.Request) -> web.Response:
             res = poll_conn_for(state_conn, ProcessorStateRequest.GET_RUNNING_STATE)
             return web.json_response(res)
-        
+
         @routes.get(r"/docs/{path:.+}")
         async def get_docs(request: web.Request):
             path = request.match_info.get("path")
@@ -210,13 +223,13 @@ class GraphServer:
                 return web.json_response(
                     {"reason": "/%s: No such file or directory." % fullpath}, status=404
                 )
-                
+
         @routes.get("/step_docstring/{name}")
         async def get_step_docstring(request: web.Request):
             name = request.match_info.get("name")
             docstring = self.node_hub.get_step_docstring(name)
             return web.json_response({"content": docstring})
-        
+
         @routes.get("/resource_docstring/{name}")
         async def get_resource_docstring(request: web.Request):
             name = request.match_info.get("name")
@@ -368,6 +381,10 @@ class GraphServer:
 
     def start(self):
         self.app.router.add_routes(self.routes)
+        if self.web_dir is not None:
+            self.app.router.add_routes([
+                web.static('/', self.web_dir),
+            ])
         print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()
         try:
@@ -375,31 +392,6 @@ class GraphServer:
         except KeyboardInterrupt:
             self.node_hub.stop()
             print("Exiting graph server")
-
-
-class WebServer:
-    def __init__(self, host, port, web_dir):
-        self.host = host
-        self.port = port
-        if web_dir is None:
-            web_dir = osp.join(osp.dirname(__file__), "web")
-        self.cwd = web_dir
-        self.server = http.server.SimpleHTTPRequestHandler
-
-    def start(self):
-        if not osp.isdir(self.cwd):
-            print(
-                f"Couldn't find web files inside {self.cwd}. Will not start web server."
-            )
-            return
-        os.chdir(self.cwd)
-        with socketserver.TCPServer((self.host, self.port), self.server) as httpd:
-            print(f"Starting web server at {self.host}:{self.port}")
-            print(f"Visit http://127.0.0.1:{self.port}")
-            try:
-                httpd.serve_forever()
-            except KeyboardInterrupt:
-                print("Exiting web server")
 
 def create_graph_server(
     args,
@@ -411,6 +403,7 @@ def create_graph_server(
     root_path,
     custom_nodes_path,
     docs_path,
+    web_dir,
 ):
     server = GraphServer(
         cmd_queue,
@@ -421,14 +414,10 @@ def create_graph_server(
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
         docs_path=docs_path,
+        web_dir=web_dir,
         host=args.host,
         port=args.graph_port,
     )
-    server.start()
-
-
-def create_web_server(args):
-    server = WebServer(host=args.host, port=args.web_port, web_dir=args.web_dir)
     server.start()
 
 
@@ -449,7 +438,6 @@ def start_web(args):
         os.mkdir(docs_path)
     processes = [
         mp.Process(target=create_media_server, args=(args,)),
-        mp.Process(target=create_web_server, args=(args,)),
         mp.Process(
             target=create_graph_server,
             args=(
@@ -461,7 +449,8 @@ def start_web(args):
                 close_event,
                 workflow_dir,
                 custom_nodes_path,
-                docs_path
+                docs_path,
+                args.web_dir,
             ),
         ),
     ]
