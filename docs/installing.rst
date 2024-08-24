@@ -10,7 +10,7 @@ Install from PyPI
 
 #. ``pip install graphbook``
 #. ``graphbook``
-#. Visit http://localhost:8007
+#. Visit http://localhost:8005
 
 Install with Docker
 ===================
@@ -19,9 +19,9 @@ Install with Docker
 
    .. code-block:: bash
 
-       docker run --rm -p 8005:8005 -p 8006:8006 -p 8007:8007 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
+       docker run --rm -p 8005:8005 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
 
-#. Visit http://localhost:8007
+#. Visit http://localhost:8005
 
 
 Install from Source

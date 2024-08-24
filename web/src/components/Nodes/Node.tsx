@@ -298,12 +298,12 @@ function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProper
             {
                 Object.entries<string[]>(imageEntries).map(([key, images]) => {
                     return (
-                        <Space direction="vertical" align='center'>
+                        <Space key={key} direction="vertical" align='center'>
                             <div>{key}</div>
-                            <Flex key={key} vertical>
+                            <Flex vertical>
                                 {
                                     images.map((image, i) => (
-                                        <Image key={i} src={getMediaPath(settings.mediaServerHost, image)} width={100} />
+                                        <Image key={i} src={getMediaPath(settings, image)} height={settings.quickviewImageHeight} />
                                     ))
                                 }
                             </Flex>

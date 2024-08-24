@@ -5,10 +5,12 @@ let settings = {
     theme: "Light",
     graphServerHost: "localhost:8005",
     mediaServerHost: "localhost:8006",
+    useExternalMediaServer: false,
     monitorDataColumns: MONITOR_DATA_COLUMNS,
     monitorLogsShouldScrollToBottom: true,
     quickviewShowNotes: true,
     quickviewShowImages: true,
+    quickviewImageHeight: 100,
 };
 
 const storedSettings = localStorage.getItem('settings');

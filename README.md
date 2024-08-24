@@ -58,14 +58,14 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 ### Install from PyPI
 1. `pip install graphbook`
 1. `graphbook`
-1. Visit http://localhost:8007
+1. Visit http://localhost:8005
 
 ### Install with Docker
 1. Pull and run the downloaded image
     ```bash
-    docker run --rm -p 8005:8005 -p 8006:8006 -p 8007:8007 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
+    docker run --rm -p 8005:8005 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
     ```
-1. Visit http://localhost:8007
+1. Visit http://localhost:8005
 
 Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
 

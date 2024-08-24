@@ -2,6 +2,7 @@ import asyncio
 from aiohttp import web
 import os.path as osp
 
+
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
@@ -18,6 +19,7 @@ async def cors_middleware(request: web.Request, handler):
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
+
 class MediaServer:
     def __init__(
         self,
@@ -31,10 +33,8 @@ class MediaServer:
         routes = web.RouteTableDef()
         self.routes = routes
         middlewares = [cors_middleware]
-        self.app = web.Application(
-            middlewares=middlewares
-        )
-        
+        self.app = web.Application(middlewares=middlewares)
+
         @routes.put("/set")
         async def set_var_handler(request: web.Request):
             data = await request.json()
@@ -42,18 +42,15 @@ class MediaServer:
             if root_path:
                 self.root_path = root_path
             return web.json_response({"root_path": self.root_path})
-        
+
         @routes.get(r"/{path:.*}")
         async def handle(request: web.Request) -> web.Response:
             path = request.match_info["path"]
             full_path = osp.join(self.root_path, path)
             if not osp.exists(full_path):
                 return web.HTTPNotFound()
-            with open(full_path, "rb") as f:
-                content = f.read()
-            return web.Response(body=content)
-        
-        
+            return web.FileResponse(full_path)
+
     async def _async_start(self):
         runner = web.AppRunner(self.app)
         await runner.setup()
@@ -71,7 +68,5 @@ class MediaServer:
 
 
 def create_media_server(args):
-    server = MediaServer(
-        host=args.host, port=args.media_port, root_path=args.media_dir
-    )
+    server = MediaServer(host=args.host, port=args.media_port, root_path=args.media_dir)
     server.start()

@@ -24,7 +24,16 @@ export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"
     return keyRec(obj);
 }
 
-export const getMediaPath = (mediaHost: string, path: string): string => {
+export const getMediaPath = (settings: any, path: string): string => {
+    if (!settings.useExternalMediaServer) {
+        let graphHost = settings.graphServerHost;
+        if (!graphHost.startsWith('http')) {
+            graphHost = 'http://' + graphHost;
+        }
+        return `${graphHost}/media?path=${path}`;
+    }
+
+    let mediaHost = settings.mediaServerHost;
     if (!mediaHost.startsWith('http')) {
         mediaHost = 'http://' + mediaHost;
     }

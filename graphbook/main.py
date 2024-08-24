@@ -24,9 +24,9 @@ def get_args():
     parser.add_argument("--media_dir", type=str, default="/")
     parser.add_argument("--web_dir", type=str)
     parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--graph_port", type=int, default=8005)
+    parser.add_argument("--port", type=int, default=8005)
+    parser.add_argument("--start_media_server", action="store_true")
     parser.add_argument("--media_port", type=int, default=8006)
-    parser.add_argument("--web_port", type=int, default=8007)
     parser.add_argument(
         "--root_dir",
         type=str,

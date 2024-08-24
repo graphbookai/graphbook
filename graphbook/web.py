@@ -71,7 +71,7 @@ class GraphServer:
         self.app = web.Application(
             client_max_size=max_upload_size, middlewares=middlewares
         )
-        
+
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = osp.join(osp.dirname(__file__), "web")
@@ -109,8 +109,15 @@ class GraphServer:
         @routes.get("/")
         async def get(request: web.Request) -> web.Response:
             if self.web_dir is None:
-                return web.HTTPNotFound("No web files found.")
+                return web.HTTPNotFound(body="No web files found.")
             return web.FileResponse(osp.join(self.web_dir, "index.html"))
+
+        @routes.get("/media")
+        async def get_media(request: web.Request) -> web.Response:
+            path = request.query.get("path", "")
+            if not osp.exists(path):
+                return web.HTTPNotFound()
+            return web.FileResponse(path)
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
@@ -382,9 +389,11 @@ class GraphServer:
     def start(self):
         self.app.router.add_routes(self.routes)
         if self.web_dir is not None:
-            self.app.router.add_routes([
-                web.static('/', self.web_dir),
-            ])
+            self.app.router.add_routes(
+                [
+                    web.static("/", self.web_dir),
+                ]
+            )
         print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()
         try:
@@ -392,6 +401,7 @@ class GraphServer:
         except KeyboardInterrupt:
             self.node_hub.stop()
             print("Exiting graph server")
+
 
 def create_graph_server(
     args,
@@ -416,7 +426,7 @@ def create_graph_server(
         docs_path=docs_path,
         web_dir=web_dir,
         host=args.host,
-        port=args.graph_port,
+        port=args.port,
     )
     server.start()
 
@@ -437,7 +447,6 @@ def start_web(args):
     if not osp.exists(docs_path):
         os.mkdir(docs_path)
     processes = [
-        mp.Process(target=create_media_server, args=(args,)),
         mp.Process(
             target=create_graph_server,
             args=(
@@ -454,6 +463,8 @@ def start_web(args):
             ),
         ),
     ]
+    if args.start_media_server:
+        processes.append(mp.Process(target=create_media_server, args=(args,)))
 
     for p in processes:
         p.daemon = True
