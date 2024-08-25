@@ -4,7 +4,7 @@ import type { NotificationInstance } from "antd/es/notification/interface";
 
 let globalNotificationContext: React.ReactElement<any, string | React.JSXElementConstructor<any>> | null = null;
 let globalNotificationCtrl: NotificationInstance | null = null;
-export function useNotificationInitializer() {
+export function useNotificationInitializer(): [NotificationInstance, React.ReactElement<any, string | React.JSXElementConstructor<any>>] {
     const [notificationCtrl, notificationCtxt] = notification.useNotification({ maxCount: 1 });
     globalNotificationContext = notificationCtxt;
     globalNotificationCtrl = notificationCtrl;

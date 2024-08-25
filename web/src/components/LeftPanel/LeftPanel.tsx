@@ -1,5 +1,6 @@
 import './panel.css';
 
+import React from 'react';
 import { FileFilled, AppstoreOutlined } from '@ant-design/icons';
 import { Tabs } from 'antd';
 
@@ -24,7 +25,7 @@ export default function LeftPanel({ setWorkflow, onBeginEdit }) {
     
     return (
         <Tabs
-            style={{margin: '10px'}}
+            style={{margin: '10px', display: 'flex', flex: 1, height: '100%', overflow: 'hidden'}}
             defaultActiveKey="1"
             items={items}
         />

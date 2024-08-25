@@ -1,5 +1,5 @@
 import { Typography, theme } from 'antd';
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { basicDark } from '@uiw/codemirror-theme-basic';
@@ -61,9 +61,8 @@ export function FunctionWidget({ name, def, onChange }) {
 function InputNumber({ onChange, label, defaultValue }) {
     const { token } = useToken();
     const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
-    const [ focusedStyle, setFocusedStyle ] = useState(defaultFocusedStyle)
-    const containerStyle = {
-    };
+    const [ focusedStyle, setFocusedStyle ] = useState(defaultFocusedStyle);
+
     const inputStyle = {
         backgroundColor: token.colorBgContainer,
         color: token.colorText,
@@ -80,10 +79,10 @@ function InputNumber({ onChange, label, defaultValue }) {
         } else {
             setFocusedStyle(defaultFocusedStyle);
         }
-    });
+    }, []);
 
     return (
-        <div style={{containerStyle, ...focusedStyle}} className="input-container">
+        <div style={focusedStyle} className="input-container">
             <Text style={labelStyle}>{label}</Text>
             <input
                 onFocus={()=>onInputFocus(true)}
@@ -103,8 +102,7 @@ function Input({ onChange, label, defaultValue }) {
     const { token } = useToken();
     const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
     const [ focusedStyle, setFocusedStyle ] = useState(defaultFocusedStyle)
-    const containerStyle = {
-    };
+
     const inputStyle = {
         backgroundColor: token.colorBgContainer,
         color: token.colorText,
@@ -122,10 +120,10 @@ function Input({ onChange, label, defaultValue }) {
         } else {
             setFocusedStyle(defaultFocusedStyle);
         }
-    });
+    }, []);
 
     return (
-        <div style={{containerStyle, ...focusedStyle}} className="input-container">
+        <div style={focusedStyle} className="input-container">
             <Text style={labelStyle}>{label}</Text>
             <input
                 onFocus={()=>onInputFocus(true)}
@@ -139,3 +137,7 @@ function Input({ onChange, label, defaultValue }) {
         </div>
     );
 }
+
+export const isWidgetType = (type) => {
+    return ['number', 'string', 'boolean', 'function'].includes(type);
+};

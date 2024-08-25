@@ -7,6 +7,8 @@ import subprocess
 import os
 import platform
 import multiprocessing.connection as mpc
+import pickle
+from asyncio.streams import StreamWriter
 
 
 MP_WORKER_TIMEOUT = 5.0

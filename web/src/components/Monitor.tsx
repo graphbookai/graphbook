@@ -437,7 +437,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                                                     {
                                                         paths.map((path, i) => {
                                                             return (
-                                                                <Image height={120} key={i} src={getMediaPath(settings.mediaServerHost, path)} />
+                                                                <Image height={120} key={i} src={getMediaPath(settings, path)} />
                                                             );
                                                         })
                                                     }

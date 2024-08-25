@@ -1,11 +1,11 @@
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Menu } from 'antd';
 import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
-import { useCallback, useEffect, useState, useMemo } from 'react';
-import { keyRecursively, uniqueIdFrom } from '../utils';
-import { Graph } from '../graph';
-import { useRunState } from '../hooks/RunState';
-import { useAPI } from '../hooks/API';
-import { useNotification } from '../hooks/Notification';
+import { keyRecursively, uniqueIdFrom } from '../utils.ts';
+import { Graph } from '../graph.ts';
+import { useRunState } from '../hooks/RunState.ts';
+import { useAPI } from '../hooks/API.ts';
+import { useNotification } from '../hooks/Notification.ts';
 import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
 
@@ -18,67 +18,12 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     const notification = useNotification();
     const filename = useFilename();
 
-    const NODE_OPTIONS = useMemo(() => [
-        {
-            name: 'Run',
-            disabled: () => API && runState !== 'stopped',
-            action: async () => {
-                const { getNodes, getEdges } = reactFlowInstance;
-                const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
-                }
-                API.run(graph, resources, node.id, filename);
-                runStateShouldChange();
-            }
-        },
-        {
-            name: 'Step',
-            disabled: () => API && runState !== 'stopped',
-            action: async () => {
-                const { getNodes, getEdges } = reactFlowInstance;
-                const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
-                }
-                API.step(graph, resources, node.id, filename);
-                runStateShouldChange();
-            }
-        },
+    const NODE_OPTIONS = useMemo(() => !node || !API ? [] : [
         {
             name: 'Clear Outputs',
             disabled: () => API && runState !== 'stopped',
             action: async () => {
-                const { getNodes, getEdges } = reactFlowInstance;
-                const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
-                }
-                API.clear(graph, resources, node.id);
+                API.clear(node.id);
             }
         },
         {
@@ -131,7 +76,58 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         }
     ], [node, reactFlowInstance, runState, runStateShouldChange, API, filename]);
 
+    const STEP_OPTIONS = useMemo(() => !node || !API ? [] : [
+        {
+            name: 'Run',
+            disabled: () => API && runState !== 'stopped',
+            action: async () => {
+                const { getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                if (errors.length > 0) {
+                    notification.error({
+                        key: 'invalid-graph',
+                        message: 'Invalid Graph',
+                        description: <SerializationErrorMessages errors={errors} />,
+                        duration: 3,
+                    })
+                    return;
+                }
+                API.run(graph, resources, node.id, filename);
+                runStateShouldChange();
+            }
+        },
+        {
+            name: 'Step',
+            disabled: () => API && runState !== 'stopped',
+            action: async () => {
+                const { getNodes, getEdges } = reactFlowInstance;
+                const nodes = getNodes();
+                const edges = getEdges();
+                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                if (errors.length > 0) {
+                    notification.error({
+                        key: 'invalid-graph',
+                        message: 'Invalid Graph',
+                        description: <SerializationErrorMessages errors={errors} />,
+                        duration: 3,
+                    })
+                    return;
+                }
+                API.step(graph, resources, node.id, filename);
+                runStateShouldChange();
+            }
+        },
+        ...NODE_OPTIONS
+    ], [node, reactFlowInstance, runState, runStateShouldChange, API, filename, NODE_OPTIONS]);
+
+    const RESOURCE_OPTIONS = useMemo(() => !node ? [] : [ ...NODE_OPTIONS ], [NODE_OPTIONS]);
+
     const GROUP_OPTIONS = useMemo(() => {
+        if (!node || !API) {
+            return [];
+        }
         const addExport = (isInput, exp) => {
             const currentExports = isInput ? node.data.exports.inputs : node.data.exports.outputs;
             const id = uniqueIdFrom(currentExports);
@@ -171,7 +167,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                         if (n.parentId === node.id) {
                             return {
                                 ...n,
-                                parentId: null,
+                                parentId: undefined,
                                 position: { x: n.position.x + node.position.x, y: n.position.y + node.position.y }
                             };
                         }
@@ -232,6 +228,9 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
                     }
                     const src = nodes.find((n) => n.id === edge.source);
                     const tgt = nodes.find((n) => n.id === edge.target);
+                    if (!src || !tgt) {
+                        continue;
+                    }
                     if ((src.parentId !== node.id && tgt.parentId === node.id) ||
                         (src.parentId === node.id && tgt.parentId !== node.id))
                     {
@@ -267,7 +266,7 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         }];
     }, [node, reactFlowInstance, notification]);
 
-    const EXPORT_OPTIONS = useMemo(() => [
+    const EXPORT_OPTIONS = useMemo(() => !node ? [] : [
         {
             name: 'Edit Label',
             action: () => {
@@ -297,12 +296,19 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         if (nodeType === 'export') {
             return EXPORT_OPTIONS;
         }
-        if (nodeType === 'step' || nodeType === 'resource') {
-            return NODE_OPTIONS;
+        if (nodeType === 'step') {
+            return STEP_OPTIONS;
         }
+        if (nodeType === 'resource') {
+            return RESOURCE_OPTIONS;
+        }
+        return [];
     };
 
     const items = useMemo(() => {
+        if (!node) {
+            return [];
+        }
         const toReturn = getOptions(node.type).map((option) => {
             return {
                 label: typeof option.name === 'function' ? option.name() : option.name,
@@ -314,6 +320,9 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
     }, [node]);
 
     const menuItemOnClick = useCallback(({ key }) => {
+        if (!node) {
+            return;
+        }
         const actionIndex = parseInt(key);
         const action = getOptions(node.type)[actionIndex].action;
         action();
@@ -359,21 +368,22 @@ export function PaneContextMenu({ top, left, close }) {
 
     useEffect(() => {
         const setData = async () => {
-            const nodes = await API.getNodes();
-            if (nodes?.steps && nodes?.resources) {
-                setApiNodes(nodes);
+            if (API) {
+                const nodes = await API.getNodes();
+                if (nodes?.steps && nodes?.resources) {
+                    setApiNodes(nodes);
+                }
             }
         };
-        if (API) {
-            setData();
-        }
+        
+        setData();
     }, [API]);
 
     const items = useMemo(() => {
         const { steps, resources } = apiNodes;
         // Convert Dict Tree to List Tree
         const toListTree = (dictTree) => {
-            const listTree = [];
+            const listTree: any[] = [];
             for (const key in dictTree) {
                 const node = dictTree[key];
                 const listItem = {
@@ -419,7 +429,7 @@ export function PaneContextMenu({ top, left, close }) {
     const addStep = useCallback((node) => {
         const position = screenToFlowPosition({ x: left, y: top });
         const type = 'step';
-        Object.values(node.parameters).forEach((p) => {
+        Object.values<any>(node.parameters).forEach((p) => {
             p.value = p.default;
         });
         const newNode = ({ type, position, data: node });
@@ -430,7 +440,7 @@ export function PaneContextMenu({ top, left, close }) {
     const addResource = useCallback((node) => {
         const position = screenToFlowPosition({ x: left, y: top });
         const type = 'resource';
-        Object.values(node.parameters).forEach((p) => {
+        Object.values<any>(node.parameters).forEach((p) => {
             p.value = p.default;
         });
         const newNode = ({ type, position, data: node });

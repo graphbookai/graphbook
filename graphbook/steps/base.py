@@ -3,7 +3,10 @@ from typing import List, Dict, Tuple
 from graphbook.dataloading import Dataloader
 from ..utils import transform_function_string
 from graphbook import Note
+import warnings
 
+
+warnings.simplefilter("default", DeprecationWarning)
 
 StepOutput = Dict[str, List[Note]]
 """A dict mapping of output slot to Note list. Every Step outputs a StepOutput."""
@@ -338,7 +341,7 @@ class BatchStep(AsyncStep):
             output_dir (str): The output directory
             uid (int): A unique identifier for the data
         """
-        raise NotImplementedError("dump_fn must be implemented for BatchStep")
+        raise NotImplementedError("dump_fn must be implemented for BatchStep when dumping outputs")
 
     def handle_batch(self, batch: StepData):
         items, notes, completed = batch
@@ -349,14 +352,23 @@ class BatchStep(AsyncStep):
         ]
         data_dump = self.on_item_batch(tensors, items, notes)
         if data_dump is not None:
-            for k, v in data_dump.items():
-                if len(notes) != len(v):
-                    self.logger.log(
-                        f"Unexpected number of notes ({len(notes)}) does not match returned outputs ({len(v)}). Will not write outputs!"
-                    )
-                else:
-                    for note, out in zip(notes, v):
-                        self.dump_data(note, out)
+            if isinstance(data_dump, dict):
+                # Dict returns are deprecated
+                warnings.warn(
+                    "dict returns for on_item_batch are deprecated and will be removed in a future version. Please return a list of your parameters to provide to dump_fn instead.",
+                    DeprecationWarning,
+                )
+                for k, v in data_dump.items():
+                    if len(notes) != len(v):
+                        self.logger.log(
+                            f"Unexpected number of notes ({len(notes)}) does not match returned outputs ({len(v)}). Will not write outputs!"
+                        )
+                    else:
+                        for note, out in zip(notes, v):
+                            self.dump_data(note, out)
+            else:
+                for note, out in zip(notes, data_dump):
+                    self.dump_data(note, out)
 
         for note in completed:
             self.dumped_item_holders.set_completed(note)
@@ -374,10 +386,9 @@ class BatchStep(AsyncStep):
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, tensors, items, notes):
+    def on_item_batch(self, tensors, items, notes) -> List[any] | None:
         """
         Called when B items are loaded into PyTorch tensors and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
-
 
         Args:
             tensors (List[torch.Tensor]): The list of loaded tensors of length B
@@ -385,6 +396,9 @@ class BatchStep(AsyncStep):
                 along the batch dimension
             notes (List[Note]): The list of Notes of length B associated with tensors. This list has the same order as tensor does
                 along the batch dimension
+                
+        Returns:
+            List[any] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
         """
         pass
 
@@ -433,7 +447,7 @@ class Split(Step):
     """
 
     RequiresInput = True
-    Parameters = {"split_fn": {"type": "function"}}
+    Parameters = {"split_fn": {"type": "resource"}}
     Outputs = ["A", "B"]
     Category = "Filtering"
 
@@ -462,7 +476,7 @@ class SplitNotesByItems(Step):
 
     RequiresInput = True
     Parameters = {
-        "split_items_fn": {"type": "function"},
+        "split_items_fn": {"type": "resource"},
         "item_key": {"type": "string"},
     }
     Outputs = ["A", "B"]
@@ -498,7 +512,7 @@ class SplitItemField(Step):
     """
 
     RequiresInput = True
-    Parameters = {"split_fn": {"type": "function"}, "item_key": {"type": "string"}}
+    Parameters = {"split_fn": {"type": "resource"}, "item_key": {"type": "string"}}
     Category = "Filtering"
     Outputs = ["out"]
 

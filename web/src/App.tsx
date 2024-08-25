@@ -40,7 +40,7 @@ export default function App() {
 
     return (
         <ConfigProvider theme={{ algorithm: themeAlgorithm }}>
-            <View/>
+            <View />
         </ConfigProvider>
     );
 }
@@ -49,16 +49,17 @@ function View() {
     const {
         token: { colorBgContainer, colorBorder },
     } = theme.useToken();
-    const [codeEditor, setCodeEditor] = useState<{name: string} | null>(null);
+    const [codeEditor, setCodeEditor] = useState<{ name: string } | null>(null);
     const [workflowFile, setWorkflowFile] = useState<string | null>(null);
-    
+    const API = useAPI();
+
     const onBeginEdit = useCallback((val) => {
         setCodeEditor(val);
     }, []);
 
     const codeEditorView = useMemo(() => {
         if (codeEditor) {
-            return <CodeEditor name={codeEditor.name} closeEditor={()=>setCodeEditor(null)} />;
+            return <CodeEditor name={codeEditor.name} closeEditor={() => setCodeEditor(null)} />;
         }
         return <></>
 
@@ -67,15 +68,15 @@ function View() {
     const mainView = useMemo(() => {
         if (workflowFile) {
             return (
-                <div style={{width: '100%', height: '100%'}}>
+                <div style={{ width: '100%', height: '100%' }}>
                     {/* {codeEditorView} Disabled: 0.4 */}
                     <Flow filename={workflowFile} />
                 </div>
             );
         }
-        
+
         return <WelcomeScreen />;
-    }, [workflowFile, codeEditorView]);
+    }, [workflowFile, codeEditorView, API]);
 
     const setFile = useCallback((filename: string) => {
         setWorkflowFile(filename);
@@ -85,7 +86,7 @@ function View() {
     return (
         <Layout style={{ height: '100vh' }}>
             <Header style={{ height: '40px', background: colorBgContainer, borderBottom: `1px solid ${colorBorder}` }}>
-                <TopPanel/>
+                <TopPanel />
             </Header>
             <Content style={{ height: '100%' }}>
                 <Layout style={{ width: '100vw', height: '100%' }}>

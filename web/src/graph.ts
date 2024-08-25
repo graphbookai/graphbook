@@ -408,7 +408,7 @@ export const Graph = {
     storeGraph(nodes, edges) {
         localStorage.setItem('graph', Graph.serialize(nodes, edges));
     },
-    parseGraph: async (graph: any, API: ServerAPI) => {
+    parseGraph: async (graph: any, API: ServerAPI): Promise<[Node[], Edge[]]> => {
         const parseNodes = async (nodes: Node[]) => {
             for (const node of nodes) {
                 if (node.type === 'subflow') {

@@ -5,7 +5,7 @@ class Resource:
     Parameters = {"val": {"type": "string"}}
     Category = "Util"
 
-    def __init__(self, val):
+    def __init__(self, val=""):
         self.val = val
 
     def value(self):

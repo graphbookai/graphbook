@@ -1,28 +1,28 @@
 import aiohttp
 from aiohttp import web
-from graphbook.processing import WebInstanceProcessor
+from graphbook.processing.web_processor import WebInstanceProcessor
 from graphbook.viewer import ViewManager
 from graphbook.exports import NodeHub
 import os, sys
 import os.path as osp
 import re
 import signal
-import http.server
-import socketserver
 import multiprocessing as mp
 import multiprocessing.connection as mpc
 import asyncio
 import base64
-import argparse
 import hashlib
 from graphbook.state import UIState
-from graphbook.media import MediaServer
+from graphbook.media import create_media_server
 from graphbook.utils import poll_conn_for, ProcessorStateRequest
+
 try:
     import magic
 except ImportError:
     magic = None
-    print("Warn: Optional libmagic library not found. Filesystem will not be able to determine MIME types.")
+    print(
+        "Warn: Optional libmagic library not found. Filesystem will not be able to determine MIME types."
+    )
 
 
 @web.middleware
@@ -50,12 +50,14 @@ class GraphServer:
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
         close_event: mp.Event,
-        address="0.0.0.0",
+        root_path: str,
+        custom_nodes_path: str,
+        docs_path: str,
+        web_dir: str | None = None,
+        host="0.0.0.0",
         port=8005,
-        root_path="./workflow",
-        custom_nodes_path="./workflow/custom_nodes",
     ):
-        self.address = address
+        self.host = host
         self.port = port
         self.node_hub = NodeHub(custom_nodes_path)
         self.ui_state = None
@@ -69,6 +71,15 @@ class GraphServer:
         self.app = web.Application(
             client_max_size=max_upload_size, middlewares=middlewares
         )
+
+        self.web_dir = web_dir
+        if self.web_dir is None:
+            self.web_dir = osp.join(osp.dirname(__file__), "web")
+        if not osp.isdir(self.web_dir):
+            print(
+                f"Couldn't find web files inside {self.web_dir}. Will not serve web files."
+            )
+            self.web_dir = None
 
         @routes.get("/ws")
         async def websocket_handler(request):
@@ -97,7 +108,16 @@ class GraphServer:
 
         @routes.get("/")
         async def get(request: web.Request) -> web.Response:
-            return web.Response(text="Ok")
+            if self.web_dir is None:
+                return web.HTTPNotFound(body="No web files found.")
+            return web.FileResponse(osp.join(self.web_dir, "index.html"))
+
+        @routes.get("/media")
+        async def get_media(request: web.Request) -> web.Response:
+            path = request.query.get("path", "")
+            if not osp.exists(path):
+                return web.HTTPNotFound()
+            return web.FileResponse(path)
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
@@ -159,16 +179,11 @@ class GraphServer:
         @routes.post("/clear")
         @routes.post("/clear/{id}")
         async def clear(request: web.Request) -> web.Response:
-            step_id = request.match_info.get("id")
-            data = await request.json()
-            graph = data.get("graph", {})
-            resources = data.get("resources", {})
+            node_id = request.match_info.get("id")
             processor_queue.put(
                 {
                     "cmd": "clear",
-                    "graph": graph,
-                    "resources": resources,
-                    "step_id": step_id,
+                    "node_id": node_id,
                 }
             )
             return web.json_response({"success": True})
@@ -196,15 +211,41 @@ class GraphServer:
                 return web.json_response(res)
 
             return web.json_response({"error": "Could not get output note."})
-        
+
         @routes.get("/state")
         async def get_run_state(request: web.Request) -> web.Response:
             res = poll_conn_for(state_conn, ProcessorStateRequest.GET_RUNNING_STATE)
             return web.json_response(res)
 
+        @routes.get(r"/docs/{path:.+}")
+        async def get_docs(request: web.Request):
+            path = request.match_info.get("path")
+            fullpath = osp.join(docs_path, path)
+            if osp.exists(fullpath):
+                with open(fullpath, "r") as f:
+                    file_contents = f.read()
+                    d = {"content": file_contents}
+                    return web.json_response(d)
+            else:
+                return web.json_response(
+                    {"reason": "/%s: No such file or directory." % fullpath}, status=404
+                )
+
+        @routes.get("/step_docstring/{name}")
+        async def get_step_docstring(request: web.Request):
+            name = request.match_info.get("name")
+            docstring = self.node_hub.get_step_docstring(name)
+            return web.json_response({"content": docstring})
+
+        @routes.get("/resource_docstring/{name}")
+        async def get_resource_docstring(request: web.Request):
+            name = request.match_info.get("name")
+            docstring = self.node_hub.get_resource_docstring(name)
+            return web.json_response({"content": docstring})
+
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
-        def get(request: web.Request):
+        async def get(request: web.Request):
             path = request.match_info.get("path", "")
             fullpath = osp.join(abs_root_path, path)
             assert fullpath.startswith(
@@ -311,7 +352,7 @@ class GraphServer:
                 return web.json_response({}, status=201)
 
         @routes.delete("/fs/{path:.+}")
-        def delete(request):
+        async def delete(request):
             path = request.match_info.get("path")
             fullpath = osp.join(root_path, path)
             assert fullpath.startswith(
@@ -337,9 +378,9 @@ class GraphServer:
                 )
 
     async def _async_start(self):
-        runner = web.AppRunner(self.app)
+        runner = web.AppRunner(self.app, shutdown_timeout=0.5)
         await runner.setup()
-        site = web.TCPSite(runner, self.address, self.port, shutdown_timeout=0.5)
+        site = web.TCPSite(runner, self.host, self.port)
         loop = asyncio.get_running_loop()
         await site.start()
         await loop.run_in_executor(None, self.view_manager.start)
@@ -347,54 +388,19 @@ class GraphServer:
 
     def start(self):
         self.app.router.add_routes(self.routes)
-        print(f"Starting graph server at {self.address}:{self.port}")
+        if self.web_dir is not None:
+            self.app.router.add_routes(
+                [
+                    web.static("/", self.web_dir),
+                ]
+            )
+        print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()
         try:
             asyncio.run(self._async_start())
         except KeyboardInterrupt:
             self.node_hub.stop()
             print("Exiting graph server")
-
-
-class WebServer:
-    def __init__(self, address, port, web_dir):
-        self.address = address
-        self.port = port
-        if web_dir is None:
-            web_dir = osp.join(osp.dirname(__file__), "web")
-        self.cwd = web_dir
-        self.server = http.server.SimpleHTTPRequestHandler
-
-    def start(self):
-        if not osp.isdir(self.cwd):
-            print(
-                f"Couldn't find web files inside {self.cwd}. Will not start web server."
-            )
-            return
-        os.chdir(self.cwd)
-        with socketserver.TCPServer((self.address, self.port), self.server) as httpd:
-            print(f"Starting web server at {self.address}:{self.port}")
-            print(f"Visit http://127.0.0.1:{self.port}")
-            try:
-                httpd.serve_forever()
-            except KeyboardInterrupt:
-                print("Exiting web server")
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output_dir", type=str, default="./output")
-    parser.add_argument("--media_dir", type=str, default="/")
-    parser.add_argument("--web_dir", type=str)
-    parser.add_argument("--address", type=str, default="0.0.0.0")
-    parser.add_argument("--graph_port", type=int, default=8005)
-    parser.add_argument("--media_port", type=int, default=8006)
-    parser.add_argument("--web_port", type=int, default=8007)
-    parser.add_argument("--workflow_dir", type=str, default="./workflow")
-    parser.add_argument("--nodes_dir", type=str, default="./workflow/custom_nodes")
-    parser.add_argument("--num_workers", type=int, default=1)
-    parser.add_argument("--continue_on_failure", action="store_true")
-    return parser.parse_args()
 
 
 def create_graph_server(
@@ -406,6 +412,8 @@ def create_graph_server(
     close_event,
     root_path,
     custom_nodes_path,
+    docs_path,
+    web_dir,
 ):
     server = GraphServer(
         cmd_queue,
@@ -415,40 +423,30 @@ def create_graph_server(
         close_event,
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
-        address=args.address,
-        port=args.graph_port,
+        docs_path=docs_path,
+        web_dir=web_dir,
+        host=args.host,
+        port=args.port,
     )
     server.start()
 
 
-def create_media_server(args):
-    server = MediaServer(
-        address=args.address, port=args.media_port, root_path=args.media_dir
-    )
-    server.start()
-
-
-def create_web_server(args):
-    server = WebServer(address=args.address, port=args.web_port, web_dir=args.web_dir)
-    server.start()
-
-
-def main():
-    args = get_args()
+def start_web(args):
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
     close_event = mp.Event()
     pause_event = mp.Event()
-    root_path = args.workflow_dir
+    workflow_dir = args.workflow_dir
     custom_nodes_path = args.nodes_dir
-    if not osp.exists(root_path):
-        os.mkdir(root_path)
+    docs_path = args.docs_dir
+    if not osp.exists(workflow_dir):
+        os.mkdir(workflow_dir)
     if not osp.exists(custom_nodes_path):
         os.mkdir(custom_nodes_path)
+    if not osp.exists(docs_path):
+        os.mkdir(docs_path)
     processes = [
-        mp.Process(target=create_media_server, args=(args,)),
-        mp.Process(target=create_web_server, args=(args,)),
         mp.Process(
             target=create_graph_server,
             args=(
@@ -458,11 +456,15 @@ def main():
                 pause_event,
                 view_manager_queue,
                 close_event,
-                root_path,
+                workflow_dir,
                 custom_nodes_path,
+                docs_path,
+                args.web_dir,
             ),
         ),
     ]
+    if args.start_media_server:
+        processes.append(mp.Process(target=create_media_server, args=(args,)))
 
     for p in processes:
         p.daemon = True
@@ -486,8 +488,8 @@ def main():
             cmd_queue,
             parent_conn,
             view_manager_queue,
-            args.output_dir,
             args.continue_on_failure,
+            args.copy_outputs,
             custom_nodes_path,
             close_event,
             pause_event,
@@ -496,7 +498,3 @@ def main():
         await processor.start_loop()
 
     asyncio.run(start())
-
-
-if __name__ == "__main__":
-    main()

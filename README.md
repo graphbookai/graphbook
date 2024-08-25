@@ -44,11 +44,11 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 - Autosaving and shareable serialized workflow files
 - Registers node code changes without needing a restart
 - Monitorable CPU and GPU resource usage
+- (BETA) Remote subgraphs for scaling workflows on other Graphbook services
 
 ### Planned Features
-- Graphbook services and remote DAGs for scalable workflows
 - A `graphbook run` command to execute workflows in a CLI
-- Step/Resource functions to reduce verbosity
+- Step/Resource functions with decorators to reduce verbosity
 - Human-in-the-loop Steps for manual feedback/control during DAG execution
 - All-code workflows, so users never have to leave their IDE
 - UI extensibility
@@ -58,14 +58,14 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 ### Install from PyPI
 1. `pip install graphbook`
 1. `graphbook`
-1. Visit http://localhost:8007
+1. Visit http://localhost:8005
 
 ### Install with Docker
 1. Pull and run the downloaded image
     ```bash
-    docker run --rm -p 8005:8005 -p 8006:8006 -p 8007:8007 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
+    docker run --rm -p 8005:8005 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
     ```
-1. Visit http://localhost:8007
+1. Visit http://localhost:8005
 
 Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
 
@@ -73,14 +73,14 @@ Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custo
 We continually post examples of workflows and custom nodes in our [examples repo](https://github.com/graphbookai/graphbook-examples).
 
 ## Collaboration
-Graphbook is in active development and very much welcomes contributors. This is a guide on how to run Graphbook in development mode. If you are simply using Graphbook, view the [Getting Started](#getting-started) section. 
+Graphbook is in active development and very much welcomes contributors. This is a guide on how to run Graphbook in development mode. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.
 
 ### Run Graphbook in Development Mode
 You can use any other virtual environment solution, but it is highly adviced to use [poetry](https://python-poetry.org/docs/) since our dependencies are specified in poetry's format.
 1. Clone the repo and `cd graphbook`
 1. `poetry install --with dev`
 1. `poetry shell`
-1. `python graphbook/server.py`
+1. `python graphbook/main.py`
 1. `cd web`
 1. `npm install`
 1. `npm run dev`

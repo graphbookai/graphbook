@@ -9,16 +9,27 @@ let initialized = false;
 const initialize = () => setGlobalAPI(API);
 const disable = () => setGlobalAPI(null);
 
+function setGlobalAPI(api: ServerAPI | null) {
+    globalAPI = api;
+    for (const setter of localSetters) {
+        setter(globalAPI);
+    }
+}
+
 export function useAPI() {
     const [_, setAPI] = useState<ServerAPI | null>(globalAPI);
 
     useEffect(() => {
+        localSetters.push(setAPI);
+
         if (!initialized) {
             API.addWsEventListener('open', initialize);
             API.addWsEventListener('close', disable);
             initialized = true;
         }
         return () => {
+            localSetters = localSetters.filter((setter) => setter !== setAPI);
+
             if (localSetters.length === 0) {
                 API.removeWsEventListener('open', initialize);
                 API.removeWsEventListener('close', disable);
@@ -27,21 +38,7 @@ export function useAPI() {
         }
     }, []);
 
-    useEffect(() => {
-        localSetters.push(setAPI);
-        return () => {
-            localSetters = localSetters.filter((setter) => setter !== setAPI);
-        };
-    }, []);
-
     return globalAPI;
-}
-
-function setGlobalAPI(api: ServerAPI | null) {
-    globalAPI = api;
-    for (const setter of localSetters) {
-        setter(globalAPI);
-    }
 }
 
 let apiMessageCallbacks: { [event_type: string]: Function[] } = {};
@@ -80,4 +77,38 @@ export function useAPINodeMessage(event_type: string, node_id: string, filename:
             callback(msg[node_id]);
         }
     }, [node_id, callback, filename]));
+}
+
+
+let localReconnectListeners: Function[] = [];
+let reconnectInitialized = false;
+let timeUntilReconnect = 0;
+export function useAPIReconnectTimer() {
+    const [_, reconnectTime] = useState<number>(timeUntilReconnect);
+
+    const onTimerChanged = (time: number) => {
+        timeUntilReconnect = time;
+        for (const listener of localReconnectListeners) {
+            listener(time);
+        }
+    };
+
+    useEffect(() => {
+        localReconnectListeners.push(reconnectTime);
+
+        if(!reconnectInitialized) {
+            API.addReconnectListener(onTimerChanged);
+            reconnectInitialized = true;
+        }
+
+        return () => {
+            localReconnectListeners = localReconnectListeners.filter((listener) => listener !== reconnectTime);
+            if(localReconnectListeners.length === 0) {
+                API.removeReconnectListener(onTimerChanged);
+                reconnectInitialized = false;
+            }
+        }
+    }, []);
+
+    return timeUntilReconnect;
 }

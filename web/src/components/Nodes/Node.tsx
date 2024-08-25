@@ -1,28 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Typography, Descriptions, Image, theme } from 'antd';
-import { SearchOutlined, ProfileOutlined, CaretRightOutlined } from '@ant-design/icons';
-import { Widget } from './Widgets';
+import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space } from 'antd';
+import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
+import { Widget, isWidgetType } from './Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
-import { getMergedLogs, keyRecursively, getMediaPath } from '../../utils';
+import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
+import type { LogEntry, Parameter } from '../../utils';
+import ReactJson from '@microlink/react-json-view';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
-const isWidgetType = (type) => {
-    return ['number', 'string', 'boolean'].includes(type);
+type QuickViewEntry = {
+    [key: string]: any;
 };
 
 export function WorkflowStep({ id, data, selected }) {
     const { name, parameters, inputs, outputs } = data;
-    const [quickViewData, setQuickViewData] = useState(null);
-    const [logsData, setLogsData] = useState([]);
+    const [quickViewData, setQuickViewData] = useState<QuickViewEntry>({});
+    const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [recordCount, setRecordCount] = useState({});
     const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
@@ -115,7 +117,7 @@ export function WorkflowStep({ id, data, selected }) {
                             })
                         }
                         {
-                            Object.entries(parameters).map(([parameterName, parameter], i) => {
+                            Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                                 if (!isWidgetType(parameter.type)) {
                                     return (
                                         <div key={i} className="input">
@@ -150,11 +152,11 @@ export function WorkflowStep({ id, data, selected }) {
                 <div className='widgets'>
                     {
                         !data.isCollapsed &&
-                        Object.entries(parameters).map(([parameterName, parameter], i) => {
+                        Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                             if (isWidgetType(parameter.type)) {
                                 return (
                                     <div style={{ marginBottom: '2px' }} key={i} className="parameter">
-                                        <Widget id={id} name={parameterName} {...parameter} />
+                                        <Widget id={id} type={parameter.type} name={parameterName} value={parameter.value} />
                                     </div>
                                 );
                             }
@@ -170,12 +172,12 @@ export function WorkflowStep({ id, data, selected }) {
 
 function Monitor({ quickViewData, logsData }) {
     return (
-        <Collapse className='quickview' defaultActiveKey={[]} bordered={false} expandIcon={({ panelKey }) => {
-            switch (panelKey) {
-                case '1':
-                    return <SearchOutlined size="small" />;
-                case '2':
-                    return <ProfileOutlined size="small" />;
+        <Collapse className='quickview' defaultActiveKey={[]} bordered={false} expandIcon={({ header }) => {
+            switch (header) {
+                case "Quickview":
+                    return <SearchOutlined />;
+                case "Logs":
+                    return <FileTextOutlined />;
                 default:
                     return null;
             }
@@ -214,48 +216,102 @@ function Monitor({ quickViewData, logsData }) {
 
 function QuickviewCollapse({ data }) {
     const [settings, _] = useSettings();
+    const globalTheme = theme.useToken().theme;
+
+    const tabItems = useCallback((noteData) => {
+        let data: any = [];
+        if (settings.quickviewShowNotes) {
+            data.push({
+                key: '0',
+                label: 'Note',
+                icon: <CodeOutlined />,
+                children: (
+                    <ReactJson
+                        style={{ maxHeight: '200px', overflow: 'auto', fontSize: '0.6em' }}
+                        theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
+                        name=""
+                        displayDataTypes={false}
+                        indentWidth={2}
+                        src={noteData}
+                    />
+                ),
+            });
+        }
+        if (settings.quickviewShowImages) {
+            data.push({
+                key: '1',
+                label: 'Images',
+                icon: <FileImageOutlined />,
+                children: (
+                    <EntryImages
+                        style={{ maxHeight: '200px', overflow: 'auto' }}
+                        entry={noteData}
+                    />
+                ),
+            });
+        }
+        return data;
+    }, [settings]);
+
     return (
         <Collapse className='quickview' defaultActiveKey={[]} bordered={false}>
             {
-                Object.entries(data).map(([key, value], i) => {
-
-                    const descriptionItems = Object.entries(value).filter(([_, itemList]) => {
-                        if (!Array.isArray(itemList)) {
-                            return false;
-                        }
-                        return itemList.filter(item => item.type?.slice(0, 5) === 'image').length > 0;
-                    }).map(([itemKey, itemList]) => {
-                        const images = itemList.filter(item => item.type?.slice(0, 5) === 'image');
-                        return {
-                            key: itemKey,
-                            label: itemKey,
-                            span: 1,
-                            children: (
-                                <Flex key={i} vertical>
-                                    {
-                                        images.map((item, i) => (
-                                            <Image key={i} src={getMediaPath(settings.mediaServerHost, item.value)} width={100} />
-                                        ))
-                                    }
-                                </Flex>
-                            )
-                        };
-                    });
-
+                Object.entries<QuickViewEntry>(data).map(([key, value], i) => {
                     return (
-                        <Panel className='content' header={key} key={i}>
-                            <Flex style={{ overflowY: 'scroll', maxHeight: '300px' }}>
-                                <div style={{ marginRight: '5px' }}>
-                                    {JSON.stringify(value, null, 2)}
-                                </div>
-                                {
-                                    descriptionItems.length > 0 && <Descriptions layout="vertical" bordered items={descriptionItems} />
-                                }
-                            </Flex>
+                        <Panel className='content nowheel' header={key} key={i} style={{ overflow: 'auto' }}>
+                            <Tabs
+                                tabBarStyle={{ fontSize: '2px' }}
+                                defaultActiveKey="0"
+                                items={tabItems(value)}
+                            />
                         </Panel>
                     );
                 })
             }
         </Collapse>
+    );
+}
+
+function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProperties | undefined }) {
+    const [settings, _] = useSettings();
+
+    const imageEntries = useMemo(() => {
+        let entries: any = {};
+        Object.entries<QuickViewEntry>(entry).forEach(([key, item]) => {
+            let imageItems: any = [];
+            if (Array.isArray(item)) {
+                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image').map(item => item.value);
+            } else {
+                if (item.type?.slice(0, 5) === 'image') {
+                    imageItems.push(item.value);
+                }
+            }
+            if (imageItems.length > 0) {
+                entries[key] = imageItems;
+            }
+        });
+        return entries;
+    }, [entry]);
+
+    return (
+        <Flex style={style}>
+            {
+                Object.entries<string[]>(imageEntries).map(([key, images]) => {
+                    return (
+                        <Space key={key} direction="vertical" align='center'>
+                            <div>{key}</div>
+                            <Flex vertical>
+                                {
+                                    images.map((image, i) => (
+                                        <Image key={i} src={getMediaPath(settings, image)} height={settings.quickviewImageHeight} />
+                                    ))
+                                }
+                            </Flex>
+                        </Space>
+
+                    );
+                })
+            }
+        </Flex>
     );
 }

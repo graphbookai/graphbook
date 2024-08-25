@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "graphbook"
-version = "0.4.3"
+version = "0.5.0"
 authors = ["Richard Franklin <rsamf@graphbook.ai>"]
 description = "An extensible ML workflow framework built for data scientists and ML engineers."
 keywords = ["ml", "workflow", "framework", "pytorch", "data science", "machine learning", "ai"]
@@ -46,6 +46,7 @@ sphinxcontrib-jquery = "^4.1"
 sphinxcontrib-jsmath = "^1.0.1"
 sphinxcontrib-qthelp = "^1.0.7"
 sphinxcontrib-serializinghtml = "^1.1.10"
+pytest-asyncio = "^0.23.8"
 
 [tool.poetry.group.examples]
 optional = true
