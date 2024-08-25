@@ -20,7 +20,7 @@ documentation = "https://docs.graphbook.ai"
 repository = "https://github.com/graphbookai/graphbook"
 
 [tool.poetry.scripts]
-graphbook = "graphbook.server:main"
+graphbook = "graphbook.main:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"
