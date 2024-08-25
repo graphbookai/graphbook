@@ -245,7 +245,7 @@ class GraphServer:
 
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
-        def get(request: web.Request):
+        async def get(request: web.Request):
             path = request.match_info.get("path", "")
             fullpath = osp.join(abs_root_path, path)
             assert fullpath.startswith(
@@ -352,7 +352,7 @@ class GraphServer:
                 return web.json_response({}, status=201)
 
         @routes.delete("/fs/{path:.+}")
-        def delete(request):
+        async def delete(request):
             path = request.match_info.get("path")
             fullpath = osp.join(root_path, path)
             assert fullpath.startswith(
@@ -378,9 +378,9 @@ class GraphServer:
                 )
 
     async def _async_start(self):
-        runner = web.AppRunner(self.app)
+        runner = web.AppRunner(self.app, shutdown_timeout=0.5)
         await runner.setup()
-        site = web.TCPSite(runner, self.host, self.port, shutdown_timeout=0.5)
+        site = web.TCPSite(runner, self.host, self.port)
         loop = asyncio.get_running_loop()
         await site.start()
         await loop.run_in_executor(None, self.view_manager.start)

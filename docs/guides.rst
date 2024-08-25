@@ -503,8 +503,8 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
                     masks = []
                 masks.append({"value": path, "type": "image"})
                 note["masks"] = masks
-            
-            return {"removed_bg": removed_bg}
+
+            return removed_bg
 
 This node will generate masks of the foreground using the RMBG-1.4 model and output the resulting mask as images by saving them to disk.
 See that there is one notable difference in RemoveBackground compared to PokemonClassifier.
