@@ -28,6 +28,12 @@ def get_args():
     parser.add_argument("--start_media_server", action="store_true")
     parser.add_argument("--media_port", type=int, default=8006)
     parser.add_argument(
+        "--config",
+        type=str,
+        default="config.yaml",
+        help="Path to a config file for supplementary settings",
+    )
+    parser.add_argument(
         "--root_dir",
         type=str,
         help="If setting this directory, workflow_dir, nodes_dir, and docs_dir will be ignored",

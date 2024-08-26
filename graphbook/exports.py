@@ -1,7 +1,8 @@
 import graphbook.steps as steps
-import graphbook.resources.base as rbase
+import graphbook.resources as resources
 import graphbook.custom_nodes as custom_nodes
 from graphbook.doc2md import convert_to_md
+from graphbook.plugins import setup_plugins
 from aiohttp import web
 
 default_exported_steps = {
@@ -13,19 +14,23 @@ default_exported_steps = {
 }
 
 default_exported_resources = {
-    "Text": rbase.Resource,
-    "Number": rbase.NumberResource,
-    "Function": rbase.FunctionResource,
+    "Text": resources.Resource,
+    "Number": resources.NumberResource,
+    "Function": resources.FunctionResource,
 }
 
 
 class NodeHub:
-    def __init__(self, path):
+    def __init__(self, path, plugin_modules, web_dir):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources
         self.custom_node_importer = custom_nodes.CustomNodeImporter(
             path, self.handle_step, self.handle_resource
         )
+        self.plugins = setup_plugins(plugin_modules, None)
+        steps, resources, web = self.plugins
+        self.exported_steps.update(steps)
+        self.exported_resources.update(resources)
 
     def start(self):
         self.custom_node_importer.start_observer()
