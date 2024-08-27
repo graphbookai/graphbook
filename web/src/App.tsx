@@ -38,6 +38,15 @@ export default function App() {
 
     }, [settings]);
 
+    useEffect(() => {
+        const loadPlugin = async () => {
+            const plugin = await import('http://localhost:8005/plugins/example_extension/index.js');
+            console.log('plugin!', plugin);
+            plugin.execute();
+        };
+        loadPlugin();
+    }, []);
+
     return (
         <ConfigProvider theme={{ algorithm: themeAlgorithm }}>
             <View />

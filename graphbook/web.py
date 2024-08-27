@@ -42,7 +42,9 @@ async def cors_middleware(request: web.Request, handler):
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
+
 def get_config_options(config_path: str) -> dict:
+    print(config_path)
     if not osp.exists(config_path):
         return {}
     with open(config_path, "r") as f:
@@ -68,10 +70,11 @@ class GraphServer:
         self.host = host
         self.port = port
         self.config = get_config_options(config_path)
+        print(self.config)
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = osp.join(osp.dirname(__file__), "web")
-        self.node_hub = NodeHub(custom_nodes_path, self.config.plugins, self.web_dir)
+        self.node_hub = NodeHub(custom_nodes_path, self.config.get("plugins"))
         self.ui_state = None
         routes = web.RouteTableDef()
         self.routes = routes
@@ -398,11 +401,20 @@ class GraphServer:
     def start(self):
         self.app.router.add_routes(self.routes)
         if self.web_dir is not None:
-            self.app.router.add_routes(
-                [
-                    web.static("/", self.web_dir),
-                ]
-            )
+            self.app.router.add_routes([web.static("/", self.web_dir)])
+
+        web_plugins = self.node_hub.get_web_plugins()
+        print("Loaded web plugins:")
+        print(web_plugins)
+
+        self.app.router.add_routes(
+            [
+                web.static(f"/plugins/{plugin_name}", plugin_location)
+                for plugin_name, plugin_location in web_plugins.items()
+            ]
+        )
+        # self.app.router.add_route(web.static(f"/extensions/{plugin_name}", plugin_location))
+
         print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()
         try:

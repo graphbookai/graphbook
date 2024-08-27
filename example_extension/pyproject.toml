@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "example_extension"
+version = "0.0.0"
+dependencies = [
+]
+requires-python = ">=3.10"
+authors = [
+]
+
+description = ""

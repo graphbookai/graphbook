@@ -1,44 +1,35 @@
 import importlib
 import traceback
+import inspect
 import os.path as osp
+from .steps import Step
+from .resources import Resource
 
+exported_steps = {}
+exported_resources = {}
+exported_web = {}
 
-def setup_plugins(plugin_modules, web_dest):
-    if web_dest == None:
-        web_dest = osp.join(__file__, "../web/src")
-    def get_plugin_steps(plugin):
-        try:
-            return plugin.get_steps()
-        except NotImplementedError:
-            print(
-                f"Plugin {plugin} does not have a get_steps method which must be implemented. Ignoring any steps from this plugin."
-            )
-        except Exception:
-            traceback.print_exc()
-            return {}
-
-    def get_plugin_resources(plugin):
-        try:
-            return plugin.get_resources()
-        except NotImplementedError:
-            print(
-                f"Plugin {plugin} does not have a get_resources method which must be implemented. Ignoring any resources from this plugin."
-            )
-        except Exception:
-            traceback.print_exc()
-            return {}
-
-    def get_plugin_web(plugin):
-        if not hasattr(plugin, "get_web"):
-            return {}
-        try:
-            return plugin.get_web()
-        except Exception:
-            traceback.print_exc()
-            return {}
-
+def setup_plugins(plugin_modules):
     plugins = [importlib.import_module(module) for module in plugin_modules]
-    steps = [get_plugin_steps(plugin) for plugin in plugins]
-    resources = [get_plugin_resources(plugin) for plugin in plugins]
-    web = [get_plugin_web(plugin) for plugin in plugins]
+    
+    steps = exported_steps
+    resources = exported_resources
+    web = exported_web
     return steps, resources, web
+
+def export(name, cls):
+    module_name = _get_caller_module()
+    if issubclass(cls, Step):
+        exported_steps.setdefault(module_name, {})[name] = cls
+    elif issubclass(cls, Resource):
+        exported_resources.setdefault(module_name, {})[name] = cls
+    else:
+        raise ValueError("Only Step and Resource classes can be exported")
+        
+def web(location):
+    module_name = _get_caller_module()
+    exported_web[module_name] = location
+
+def _get_caller_module():
+    caller_frame = inspect.stack()[2]
+    return inspect.getmodule(caller_frame[0]).__name__
