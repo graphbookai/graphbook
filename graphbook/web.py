@@ -70,7 +70,6 @@ class GraphServer:
         self.host = host
         self.port = port
         self.config = get_config_options(config_path)
-        print(self.config)
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = osp.join(osp.dirname(__file__), "web")
@@ -388,6 +387,11 @@ class GraphServer:
                 return web.json_response(
                     {"reason": "/%s: No such file or directory." % path}, status=404
                 )
+
+        @routes.get("/plugins")
+        async def get_plugins(request):
+            plugin_list = list(self.node_hub.get_web_plugins().keys())
+            return web.json_response(plugin_list)
 
     async def _async_start(self):
         runner = web.AppRunner(self.app, shutdown_timeout=0.5)

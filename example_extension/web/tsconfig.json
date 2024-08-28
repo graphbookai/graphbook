@@ -1,0 +1,12 @@
+{
+    "include": ["src/**/*", "node_modules/react/*"],
+    "compilerOptions": {
+        "strictNullChecks": false,
+        "outDir": "dist",
+        "jsx": "react",
+        "esModuleInterop": true,
+        "target": "es6",
+        "strict": true,
+        "moduleResolution": "node",
+    }
+}

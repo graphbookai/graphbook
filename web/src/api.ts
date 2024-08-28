@@ -348,6 +348,13 @@ export class ServerAPI {
     public async getMediaServerVars(): Promise<any> {
         return this.mediaServerPut('set', { });
     }
+
+    /**
+     * Plugins
+     */
+    public async getPluginList() {
+        return await this.get('plugins');
+    }
 }
 
 export const API = new ServerAPI();
