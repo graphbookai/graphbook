@@ -5,4 +5,4 @@ from graphbook.plugins import export, web
 
 export("SimpleStep", SimpleStep)
     
-web(osp.realpath(osp.join(osp.dirname(__file__), "../web/dist")))
+web(osp.realpath(osp.join(osp.dirname(__file__), "../web/dist/bundle.js")))

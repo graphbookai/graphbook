@@ -393,6 +393,14 @@ class GraphServer:
             plugin_list = list(self.node_hub.get_web_plugins().keys())
             return web.json_response(plugin_list)
 
+        @routes.get("/plugins/{name}")
+        async def get_plugin(request):
+            plugin_name = request.match_info.get("name")
+            plugin_location = self.node_hub.get_web_plugins().get(plugin_name)
+            if plugin_location is None:
+                return web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
+            return web.FileResponse(plugin_location)
+
     async def _async_start(self):
         runner = web.AppRunner(self.app, shutdown_timeout=0.5)
         await runner.setup()
@@ -404,20 +412,13 @@ class GraphServer:
 
     def start(self):
         self.app.router.add_routes(self.routes)
-        if self.web_dir is not None:
-            self.app.router.add_routes([web.static("/", self.web_dir)])
 
         web_plugins = self.node_hub.get_web_plugins()
         print("Loaded web plugins:")
         print(web_plugins)
 
-        self.app.router.add_routes(
-            [
-                web.static(f"/plugins/{plugin_name}", plugin_location)
-                for plugin_name, plugin_location in web_plugins.items()
-            ]
-        )
-        # self.app.router.add_route(web.static(f"/extensions/{plugin_name}", plugin_location))
+        if self.web_dir is not None:
+            self.app.router.add_routes([web.static("/", self.web_dir)])
 
         print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()

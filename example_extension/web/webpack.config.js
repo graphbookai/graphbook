@@ -1,14 +1,10 @@
-// webpack.config.js
-const path = require('path');
-
 module.exports = {
     entry: './src/main.tsx',
     output: {
-        filename: 'main.js',
-        path: path.resolve(__dirname, 'dist'),
+        filename: 'bundle.js',        
         library: {
             type: 'module'
-        }
+        },
     },
     experiments: {
         outputModule: true
@@ -24,5 +20,9 @@ module.exports = {
     },
     resolve: {
         extensions: ['.tsx', '.ts', '.js']
+    },
+    externalsType: 'window',
+    externals: {
+        react: 'react',
     }
 };

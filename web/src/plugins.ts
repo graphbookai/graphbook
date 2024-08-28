@@ -1,4 +1,10 @@
 import type { ServerAPI } from './api';
+import { useAPI, useAPIMessage } from './hooks/API';
+import React from 'react';
+import ReactDOM from 'react-dom'
+
+window['react'] = React;
+window['react-dom'] = ReactDOM;
 
 class PluginManager {
     private plugins: Map<string, any>;
@@ -17,9 +23,10 @@ class PluginManager {
         for await (const p of plugins) {
             if (!this.plugins.has(p)) {
                 try {
-                    const url = `http://${API.getHost()}/plugins/${p}/main.js`;
+                    const url = `http://${API.getHost()}/plugins/${p}`;
                     console.log("Loading plugin from", url);
                     const module = await import(url);
+                    console.log(module.ReactFromModule);
                     this.plugins.set(p, module);
                     console.log(`Plugin ${p} loaded successfully`);
                 } catch (error) {
@@ -38,9 +45,10 @@ class PluginManager {
         const panels: PanelPlugin[] = [];
         for (const p of this.plugins.values()) {
             if (p.ExportPanels) {
-                panels.push(...p.ExportPanels());
+                panels.push(...p.ExportPanels(GraphbookAPI));
             }
         }
+        console.log(panels);
         return panels;
     }
 
@@ -69,3 +77,7 @@ export type NodePlugin = {
     children: JSX.Element,
 };
 
+export const GraphbookAPI = {
+    useAPI,
+    useAPIMessage
+};

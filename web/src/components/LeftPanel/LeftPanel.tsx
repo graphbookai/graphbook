@@ -3,7 +3,6 @@ import './panel.css';
 import React, { useMemo } from 'react';
 import { FileFilled, AppstoreOutlined } from '@ant-design/icons';
 import { Tabs } from 'antd';
-
 import Filesystem from './Filesystem';
 import { usePluginPanels } from '../../hooks/Plugins';
 
