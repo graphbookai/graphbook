@@ -1,7 +1,7 @@
-import { uniqueIdFrom, getHandle } from './utils';
+import { uniqueIdFrom, getHandle, Parameter } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
-import type { Node, Edge } from 'reactflow';
+import type { Node, Edge, ReactFlowInstance } from 'reactflow';
 
 export const SERIALIZATION_ERROR = {
     INPUT_RESOLVE: 'Failed to resolve step input',
@@ -538,5 +538,94 @@ export const Graph = {
 
         return false;
 
+    }
+}
+
+// Modern DAG Model for abstraction of internal nodes and edges.
+// Goal is to make this become completely used and replace other APIs in the future.
+type DAGHandle = {
+    inner?: boolean,
+    type: "step" | "resource"
+};
+type DAGNode = {
+    inputs: Map<string, DAGHandle>,
+    outputs: Map<string, DAGHandle>,
+};
+export class DAG {
+    private flow: ReactFlowInstance;
+    private nodes: Map<string, DAGNode>;
+
+    constructor(reactFlowInstance: ReactFlowInstance) {
+        this.flow = reactFlowInstance;
+        this.nodes = new Map();
+    }
+
+    // Add a new node to the DAG
+    public addNode(node: Node): void {
+        this.flow.setNodes(nodes => [...nodes, node]);
+        const dagNode: DAGNode = { inputs: new Map(), outputs: new Map() };
+        const { parameters, inputs, outputs } = node.data;
+
+        if (node.type === 'step') {
+            inputs.forEach(() => {
+                dagNode.inputs[node.id] = { type: "step" };
+            });
+            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
+                dagNode.inputs[key] = { type: "resource" };
+            });
+            outputs.forEach(() => {
+                dagNode.outputs[node.id] = { type: "step" };
+            });
+        } else if (node.type === 'resource') {
+            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
+                dagNode.inputs[key] = { type: 'resource' };
+            });
+            dagNode.outputs['resource'] = { type: 'resource' };
+        } else if (node.type === 'group') {
+            
+        } else if (node.type === 'export') {
+
+        } else if (node.type === 'subflow') {
+
+        }
+
+        this.nodes.set(node.id, dagNode);
+    }
+
+    // Remove a node from the DAG by id
+    public removeNode(nodeId: string): void {
+        this.flow.setNodes(nodes => nodes.filter(node => node.id !== nodeId));
+        this.flow.setEdges(edges => edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId));
+        this.nodes.delete(nodeId);
+    }
+
+    // Add a new edge to the DAG
+    public addEdge(edge: Edge): void {
+        this.flow.setEdges(edges => [...edges, edge]);
+    }
+
+    // Remove an edge from the DAG by id
+    public removeEdge(edgeId: string): void {
+        this.flow.setEdges(edges => edges.filter(edge => edge.id !== edgeId));
+    }
+
+    // Get all nodes
+    getNodes(): Node[] {
+        return this.flow.getNodes();
+    }
+
+    // Get all edges
+    getEdges(): Edge[] {
+        return this.flow.getEdges();
+    }
+
+    // Find a node by id
+    findNodeById(nodeId: string): Node | undefined {
+        return this.flow.getNode(nodeId);
+    }
+
+    // Find edges connected to a node
+    findEdgesByNodeId(nodeId: string): Edge[] {
+        return this.flow.getEdges().filter(edge => edge.source === nodeId || edge.target === nodeId);
     }
 }
