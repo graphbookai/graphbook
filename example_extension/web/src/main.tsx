@@ -7,13 +7,15 @@ export { default as ReactFromModule } from 'react'
 type GraphbookAPI = {
     useAPI: Function,
     useAPIMessage: Function,
+    useAPINodeMessage: Function,
 };
 
-export function ExportNodes(graphbookAPI: GraphbookAPI) {
+export function ExportResources(graphbookAPI: GraphbookAPI) {
     return [{
-        type: "Step",
-        label: "Example Node",
-        children: <ExampleNode />,
+        for: {
+            name: "SimpleResource",
+        },
+        component: ExampleNode,
     }];
 }
 

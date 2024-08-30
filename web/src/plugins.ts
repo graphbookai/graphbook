@@ -1,7 +1,7 @@
 import type { ServerAPI } from './api';
 import { useAPI, useAPIMessage, useAPINodeMessage } from './hooks/API';
 import React from 'react';
-import ReactFlow from 'reactflow';
+import * as ReactFlow from 'reactflow';
 
 window['react'] = React;
 window['reactflow'] = ReactFlow;
@@ -47,15 +47,24 @@ class PluginManager {
                 panels.push(...p.ExportPanels(GraphbookAPI));
             }
         }
-        console.log(panels);
         return panels;
     }
 
-    public getNodes(): NodePlugin[] {
+    public getSteps(): NodePlugin[] {
         const nodes: NodePlugin[] = [];
         for (const p of this.plugins.values()) {
-            if (p.ExportNodes) {
-                nodes.push(...p.ExportNodes(GraphbookAPI));
+            if (p.ExportSteps) {
+                nodes.push(...p.ExportSteps(GraphbookAPI));
+            }
+        }
+        return nodes;
+    }
+
+    public getResources(): NodePlugin[] {
+        const nodes: NodePlugin[] = [];
+        for (const p of this.plugins.values()) {
+            if (p.ExportResources) {
+                nodes.push(...p.ExportResources(GraphbookAPI));
             }
         }
         return nodes;
@@ -81,9 +90,11 @@ export type PanelPlugin = {
 };
 
 export type NodePlugin = {
-    type: string,
-    label: string,
-    children: JSX.Element,
+    for: {
+        name?: string,
+        category?: string,
+    },
+    component: (props: any) => JSX.Element,
 };
 
 export type WidgetPlugin = {

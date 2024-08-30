@@ -5,12 +5,18 @@ import type { PanelPlugin, NodePlugin, WidgetPlugin } from '../plugins';
 
 let isInitialized = false;
 let globalPanels: PanelPlugin[] = [];
-let globalNodes: NodePlugin[] = [];
+let globalSteps: NodePlugin[] = [];
+let globalResources: NodePlugin[] = [];
 let globalWidgets: WidgetPlugin[] = [];
 let localSetters: Function[] = [];
 export function usePlugins() {
     const API = useAPI();
-    const [_, setPlugins] = useState({ panels: globalPanels, nodes: globalNodes, widgets: globalWidgets });
+    const [_, setPlugins] = useState({
+        panels: globalPanels,
+        steps: globalSteps,
+        resources: globalResources,
+        widgets: globalWidgets
+    });
 
     useEffect(() => {
         localSetters.push(setPlugins);
@@ -20,14 +26,16 @@ export function usePlugins() {
                 isInitialized = true;
                 await Plugins.loadPlugins(API);
                 const panels = Plugins.getPanels();
-                const nodes = Plugins.getNodes();
+                const steps = Plugins.getSteps();
+                const resources = Plugins.getResources();
                 const widgets = Plugins.getWidgets();
                 globalPanels = panels;
-                globalNodes = nodes;
+                globalSteps = steps;
+                globalResources = resources;
                 globalWidgets = widgets;
 
                 for (const setter of localSetters) {
-                    setter({ panels, nodes, widgets });
+                    setter({ panels, steps, resources, widgets });
                 }
             }
         };
@@ -42,7 +50,12 @@ export function usePlugins() {
         };
     }, [API]);
 
-    return { panels: globalPanels, nodes: globalNodes, widgets: globalWidgets };
+    return {
+        panels: globalPanels,
+        steps: globalSteps,
+        resources: globalResources,
+        widgets: globalWidgets
+    };
 }
 
 
@@ -51,12 +64,17 @@ export function usePluginPanels() {
     return panels;
 }
 
-export function usePluginNodes() {
-    const { nodes } = usePlugins();
-    return nodes;
-}
-
 export function usePluginWidgets() {
     const { widgets } = usePlugins();
     return widgets;
+}
+
+export function usePluginSteps() {
+    const { steps } = usePlugins();
+    return steps;
+}
+
+export function usePluginResources() {
+    const { resources } = usePlugins();
+    return resources;
 }
