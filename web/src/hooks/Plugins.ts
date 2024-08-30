@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useAPI } from './API';
 import { Plugins } from '../plugins';
-import type { PanelPlugin } from '../plugins';
+import type { PanelPlugin, NodePlugin, WidgetPlugin } from '../plugins';
 
 let isInitialized = false;
 let globalPanels: PanelPlugin[] = [];
-let globalNodes: any[] = [];
+let globalNodes: NodePlugin[] = [];
+let globalWidgets: WidgetPlugin[] = [];
 let localSetters: Function[] = [];
 export function usePlugins() {
     const API = useAPI();
-    const [_, setPlugins] = useState({ panels: globalPanels, nodes: globalNodes });
+    const [_, setPlugins] = useState({ panels: globalPanels, nodes: globalNodes, widgets: globalWidgets });
 
     useEffect(() => {
         localSetters.push(setPlugins);
@@ -20,11 +21,13 @@ export function usePlugins() {
                 await Plugins.loadPlugins(API);
                 const panels = Plugins.getPanels();
                 const nodes = Plugins.getNodes();
+                const widgets = Plugins.getWidgets();
                 globalPanels = panels;
                 globalNodes = nodes;
+                globalWidgets = widgets;
 
                 for (const setter of localSetters) {
-                    setter({ panels, nodes });
+                    setter({ panels, nodes, widgets });
                 }
             }
         };
@@ -39,7 +42,7 @@ export function usePlugins() {
         };
     }, [API]);
 
-    return { panels: globalPanels, nodes: globalNodes };
+    return { panels: globalPanels, nodes: globalNodes, widgets: globalWidgets };
 }
 
 
@@ -51,4 +54,9 @@ export function usePluginPanels() {
 export function usePluginNodes() {
     const { nodes } = usePlugins();
     return nodes;
+}
+
+export function usePluginWidgets() {
+    const { widgets } = usePlugins();
+    return widgets;
 }

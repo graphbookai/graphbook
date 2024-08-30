@@ -60,6 +60,16 @@ class PluginManager {
         }
         return nodes;
     }
+
+    public getWidgets(): WidgetPlugin[] {
+        const widgets: WidgetPlugin[] = [];
+        for (const p of this.plugins.values()) {
+            if (p.ExportWidgets) {
+                widgets.push(...p.ExportWidgets(GraphbookAPI));
+            }
+        }
+        return widgets;
+    }
 }
 
 export const Plugins = new PluginManager();
@@ -73,6 +83,11 @@ export type PanelPlugin = {
 export type NodePlugin = {
     type: string,
     label: string,
+    children: JSX.Element,
+};
+
+export type WidgetPlugin = {
+    type: string,
     children: JSX.Element,
 };
 

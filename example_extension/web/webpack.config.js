@@ -24,5 +24,6 @@ module.exports = {
     externalsType: 'window',
     externals: {
         react: 'react',
+        reactflow: 'reactflow'
     }
 };
