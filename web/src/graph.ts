@@ -1,7 +1,7 @@
 import { uniqueIdFrom, getHandle, Parameter } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
-import type { Node, Edge, ReactFlowInstance } from 'reactflow';
+import type { Node, Edge, ReactFlowInstance, Connection } from 'reactflow';
 
 export const SERIALIZATION_ERROR = {
     INPUT_RESOLVE: 'Failed to resolve step input',
@@ -537,95 +537,332 @@ export const Graph = {
         }
 
         return false;
-
     }
 }
 
 // Modern DAG Model for abstraction of internal nodes and edges.
 // Goal is to make this become completely used and replace other APIs in the future.
 type DAGHandle = {
+    type: "step" | "resource",
+    connectedTo: DAGNode[],
     inner?: boolean,
-    type: "step" | "resource"
 };
-type DAGNode = {
-    inputs: Map<string, DAGHandle>,
-    outputs: Map<string, DAGHandle>,
-};
+
+class DAGNode {
+    ref: Node;
+    inputs: Map<string, DAGHandle>;
+    outputs: Map<string, DAGHandle>;
+    constructor(node: Node) {
+        this.inputs = new Map();
+        this.outputs = new Map();
+        this.ref = node;
+        this.setup();
+    }
+
+    private setup() {
+        const { inputs, parameters, outputs } = this.ref.data;
+        if (this.ref.type === 'step') {
+            inputs.forEach(() => {
+                this.inputs["in"] = { type: "step", connectedTo: [] };
+            });
+            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
+                this.inputs[key] = { type: "resource", connectedTo: [] };
+            });
+            outputs.forEach(key => {
+                this.outputs[key] = { type: "step", connectedTo: [] };
+            });
+        } else if (this.ref.type === 'resource') {
+            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
+                this.inputs[key] = { type: 'resource', connectedTo: [] };
+            });
+            this.outputs['resource'] = { type: 'resource', connectedTo: [] };
+        } else if (this.ref.type === 'group') {
+            const { inputs, outputs } = this.ref.data.exports;
+            inputs.forEach(input => {
+                this.inputs[input.id] = { type: input.type, inner: false, connectedTo: [] };
+                this.outputs[`${input.id}_inner`] = { type: input.type, inner: true, connectedTo: [] };
+            });
+            outputs.forEach(output => {
+                this.outputs[output.id] = { type: output.type, inner: false, connectedTo: [] };
+                this.inputs[`${output.id}_inner`] = { type: output.type, inner: true, connectedTo: [] };
+            });
+
+        } else if (this.ref.type === 'export') {
+            if (this.ref.data.exportType === 'input') {
+                this.outputs["in"] = { type: this.ref.data.isResource ? 'resource' : 'step', connectedTo: [] };
+            } else {
+                this.inputs["out"] = { type: this.ref.data.isResource ? 'resource' : 'step', connectedTo: [] };
+            }
+        } else if (this.ref.type === 'subflow') {
+            const { nodes } = this.ref.data.properties;
+            if (nodes) {
+                let numInputs = 0;
+                let numOutputs = 0;
+
+                for (const node of nodes) {
+                    if (node.type === 'export') {
+                        if (node.data?.exportType === 'input') {
+                            this.inputs[String(numInputs++)] = { type: node.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                        } else {
+                            this.outputs[String(numOutputs++)] = { type: node.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public getOutput(id): DAGHandle {
+        return this.outputs[id];
+    }
+
+    public getInput(id): DAGHandle {
+        return this.inputs[id];
+    }
+
+    public refresh(): void {
+        this.inputs.clear();
+        this.outputs.clear();
+        this.setup();
+    }
+
+    public connectInput(pin: string, node: DAGNode): void {
+        this.inputs[pin].connectedTo.push(node);
+    }
+
+    public connectOutput(pin: string, node: DAGNode): void {
+        this.outputs[pin].connectedTo.push(node);
+    }
+}
+
 export class DAG {
-    private flow: ReactFlowInstance;
     private nodes: Map<string, DAGNode>;
 
-    constructor(reactFlowInstance: ReactFlowInstance) {
-        this.flow = reactFlowInstance;
+    constructor() {
         this.nodes = new Map();
     }
 
-    // Add a new node to the DAG
-    public addNode(node: Node): void {
-        this.flow.setNodes(nodes => [...nodes, node]);
-        const dagNode: DAGNode = { inputs: new Map(), outputs: new Map() };
-        const { parameters, inputs, outputs } = node.data;
+    public update(nodes, edges) {
+        this.nodes.clear();
+        nodes.forEach(node => {
+            this.nodes.set(node.id, new DAGNode(node));
+        });
+        edges.forEach(edge => {
+            const sourceNode = this.nodes.get(edge.source);
+            const targetNode = this.nodes.get(edge.target);
+            if (sourceNode && targetNode) {
+                console.log("Connecting", sourceNode, targetNode);
+                sourceNode.connectOutput(edge.sourceHandle, targetNode);
+                targetNode.connectInput(edge.targetHandle, sourceNode);
+            }
+        });
+        console.log("updated dag with nodes", this.nodes);
+    }
 
-        if (node.type === 'step') {
-            inputs.forEach(() => {
-                dagNode.inputs[node.id] = { type: "step" };
-            });
-            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
-                dagNode.inputs[key] = { type: "resource" };
-            });
-            outputs.forEach(() => {
-                dagNode.outputs[node.id] = { type: "step" };
-            });
-        } else if (node.type === 'resource') {
-            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
-                dagNode.inputs[key] = { type: 'resource' };
-            });
-            dagNode.outputs['resource'] = { type: 'resource' };
-        } else if (node.type === 'group') {
-            
-        } else if (node.type === 'export') {
-
-        } else if (node.type === 'subflow') {
-
+    public isValidConnection(connection: Connection) {
+        if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) {
+            return false;
+        }
+        const srcNode = this.nodes.get(connection.source);
+        const tgtNode = this.nodes.get(connection.target);
+        if (!srcNode || !tgtNode) {
+            return false;
         }
 
-        this.nodes.set(node.id, dagNode);
+        const srcHandle = srcNode.getOutput(connection.sourceHandle);
+        const tgtHandle = tgtNode.getInput(connection.targetHandle);
+        // const srcHandle = getHandle(srcNode, connection.sourceHandle, false);
+        // const tgtHandle = getHandle(tgtNode, connection.targetHandle, true);
+
+        if (!srcHandle || !tgtHandle) {
+            return false;
+        }
+
+        if (srcNode.ref.id === tgtNode.ref.id) {
+            return false;
+        }
+
+        if (srcHandle.type !== tgtHandle.type) {
+            return false;
+        }
+
+        console.log("A")
+        if (srcNode.ref.type === 'group') {
+            if (srcHandle.inner && tgtNode.ref.parentId !== srcNode.ref.id) {
+                return false;
+            }
+            if (!srcHandle.inner && tgtNode.ref.parentId === srcNode.ref.id) {
+                return false;
+            }
+        }
+
+        console.log("B")
+        if (tgtNode.ref.type === 'group') {
+            if (tgtHandle.inner && srcNode.ref.parentId !== tgtNode.ref.id) {
+                return false;
+            }
+            if (!tgtHandle.inner && srcNode.ref.parentId === tgtNode.ref.id) {
+                return false;
+            }
+        }
+
+        console.log("C")
+        if (srcNode.ref.type === 'export' && tgtNode.ref.type === 'export') {
+            return false;
+        }
+
+        // const edges = getEdges();
+        // if (tgtHandle.type === 'resource') {
+        //     for (const edge of edges) {
+        //         if (edge.target === connection.target && edge.targetHandle === connection.targetHandle) {
+        //             return false;
+        //         }
+        //     }
+        // }
+
+        // Only 1 connection to a target resource handle at a time
+        console.log("D")
+        if (tgtHandle.type === 'resource') {
+            if (tgtHandle.connectedTo.length > 0) {
+                return false;
+            }
+        }
+
+        console.log("E")
+        if (this.wouldBeCyclic(connection)) {
+            // notificationCtrl.error({
+            //     key: 'no-cycles',
+            //     message: 'No Cycles',
+            //     description: 'Graphbook only supports DAGs',
+            //     duration: 1,
+            // });
+            return false;
+        }
+        console.log("F")
+
+        return true;
     }
 
-    // Remove a node from the DAG by id
-    public removeNode(nodeId: string): void {
-        this.flow.setNodes(nodes => nodes.filter(node => node.id !== nodeId));
-        this.flow.setEdges(edges => edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId));
-        this.nodes.delete(nodeId);
+    private wouldBeCyclic(connection): boolean {
+        const adjList = {};
+        const sourceNode = this.nodes.get(connection.source);
+        const targetNode = this.nodes.get(connection.target);
+        if (!sourceNode || !targetNode) {
+            return false;
+        }
+
+        const cycleType = targetNode.getInput(connection.targetHandle).type;
+        const pushConnections = (nodeId: string, handle: DAGHandle) => {
+            if (handle.type !== cycleType) {
+                return;
+            }
+            for (const connectedTo of handle.connectedTo) {
+                if (connectedTo.ref.type === 'group') {
+                    if (handle.inner) {
+                        adjList[nodeId].push(`${connectedTo.ref.id}-i`);
+                    } else {
+                        adjList[nodeId].push(`${connectedTo.ref.id}-o`);
+                    }
+                } else {
+                    adjList[nodeId].push(connectedTo.ref.id);
+                }
+            }
+        };
+
+        for (const [id, node] of this.nodes) {
+            if (node.ref.type === 'group') {
+                adjList[`${id}-i`] = [];
+                adjList[`${id}-o`] = [];
+                for (const handle of Object.values(node.outputs)) {
+                    if (handle.inner) {
+                        pushConnections(`${id}-i`, handle);
+                    } else {
+                        pushConnections(`${id}-o`, handle);
+                    }
+                }
+            } else {
+                adjList[id] = [];
+                for (const handle of Object.values(node.outputs)) {
+                    pushConnections(id, handle);
+                }
+            }
+        }
+
+        let s = connection.source;
+        let t = connection.target;
+        if (sourceNode.ref.type === 'group') {
+            if (connection.sourceHandle.endsWith('_inner')) {
+                s = `${connection.source}-i`;
+            } else {
+                s = `${connection.source}-o`;
+            }
+        }
+        if (targetNode.ref.type === 'group') {
+            if (connection.targetHandle.endsWith('_inner')) {
+                t = `${connection.target}-o`;
+            } else {
+                t = `${connection.target}-i`;
+            }
+        }
+
+        adjList[s].push(t);
+        const q: string[] = [];
+        const origin = t;
+        q.push(origin);
+        while (q.length > 0) {
+            const [nodeId] = q.splice(0, 1);
+            console.log(nodeId, adjList[nodeId]);
+            for (const childId of adjList[nodeId]) {
+                console.log(childId);
+                if (childId === origin) {
+                    return true;
+                }
+                q.push(childId);
+            }
+        }
+
+        return false;
     }
 
-    // Add a new edge to the DAG
-    public addEdge(edge: Edge): void {
-        this.flow.setEdges(edges => [...edges, edge]);
-    }
+    // May not be needed
+    // // Add a new node to the DAG
+    // public addNode(node: Node): void {
+    //     const dagNode = new DAGNode(node);
+    //     this.nodes.set(node.id, dagNode);
+    // }
 
-    // Remove an edge from the DAG by id
-    public removeEdge(edgeId: string): void {
-        this.flow.setEdges(edges => edges.filter(edge => edge.id !== edgeId));
-    }
+    // // Remove a node from the DAG by id
+    // public removeNode(nodeId: string): void {
+    //     this.nodes.delete(nodeId);
+    // }
 
-    // Get all nodes
-    getNodes(): Node[] {
-        return this.flow.getNodes();
-    }
+    // // Add a new edge to the DAG
+    // public addEdge(edge: Edge): void {
+    //     this.flow.setEdges(edges => [...edges, edge]);
+    // }
 
-    // Get all edges
-    getEdges(): Edge[] {
-        return this.flow.getEdges();
-    }
+    // // Remove an edge from the DAG by id
+    // public removeEdge(edgeId: string): void {
+    //     this.flow.setEdges(edges => edges.filter(edge => edge.id !== edgeId));
+    // }
 
-    // Find a node by id
-    findNodeById(nodeId: string): Node | undefined {
-        return this.flow.getNode(nodeId);
-    }
+    // // Get all nodes
+    // public getNodes(): Node[] {
+    //     return this.flow.getNodes();
+    // }
 
-    // Find edges connected to a node
-    findEdgesByNodeId(nodeId: string): Edge[] {
-        return this.flow.getEdges().filter(edge => edge.source === nodeId || edge.target === nodeId);
-    }
+    // // Get all edges
+    // public getEdges(): Edge[] {
+    //     return this.flow.getEdges();
+    // }
+
+    // // Find a node by id
+    // public findNodeById(nodeId: string): Node | undefined {
+    //     return this.flow.getNode(nodeId);
+    // }
+
+    // // Find edges connected to a node
+    // public findEdgesByNodeId(nodeId: string): Edge[] {
+    //     return this.flow.getEdges().filter(edge => edge.source === nodeId || edge.target === nodeId);
+    // }
 }

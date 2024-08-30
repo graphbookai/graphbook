@@ -30,6 +30,7 @@ import { useFilename } from '../hooks/Filename.ts';
 import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
 import { ActiveOverlay } from './ActiveOverlay.tsx';
 import { Docs } from './Docs.tsx';
+import { updateDAG, useDAG } from '../hooks/DAG.ts';
 
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -178,7 +179,11 @@ export default function Flow({ filename }) {
         if (graphStore.current) {
             graphStore.current.update(nodes, edges);
         }
-    }, [nodes, edges, API, filename]);
+    }, [nodes, edges, graphStore]);
+
+    useEffect(() => {
+        updateDAG(nodes, edges);
+    }, [nodes, edges]);
 
     const handleMouseClickComp = useCallback((event) => {
         setIsAddNodeActive(false);
@@ -233,6 +238,11 @@ export default function Flow({ filename }) {
             left: event.clientX
         });
     }, []);
+
+    const dag = useDAG();
+    const isValidConnection2 = useCallback((connection) => {
+        return dag.isValidConnection(connection);
+    }, [dag]);
 
     const isValidConnection = useCallback((connection) => {
         if (!reactFlowInstance.current) {
@@ -396,6 +406,7 @@ export default function Flow({ filename }) {
                     preventScrolling={true}
                 >
                     {notificationCtxt}
+                    <DagCtx />
                     <Space direction="horizontal" align="start" style={{position: 'absolute', top: '10px', right: '0px', zIndex: 9}}>
                         <div>
                             <div style={{position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)'}}>
@@ -417,6 +428,12 @@ export default function Flow({ filename }) {
             </ActiveOverlay>
         </div>
     );
+}
+
+function DagCtx() {
+    useDAG();
+
+    return null;
 }
 
 function ControlRow() {

@@ -9,7 +9,7 @@ type GraphbookAPI = {
     useAPIMessage: Function,
 };
 
-export function ExportNodes() {
+export function ExportNodes(graphbookAPI: GraphbookAPI) {
     return [{
         type: "Step",
         label: "Example Node",

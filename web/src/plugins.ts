@@ -1,10 +1,10 @@
 import type { ServerAPI } from './api';
-import { useAPI, useAPIMessage } from './hooks/API';
+import { useAPI, useAPIMessage, useAPINodeMessage } from './hooks/API';
 import React from 'react';
-import ReactDOM from 'react-dom'
+import ReactFlow from 'reactflow';
 
 window['react'] = React;
-window['react-dom'] = ReactDOM;
+window['reactflow'] = ReactFlow;
 
 class PluginManager {
     private plugins: Map<string, any>;
@@ -26,7 +26,6 @@ class PluginManager {
                     const url = `http://${API.getHost()}/plugins/${p}`;
                     console.log("Loading plugin from", url);
                     const module = await import(url);
-                    console.log(module.ReactFromModule);
                     this.plugins.set(p, module);
                     console.log(`Plugin ${p} loaded successfully`);
                 } catch (error) {
@@ -56,7 +55,7 @@ class PluginManager {
         const nodes: NodePlugin[] = [];
         for (const p of this.plugins.values()) {
             if (p.ExportNodes) {
-                nodes.push(...p.ExportNodes());
+                nodes.push(...p.ExportNodes(GraphbookAPI));
             }
         }
         return nodes;
@@ -79,5 +78,6 @@ export type NodePlugin = {
 
 export const GraphbookAPI = {
     useAPI,
-    useAPIMessage
+    useAPIMessage,
+    useAPINodeMessage,
 };

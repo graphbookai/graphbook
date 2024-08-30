@@ -44,7 +44,6 @@ async def cors_middleware(request: web.Request, handler):
 
 
 def get_config_options(config_path: str) -> dict:
-    print(config_path)
     if not osp.exists(config_path):
         return {}
     with open(config_path, "r") as f:
