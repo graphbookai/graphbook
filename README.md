@@ -54,6 +54,14 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 - UI extensibility
 - And many optimizations for large data processing workloads
 
+### Supported OS
+The following operating systems are supported in order of most to least recommended:
+- Linux
+- Mac
+- Windows (not recommended) *
+
+\* There may be issues with running Graphbook on Windows. With limited resources, we can only focus testing and development on Linux.
+
 ## Getting Started
 ### Install from PyPI
 1. `pip install graphbook`

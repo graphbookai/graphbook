@@ -3,7 +3,7 @@ from aiohttp import web
 from graphbook.processing.web_processor import WebInstanceProcessor
 from graphbook.viewer import ViewManager
 from graphbook.exports import NodeHub
-import os, sys
+import os
 import os.path as osp
 import re
 import signal
@@ -68,6 +68,7 @@ class GraphServer:
     ):
         self.host = host
         self.port = port
+        self.close_event = close_event
         self.config = get_config_options(config_path)
         self.web_dir = web_dir
         if self.web_dir is None:
@@ -283,7 +284,7 @@ class GraphServer:
                             "path": rel_path,
                             "path_from_cwd": osp.join(root_path, rel_path),
                             "dirname": osp.dirname(rel_path),
-                            "from_root": abs_root_path,
+                            "from_root": osp.basename(abs_root_path),
                             "access_time": int(stat.st_atime),
                             "modification_time": int(stat.st_mtime),
                             "change_time": int(stat.st_ctime),
@@ -401,12 +402,12 @@ class GraphServer:
             return web.FileResponse(plugin_location)
 
     async def _async_start(self):
-        runner = web.AppRunner(self.app, shutdown_timeout=0.5)
+        runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
-        loop = asyncio.get_running_loop()
         await site.start()
-        await loop.run_in_executor(None, self.view_manager.start)
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, self.view_manager.start)
         await asyncio.Event().wait()
 
     def start(self):
@@ -500,11 +501,11 @@ def start_web(args):
         close_event.set()
         view_manager_queue.cancel_join_thread()
         cmd_queue.cancel_join_thread()
-        for p in processes:
-            p.join()
         cmd_queue.close()
         view_manager_queue.close()
-        sys.exit(0)
+        for p in processes:
+            p.join()
+        raise KeyboardInterrupt()
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)

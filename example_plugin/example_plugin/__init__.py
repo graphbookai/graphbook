@@ -1,5 +1,5 @@
-from .steps import SimpleStep
-from .steps import SimpleResource
+from .nodes import SimpleStep
+from .nodes import SimpleResource
 import os.path as osp
 from graphbook.plugins import export, web
 
