@@ -73,7 +73,6 @@ def load_loop(
     close_event: mp.Event,
     fail_event: mp.Event,
 ):
-    internal_queue = queue.Queue()
     try:
         while True:
             if close_event.is_set():

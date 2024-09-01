@@ -68,6 +68,7 @@ class GraphServer:
     ):
         self.host = host
         self.port = port
+        self.close_event = close_event
         self.config = get_config_options(config_path)
         self.web_dir = web_dir
         if self.web_dir is None:
@@ -401,13 +402,13 @@ class GraphServer:
             return web.FileResponse(plugin_location)
 
     async def _async_start(self):
-        runner = web.AppRunner(self.app, shutdown_timeout=0.5)
+        runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, self.view_manager.start)
+        # loop.run_until_complete(site.start())
         await site.start()
-        await loop.run_in_executor(None, self.view_manager.start)
-        await asyncio.Event().wait()
 
     def start(self):
         self.app.router.add_routes(self.routes)
@@ -500,11 +501,11 @@ def start_web(args):
         close_event.set()
         view_manager_queue.cancel_join_thread()
         cmd_queue.cancel_join_thread()
-        for p in processes:
-            p.join()
         cmd_queue.close()
         view_manager_queue.close()
-        sys.exit(0)
+        for p in processes:
+            p.join()
+        raise KeyboardInterrupt()
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
