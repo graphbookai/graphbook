@@ -284,7 +284,7 @@ class GraphServer:
                             "path": rel_path,
                             "path_from_cwd": osp.join(root_path, rel_path),
                             "dirname": osp.dirname(rel_path),
-                            "from_root": abs_root_path,
+                            "from_root": osp.basename(abs_root_path),
                             "access_time": int(stat.st_atime),
                             "modification_time": int(stat.st_mtime),
                             "change_time": int(stat.st_ctime),
@@ -406,9 +406,9 @@ class GraphServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, self.view_manager.start)
-        # loop.run_until_complete(site.start())
         await site.start()
+        loop.run_in_executor(None, self.view_manager.start)
+        await asyncio.Event().wait()
 
     def start(self):
         self.app.router.add_routes(self.routes)

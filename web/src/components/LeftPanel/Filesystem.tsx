@@ -45,8 +45,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
 
-        const splitPath = files.children[0].from_root.split('/');
-        const filesRoot = splitPath[splitPath.length - 1];
+        const filesRoot = files.from_root.toUpperCase();
         const setKey = (data) => {
             data.forEach((item) => {
                 item.key = item.path;
@@ -283,7 +282,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             <Flex vertical className="filesystem">
                 <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
                 <Flex justify="space-between">
-                    <Text>{filesRoot}/</Text>
+                    <Text ellipsis style={{fontWeight: 'bold'}}>{filesRoot}</Text>
                     <div style={{ display: 'flex', flexDirection: 'row' }}>
                         <Button className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
                         <Button className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />
