@@ -56,6 +56,7 @@ class MediaServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
+        await asyncio.Event().wait()
 
     def start(self):
         self.app.router.add_routes(self.routes)

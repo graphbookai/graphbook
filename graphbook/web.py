@@ -3,7 +3,7 @@ from aiohttp import web
 from graphbook.processing.web_processor import WebInstanceProcessor
 from graphbook.viewer import ViewManager
 from graphbook.exports import NodeHub
-import os, sys
+import os
 import os.path as osp
 import re
 import signal
@@ -405,8 +405,8 @@ class GraphServer:
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
-        loop = asyncio.get_running_loop()
         await site.start()
+        loop = asyncio.get_running_loop()
         loop.run_in_executor(None, self.view_manager.start)
         await asyncio.Event().wait()
 
