@@ -12,6 +12,7 @@ import multiprocessing.connection as mpc
 import asyncio
 import base64
 import hashlib
+import yaml
 from graphbook.state import UIState
 from graphbook.media import create_media_server
 from graphbook.utils import poll_conn_for, ProcessorStateRequest
@@ -42,6 +43,13 @@ async def cors_middleware(request: web.Request, handler):
     return response
 
 
+def get_config_options(config_path: str) -> dict:
+    if not osp.exists(config_path):
+        return {}
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
 class GraphServer:
     def __init__(
         self,
@@ -53,13 +61,18 @@ class GraphServer:
         root_path: str,
         custom_nodes_path: str,
         docs_path: str,
+        config_path: str,
         web_dir: str | None = None,
         host="0.0.0.0",
         port=8005,
     ):
         self.host = host
         self.port = port
-        self.node_hub = NodeHub(custom_nodes_path)
+        self.config = get_config_options(config_path)
+        self.web_dir = web_dir
+        if self.web_dir is None:
+            self.web_dir = osp.join(osp.dirname(__file__), "web")
+        self.node_hub = NodeHub(custom_nodes_path, self.config.get("plugins"))
         self.ui_state = None
         routes = web.RouteTableDef()
         self.routes = routes
@@ -72,9 +85,6 @@ class GraphServer:
             client_max_size=max_upload_size, middlewares=middlewares
         )
 
-        self.web_dir = web_dir
-        if self.web_dir is None:
-            self.web_dir = osp.join(osp.dirname(__file__), "web")
         if not osp.isdir(self.web_dir):
             print(
                 f"Couldn't find web files inside {self.web_dir}. Will not serve web files."
@@ -377,6 +387,19 @@ class GraphServer:
                     {"reason": "/%s: No such file or directory." % path}, status=404
                 )
 
+        @routes.get("/plugins")
+        async def get_plugins(request):
+            plugin_list = list(self.node_hub.get_web_plugins().keys())
+            return web.json_response(plugin_list)
+
+        @routes.get("/plugins/{name}")
+        async def get_plugin(request):
+            plugin_name = request.match_info.get("name")
+            plugin_location = self.node_hub.get_web_plugins().get(plugin_name)
+            if plugin_location is None:
+                return web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
+            return web.FileResponse(plugin_location)
+
     async def _async_start(self):
         runner = web.AppRunner(self.app, shutdown_timeout=0.5)
         await runner.setup()
@@ -388,12 +411,14 @@ class GraphServer:
 
     def start(self):
         self.app.router.add_routes(self.routes)
+
+        web_plugins = self.node_hub.get_web_plugins()
+        print("Loaded web plugins:")
+        print(web_plugins)
+
         if self.web_dir is not None:
-            self.app.router.add_routes(
-                [
-                    web.static("/", self.web_dir),
-                ]
-            )
+            self.app.router.add_routes([web.static("/", self.web_dir)])
+
         print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()
         try:
@@ -424,6 +449,7 @@ def create_graph_server(
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
         docs_path=docs_path,
+        config_path=args.config,
         web_dir=web_dir,
         host=args.host,
         port=args.port,

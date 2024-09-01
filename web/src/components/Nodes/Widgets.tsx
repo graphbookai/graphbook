@@ -1,16 +1,29 @@
 import { Typography, theme } from 'antd';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { basicDark } from '@uiw/codemirror-theme-basic';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
 import { Graph } from '../../graph';
 import { useReactFlow } from 'reactflow';
+import { usePluginWidgets } from '../../hooks/Plugins';
 const { Text } = Typography;
 const { useToken } = theme;
 
 export function Widget({ id, type, name, value }) {
     const { setNodes } = useReactFlow();
+    const pluginWidgets = usePluginWidgets();
+    const widgets = useMemo(() => {
+        const lookup = {
+            number: NumberWidget,
+            string: StringWidget,
+            function: FunctionWidget,
+        };
+        pluginWidgets.forEach((widget) => {
+            lookup[widget.type] = widget.children;
+        });
+        return lookup;
+    }, [pluginWidgets]);
 
     const onChange = useCallback((value) => {
         setNodes(nodes => {
@@ -18,16 +31,11 @@ export function Widget({ id, type, name, value }) {
         });
     }, []);
 
-    switch (type) {
-        case 'number':
-            return <NumberWidget name={name} def={value} onChange={onChange}/>
-        case 'string':
-            return <StringWidget name={name} def={value} onChange={onChange}/>
-        case 'function':
-            return <FunctionWidget name={name} def={value} onChange={onChange}/>
-        default:
-            return <StringWidget name={name} def={value} onChange={onChange}/>
+    if(widgets[type]) {
+        return widgets[type]({ name, def: value, onChange });
     }
+
+    return <StringWidget name={name} def={value} onChange={onChange}/>
 }
 
 export function NumberWidget({ name, def, onChange }) {

@@ -1,4 +1,4 @@
-import { uniqueIdFrom, getHandle } from './utils';
+import { uniqueIdFrom, getHandle, Parameter } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
@@ -537,6 +537,123 @@ export const Graph = {
         }
 
         return false;
+    }
+}
 
+// Modern DAG Model for abstraction of internal nodes and edges.
+// Goal is to make this become completely used and replace other APIs in the future.
+type DAGHandle = {
+    type: "step" | "resource",
+    connectedTo: DAGNode[],
+    inner?: boolean,
+};
+
+class DAGNode {
+    ref: Node;
+    inputs: Map<string, DAGHandle>;
+    outputs: Map<string, DAGHandle>;
+    constructor(node: Node) {
+        this.inputs = new Map();
+        this.outputs = new Map();
+        this.ref = node;
+        this.setup();
+    }
+
+    private setup() {
+        const { inputs, parameters, outputs } = this.ref.data;
+        if (this.ref.type === 'step') {
+            inputs.forEach(() => {
+                this.inputs["in"] = { type: "step", connectedTo: [] };
+            });
+            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
+                this.inputs[key] = { type: "resource", connectedTo: [] };
+            });
+            outputs.forEach(key => {
+                this.outputs[key] = { type: "step", connectedTo: [] };
+            });
+        } else if (this.ref.type === 'resource') {
+            Object.entries<Parameter>(parameters).forEach(([key, param]) => {
+                this.inputs[key] = { type: 'resource', connectedTo: [] };
+            });
+            this.outputs['resource'] = { type: 'resource', connectedTo: [] };
+        } else if (this.ref.type === 'group') {
+            const { inputs, outputs } = this.ref.data.exports;
+            inputs.forEach(input => {
+                this.inputs[input.id] = { type: input.type, inner: false, connectedTo: [] };
+                this.outputs[`${input.id}_inner`] = { type: input.type, inner: true, connectedTo: [] };
+            });
+            outputs.forEach(output => {
+                this.outputs[output.id] = { type: output.type, inner: false, connectedTo: [] };
+                this.inputs[`${output.id}_inner`] = { type: output.type, inner: true, connectedTo: [] };
+            });
+
+        } else if (this.ref.type === 'export') {
+            if (this.ref.data.exportType === 'input') {
+                this.outputs["in"] = { type: this.ref.data.isResource ? 'resource' : 'step', connectedTo: [] };
+            } else {
+                this.inputs["out"] = { type: this.ref.data.isResource ? 'resource' : 'step', connectedTo: [] };
+            }
+        } else if (this.ref.type === 'subflow') {
+            const { nodes } = this.ref.data.properties;
+            if (nodes) {
+                let numInputs = 0;
+                let numOutputs = 0;
+
+                for (const node of nodes) {
+                    if (node.type === 'export') {
+                        if (node.data?.exportType === 'input') {
+                            this.inputs[String(numInputs++)] = { type: node.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                        } else {
+                            this.outputs[String(numOutputs++)] = { type: node.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public getOutput(id): DAGHandle {
+        return this.outputs[id];
+    }
+
+    public getInput(id): DAGHandle {
+        return this.inputs[id];
+    }
+
+    public refresh(): void {
+        this.inputs.clear();
+        this.outputs.clear();
+        this.setup();
+    }
+
+    public connectInput(pin: string, node: DAGNode): void {
+        this.inputs[pin].connectedTo.push(node);
+    }
+
+    public connectOutput(pin: string, node: DAGNode): void {
+        this.outputs[pin].connectedTo.push(node);
+    }
+}
+
+export class DAG {
+    private nodes: Map<string, DAGNode>;
+
+    constructor() {
+        this.nodes = new Map();
+    }
+
+    public update(nodes, edges) {
+        this.nodes.clear();
+        nodes.forEach(node => {
+            this.nodes.set(node.id, new DAGNode(node));
+        });
+        edges.forEach(edge => {
+            const sourceNode = this.nodes.get(edge.source);
+            const targetNode = this.nodes.get(edge.target);
+            if (sourceNode && targetNode) {
+                sourceNode.connectOutput(edge.sourceHandle, targetNode);
+                targetNode.connectInput(edge.targetHandle, sourceNode);
+            }
+        });
     }
 }

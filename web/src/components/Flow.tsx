@@ -178,7 +178,7 @@ export default function Flow({ filename }) {
         if (graphStore.current) {
             graphStore.current.update(nodes, edges);
         }
-    }, [nodes, edges, API, filename]);
+    }, [nodes, edges, graphStore]);
 
     const handleMouseClickComp = useCallback((event) => {
         setIsAddNodeActive(false);
