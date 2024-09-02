@@ -2,6 +2,7 @@ from typing import List, Dict
 import queue
 from torch import Tensor
 import torch.multiprocessing as mp
+import multiprocess as pymp
 import traceback
 from .utils import MP_WORKER_TIMEOUT
 import time
@@ -115,8 +116,9 @@ class Dataloader:
         self.consumer_load_queues: Dict[int, mp.Queue] = {}
         self.consumer_dump_queues: Dict[int, mp.Queue] = {}
         manager = self.context.Manager()
-        self.consumer_load_fn = manager.dict()
-        self.consumer_dump_fn = manager.dict()
+        self.consumer_load_fn = manager.dict({})
+        self.consumer_dump_fn = manager.dict({})
+        print("Created dicts")
         self.load_consumer_size = 0
         self.dump_consumer_size = 0
         self._start_workers()
@@ -350,4 +352,20 @@ workers = None
 def setup_global_dl(dataloader: Dataloader):
     global workers
     workers = dataloader
+    
+def put_load(items: list, note_id: int, consumer_id: int):
+    global workers
+    workers.put_load(items, note_id, consumer_id)
+    
+def get_load(consumer_id):
+    global workers
+    return workers.get_load(consumer_id)
+
+def put_dump(data: any, note_id: int, consumer_id: int):
+    global workers
+    workers.put_dump(data, note_id, consumer_id)
+    
+def get_dump(consumer_id):
+    global workers
+    return workers.get_dump(consumer_id)
 # TODO: turn this into a function that allows to be called from the step

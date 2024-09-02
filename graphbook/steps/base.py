@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple
-from graphbook.dataloading import workers
-from graphbook.viewer import loggers
+import graphbook.dataloading as dataloader
+from graphbook.logger import log
 from ..utils import transform_function_string
 from graphbook import Note
 import warnings
@@ -62,7 +62,7 @@ class Step:
             message (str): message to log
             type (str): type of log
         """
-        loggers.log(id(self), message)
+        log(message, type)
 
     def on_start(self):
         """
@@ -281,14 +281,14 @@ class BatchStep(AsyncStep):
         if hasattr(self, "load_fn"):
             if len(items) > 0:
                 note_id = id(note)
-                workers.put_load(items, note_id, id(self))
+                dataloader.put_load(items, note_id, id(self))
 
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
 
     def get_batch(self, flush: bool = False) -> StepData:
         items, notes, completed = self.accumulated_items
-        next_in = workers.get_load(id(self))
+        next_in = dataloader.get_load(id(self))
         if next_in is not None:
             item, note_id = next_in
             # get original note (not pickled one)
@@ -335,7 +335,7 @@ class BatchStep(AsyncStep):
             output (any): The output data to
         """
         self.dumped_item_holders.handle_note(note)
-        workers.put_dump(output, id(note), id(self))
+        dataloader.put_dump(output, id(note), id(self))
 
     @staticmethod
     def dump_fn(**args):
@@ -382,7 +382,7 @@ class BatchStep(AsyncStep):
             self.dumped_item_holders.set_completed(note)
 
     def handle_completed_notes(self):
-        note_id = workers.get_dump(id(self))
+        note_id = dataloader.get_dump(id(self))
         if note_id is not None:
             self.dumped_item_holders.handle_item(note_id)
         output = {}

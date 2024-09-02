@@ -8,6 +8,7 @@ import multiprocessing.connection as mpc
 from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
 from graphbook.state import GraphState, StepState, NodeInstantiationError
 from graphbook.viewer import ViewManagerInterface
+from graphbook.logger import log
 import traceback
 import asyncio
 import time
@@ -61,7 +62,8 @@ class WebInstanceProcessor:
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            step.log(str(e), "error")
+            # step.log(str(e), "error")
+            log(str(e), "error", id(step))
             traceback.print_exc()
             return None
 

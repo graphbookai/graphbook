@@ -4,8 +4,9 @@ from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
 from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
-from graphbook.viewer import Logger, ViewManagerInterface, setup_global_loggers, LoggerPool
+from graphbook.viewer import ViewManagerInterface
 from graphbook.plugins import setup_plugins
+from graphbook.logger import setup_logging_nodes
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import graphbook.exports as exports
@@ -279,7 +280,7 @@ class GraphState:
             step_id: get_parent_iterator(step_id) for step_id in steps
         }
         
-        setup_global_loggers(LoggerPool(self.view_manager_queue, logger_param_pool))
+        setup_logging_nodes(logger_param_pool, self.view_manager_queue)
 
         # Update current graph and resource state
         self._dict_graph = graph
