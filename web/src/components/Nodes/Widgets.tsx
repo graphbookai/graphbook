@@ -1,4 +1,4 @@
-import { Typography, theme } from 'antd';
+import { Switch, Typography, theme, Flex } from 'antd';
 import React, { useCallback, useState, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
@@ -17,6 +17,7 @@ export function Widget({ id, type, name, value }) {
         const lookup = {
             number: NumberWidget,
             string: StringWidget,
+            boolean: BooleanWidget,
             function: FunctionWidget,
         };
         pluginWidgets.forEach((widget) => {
@@ -26,6 +27,7 @@ export function Widget({ id, type, name, value }) {
     }, [pluginWidgets]);
 
     const onChange = useCallback((value) => {
+        console.log("onChange", id, name, value);
         setNodes(nodes => {
             return Graph.editParamData(id, name, {value}, nodes);
         });
@@ -48,6 +50,15 @@ export function StringWidget({ name, def, onChange }) {
     return (
         <Input onChange={onChange} label={name} defaultValue={def}/>
     );
+}
+
+export function BooleanWidget({ name, def, onChange }) {
+    return (
+        <Flex justify='space-between' align="center" className="input-container">
+            <Text>{name}</Text>
+            <Switch size="small" defaultChecked={def} onChange={onChange}/>
+        </Flex>
+    )
 }
 
 export function FunctionWidget({ name, def, onChange }) {

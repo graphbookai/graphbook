@@ -21,13 +21,13 @@ default_exported_resources = {
 
 
 class NodeHub:
-    def __init__(self, path, plugin_modules):
+    def __init__(self, path):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources
         self.custom_node_importer = custom_nodes.CustomNodeImporter(
             path, self.handle_step, self.handle_resource
         )
-        self.plugins = setup_plugins(plugin_modules)
+        self.plugins = setup_plugins()
         steps, resources, web = self.plugins
         for plugin in steps:
             self.exported_steps.update(steps[plugin])

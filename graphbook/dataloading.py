@@ -1,9 +1,11 @@
 from typing import List, Dict
 import queue
+from torch import Tensor
 import torch.multiprocessing as mp
 import traceback
 from .utils import MP_WORKER_TIMEOUT
 import time
+import dill
 
 MAX_RESULT_QUEUE_SIZE = 32
 
@@ -302,14 +304,16 @@ class Dataloader:
         if consumer_id not in self.consumer_load_queues:
             return None
         try:
-            result, record_id = self.consumer_load_queues[consumer_id].get(False)
+            result, note_id = self.consumer_load_queues[consumer_id].get(False)
             self.load_consumer_size -= 1
             if result is None:
-                return None, record_id
-            t, index = result
-            t_clone = t.clone()
-            del t
-            return (t_clone, index), record_id
+                return None, note_id
+            out, index = result
+            if isinstance(out, Tensor): # https://pytorch.org/docs/stable/multiprocessing.html#sharing-cuda-tensors
+                out_clone = out.clone()
+                del out
+                out = out_clone
+            return (out, index), note_id
         except queue.Empty:
             return None
 
@@ -340,3 +344,10 @@ class Dataloader:
 
     def clear_failed(self):
         self._fail_event.clear()
+
+
+workers = None
+def setup_global_dl(dataloader: Dataloader):
+    global workers
+    workers = dataloader
+# TODO: turn this into a function that allows to be called from the step

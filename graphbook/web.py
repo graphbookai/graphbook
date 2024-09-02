@@ -43,13 +43,6 @@ async def cors_middleware(request: web.Request, handler):
     return response
 
 
-def get_config_options(config_path: str) -> dict:
-    if not osp.exists(config_path):
-        return {}
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-
-
 class GraphServer:
     def __init__(
         self,
@@ -61,7 +54,6 @@ class GraphServer:
         root_path: str,
         custom_nodes_path: str,
         docs_path: str,
-        config_path: str,
         web_dir: str | None = None,
         host="0.0.0.0",
         port=8005,
@@ -69,11 +61,10 @@ class GraphServer:
         self.host = host
         self.port = port
         self.close_event = close_event
-        self.config = get_config_options(config_path)
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = osp.join(osp.dirname(__file__), "web")
-        self.node_hub = NodeHub(custom_nodes_path, self.config.get("plugins"))
+        self.node_hub = NodeHub(custom_nodes_path)
         self.ui_state = None
         routes = web.RouteTableDef()
         self.routes = routes
@@ -450,7 +441,6 @@ def create_graph_server(
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
         docs_path=docs_path,
-        config_path=args.config,
         web_dir=web_dir,
         host=args.host,
         port=args.port,

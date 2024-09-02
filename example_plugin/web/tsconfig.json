@@ -1,5 +1,5 @@
 {
-    "include": ["src/**/*", "node_modules/react/*"],
+    "include": ["src/**/*"],
     "compilerOptions": {
         "strictNullChecks": false,
         "outDir": "dist",

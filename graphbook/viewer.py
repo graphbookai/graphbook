@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from aiohttp.web import WebSocketResponse
 import uuid
 import asyncio
@@ -368,6 +368,13 @@ class ViewManagerInterface:
         self.view_manager_queue.put({"cmd": "handle_clear", "node_id": node_id})
 
 
+class LoggerPool:
+    def __init__(self, view_manager_queue: mp.Queue, nodes: Dict[int, Tuple[str, str]]):
+        self.loggers = {key: Logger(view_manager_queue, node_id, node_name) for key, (node_id, node_name) in nodes.items()}
+        
+    def log(self, node_id: str, msg: str):
+        self.loggers[node_id].log(msg)
+
 class Logger:
     def __init__(self, view_manager_queue: mp.Queue, node_id: str, node_name: str):
         self.view_manager = ViewManagerInterface(view_manager_queue)
@@ -380,3 +387,8 @@ class Logger:
 
     def log_exception(self, e: Exception):
         self.view_manager.handle_log(self.node_id, "[ERR] " + str(e), type="error")
+        
+loggers = None
+def setup_global_loggers(logger_pool: LoggerPool):
+    global loggers
+    loggers = logger_pool

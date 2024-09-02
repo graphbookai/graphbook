@@ -1,5 +1,5 @@
 from graphbook.steps import Step, SourceStep, AsyncStep, StepOutput
-from graphbook.dataloading import Dataloader
+from graphbook.dataloading import Dataloader, setup_global_dl
 from ..note import Note
 from typing import List, Dict
 import queue
@@ -38,6 +38,7 @@ class WebInstanceProcessor:
         self.num_workers = num_workers
         self.steps = {}
         self.dataloader = Dataloader(self.num_workers)
+        setup_global_dl(self.dataloader)
         self.state_client = ProcessorStateClient(
             server_request_conn, close_event, self.graph_state, self.dataloader
         )
@@ -60,7 +61,7 @@ class WebInstanceProcessor:
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            step.logger.log_exception(e)
+            step.log(str(e), "error")
             traceback.print_exc()
             return None
 
@@ -178,8 +179,6 @@ class WebInstanceProcessor:
             c.dump_fn if hasattr(c, "dump_fn") else None for c in dataloader_consumers
         ]
         self.dataloader.setup(consumer_ids, consumer_load_fn, consumer_dump_fn)
-        for c in dataloader_consumers:
-            c.set_dataloader(self.dataloader)
 
     def try_update_state(self, local_graph: dict) -> bool:
         try:

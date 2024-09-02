@@ -4,7 +4,8 @@ from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
 from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
-from graphbook.viewer import Logger, ViewManagerInterface
+from graphbook.viewer import Logger, ViewManagerInterface, setup_global_loggers, LoggerPool
+from graphbook.plugins import setup_plugins
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import graphbook.exports as exports
@@ -50,12 +51,18 @@ class UIState:
 
 
 class NodeCatalog:
-    def __init__(self, custom_nodes_path: str):
+    def __init__(self, custom_nodes_path: str, plugin_modules: List[str] = []):
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.nodes = {"steps": {}, "resources": {}}
         self.nodes["steps"] |= exports.default_exported_steps
         self.nodes["resources"] |= exports.default_exported_resources
+        self.plugins = setup_plugins()
+        steps, resources, _ = self.plugins
+        for plugin in steps:
+            self.nodes["steps"] |= steps[plugin]
+        for plugin in resources:
+            self.nodes["steps"] |=  resources[plugin]
         self.hashes = {}
 
     def _hash(self, data: str) -> str:
@@ -199,6 +206,7 @@ class GraphState:
         steps = {}
         queues = {}
         step_states = {}
+        logger_param_pool = {}
         for step_id, step_data in graph.items():
             step_name = step_data["name"]
             step_input = {}
@@ -221,15 +229,16 @@ class GraphState:
                 queues[step_id] = self._queues[step_id]
                 step_states[step_id] = self._step_states[step_id]
                 step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
+                logger_param_pool[id(self._steps[step_id])] = (step_id, step_name)
             else:
-                logger = Logger(self.view_manager_queue, step_id, step_name)
                 try:
-                    step = step_hub[step_name](**step_input, id=step_id, logger=logger)
+                    step = step_hub[step_name](**step_input, id=step_id)
                 except Exception as e:
                     raise NodeInstantiationError(str(e), step_id, step_name)
                 steps[step_id] = step
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()
+                logger_param_pool[id(step)] = (step_id, step_name)
 
                 previous_obj = self._steps.get(step_id)
                 if previous_obj is not None:
@@ -269,6 +278,8 @@ class GraphState:
         self._parent_iterators = {
             step_id: get_parent_iterator(step_id) for step_id in steps
         }
+        
+        setup_global_loggers(LoggerPool(self.view_manager_queue, logger_param_pool))
 
         # Update current graph and resource state
         self._dict_graph = graph

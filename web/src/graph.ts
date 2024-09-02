@@ -2,6 +2,7 @@ import { uniqueIdFrom, getHandle, Parameter } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
+import { isWidgetType } from './components/Nodes/Widgets';
 
 export const SERIALIZATION_ERROR = {
     INPUT_RESOLVE: 'Failed to resolve step input',
@@ -87,7 +88,7 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
             }
         });
         Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
-            if (!param) {
+            if (param === null || param === undefined) {
                 errors.push({
                     type: SERIALIZATION_ERROR.PARAM_RESOLVE,
                     node: id,
@@ -95,8 +96,9 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
                 })
                 return;
             }
-            if (!(typeof param === 'string' || typeof param === 'number')) {
-                if (!resources[param.node]) {
+            if (!isWidgetType(typeof param)) {
+                const p = param as InputRef;
+                if (resources[p.node] === null || resources[p.node] === undefined) {
                     errors.push({
                         type: SERIALIZATION_ERROR.PARAM_RESOLVE,
                         node: id,
@@ -108,7 +110,7 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
     });
     Object.entries<SerializedResource>(resources).forEach(([id, node]) => {
         Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
-            if (!(typeof param === 'string' || typeof param === 'number')) {
+            if (!(typeof param === 'string' || typeof param === 'number' || typeof param === 'boolean')) {
                 if (!resources[param.node]) {
                     errors.push({
                         type: SERIALIZATION_ERROR.PARAM_RESOLVE,

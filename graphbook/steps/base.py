@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple
-from graphbook.dataloading import Dataloader
+from graphbook.dataloading import workers
+from graphbook.viewer import loggers
 from ..utils import transform_function_string
 from graphbook import Note
 import warnings
@@ -22,9 +23,8 @@ class Step:
         items (Dict[str, List[anys]]): An optional dictionary of anys
     """
 
-    def __init__(self, id, logger, item_key=None):
+    def __init__(self, id, item_key=None):
         self.id = id
-        self.logger = logger
         self.item_key = item_key
         self.parents = []
         self.children = {"out": []}
@@ -53,6 +53,16 @@ class Step:
                 if self in child.parents:
                     child.parents.remove(self)
         self.children = {}
+        
+    def log(self, message: str, type: str = "info"):
+        """
+        Logs a message
+
+        Args:
+            message (str): message to log
+            type (str): type of log
+        """
+        loggers.log(id(self), message)
 
     def on_start(self):
         """
@@ -162,8 +172,8 @@ class SourceStep(Step):
     A Step that accepts no input but produce outputs.
     """
 
-    def __init__(self, id, logger):
-        super().__init__(id, logger)
+    def __init__(self, id):
+        super().__init__(id)
 
     def load(self) -> StepOutput:
         """
@@ -186,14 +196,10 @@ class AsyncStep(Step):
     processing the rest of the graph.
     """
 
-    def __init__(self, id, logger, item_key=None):
-        super().__init__(id, logger, item_key)
+    def __init__(self, id, item_key=None):
+        super().__init__(id, item_key)
         self._is_processing = True
         self._in_queue = []
-        self.dl = None
-
-    def set_dataloader(self, dataloader: Dataloader):
-        self.dl = dataloader
 
     def in_q(self, note: Note | None):
         if note is None:
@@ -251,8 +257,8 @@ class BatchStep(AsyncStep):
     A Step used for batch processing. This step will consume Pytorch tensor batches loaded by the worker pool by default.
     """
 
-    def __init__(self, id, logger, batch_size, item_key):
-        super().__init__(id, logger, item_key=item_key)
+    def __init__(self, id, batch_size, item_key):
+        super().__init__(id, item_key=item_key)
         self.batch_size = int(batch_size)
         self.loaded_notes = {}
         self.num_loaded_notes = {}
@@ -275,14 +281,14 @@ class BatchStep(AsyncStep):
         if hasattr(self, "load_fn"):
             if len(items) > 0:
                 note_id = id(note)
-                self.dl.put_load(items, note_id, id(self))
+                workers.put_load(items, note_id, id(self))
 
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
 
     def get_batch(self, flush: bool = False) -> StepData:
         items, notes, completed = self.accumulated_items
-        next_in = self.dl.get_load(id(self))
+        next_in = workers.get_load(id(self))
         if next_in is not None:
             item, note_id = next_in
             # get original note (not pickled one)
@@ -329,19 +335,21 @@ class BatchStep(AsyncStep):
             output (any): The output data to
         """
         self.dumped_item_holders.handle_note(note)
-        self.dl.put_dump(output, id(note), id(self))
+        workers.put_dump(output, id(note), id(self))
 
     @staticmethod
-    def dump_fn(data: any, output_dir: str, uid: int):
+    def dump_fn(**args):
         """
         The dump function to be overriden by BatchSteps that write outputs to disk.
-
-        Args:
-            data (any): The data to be dumped
-            output_dir (str): The output directory
-            uid (int): A unique identifier for the data
         """
-        raise NotImplementedError("dump_fn must be implemented for BatchStep when dumping outputs")
+        raise NotImplementedError("dump_fn must be implemented for BatchStep when using the worker pool to dump outputs")
+    
+    @staticmethod
+    def load_fn(**args):
+        """
+        The load function to be overriden by BatchSteps that will forward preprocessed data to `on_item_batch`.
+        """
+        raise NotImplementedError("load_fn must be implemented for BatchStep when using the worker pool to load inputs")
 
     def handle_batch(self, batch: StepData):
         items, notes, completed = batch
@@ -360,7 +368,7 @@ class BatchStep(AsyncStep):
                 )
                 for k, v in data_dump.items():
                     if len(notes) != len(v):
-                        self.logger.log(
+                        self.log(
                             f"Unexpected number of notes ({len(notes)}) does not match returned outputs ({len(v)}). Will not write outputs!"
                         )
                     else:
@@ -374,7 +382,7 @@ class BatchStep(AsyncStep):
             self.dumped_item_holders.set_completed(note)
 
     def handle_completed_notes(self):
-        note_id = self.dl.get_dump(id(self))
+        note_id = workers.get_dump(id(self))
         if note_id is not None:
             self.dumped_item_holders.handle_item(note_id)
         output = {}
@@ -451,8 +459,8 @@ class Split(Step):
     Outputs = ["A", "B"]
     Category = "Filtering"
 
-    def __init__(self, id, logger, split_fn):
-        super().__init__(id, logger)
+    def __init__(self, id, split_fn):
+        super().__init__(id)
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
 
@@ -482,8 +490,8 @@ class SplitNotesByItems(Step):
     Outputs = ["A", "B"]
     Category = "Filtering"
 
-    def __init__(self, id, logger, split_items_fn, item_key):
-        super().__init__(id, logger, item_key=item_key)
+    def __init__(self, id, split_items_fn, item_key):
+        super().__init__(id, item_key=item_key)
         self.split_fn = split_items_fn
         self.fn = transform_function_string(split_items_fn)
 
@@ -517,9 +525,9 @@ class SplitItemField(Step):
     Outputs = ["out"]
 
     def __init__(
-        self, id, logger, split_fn, item_key, a_key, b_key, should_delete_original=True
+        self, id, split_fn, item_key, a_key, b_key, should_delete_original=True
     ):
-        super().__init__(id, logger, item_key=item_key)
+        super().__init__(id, item_key=item_key)
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
         self.a_key = a_key
