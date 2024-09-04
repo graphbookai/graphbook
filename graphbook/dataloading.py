@@ -1,5 +1,6 @@
 from typing import List, Dict
 import queue
+import torch
 from torch import Tensor
 import torch.multiprocessing as mp
 import multiprocess as pymp
@@ -8,6 +9,7 @@ from .utils import MP_WORKER_TIMEOUT
 import time
 import dill
 
+torch.set_num_threads(1)
 MAX_RESULT_QUEUE_SIZE = 32
 
 
@@ -109,21 +111,19 @@ def dump_loop(
         pass
 
 
+# TODO: Explore using a single PyTorch dataloader for all consumers and use the consumer_id to multiplex the data
+
+
 class Dataloader:
     def __init__(self, num_workers: int = 1):
         self.num_workers = num_workers
-        self.context = mp.get_context("spawn")
+        self.context = mp
         self.consumer_load_queues: Dict[int, mp.Queue] = {}
         self.consumer_dump_queues: Dict[int, mp.Queue] = {}
-        manager = self.context.Manager()
-        self.consumer_load_fn = manager.dict({})
-        self.consumer_dump_fn = manager.dict({})
-        print("Created dicts")
+        self.consumer_load_fn = {}
+        self.consumer_dump_fn = {}
         self.load_consumer_size = 0
         self.dump_consumer_size = 0
-        self._start_workers()
-
-    def _start_workers(self):
         self._workers: List[mp.Process] = []
         self._loaders: List[mp.Process] = []
         self._dumpers: List[mp.Process] = []
@@ -134,20 +134,29 @@ class Dataloader:
         self._dump_result_queues: List[mp.Queue] = []
         self._close_event: mp.Event = self.context.Event()
         self._fail_event: mp.Event = self.context.Event()
-        for i in range(self.num_workers):
+        for _ in range(self.num_workers):
             load_queue = self.context.Queue()
             dump_queue = self.context.Queue()
             load_result_queue = self.context.Queue(maxsize=MAX_RESULT_QUEUE_SIZE)
             dump_result_queue = self.context.Queue(maxsize=MAX_RESULT_QUEUE_SIZE)
             load_queue.cancel_join_thread()
             dump_queue.cancel_join_thread()
+            self._load_queues.append(load_queue)
+            self._dump_queues.append(dump_queue)
+            self._load_result_queues.append(load_result_queue)
+            self._dump_result_queues.append(dump_result_queue)
+
+    def _start_workers(self):
+        self._fail_event.clear()
+        self._close_event.clear()
+        for i in range(self.num_workers):
             load_process = self.context.Process(
                 target=load_loop,
                 args=(
                     i,
                     self.num_workers,
-                    load_queue,
-                    load_result_queue,
+                    self._load_queues[i],
+                    self._load_result_queues[i],
                     self.consumer_load_fn,
                     self._close_event,
                     self._fail_event,
@@ -160,8 +169,8 @@ class Dataloader:
                 args=(
                     i,
                     self.num_workers,
-                    dump_queue,
-                    dump_result_queue,
+                    self._dump_queues[i],
+                    self._dump_result_queues[i],
                     self.consumer_dump_fn,
                     self._close_event,
                     self._fail_event,
@@ -169,10 +178,6 @@ class Dataloader:
             )
             dump_process.daemon = True
             dump_process.start()
-            self._load_queues.append(load_queue)
-            self._dump_queues.append(dump_queue)
-            self._load_result_queues.append(load_result_queue)
-            self._dump_result_queues.append(dump_result_queue)
             self._loaders.append(load_process)
             self._dumpers.append(dump_process)
             self._workers.extend([load_process, dump_process])
@@ -207,9 +212,11 @@ class Dataloader:
             del self.consumer_load_fn[id]
             del self.consumer_dump_fn[id]
 
-        self._fail_event.clear()
+        if len(self._workers) > 0:
+            self._stop_workers()
+        self._start_workers()
 
-    def shutdown(self):
+    def _stop_workers(self):
         if len(self._workers) == 0:
             return
         try:
@@ -221,6 +228,13 @@ class Dataloader:
             for w in self._workers:
                 if w.is_alive():
                     w.terminate()
+            self._workers = []
+            self._dumpers = []
+            self._loaders = []
+
+    def shutdown(self):
+        self._stop_workers()
+        self._close_queues()
 
     def _handle_queues(self):
         def handle_queue(queues, consumer_queues, consumer_size):
@@ -311,7 +325,8 @@ class Dataloader:
             if result is None:
                 return None, note_id
             out, index = result
-            if isinstance(out, Tensor): # https://pytorch.org/docs/stable/multiprocessing.html#sharing-cuda-tensors
+            # https://pytorch.org/docs/stable/multiprocessing.html#sharing-cuda-tensors
+            if isinstance(out, Tensor):
                 out_clone = out.clone()
                 del out
                 out = out_clone
@@ -349,23 +364,31 @@ class Dataloader:
 
 
 workers = None
+
+
 def setup_global_dl(dataloader: Dataloader):
     global workers
     workers = dataloader
-    
+
+
 def put_load(items: list, note_id: int, consumer_id: int):
     global workers
     workers.put_load(items, note_id, consumer_id)
-    
+
+
 def get_load(consumer_id):
     global workers
     return workers.get_load(consumer_id)
 
+
 def put_dump(data: any, note_id: int, consumer_id: int):
     global workers
     workers.put_dump(data, note_id, consumer_id)
-    
+
+
 def get_dump(consumer_id):
     global workers
     return workers.get_dump(consumer_id)
+
+
 # TODO: turn this into a function that allows to be called from the step

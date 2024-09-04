@@ -489,12 +489,9 @@ def start_web(args):
 
     def signal_handler(*_):
         close_event.set()
-        view_manager_queue.cancel_join_thread()
-        cmd_queue.cancel_join_thread()
-        cmd_queue.close()
-        view_manager_queue.close()
         for p in processes:
-            p.join()
+            p.terminate()
+
         raise KeyboardInterrupt()
 
     signal.signal(signal.SIGTERM, signal_handler)

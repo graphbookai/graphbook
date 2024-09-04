@@ -78,6 +78,8 @@ class WebInstanceProcessor:
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
         for step in steps:
+            if self.close_event.is_set() or self.pause_event.is_set():
+                return False
             output = {}
             if isinstance(step, SourceStep):
                 if not self.graph_state.get_state(step, StepState.EXECUTED):
@@ -119,6 +121,7 @@ class WebInstanceProcessor:
             is_active
             and not step_executed
             and not self.pause_event.is_set()
+            and not self.close_event.is_set()
             and not self.dataloader.is_failed()
         ):
             is_active = self.handle_steps(steps)
@@ -138,6 +141,7 @@ class WebInstanceProcessor:
             while (
                 dag_is_active
                 and not self.pause_event.is_set()
+                and not self.close_event.is_set()
                 and not self.dataloader.is_failed()
             ):
                 dag_is_active = self.handle_steps(steps)
