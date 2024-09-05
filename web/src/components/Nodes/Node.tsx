@@ -173,14 +173,14 @@ export function WorkflowStep({ id, data, selected }) {
 function Monitor({ quickViewData, logsData }) {
     return (
         <Collapse className='quickview' defaultActiveKey={[]} bordered={false} expandIcon={({ header }) => {
-            switch (header) {
-                case "Quickview":
-                    return <SearchOutlined />;
-                case "Logs":
-                    return <FileTextOutlined />;
-                default:
-                    return null;
+            const h = header as String;
+            if (h.startsWith('Quickview')) {
+                return <SearchOutlined />;
             }
+            if (h.startsWith('Logs')) {
+                return <FileTextOutlined />;
+            }
+            return null;
         }}>
             <Panel header="Quickview" key="1">
                 {
@@ -189,7 +189,7 @@ function Monitor({ quickViewData, logsData }) {
                         '(No outputs yet)'
                 }
             </Panel>
-            <Panel header={"Logs" + (logsData.length > 0 ? `(${logsData.length})` : '')} key="2">
+            <Panel header={"Logs" + (logsData.length > 0 ? ` (${logsData.length})` : '')} key="2">
                 {
                     logsData.length == 0 ?
                         <p className='content'>(No logs yet) </p> :
@@ -200,7 +200,7 @@ function Monitor({ quickViewData, logsData }) {
                                         const { msg } = log;
                                         return (
                                             <p style={{ fontFamily: 'monospace' }} key={i}>
-                                                {msg}
+                                                {JSON.stringify(msg)}
                                             </p>
                                         );
                                     })

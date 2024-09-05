@@ -2,8 +2,7 @@ import multiprocessing as mp
 from typing import Dict, Tuple
 import inspect
 from graphbook.viewer import ViewManagerInterface
-from torch import Tensor
-from numpy import ndarray
+from graphbook.utils import transform_json_log
 
 logging_nodes = None
 view_manager = None
@@ -15,22 +14,6 @@ def setup_logging_nodes(nodes: Dict[int, Tuple[str, str]], queue: mp.Queue):
     global view_manager
     logging_nodes = nodes
     view_manager = ViewManagerInterface(queue)
-
-
-def transform_json_log(log: any):
-    if isinstance(log, dict):
-        return {k: transform_json_log(v) for k, v in log.items()}
-    if isinstance(log, list):
-        return [transform_json_log(v) for v in log]
-    if isinstance(log, tuple):
-        return [transform_json_log(v) for v in log]
-    if isinstance(log, set):
-        return [transform_json_log(v) for v in log]
-    if isinstance(log, Tensor):
-        return f"tensor of shape {log.shape}"
-    if isinstance(log, ndarray):
-        return f"ndarray of shape {log.shape}"
-    return log
 
 
 def log(msg: str, type: str = "info", caller_id: int | None = None):

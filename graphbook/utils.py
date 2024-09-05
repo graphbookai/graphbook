@@ -7,8 +7,10 @@ import subprocess
 import os
 import platform
 import multiprocessing.connection as mpc
-import pickle
-from asyncio.streams import StreamWriter
+from torch import Tensor
+from numpy import ndarray
+from PIL import Image
+from .note import Note
 
 
 MP_WORKER_TIMEOUT = 5.0
@@ -137,3 +139,29 @@ def get_gpu_util():
             }
         )
     return GPUs
+
+
+def convert_dict_values_to_list(d: dict):
+    for k, v in d.items():
+        if not isinstance(v, list):
+            d[k] = [v]
+
+
+def transform_json_log(log: any) -> any:
+    if isinstance(log, Note):
+        return transform_json_log(log.items)
+    if isinstance(log, dict):
+        return {k: transform_json_log(v) for k, v in log.items()}
+    if isinstance(log, list):
+        return [transform_json_log(v) for v in log]
+    if isinstance(log, tuple):
+        return [transform_json_log(v) for v in log]
+    if isinstance(log, set):
+        return [transform_json_log(v) for v in log]
+    if isinstance(log, Tensor):
+        return f"(Tensor of shape {log.shape})"
+    if isinstance(log, ndarray):
+        return f"(ndarray of shape {log.shape})"
+    if isinstance(log, Image.Image):
+        return f"(PIL Image of size {log.size})"
+    return log

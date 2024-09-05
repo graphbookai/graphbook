@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Generator
+from types import GeneratorType
 import graphbook.dataloading as dataloader
 from graphbook.logger import log
-from ..utils import transform_function_string
+from ..utils import transform_function_string, convert_dict_values_to_list
 from graphbook import Note
 import warnings
 
@@ -16,11 +17,6 @@ StepOutput = Dict[str, List[Note]]
 class Step:
     """
     The base class of an executable workflow node. All other workflow nodes should inherit from Step.
-
-    Args:
-        key (str): An optional key or id
-        annotation (Dict[str, str]): An optional dictionary of annotations for this item
-        items (Dict[str, List[anys]]): An optional dictionary of anys
     """
 
     def __init__(self, id, item_key=None):
@@ -103,6 +99,12 @@ class Step:
             note (Note): The Note that the any belongs to
         """
         pass
+    
+    def on_clear(self):
+        """
+        Executes when a request to clear the step is made. This is useful for steps that have internal states that need to be reset.
+        """
+        pass
 
     def forward_note(self, note: Note) -> str | StepOutput:
         """
@@ -183,11 +185,33 @@ class SourceStep(Step):
 
     def __call__(self):
         result = self.load()
-        for k, v in result.items():
-            if not isinstance(v, list):
-                result[k] = [v]
+        convert_dict_values_to_list(result)
         return result
 
+
+class GeneratorSourceStep(SourceStep):
+    """
+    A Step that accepts no input but produce outputs.
+    """
+
+    def __init__(self, id):
+        super().__init__(id)
+        self.generator = self.load()
+
+    def load(self) -> Generator[StepOutput, None, None]:
+        """
+        Function to load data and convert into Notes. Must output a generator that yields a dictionary of Notes.
+        """
+        raise NotImplementedError("load function must be implemented for SourceStep")
+    
+    def on_clear(self):
+        self.generator = self.load()
+
+    def __call__(self):
+        try:
+            return next(self.generator)
+        except StopIteration:
+            return {}
 
 class AsyncStep(Step):
     """

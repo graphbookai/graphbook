@@ -25,7 +25,7 @@ class PluginManager {
                 try {
                     const url = `http://${API.getHost()}/plugins/${p}`;
                     console.log("Loading plugin from", url);
-                    const module = await import(url);
+                    const module = await import(/* @vite-ignore */url);
                     this.plugins.set(p, module);
                     console.log(`Plugin ${p} loaded successfully`);
                 } catch (error) {

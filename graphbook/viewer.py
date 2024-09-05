@@ -8,7 +8,7 @@ import multiprocessing.connection as mpc
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for, transform_json_log
 
 
 class Viewer:
@@ -49,7 +49,8 @@ class DataViewer(Viewer):
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        new_entries = {k: v[0].items for k, v in output.items() if len(v) > 0}
+        # output = transform_json_log(output)
+        new_entries = {k: v[0] for k, v in output.items() if len(v) > 0}
         self.last_outputs[node_id] |= new_entries
 
     def set_filename(self, filename: str):

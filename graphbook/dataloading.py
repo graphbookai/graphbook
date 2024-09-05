@@ -3,11 +3,9 @@ import queue
 import torch
 from torch import Tensor
 import torch.multiprocessing as mp
-import multiprocess as pymp
 import traceback
 from .utils import MP_WORKER_TIMEOUT
 import time
-import dill
 
 torch.set_num_threads(1)
 MAX_RESULT_QUEUE_SIZE = 32
@@ -59,7 +57,7 @@ def do_dump(
         return True
     to_return = (note_id, consumer_id)
     try:
-        dump_fn(data)
+        dump_fn(*data)
     except Exception as e:
         print(f"Worker Error on dumping {data}:")
         traceback.print_exc()
@@ -221,7 +219,6 @@ class Dataloader:
             return
         try:
             self._close_event.set()
-            self._close_queues()
             for w in self._workers:
                 w.join(timeout=MP_WORKER_TIMEOUT)
         finally:
@@ -240,11 +237,15 @@ class Dataloader:
         def handle_queue(queues, consumer_queues, consumer_size):
             for q in queues:
                 while not q.empty() and consumer_size < MAX_RESULT_QUEUE_SIZE:
-                    result, consumer_id = q.get(False)
-                    if consumer_id not in consumer_queues:
+                    try:
+                        result, consumer_id = q.get(False)
+                        if consumer_id not in consumer_queues:
+                            continue
+                        consumer_queues[consumer_id].put(result, block=False)
+                        consumer_size += 1
+                    except FileNotFoundError:
+                        # Throwaway input items for consumers that are no longer existent
                         continue
-                    consumer_queues[consumer_id].put(result, block=False)
-                    consumer_size += 1
             return consumer_size
 
         self.load_consumer_size = handle_queue(

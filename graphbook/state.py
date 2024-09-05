@@ -342,6 +342,7 @@ class GraphState:
             for step_id in self._step_states:
                 self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
                 self._step_states[step_id] = set()
+                self._steps[step_id].on_clear()
             self._dict_resources.clear()
             self._resource_values.clear()
         else:
@@ -352,6 +353,7 @@ class GraphState:
                     self._queues[p.id].reset_consumer_idx(id(step))
                 self._step_states[node_id] = set()
                 self.view_manager.handle_queue_size(node_id, self._queues[node_id].dict_sizes())
+                self._steps[node_id].on_clear()
             elif node_id in self._dict_resources:
                 del self._resource_values[node_id], self._dict_resources[node_id]
 

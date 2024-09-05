@@ -1,11 +1,11 @@
-from graphbook.steps import Step, SourceStep, AsyncStep, StepOutput
+from graphbook.steps import Step, SourceStep, GeneratorSourceStep, AsyncStep, StepOutput
 from graphbook.dataloading import Dataloader, setup_global_dl
 from ..note import Note
 from typing import List, Dict
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
-from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
+from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
 from graphbook.state import GraphState, StepState, NodeInstantiationError
 from graphbook.viewer import ViewManagerInterface
 from graphbook.logger import log
@@ -43,7 +43,6 @@ class WebInstanceProcessor:
         self.state_client = ProcessorStateClient(
             server_request_conn, close_event, self.graph_state, self.dataloader
         )
-        self.remote_subgraphs: Dict[str, NetworkClient] = {}
         self.is_running = False
         self.filename = None
 
@@ -62,16 +61,15 @@ class WebInstanceProcessor:
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            # step.log(str(e), "error")
             log(str(e), "error", id(step))
             traceback.print_exc()
             return None
 
-        if outputs is not None:
+        if outputs:
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
-            self.view_manager.handle_outputs(step.id, outputs)
+            self.view_manager.handle_outputs(step.id, transform_json_log(outputs))
         self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
 
@@ -81,7 +79,9 @@ class WebInstanceProcessor:
             if self.close_event.is_set() or self.pause_event.is_set():
                 return False
             output = {}
-            if isinstance(step, SourceStep):
+            if isinstance(step, GeneratorSourceStep):
+                output = self.exec_step(step)
+            elif isinstance(step, SourceStep):
                 if not self.graph_state.get_state(step, StepState.EXECUTED):
                     output = self.exec_step(step)
             else:
@@ -262,6 +262,7 @@ class ProcessorStateClient:
                         output = self.graph_state.get_output_note(
                             step_id, pin_id, index
                         )
+                        output = transform_json_log(output)
                 elif req["cmd"] == ProcessorStateRequest.GET_WORKER_QUEUE_SIZES:
                     output = self.dataloader.get_all_sizes()
                 elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:
