@@ -313,7 +313,12 @@ class BatchStep(AsyncStep):
                 dataloader.put_load(items, note_id, id(self))
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
-
+                
+    def on_clear(self):
+        self.loaded_notes = {}
+        self.num_loaded_notes = {}
+        self.dumped_item_holders = NoteItemHolders()
+        self.accumulated_items = [[], [], []]
 
     def get_batch(self, flush: bool = False) -> StepData:
         items, notes, completed = self.accumulated_items

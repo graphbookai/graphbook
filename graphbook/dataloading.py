@@ -291,8 +291,13 @@ class Dataloader:
         # So we instead close the queue because workers should be killed by now and will need to be restarted
         # with new queues from the graph.
         def clear_queue(q: mp.Queue):
-            q._close()
-            del q
+            while not q.empty():
+                try:
+                    q.get(False)
+                except queue.Empty:
+                    return
+                except FileNotFoundError:
+                    pass
 
         if consumer_id is None:
             for q in self._load_queues.values():
