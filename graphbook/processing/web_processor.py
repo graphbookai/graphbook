@@ -76,8 +76,8 @@ class WebInstanceProcessor:
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
         for step in steps:
-            if self.close_event.is_set() or self.pause_event.is_set():
-                return False
+            # if self.close_event.is_set() or self.pause_event.is_set():
+            #     return False
             output = {}
             if isinstance(step, GeneratorSourceStep):
                 output = self.exec_step(step)
@@ -149,6 +149,7 @@ class WebInstanceProcessor:
             self.view_manager.handle_end()
             for step in steps:
                 step.on_end()
+            self.dataloader.stop()
 
     def step(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
@@ -163,6 +164,7 @@ class WebInstanceProcessor:
             self.view_manager.handle_end()
             for step in steps:
                 step.on_end()
+            self.dataloader.stop()
 
     def set_is_running(self, is_running: bool = True, filename: str | None = None):
         self.is_running = is_running
@@ -184,7 +186,7 @@ class WebInstanceProcessor:
         consumer_dump_fn = [
             c.dump_fn if hasattr(c, "dump_fn") else None for c in dataloader_consumers
         ]
-        self.dataloader.setup(consumer_ids, consumer_load_fn, consumer_dump_fn)
+        self.dataloader.start(consumer_ids, consumer_load_fn, consumer_dump_fn)
 
     def try_update_state(self, local_graph: dict) -> bool:
         try:
@@ -224,8 +226,8 @@ class WebInstanceProcessor:
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
-                    if work.get("node_id") is None:
-                        self.dataloader.clear()
+                    step = self.graph_state.get_step(work.get("node_id"))
+                    self.dataloader.clear(id(step) if step != None else None)
             except KeyboardInterrupt:
                 self.cleanup()
                 break

@@ -12,10 +12,9 @@ import multiprocessing.connection as mpc
 import asyncio
 import base64
 import hashlib
-import yaml
 from graphbook.state import UIState
 from graphbook.media import create_media_server
-from graphbook.utils import poll_conn_for, ProcessorStateRequest
+from graphbook.utils import poll_conn_for, ProcessorStateRequest, MP_WORKER_TIMEOUT
 
 try:
     import magic
@@ -489,8 +488,13 @@ def start_web(args):
 
     def signal_handler(*_):
         close_event.set()
-        for p in processes:
-            p.terminate()
+        try:
+            for p in processes:
+                p.join(timeout=MP_WORKER_TIMEOUT)
+        finally:
+            for p in processes:
+                if p.is_alive():
+                    p.terminate()
 
         raise KeyboardInterrupt()
 

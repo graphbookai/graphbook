@@ -386,6 +386,12 @@ class GraphState:
         note = internal_list[index]
         entry.update(data=note.items)
         return entry
+    
+    def get_step(self, step_id: str):
+        return self._steps.get(step_id)
+    
+    def get_resource(self, resource_id: str):
+        return self._dict_resources.get(resource_id)
 
 
 class MultiConsumerStateDictionaryQueue:

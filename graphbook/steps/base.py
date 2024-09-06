@@ -49,7 +49,7 @@ class Step:
                 if self in child.parents:
                     child.parents.remove(self)
         self.children = {}
-        
+
     def log(self, message: str, type: str = "info"):
         """
         Logs a message
@@ -99,7 +99,7 @@ class Step:
             note (Note): The Note that the any belongs to
         """
         pass
-    
+
     def on_clear(self):
         """
         Executes when a request to clear the step is made. This is useful for steps that have internal states that need to be reset.
@@ -203,7 +203,7 @@ class GeneratorSourceStep(SourceStep):
         Function to load data and convert into Notes. Must output a generator that yields a dictionary of Notes.
         """
         raise NotImplementedError("load function must be implemented for SourceStep")
-    
+
     def on_clear(self):
         self.generator = self.load()
 
@@ -212,6 +212,7 @@ class GeneratorSourceStep(SourceStep):
             return next(self.generator)
         except StopIteration:
             return {}
+
 
 class AsyncStep(Step):
     """
@@ -288,6 +289,8 @@ class BatchStep(AsyncStep):
         self.num_loaded_notes = {}
         self.dumped_item_holders = NoteItemHolders()
         self.accumulated_items = [[], [], []]
+        self._c = 0
+        self._d = {}
 
     def in_q(self, note: Note | None):
         """
@@ -299,16 +302,18 @@ class BatchStep(AsyncStep):
         if note is None:
             return
         self.on_before_items(note)
-        items = note.items[self.item_key]
+        items = note[self.item_key]
+        if items is None:
+            raise ValueError(f"Item key {self.item_key} not found in Note.")
 
         # Load
         if hasattr(self, "load_fn"):
             if len(items) > 0:
                 note_id = id(note)
                 dataloader.put_load(items, note_id, id(self))
-
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
+
 
     def get_batch(self, flush: bool = False) -> StepData:
         items, notes, completed = self.accumulated_items
@@ -366,28 +371,32 @@ class BatchStep(AsyncStep):
         """
         The dump function to be overriden by BatchSteps that write outputs to disk.
         """
-        raise NotImplementedError("dump_fn must be implemented for BatchStep when using the worker pool to dump outputs")
-    
+        raise NotImplementedError(
+            "dump_fn must be implemented for BatchStep when using the worker pool to dump outputs"
+        )
+
     @staticmethod
     def load_fn(**args):
         """
         The load function to be overriden by BatchSteps that will forward preprocessed data to `on_item_batch`.
         """
-        raise NotImplementedError("load_fn must be implemented for BatchStep when using the worker pool to load inputs")
+        raise NotImplementedError(
+            "load_fn must be implemented for BatchStep when using the worker pool to load inputs"
+        )
 
     def handle_batch(self, batch: StepData):
         items, notes, completed = batch
-        tensors = [item[0] for item in items]
+        outputs = [item[0] for item in items]
         indexes = [item[1] for item in items]
         items = [
             note.items[self.item_key][index] for note, index in zip(notes, indexes)
         ]
-        data_dump = self.on_item_batch(tensors, items, notes)
+        data_dump = self.on_item_batch(outputs, items, notes)
         if data_dump is not None:
             if isinstance(data_dump, dict):
                 # Dict returns are deprecated
                 warnings.warn(
-                    "dict returns for on_item_batch are deprecated and will be removed in a future version. Please return a list of your parameters to provide to dump_fn instead.",
+                    "dict returns for on_item_batch are deprecated and will be removed in a future version. Please return a list of your parameter tuples to provide to dump_fn instead.",
                     DeprecationWarning,
                 )
                 for k, v in data_dump.items():
@@ -418,19 +427,19 @@ class BatchStep(AsyncStep):
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, tensors, items, notes) -> List[any] | None:
+    def on_item_batch(self, outputs, items, notes) -> List[Tuple[any]] | None:
         """
-        Called when B items are loaded into PyTorch tensors and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
+        Called when B items are loaded and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
         Args:
-            tensors (List[torch.Tensor]): The list of loaded tensors of length B
-            items (List[any]): The list of anys of length B associated with tensors. This list has the same order as tensors does
+            outputs (List[any]): The list of loaded outputs of length B
+            items (List[any]): The list of anys of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
-            notes (List[Note]): The list of Notes of length B associated with tensors. This list has the same order as tensor does
+            notes (List[Note]): The list of Notes of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
-                
+
         Returns:
-            List[any] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
+            List[Tuple[any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
         """
         pass
 
