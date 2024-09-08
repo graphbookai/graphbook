@@ -56,16 +56,17 @@ export const uniqueIdFrom = (obj: any): string => {
 }
 
 
-export const filesystemDragBegin = (value: string, e: DragEvent) => {
+export const bindDragData = (value: object, e: DragEvent) => {
     if (e) {
-        e.dataTransfer?.setData('application/json', JSON.stringify({ value }));
+        console.log("binding", value);
+        e.dataTransfer?.setData('application/json', JSON.stringify(value));
     }
 }
 
-export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, API: ServerAPI, e: DragEvent) => {
+export const evalDragData = async (reactFlowInstance: ReactFlowInstance, API: ServerAPI, e: DragEvent) => {
     if (e?.dataTransfer) {
         const data = JSON.parse(e.dataTransfer.getData("application/json"));
-        if (!data.value) {
+        if (!data.node && !data.text && !data.subflow) {
             return;
         }
 
@@ -73,18 +74,33 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
         const dropPosition = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
         const nodes = getNodes();
         const id = uniqueIdFrom(nodes);
-        let nodeData: any = {
-            name: 'Text',
-            parameters: { val: { type: "string", value: data.value } }
-        };
-        let type = 'resource';
-        if (data.value.endsWith('.json')) {
-            const res = await API.getFile(data.value);
+
+        if (data.node) {
+            const node = {
+                id,
+                position: dropPosition,
+                ...data.node
+            };
+            setNodes(Graph.addNode(node, nodes));
+        } else if (data.text) {
+            const id = uniqueIdFrom(nodes);
+            const node = {
+                id,
+                position: dropPosition,
+                type: 'resource',
+                data: {
+                    name: 'Text',
+                    label: 'Text',
+                    parameters: { val: { type: "string", value: data.text } }
+                }
+            }
+            setNodes(Graph.addNode(node, nodes));
+        } else if (data.subflow) {
+            const res = await API.getFile(data.subflow);
             if (res?.content) {
                 const jsonData = JSON.parse(res.content);
                 if (jsonData?.type === 'workflow') {
-                    type = 'subflow';
-                    const name = data.value.split('/').pop().slice(0, -5);
+                    const name = data.subflow.split('/').pop().slice(0, -5);
                     const stepOutputs = {};
                     let currentStepOutputId = 0;
                     for (const n of jsonData.nodes) {
@@ -92,28 +108,25 @@ export const filesystemDragEnd = async (reactFlowInstance: ReactFlowInstance, AP
                             stepOutputs[currentStepOutputId++] = resolveSubflowOutputs(n, jsonData.nodes, jsonData.edges, id);
                         }
                     }
-                    nodeData = {
-                        name,
-                        label: name,
-                        filename: data.value,
-                        properties: {
-                            nodes: jsonData.nodes,
-                            edges: jsonData.edges,
-                            stepOutputs
-
+                    const node = {
+                        id,
+                        position: dropPosition,
+                        type: 'subflow',
+                        data: {
+                            name,
+                            label: name,
+                            filename: data.subflow,
+                            properties: {
+                                nodes: jsonData.nodes,
+                                edges: jsonData.edges,
+                                stepOutputs
+                            }
                         }
                     }
+                    setNodes(Graph.addNode(node, nodes));
                 }
             }
         }
-
-        const node = {
-            id,
-            position: dropPosition,
-            type,
-            data: nodeData
-        }
-        setNodes(Graph.addNode(node, nodes));
     }
 };
 
