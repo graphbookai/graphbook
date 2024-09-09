@@ -1,3 +1,4 @@
+from typing import Literal
 import multiprocessing as mp
 from typing import Dict, Tuple
 import inspect
@@ -8,6 +9,8 @@ logging_nodes = None
 view_manager = None
 text_log_types = ["info", "error"]
 
+LogType = Literal["info", "error", "json", "image"]
+
 
 def setup_logging_nodes(nodes: Dict[int, Tuple[str, str]], queue: mp.Queue):
     global logging_nodes
@@ -16,7 +19,7 @@ def setup_logging_nodes(nodes: Dict[int, Tuple[str, str]], queue: mp.Queue):
     view_manager = ViewManagerInterface(queue)
 
 
-def log(msg: str, type: str = "info", caller_id: int | None = None):
+def log(msg: any, type: LogType = "info", caller_id: int | None = None):
     if caller_id is None:
         prev_frame = inspect.currentframe().f_back
         caller = prev_frame.f_locals.get("self")
@@ -34,6 +37,10 @@ def log(msg: str, type: str = "info", caller_id: int | None = None):
         if type == "error":
             msg = f"[ERR] {msg}"
         print(f"[{node_id} {node_name}] {msg}")
-    else:
+    elif type == "json":
         msg = transform_json_log(msg)
+    elif type == "image":
+        pass # TODO
+    else:
+        raise ValueError(f"Unknown log type {type}")
     view_manager.handle_log(node_id, msg, type)

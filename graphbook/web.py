@@ -110,14 +110,21 @@ class GraphServer:
         @routes.get("/")
         async def get(request: web.Request) -> web.Response:
             if self.web_dir is None:
-                return web.HTTPNotFound(body="No web files found.")
+                raise web.HTTPNotFound(body="No web files found.")
             return web.FileResponse(osp.join(self.web_dir, "index.html"))
 
         @routes.get("/media")
         async def get_media(request: web.Request) -> web.Response:
-            path = request.query.get("path", "")
+            path = request.query.get("path", None)
+            if path is None:
+                step_id = request.query.get("step_id", None)
+                pin_id = request.query.get("pin_id", None)
+                index = request.query.get("index", None)
+                if step_id is None or pin_id is None or index is None:
+                    raise web.HTTPBadRequest()
+            
             if not osp.exists(path):
-                return web.HTTPNotFound()
+                raise web.HTTPNotFound()
             return web.FileResponse(path)
 
         @routes.post("/run")
@@ -388,7 +395,7 @@ class GraphServer:
             plugin_name = request.match_info.get("name")
             plugin_location = self.node_hub.get_web_plugins().get(plugin_name)
             if plugin_location is None:
-                return web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
+                raise web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
             return web.FileResponse(plugin_location)
 
     async def _async_start(self):
