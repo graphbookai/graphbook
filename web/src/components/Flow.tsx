@@ -80,8 +80,6 @@ export default function Flow({ filename }) {
                 setEdges([]);
 
                 const [nodes, edges] = await onLoadGraph(filename, API);
-                console.log(nodes);
-
                 setNodes(nodes);
                 setEdges(edges);
                 graphStore.current = new GraphStore(filename, API!, nodes, edges);

@@ -37,3 +37,30 @@ class FunctionResource(Resource):
 
     def __init__(self, val):
         super().__init__(val)
+        
+
+class ListResource(Resource):
+    """
+    The list resource. This will parse the incoming value as a list of string.
+    """
+    Parameters = {"val": {"type": "list[string]"}}
+    Category = "Util"
+
+    def __init__(self, val):
+        super().__init__(val)
+        
+    def value(self):
+        return list(self.val)
+
+class DictResource(Resource):
+    """
+    The list resource. This will parse the incoming value as a list of string.
+    """
+    Parameters = {"val": {"type": "dict"}}
+    Category = "Util"
+
+    def __init__(self, val):
+        super().__init__(val)
+        
+    def value(self):
+        return dict(self.val)

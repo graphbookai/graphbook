@@ -1,7 +1,7 @@
 from graphbook.steps import Step, SourceStep, GeneratorSourceStep, AsyncStep, StepOutput
 from graphbook.dataloading import Dataloader, setup_global_dl
 from ..note import Note
-from typing import List, Dict
+from typing import List
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
@@ -13,6 +13,10 @@ import traceback
 import asyncio
 import time
 import copy
+
+step_output_err_res = (
+    "Step output must be a dictionary, and dict values must be lists of notes."
+)
 
 
 class WebInstanceProcessor:
@@ -66,6 +70,28 @@ class WebInstanceProcessor:
             return None
 
         if outputs:
+            if not isinstance(outputs, dict):
+                log(f"{step_output_err_res} Output was not a dict.", "error", id(step))
+                return None
+
+            if not all(isinstance(v, list) for v in outputs.values()):
+                log(
+                    f"{step_output_err_res} Dict values were not all lists.",
+                    "error",
+                    id(step),
+                )
+                return None
+
+            if not all(
+                [all(isinstance(v, Note) for v in out) for out in outputs.values()]
+            ):
+                log(
+                    f"{step_output_err_res} List values did not all contain Notes.",
+                    "error",
+                    id(step),
+                )
+                return None
+
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
@@ -76,8 +102,6 @@ class WebInstanceProcessor:
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
         for step in steps:
-            # if self.close_event.is_set() or self.pause_event.is_set():
-            #     return False
             output = {}
             if isinstance(step, GeneratorSourceStep):
                 output = self.exec_step(step)
@@ -265,6 +289,24 @@ class ProcessorStateClient:
                             step_id, pin_id, index
                         )
                         output = transform_json_log(output)
+                if req["cmd"] == ProcessorStateRequest.GET_OUTPUT_NOTE:
+                    step_id = req.get("step_id")
+                    pin_id = req.get("pin_id")
+                    index = req.get("index")
+                    item_key = req.get("item_key")
+                    item_index = req.get("item_index")
+                    if (
+                        step_id is None
+                        or pin_id is None
+                        or index is None
+                        or item_key is None
+                        or item_index is None
+                    ):
+                        output = {}
+                    else:
+                        output = self.graph_state.get_output_image(
+                            step_id, pin_id, index, item_key, item_index
+                        )
                 elif req["cmd"] == ProcessorStateRequest.GET_WORKER_QUEUE_SIZES:
                     output = self.dataloader.get_all_sizes()
                 elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:

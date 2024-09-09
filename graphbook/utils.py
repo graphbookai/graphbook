@@ -16,7 +16,7 @@ from .note import Note
 MP_WORKER_TIMEOUT = 5.0
 ProcessorStateRequest = Enum(
     "ProcessorStateRequest",
-    ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"],
+    ["GET_OUTPUT_NOTE", "GET_OUTPUT_IMAGE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"],
 )
 
 
@@ -158,10 +158,15 @@ def transform_json_log(log: any) -> any:
         return [transform_json_log(v) for v in log]
     if isinstance(log, set):
         return [transform_json_log(v) for v in log]
+    if isinstance(log, bytes):
+        return f"(bytes of length {len(log)})"
     if isinstance(log, Tensor):
         return f"(Tensor of shape {log.shape})"
     if isinstance(log, ndarray):
         return f"(ndarray of shape {log.shape})"
     if isinstance(log, Image.Image):
         return f"(PIL Image of size {log.size})"
+    if hasattr(log, "__str__"):
+        return str(log)
+    return "(Not JSON serializable)"
     return log

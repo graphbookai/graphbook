@@ -2,9 +2,11 @@ import type { ServerAPI } from './api';
 import { useAPI, useAPIMessage, useAPINodeMessage } from './hooks/API';
 import React from 'react';
 import * as ReactFlow from 'reactflow';
+import * as antd from 'antd';
 
 window['react'] = React;
 window['reactflow'] = ReactFlow;
+window['antd'] = antd;
 
 class PluginManager {
     private plugins: Map<string, any>;
@@ -15,7 +17,7 @@ class PluginManager {
 
     public async loadPlugins(API: ServerAPI) {
         const plugins = await API.getPluginList();
-        console.log("plugin list", plugins);
+        console.log("Plugin list", plugins);
         if (!plugins) {
             return;
         }

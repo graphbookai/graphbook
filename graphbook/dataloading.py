@@ -222,6 +222,8 @@ class Dataloader:
         consumer_dump_fn: List[callable],
     ):
         self._stop_workers()
+        if len(consumer_ids) == 0:
+            return
         c = {}
         for id, load_fn, dump_fn in zip(
             consumer_ids, consumer_load_fn, consumer_dump_fn

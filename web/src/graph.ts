@@ -2,7 +2,6 @@ import { uniqueIdFrom, getHandle, Parameter } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
-import { isWidgetType } from './components/Nodes/Widgets';
 
 export const SERIALIZATION_ERROR = {
     INPUT_RESOLVE: 'Failed to resolve step input',
@@ -85,39 +84,6 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
                     type: SERIALIZATION_ERROR.INPUT_RESOLVE,
                     node: id,
                 });
-            }
-        });
-        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
-            if (param === null || param === undefined) {
-                errors.push({
-                    type: SERIALIZATION_ERROR.PARAM_RESOLVE,
-                    node: id,
-                    pin: key,
-                })
-                return;
-            }
-            if (!isWidgetType(typeof param)) {
-                const p = param as InputRef;
-                if (resources[p.node] === null || resources[p.node] === undefined) {
-                    errors.push({
-                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
-                        node: id,
-                        pin: key,
-                    });
-                }
-            }
-        });
-    });
-    Object.entries<SerializedResource>(resources).forEach(([id, node]) => {
-        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
-            if (!(typeof param === 'string' || typeof param === 'number' || typeof param === 'boolean')) {
-                if (!resources[param.node]) {
-                    errors.push({
-                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
-                        node: id,
-                        pin: key,
-                    });
-                }
             }
         });
     });
@@ -209,9 +175,18 @@ export const Graph = {
                     };
                 } else if (node.type === 'step' || node.type === 'resource') {
                     const parameters = {};
-                    for (const [key, param] of Object.entries<{ node: string | null, value: string }>(node.data.parameters || {})) {
+                    for (const [key, param] of Object.entries<{ node?: string, value?: string, type?: string }>(node.data.parameters || {})) {
                         if (!param.node) {
                             parameters[key] = param.value;
+                            if (param.type && param.value) {
+                                if (param.type === 'dict') {
+                                    const d = {};
+                                    for (const [t, k, v] of param.value) {
+                                        d[k] = v;
+                                    }
+                                    parameters[key] = d;
+                                }
+                            }
                         }
                     }
                     if (node.type === 'step') {

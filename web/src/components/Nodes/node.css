@@ -102,7 +102,14 @@ textarea.code {
     margin: auto 0;
 }
 
-.workflow-node .title .ant-btn-icon {
+.workflow-node button.ant-btn {
+    width: 15px;
+    height: 15px;
+    min-width: 15px;
+    margin: auto 0;
+}
+
+.workflow-node .ant-btn-icon {
     position: absolute;
     top: 0;
     left: 0;

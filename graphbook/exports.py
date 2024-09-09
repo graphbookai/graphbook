@@ -17,6 +17,8 @@ default_exported_resources = {
     "Text": resources.Resource,
     "Number": resources.NumberResource,
     "Function": resources.FunctionResource,
+    "List": resources.ListResource,
+    "Dict": resources.DictResource,
 }
 
 

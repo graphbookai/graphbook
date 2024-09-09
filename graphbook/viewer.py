@@ -49,7 +49,6 @@ class DataViewer(Viewer):
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        # output = transform_json_log(output)
         new_entries = {k: v[0] for k, v in output.items() if len(v) > 0}
         self.last_outputs[node_id] |= new_entries
 

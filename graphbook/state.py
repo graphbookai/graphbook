@@ -1,4 +1,5 @@
 from __future__ import annotations
+from abc import ABC, abstractmethod
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
@@ -15,6 +16,9 @@ import os.path as osp
 import json
 import hashlib
 from enum import Enum
+from PIL import Image
+from numpy import ndarray
+import io
 
 
 class NodeInstantiationError(Exception):
@@ -23,6 +27,31 @@ class NodeInstantiationError(Exception):
         super().__init__(message)
         self.node_id = node_id
         self.node_name = node_name
+        
+class ImageHandler(ABC):
+    @abstractmethod
+    def get_image_data(self, image_info: any) -> bytes:
+        pass
+
+class FilePathHandler(ImageHandler):
+    def get_image_data(self, image_info: any) -> bytes:
+        with open(image_info['path'], 'rb') as f:
+            return f.read()
+
+class PILHandler(ImageHandler):
+    def get_image_data(self, image_info: any) -> bytes:
+        # Assume the PIL image is stored in memory or retrieved from a cache
+        pil_image = get_pil_image_from_cache(image_info['id'])
+        buf = io.BytesIO()
+        pil_image.save(buf, format='PNG')
+        return buf.getvalue()
+
+class NumpyHandler(ImageHandler):
+    def get_image_data(self, image_info: any) -> bytes:
+        # Assume the numpy array is stored in memory or retrieved from a cache
+        np_array = get_numpy_array_from_cache(image_info['id'])
+        pil_image = Image.fromarray(np_array)
+        return PILHandler().get_image_data({'id': image_info['id']})
 
 
 class UIState:
@@ -171,7 +200,7 @@ class GraphState:
             p = {}
             input_resources_have_changed = False
             for p_key, p_value in resource_data["parameters"].items():
-                if isinstance(p_value, dict):
+                if isinstance(p_value, dict) and "node" in p_value:
                     p_id = p_value["node"]
                     set_resource_value(p_id, graph_resources[p_id])
                     p[p_key] = resource_values[p_id]
@@ -213,7 +242,7 @@ class GraphState:
             step_input = {}
             step_input_has_changed = False
             for param_name, lookup in step_data["parameters"].items():
-                if isinstance(lookup, dict):
+                if isinstance(lookup, dict) and "node" in lookup:
                     step_input[param_name] = resource_values[lookup["node"]]
                     step_input_has_changed |= resource_has_changed[lookup["node"]]
                 else:
@@ -381,11 +410,30 @@ class GraphState:
         internal_list = step_queue._dict.get(pin_id)
         if internal_list is None:
             return entry
-        if index >= len(internal_list) or index < 0:
+        if index >= len(internal_list):
             return entry
         note = internal_list[index]
         entry.update(data=note.items)
         return entry
+    
+    def get_output_image(self, step_id: str, pin_id: str, index: int, item_key: str, item_index: int) -> bytes:
+        note = self.get_output_note(step_id, pin_id, index)["data"]
+        if note is None:
+            return None
+        item = note.get(item_key)
+        if item is None:
+            return None
+        if isinstance(item, list):
+            item = item[item_index]
+            
+        item = item.get("value")
+        if item is None:
+            return None
+        if isinstance(item, Image):
+            return item.tobytes()
+        if isinstance(item, ndarray):
+            return Image.fromarray(item).tobytes()        
+        return None
     
     def get_step(self, step_id: str):
         return self._steps.get(step_id)

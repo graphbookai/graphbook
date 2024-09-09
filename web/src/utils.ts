@@ -58,7 +58,6 @@ export const uniqueIdFrom = (obj: any): string => {
 
 export const bindDragData = (value: object, e: DragEvent) => {
     if (e) {
-        console.log("binding", value);
         e.dataTransfer?.setData('application/json', JSON.stringify(value));
     }
 }

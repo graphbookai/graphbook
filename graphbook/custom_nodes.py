@@ -18,7 +18,7 @@ from graphbook.steps import (
     SplitNotesByItems,
     SplitItemField,
 )
-from graphbook.resources import Resource, FunctionResource
+from graphbook.resources import Resource, NumberResource, FunctionResource, ListResource, DictResource
 
 BUILT_IN_STEPS = [
     Step,
@@ -30,7 +30,7 @@ BUILT_IN_STEPS = [
     SplitNotesByItems,
     SplitItemField,
 ]
-BUILT_IN_RESOURCES = [Resource, FunctionResource]
+BUILT_IN_RESOURCES = [Resource, NumberResource, FunctionResource, ListResource, DictResource]
 
 
 class CustomModuleEventHandler(FileSystemEventHandler):

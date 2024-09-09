@@ -75,6 +75,9 @@ The following operating systems are supported in order of most to least recommen
     ```
 1. Visit http://localhost:8005
 
+### Recommended Plugins
+* [Huggingface](https://github.com/graphbookai/graphbook-huggingface)
+
 Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
 
 ## Examples
