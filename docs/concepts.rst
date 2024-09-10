@@ -22,6 +22,7 @@ Step Lifecycle
 A Step goes through lifecycle methods upon processing a Note. The below methods are open for extension and are subject to change in future versions of Graphbook.
 
 #. ``__init__``: The constructor of the Step. This is where you can set up the Step and its parameters. This will not be re-called if a node's code or its parameter values have not changed.
+#. ``on_clear``: Called when the step is cleared. This is where you can delete any state that the Step has stored.
 #. ``on_start``: This is called at the start of each graph execution.
 #. ``on_before_items``: This is called before the Step processes each Note.
 #. ``on_item``: This is called for each item.

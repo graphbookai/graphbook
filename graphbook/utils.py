@@ -1,14 +1,15 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Iterable
 import importlib
 import shutil
 import subprocess
 import os
 import platform
 import multiprocessing.connection as mpc
-import pickle
-from asyncio.streams import StreamWriter
+from torch import Tensor
+from numpy import ndarray
+from PIL import Image
+from .note import Note
 
 
 MP_WORKER_TIMEOUT = 5.0
@@ -19,7 +20,7 @@ ProcessorStateRequest = Enum(
 
 
 def is_batchable(obj: any) -> bool:
-    return isinstance(obj, Iterable)
+    return isinstance(obj, list) or isinstance(obj, Tensor)
 
 
 def transform_function_string(func_str):
@@ -137,3 +138,40 @@ def get_gpu_util():
             }
         )
     return GPUs
+
+
+def convert_dict_values_to_list(d: dict):
+    for k, v in d.items():
+        if not isinstance(v, list):
+            d[k] = [v]
+
+
+def transform_json_log(log: any) -> any:
+    if isinstance(log, Note):
+        return transform_json_log(log.items)
+    if isinstance(log, dict):
+        return {k: transform_json_log(v) for k, v in log.items()}
+    if isinstance(log, list):
+        return [transform_json_log(v) for v in log]
+    if isinstance(log, tuple):
+        return [transform_json_log(v) for v in log]
+    if isinstance(log, set):
+        return [transform_json_log(v) for v in log]
+    if isinstance(log, bytes):
+        return f"(bytes of length {len(log)})"
+    if isinstance(log, Tensor):
+        return f"(Tensor of shape {log.shape})"
+    if isinstance(log, ndarray):
+        return f"(ndarray of shape {log.shape})"
+    if isinstance(log, Image.Image):
+        return f"(PIL Image of size {log.size})"
+    if (
+        isinstance(log, float)
+        or isinstance(log, int)
+        or isinstance(log, str)
+        or isinstance(log, bool)
+    ):
+        return log
+    if hasattr(log, "__str__"):
+        return str(log)
+    return "(Not JSON serializable)"

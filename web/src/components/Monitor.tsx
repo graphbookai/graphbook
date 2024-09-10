@@ -9,6 +9,7 @@ import ReactJson from "@microlink/react-json-view";
 import { getMergedLogs, getMediaPath } from "../utils";
 import { useFilename } from "../hooks/Filename";
 import { useSettings } from "../hooks/Settings";
+import type { ImageRef } from "../utils";
 import type { Node } from "reactflow";
 import type { TableProps, StatisticProps, MenuProps } from "antd";
 
@@ -369,6 +370,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
         }
         index = Math.max(0, Math.min(index, numNotes[key] - 1));
         const res = await API.getState(stepId, key, index);
+        console.log(res);
         setNotes((prev) => {
             return {
                 ...prev,
@@ -416,28 +418,32 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                         overflow: 'hidden',
                         padding: '5px',
                     };
-                    const images = {};
+                    const imageEntries = {};
                     Object.entries<any>(note.data).forEach(([key, value]) => {
                         if (Array.isArray(value)) {
                             const im = value.filter((v) => v.type === 'image');
                             if (im.length > 0) {
-                                images[key] = im.map((v) => v.value);
+                                imageEntries[key] = im;
+                            }
+                        } else {
+                            if (value.type === 'image') {
+                                imageEntries[key] = [value];
                             }
                         }
                     });
                     views[pin] = (
                         <Flex style={style} vertical>
                             {
-                                Object.entries<any>(images).map(([key, paths]) => {
+                                Object.entries<any>(imageEntries).map(([key, images]) => {
                                     return (
                                         <Flex key={key} align="center" style={{ border: `1px solid ${token.colorBorder}`, padding: '5px', borderRadius: '5px' }}>
                                             <Text ellipsis={true} style={{ flex: 1 }} >{key}</Text>
                                             <div style={{ flex: 5, flexDirection: "row", overflowX: 'scroll', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                                                 <Image.PreviewGroup>
                                                     {
-                                                        paths.map((path, i) => {
+                                                        images.map((image, i) => {
                                                             return (
-                                                                <Image height={120} key={i} src={getMediaPath(settings, path)} />
+                                                                <Image height={120} key={i} src={getMediaPath(settings, image)} />
                                                             );
                                                         })
                                                     }

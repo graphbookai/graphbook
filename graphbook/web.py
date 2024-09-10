@@ -1,8 +1,3 @@
-import aiohttp
-from aiohttp import web
-from graphbook.processing.web_processor import WebInstanceProcessor
-from graphbook.viewer import ViewManager
-from graphbook.exports import NodeHub
 import os
 import os.path as osp
 import re
@@ -12,10 +7,16 @@ import multiprocessing.connection as mpc
 import asyncio
 import base64
 import hashlib
-import yaml
+import aiohttp
+from aiohttp import web
+from graphbook.processing.web_processor import WebInstanceProcessor
+from graphbook.viewer import ViewManager
+from graphbook.exports import NodeHub
 from graphbook.state import UIState
 from graphbook.media import create_media_server
 from graphbook.utils import poll_conn_for, ProcessorStateRequest
+from graphbook.shm import SharedMemoryManager
+
 
 try:
     import magic
@@ -43,13 +44,6 @@ async def cors_middleware(request: web.Request, handler):
     return response
 
 
-def get_config_options(config_path: str) -> dict:
-    if not osp.exists(config_path):
-        return {}
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-
-
 class GraphServer:
     def __init__(
         self,
@@ -57,11 +51,11 @@ class GraphServer:
         state_conn: mpc.Connection,
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
+        img_mem_args: dict,
         close_event: mp.Event,
         root_path: str,
         custom_nodes_path: str,
         docs_path: str,
-        config_path: str,
         web_dir: str | None = None,
         host="0.0.0.0",
         port=8005,
@@ -69,15 +63,15 @@ class GraphServer:
         self.host = host
         self.port = port
         self.close_event = close_event
-        self.config = get_config_options(config_path)
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = osp.join(osp.dirname(__file__), "web")
-        self.node_hub = NodeHub(custom_nodes_path, self.config.get("plugins"))
+        self.node_hub = NodeHub(custom_nodes_path)
         self.ui_state = None
         routes = web.RouteTableDef()
         self.routes = routes
         self.view_manager = ViewManager(view_manager_queue, close_event, state_conn)
+        self.img_mem = SharedMemoryManager(**img_mem_args) if img_mem_args else None
         abs_root_path = osp.abspath(root_path)
         middlewares = [cors_middleware]
         max_upload_size = 100  # MB
@@ -94,6 +88,8 @@ class GraphServer:
 
         @routes.get("/ws")
         async def websocket_handler(request):
+            if self.close_event.is_set():
+                raise web.HTTPServiceUnavailable()
             ws = web.WebSocketResponse()
             await ws.prepare(request)
             self.ui_state = UIState(root_path, ws)
@@ -120,15 +116,26 @@ class GraphServer:
         @routes.get("/")
         async def get(request: web.Request) -> web.Response:
             if self.web_dir is None:
-                return web.HTTPNotFound(body="No web files found.")
+                raise web.HTTPNotFound(body="No web files found.")
             return web.FileResponse(osp.join(self.web_dir, "index.html"))
 
         @routes.get("/media")
         async def get_media(request: web.Request) -> web.Response:
-            path = request.query.get("path", "")
-            if not osp.exists(path):
-                return web.HTTPNotFound()
-            return web.FileResponse(path)
+            path = request.query.get("path", None)
+            shm_id = request.query.get("shm_id", None)
+
+            if path is not None:
+                if not osp.exists(path):
+                    raise web.HTTPNotFound()
+                return web.FileResponse(path)
+
+            if shm_id is not None:
+                if self.img_mem is None:
+                    raise web.HTTPNotFound()
+                img = self.img_mem.get_image(shm_id)
+                if img is None:
+                    raise web.HTTPNotFound()
+                return web.Response(body=img, content_type="image/png")
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
@@ -211,8 +218,9 @@ class GraphServer:
             res = poll_conn_for(
                 state_conn,
                 ProcessorStateRequest.GET_OUTPUT_NOTE,
-                {"step_id": step_id, "pin_id": pin_id, "index": int(index)},
+                {"step_id": step_id, "pin_id": pin_id, "index": index},
             )
+
             if (
                 res
                 and res.get("step_id") == step_id
@@ -232,6 +240,7 @@ class GraphServer:
         async def get_docs(request: web.Request):
             path = request.match_info.get("path")
             fullpath = osp.join(docs_path, path)
+
             if osp.exists(fullpath):
                 with open(fullpath, "r") as f:
                     file_contents = f.read()
@@ -273,33 +282,33 @@ class GraphServer:
                 else:
                     return fn(p)
 
+            def get_stat(path):
+                stat = os.stat(path)
+                rel_path = osp.relpath(path, abs_root_path)
+                st = {
+                    "title": osp.basename(rel_path),
+                    "path": rel_path,
+                    "path_from_cwd": osp.join(root_path, rel_path),
+                    "dirname": osp.dirname(rel_path),
+                    "from_root": osp.basename(abs_root_path),
+                    "access_time": int(stat.st_atime),
+                    "modification_time": int(stat.st_mtime),
+                    "change_time": int(stat.st_ctime),
+                }
+
+                if not osp.isdir(path):
+                    st["size"] = int(stat.st_size)
+                    if magic is not None:
+                        mime = magic.from_file(path, mime=True)
+                        if mime is None:
+                            mime = "application/octet-stream"
+                        else:
+                            mime = mime.replace(" [ [", "")
+                        st["mime"] = mime
+                return st
+
             if osp.exists(fullpath):
                 if request.query.get("stat", False):
-
-                    def get_stat(path):
-                        stat = os.stat(path)
-                        rel_path = osp.relpath(path, abs_root_path)
-                        st = {
-                            "title": osp.basename(rel_path),
-                            "path": rel_path,
-                            "path_from_cwd": osp.join(root_path, rel_path),
-                            "dirname": osp.dirname(rel_path),
-                            "from_root": osp.basename(abs_root_path),
-                            "access_time": int(stat.st_atime),
-                            "modification_time": int(stat.st_mtime),
-                            "change_time": int(stat.st_ctime),
-                        }
-                        if not osp.isdir(path):
-                            st["size"] = int(stat.st_size)
-                            if magic is not None:
-                                mime = magic.from_file(path, mime=True)
-                                if mime is None:
-                                    mime = "application/octet-stream"
-                                else:
-                                    mime = mime.replace(" [ [", "")
-                                st["mime"] = mime
-                        return st
-
                     stats = handle_fs_tree(fullpath, get_stat)
                     res = web.json_response(stats)
                     res.headers["Content-Type"] = "application/json; charset=utf-8"
@@ -398,7 +407,7 @@ class GraphServer:
             plugin_name = request.match_info.get("name")
             plugin_location = self.node_hub.get_web_plugins().get(plugin_name)
             if plugin_location is None:
-                return web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
+                raise web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
             return web.FileResponse(plugin_location)
 
     async def _async_start(self):
@@ -414,8 +423,9 @@ class GraphServer:
         self.app.router.add_routes(self.routes)
 
         web_plugins = self.node_hub.get_web_plugins()
-        print("Loaded web plugins:")
-        print(web_plugins)
+        if web_plugins:
+            print("Loaded web plugins:")
+            print(web_plugins)
 
         if self.web_dir is not None:
             self.app.router.add_routes([web.static("/", self.web_dir)])
@@ -436,6 +446,7 @@ def create_graph_server(
     processor_pause_event,
     view_manager_queue,
     close_event,
+    img_mem_args,
     root_path,
     custom_nodes_path,
     docs_path,
@@ -446,11 +457,11 @@ def create_graph_server(
         state_conn,
         processor_pause_event,
         view_manager_queue,
+        img_mem_args,
         close_event,
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
         docs_path=docs_path,
-        config_path=args.config,
         web_dir=web_dir,
         host=args.host,
         port=args.port,
@@ -462,6 +473,9 @@ def start_web(args):
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
+    img_mem = (
+        SharedMemoryManager(size=args.img_shm_size) if args.img_shm_size > 0 else None
+    )
     close_event = mp.Event()
     pause_event = mp.Event()
     workflow_dir = args.workflow_dir
@@ -483,6 +497,7 @@ def start_web(args):
                 pause_event,
                 view_manager_queue,
                 close_event,
+                img_mem.get_shared_args() if img_mem else {},
                 workflow_dir,
                 custom_nodes_path,
                 docs_path,
@@ -499,12 +514,10 @@ def start_web(args):
 
     def signal_handler(*_):
         close_event.set()
-        view_manager_queue.cancel_join_thread()
-        cmd_queue.cancel_join_thread()
-        cmd_queue.close()
-        view_manager_queue.close()
-        for p in processes:
-            p.join()
+
+        if img_mem:
+            img_mem.close()
+
         raise KeyboardInterrupt()
 
     signal.signal(signal.SIGTERM, signal_handler)
@@ -515,6 +528,7 @@ def start_web(args):
             cmd_queue,
             parent_conn,
             view_manager_queue,
+            img_mem,
             args.continue_on_failure,
             args.copy_outputs,
             custom_nodes_path,

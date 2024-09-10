@@ -6,11 +6,11 @@ class SimpleStep(steps.Step):
     Parameters = {}
     Outputs = ["out"]
     Category = "Simple"
-    def __init__(self, id, logger):
-        super().__init__(id, logger)
+    def __init__(self):
+        super().__init__()
 
     def on_item(self, item, note):
-        self.logger.log(item)
+        self.log(item)
 
 class SimpleResource(resources.Resource):
     Parameters = {}

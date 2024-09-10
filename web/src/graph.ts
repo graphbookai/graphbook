@@ -86,38 +86,6 @@ export const checkForSerializationErrors = (G, resources): SerializationError[] 
                 });
             }
         });
-        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
-            if (!param) {
-                errors.push({
-                    type: SERIALIZATION_ERROR.PARAM_RESOLVE,
-                    node: id,
-                    pin: key,
-                })
-                return;
-            }
-            if (!(typeof param === 'string' || typeof param === 'number')) {
-                if (!resources[param.node]) {
-                    errors.push({
-                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
-                        node: id,
-                        pin: key,
-                    });
-                }
-            }
-        });
-    });
-    Object.entries<SerializedResource>(resources).forEach(([id, node]) => {
-        Object.entries<ParamRef>(node.parameters).forEach(([key, param]) => {
-            if (!(typeof param === 'string' || typeof param === 'number')) {
-                if (!resources[param.node]) {
-                    errors.push({
-                        type: SERIALIZATION_ERROR.PARAM_RESOLVE,
-                        node: id,
-                        pin: key,
-                    });
-                }
-            }
-        });
     });
 
     if (errors.length > 0) {
@@ -207,9 +175,18 @@ export const Graph = {
                     };
                 } else if (node.type === 'step' || node.type === 'resource') {
                     const parameters = {};
-                    for (const [key, param] of Object.entries<{ node: string | null, value: string }>(node.data.parameters || {})) {
+                    for (const [key, param] of Object.entries<{ node?: string, value?: string, type?: string }>(node.data.parameters || {})) {
                         if (!param.node) {
                             parameters[key] = param.value;
+                            if (param.type && param.value) {
+                                if (param.type === 'dict') {
+                                    const d = {};
+                                    for (const [t, k, v] of param.value) {
+                                        d[k] = v;
+                                    }
+                                    parameters[key] = d;
+                                }
+                            }
                         }
                     }
                     if (node.type === 'step') {

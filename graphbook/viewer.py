@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from aiohttp.web import WebSocketResponse
 import uuid
 import asyncio
@@ -8,7 +8,7 @@ import multiprocessing.connection as mpc
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for, transform_json_log
 
 
 class Viewer:
@@ -49,7 +49,7 @@ class DataViewer(Viewer):
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        new_entries = {k: v[0].items for k, v in output.items() if len(v) > 0}
+        new_entries = {k: v[0] for k, v in output.items() if len(v) > 0}
         self.last_outputs[node_id] |= new_entries
 
     def set_filename(self, filename: str):
@@ -240,12 +240,10 @@ class ViewManager:
         client = Client(ws, self.viewers)
         self.clients[sid] = client
         client.start()
-        print(f"Added new client {sid}")
         return sid
 
     async def remove_client(self, sid: str):
         if sid in self.clients:
-            print(f"Removing client {sid}")
             await self.clients[sid].close()
             del self.clients[sid]
 
@@ -366,17 +364,3 @@ class ViewManagerInterface:
 
     def handle_clear(self, node_id: str | None):
         self.view_manager_queue.put({"cmd": "handle_clear", "node_id": node_id})
-
-
-class Logger:
-    def __init__(self, view_manager_queue: mp.Queue, node_id: str, node_name: str):
-        self.view_manager = ViewManagerInterface(view_manager_queue)
-        self.node_id = node_id
-        self.node_name = node_name
-
-    def log(self, msg: str):
-        print(f"[{self.node_id} {self.node_name}] {msg}")
-        self.view_manager.handle_log(self.node_id, msg)
-
-    def log_exception(self, e: Exception):
-        self.view_manager.handle_log(self.node_id, "[ERR] " + str(e), type="error")

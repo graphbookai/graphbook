@@ -2,7 +2,7 @@ import { Flex, Input, Tree, Button, Typography, Menu, theme } from "antd";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
-import { filesystemDragBegin } from "../../utils";
+import { bindDragData } from "../../utils";
 import { ActiveOverlay } from "../ActiveOverlay";
 import DefaultWorkflow from "../../DefaultWorkflow.json";
 import type { TreeProps } from 'antd';
@@ -253,8 +253,11 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     }, [contextMenu]);
 
     const onDragStart: TreeProps['onDragStart'] = useCallback(({ event, node }) => {
-        const nameFromCwd = node.path_from_cwd;
-        filesystemDragBegin(nameFromCwd, event);
+        if (node.path.endsWith('.json')) {
+            bindDragData({ subflow: node.path }, event);
+        } else {
+            bindDragData({ text: node.path_from_cwd }, event);
+        }
     }, []);
 
     const onDrop: TreeProps['onDrop'] = useCallback(async (info) => {

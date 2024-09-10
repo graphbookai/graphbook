@@ -1,1 +1,1 @@
-from .base import Resource, NumberResource, FunctionResource
+from .base import Resource, NumberResource, FunctionResource, ListResource, DictResource

@@ -12,23 +12,25 @@ from graphbook.steps import (
     Step,
     BatchStep,
     SourceStep,
+    GeneratorSourceStep,
     AsyncStep,
     Split,
     SplitNotesByItems,
     SplitItemField,
 )
-from graphbook.resources import Resource, FunctionResource
+from graphbook.resources import Resource, NumberResource, FunctionResource, ListResource, DictResource
 
 BUILT_IN_STEPS = [
     Step,
     BatchStep,
     SourceStep,
+    GeneratorSourceStep,
     AsyncStep,
     Split,
     SplitNotesByItems,
     SplitItemField,
 ]
-BUILT_IN_RESOURCES = [Resource, FunctionResource]
+BUILT_IN_RESOURCES = [Resource, NumberResource, FunctionResource, ListResource, DictResource]
 
 
 class CustomModuleEventHandler(FileSystemEventHandler):
@@ -81,11 +83,9 @@ class CustomModuleEventHandler(FileSystemEventHandler):
         try:
             if og_hash_code is None:
                 importlib.import_module(module_name)
-                print("Loaded", module_name)
             else:
                 module = importlib.import_module(module_name)
                 importlib.reload(module)
-                print("Reloaded", module_name)
         except Exception as e:
             print(f"Error loading {module_name}: {e}")
             return

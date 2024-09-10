@@ -12,7 +12,7 @@ import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
-import type { LogEntry, Parameter } from '../../utils';
+import type { LogEntry, Parameter, ImageRef } from '../../utils';
 import ReactJson from '@microlink/react-json-view';
 const { Panel } = Collapse;
 const { useToken } = theme;
@@ -173,14 +173,14 @@ export function WorkflowStep({ id, data, selected }) {
 function Monitor({ quickViewData, logsData }) {
     return (
         <Collapse className='quickview' defaultActiveKey={[]} bordered={false} expandIcon={({ header }) => {
-            switch (header) {
-                case "Quickview":
-                    return <SearchOutlined />;
-                case "Logs":
-                    return <FileTextOutlined />;
-                default:
-                    return null;
+            const h = header as String;
+            if (h.startsWith('Quickview')) {
+                return <SearchOutlined />;
             }
+            if (h.startsWith('Logs')) {
+                return <FileTextOutlined />;
+            }
+            return null;
         }}>
             <Panel header="Quickview" key="1">
                 {
@@ -189,7 +189,7 @@ function Monitor({ quickViewData, logsData }) {
                         '(No outputs yet)'
                 }
             </Panel>
-            <Panel header={"Logs" + (logsData.length > 0 ? `(${logsData.length})` : '')} key="2">
+            <Panel header={"Logs" + (logsData.length > 0 ? ` (${logsData.length})` : '')} key="2">
                 {
                     logsData.length == 0 ?
                         <p className='content'>(No logs yet) </p> :
@@ -200,7 +200,7 @@ function Monitor({ quickViewData, logsData }) {
                                         const { msg } = log;
                                         return (
                                             <p style={{ fontFamily: 'monospace' }} key={i}>
-                                                {msg}
+                                                {JSON.stringify(msg)}
                                             </p>
                                         );
                                     })
@@ -276,14 +276,14 @@ function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProper
     const [settings, _] = useSettings();
 
     const imageEntries = useMemo(() => {
-        let entries: any = {};
+        let entries: { [key: string]: ImageRef[] } = {};
         Object.entries<QuickViewEntry>(entry).forEach(([key, item]) => {
             let imageItems: any = [];
             if (Array.isArray(item)) {
-                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image').map(item => item.value);
+                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image');
             } else {
                 if (item.type?.slice(0, 5) === 'image') {
-                    imageItems.push(item.value);
+                    imageItems.push(item);
                 }
             }
             if (imageItems.length > 0) {
@@ -296,7 +296,7 @@ function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProper
     return (
         <Flex style={style}>
             {
-                Object.entries<string[]>(imageEntries).map(([key, images]) => {
+                Object.entries<ImageRef[]>(imageEntries).map(([key, images]) => {
                     return (
                         <Space key={key} direction="vertical" align='center'>
                             <div>{key}</div>
