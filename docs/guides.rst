@@ -40,12 +40,12 @@ Inside this directory, create a new Python file called `my_first_nodes.py`, and 
         }
         Outputs = ["A", "B"]
         Category = "Custom"
-        def __init__(self, id, logger, prob):
-            super().__init__(id, logger)
+        def __init__(self, prob):
+            super().__init__()
             self.prob = prob
 
         def on_after_items(self, note: Note):
-            self.logger.log(note['message'])
+            self.log(note['message'])
 
         def forward_note(self, note: Note) -> str:
             if random.random() < self.prob:
@@ -79,8 +79,8 @@ Let's create a Source Step that generates fake data.
         }
         Outputs = ["message"]
         Category = "Custom"
-        def __init__(self, id, logger, message):
-            super().__init__(id, logger)
+        def __init__(self, message):
+            super().__init__()
             self.message = message
 
         def load(self):
@@ -140,8 +140,8 @@ Create a new Source Step that loads the images and their labels:
             }
         }
 
-        def __init__(self, id, logger, image_dir: str):
-            super().__init__(id, logger)
+        def __init__(self, image_dir: str):
+            super().__init__()
             self.image_dir = image_dir
 
         def load(self):
@@ -195,7 +195,7 @@ Let's create the below BatchStep class that uses this model to classify the imag
             batch_size,
             item_key
         ):
-            super().__init__(id, logger, batch_size, item_key)
+            super().__init__(batch_size, item_key)
             model_name = "imjeffhi/pokemon_classifier"
             self.model = ViTForImageClassification.from_pretrained(model_name)
             self.model = self.model.to('cuda') # If you do not have an Nvidia GPU, you can remove this line
@@ -224,12 +224,12 @@ Let's create the below BatchStep class that uses this model to classify the imag
             predicted_id = self.model(**extracted).logits.argmax(-1)
             for t, item, note in zip(predicted_id, items, notes):
                 item["prediction"] = self.model.config.id2label[t.item()]
-                self.logger.log(f"Predicted {item['value']} as {item['prediction']}")
+                self.log(f"Predicted {item['value']} as {item['prediction']}")
                 if item["prediction"] == note["name"]:
                     self.tp += 1
                 self.num_samples += 1
             if self.num_samples > 0:
-                self.logger.log(f"Accuracy: {self.tp/self.num_samples:.2f}")
+                self.log(f"Accuracy: {self.tp/self.num_samples:.2f}")
 
 
 .. _PyTorch: https://pytorch.org/
@@ -305,7 +305,7 @@ The top of your PokemonClassifier node should look like this:
             model: ViTForImageClassification,
             image_processor: ViTImageProcessor,
         ):
-            super().__init__(id, logger, batch_size, item_key)
+            super().__init__(batch_size, item_key)
             self.model = model
             self.image_processor = image_processor
             self.tp = 0
@@ -433,7 +433,7 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
             output_dir,
             model: AutoModelForImageSegmentation,
         ):
-            super().__init__(id, logger, batch_size, item_key)
+            super().__init__(batch_size, item_key)
             self.model = model
             self.output_dir = output_dir
             os.makedirs(output_dir, exist_ok=True)

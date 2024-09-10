@@ -1,5 +1,4 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
@@ -16,9 +15,6 @@ import os.path as osp
 import json
 import hashlib
 from enum import Enum
-from PIL import Image
-from numpy import ndarray
-import io
 
 
 class NodeInstantiationError(Exception):
@@ -27,31 +23,6 @@ class NodeInstantiationError(Exception):
         super().__init__(message)
         self.node_id = node_id
         self.node_name = node_name
-        
-class ImageHandler(ABC):
-    @abstractmethod
-    def get_image_data(self, image_info: any) -> bytes:
-        pass
-
-class FilePathHandler(ImageHandler):
-    def get_image_data(self, image_info: any) -> bytes:
-        with open(image_info['path'], 'rb') as f:
-            return f.read()
-
-class PILHandler(ImageHandler):
-    def get_image_data(self, image_info: any) -> bytes:
-        # Assume the PIL image is stored in memory or retrieved from a cache
-        pil_image = get_pil_image_from_cache(image_info['id'])
-        buf = io.BytesIO()
-        pil_image.save(buf, format='PNG')
-        return buf.getvalue()
-
-class NumpyHandler(ImageHandler):
-    def get_image_data(self, image_info: any) -> bytes:
-        # Assume the numpy array is stored in memory or retrieved from a cache
-        np_array = get_numpy_array_from_cache(image_info['id'])
-        pil_image = Image.fromarray(np_array)
-        return PILHandler().get_image_data({'id': image_info['id']})
 
 
 class UIState:
@@ -92,7 +63,7 @@ class NodeCatalog:
         for plugin in steps:
             self.nodes["steps"] |= steps[plugin]
         for plugin in resources:
-            self.nodes["steps"] |=  resources[plugin]
+            self.nodes["steps"] |= resources[plugin]
         self.hashes = {}
 
     def _hash(self, data: str) -> str:
@@ -207,7 +178,7 @@ class GraphState:
                     input_resources_have_changed |= resource_has_changed[p_id]
                 else:
                     p[p_key] = p_value
-                    
+
             if (
                 curr_resource is not None
                 and curr_resource == resource_data
@@ -263,6 +234,7 @@ class GraphState:
             else:
                 try:
                     step = step_hub[step_name](**step_input, id=step_id)
+                    step.id = step_id
                 except Exception as e:
                     raise NodeInstantiationError(str(e), step_id, step_name)
                 steps[step_id] = step
@@ -308,7 +280,7 @@ class GraphState:
         self._parent_iterators = {
             step_id: get_parent_iterator(step_id) for step_id in steps
         }
-        
+
         setup_logging_nodes(logger_param_pool, self.view_manager_queue)
 
         # Update current graph and resource state
@@ -369,7 +341,9 @@ class GraphState:
             for q in self._queues.values():
                 q.clear()
             for step_id in self._step_states:
-                self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
+                self.view_manager.handle_queue_size(
+                    step_id, self._queues[step_id].dict_sizes()
+                )
                 self._step_states[step_id] = set()
                 self._steps[step_id].on_clear()
             self._dict_resources.clear()
@@ -381,7 +355,9 @@ class GraphState:
                 for p in step.parents:
                     self._queues[p.id].reset_consumer_idx(id(step))
                 self._step_states[node_id] = set()
-                self.view_manager.handle_queue_size(node_id, self._queues[node_id].dict_sizes())
+                self.view_manager.handle_queue_size(
+                    node_id, self._queues[node_id].dict_sizes()
+                )
                 self._steps[node_id].on_clear()
             elif node_id in self._dict_resources:
                 del self._resource_values[node_id], self._dict_resources[node_id]
@@ -415,29 +391,10 @@ class GraphState:
         note = internal_list[index]
         entry.update(data=note.items)
         return entry
-    
-    def get_output_image(self, step_id: str, pin_id: str, index: int, item_key: str, item_index: int) -> bytes:
-        note = self.get_output_note(step_id, pin_id, index)["data"]
-        if note is None:
-            return None
-        item = note.get(item_key)
-        if item is None:
-            return None
-        if isinstance(item, list):
-            item = item[item_index]
-            
-        item = item.get("value")
-        if item is None:
-            return None
-        if isinstance(item, Image):
-            return item.tobytes()
-        if isinstance(item, ndarray):
-            return Image.fromarray(item).tobytes()        
-        return None
-    
+
     def get_step(self, step_id: str):
         return self._steps.get(step_id)
-    
+
     def get_resource(self, resource_id: str):
         return self._dict_resources.get(resource_id)
 

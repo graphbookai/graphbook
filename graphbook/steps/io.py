@@ -19,8 +19,8 @@ class LoadJSONL(SourceStep):
     Outputs = ["out"]
     Category = "IO/Import"
 
-    def __init__(self, id, logger, jsonl_path, start_from=0):
-        super().__init__(id, logger)
+    def __init__(self, jsonl_path, start_from=0):
+        super().__init__()
         self.jsonl_path = jsonl_path
         self.start_from = start_from
 
@@ -48,8 +48,8 @@ class DumpJSONL(Step):
     Outputs = ["out"]
     Category = "IO/Export"
 
-    def __init__(self, id, logger, jsonl_path):
-        super().__init__(id, logger)
+    def __init__(self, jsonl_path):
+        super().__init__()
         self.jsonl_path = jsonl_path
 
     def on_after_items(self, note: Note):

@@ -18,8 +18,8 @@ class Step:
     The base class of an executable workflow node. All other workflow nodes should inherit from Step.
     """
 
-    def __init__(self, id, item_key=None):
-        self.id = id
+    def __init__(self, item_key=None):
+        self.id = None
         self.item_key = item_key
         self.parents = []
         self.children = {"out": []}
@@ -159,7 +159,7 @@ class Step:
 
     def __str__(self):
         def get_str(step, indent):
-            s = f"{' ' * indent}({step._id}) {type(step).__name__}\n"
+            s = f"{' ' * indent}({step.id}) {type(step).__name__}\n"
             for child in step.children.values():
                 for c in child:
                     s += get_str(c, indent + 2)
@@ -173,8 +173,8 @@ class SourceStep(Step):
     A Step that accepts no input but produce outputs.
     """
 
-    def __init__(self, id):
-        super().__init__(id)
+    def __init__(self):
+        super().__init__()
 
     def load(self) -> StepOutput:
         """
@@ -193,8 +193,8 @@ class GeneratorSourceStep(SourceStep):
     A Step that accepts no input but produce outputs.
     """
 
-    def __init__(self, id):
-        super().__init__(id)
+    def __init__(self):
+        super().__init__()
         self.generator = self.load()
 
     def load(self) -> Generator[StepOutput, None, None]:
@@ -220,8 +220,8 @@ class AsyncStep(Step):
     processing the rest of the graph.
     """
 
-    def __init__(self, id, item_key=None):
-        super().__init__(id, item_key)
+    def __init__(self, item_key=None):
+        super().__init__(item_key)
         self._is_processing = True
         self._in_queue = []
 
@@ -281,8 +281,8 @@ class BatchStep(AsyncStep):
     A Step used for batch processing. This step will consume Pytorch tensor batches loaded by the worker pool by default.
     """
 
-    def __init__(self, id, batch_size, item_key):
-        super().__init__(id, item_key=item_key)
+    def __init__(self, batch_size, item_key):
+        super().__init__(item_key=item_key)
         self.batch_size = int(batch_size)
         self.loaded_notes = {}
         self.num_loaded_notes = {}
@@ -505,8 +505,8 @@ class Split(Step):
     Outputs = ["A", "B"]
     Category = "Filtering"
 
-    def __init__(self, id, split_fn):
-        super().__init__(id)
+    def __init__(self, split_fn):
+        super().__init__()
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
 
@@ -536,8 +536,8 @@ class SplitNotesByItems(Step):
     Outputs = ["A", "B"]
     Category = "Filtering"
 
-    def __init__(self, id, split_items_fn, item_key):
-        super().__init__(id, item_key=item_key)
+    def __init__(self, split_items_fn, item_key):
+        super().__init__(item_key=item_key)
         self.split_fn = split_items_fn
         self.fn = transform_function_string(split_items_fn)
 
@@ -571,9 +571,9 @@ class SplitItemField(Step):
     Outputs = ["out"]
 
     def __init__(
-        self, id, split_fn, item_key, a_key, b_key, should_delete_original=True
+        self, split_fn, item_key, a_key, b_key, should_delete_original=True
     ):
-        super().__init__(id, item_key=item_key)
+        super().__init__(item_key=item_key)
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
         self.a_key = a_key
