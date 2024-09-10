@@ -44,7 +44,6 @@ export const getMediaPath = (settings: any, item: ImageRef): string => {
         if (!graphHost.startsWith('http')) {
             graphHost = 'http://' + graphHost;
         }
-        console.log(`${graphHost}/media${query}`);
         return `${graphHost}/media${query}`;
     }
 

@@ -87,7 +87,7 @@ class WebInstanceProcessor:
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            log(f"{type(e)}: {str(e)}", "error", id(step))
+            log(f"{type(e).__name__}: {str(e)}", "error", id(step))
             traceback.print_exc()
             return None
 
@@ -125,7 +125,6 @@ class WebInstanceProcessor:
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
         for step in steps:
-            print(step.id)
             output = {}
             if isinstance(step, GeneratorSourceStep):
                 output = self.exec_step(step)
@@ -313,24 +312,6 @@ class ProcessorStateClient:
                             step_id, pin_id, index
                         )
                         output = transform_json_log(output)
-                if req["cmd"] == ProcessorStateRequest.GET_OUTPUT_NOTE:
-                    step_id = req.get("step_id")
-                    pin_id = req.get("pin_id")
-                    index = req.get("index")
-                    item_key = req.get("item_key")
-                    item_index = req.get("item_index")
-                    if (
-                        step_id is None
-                        or pin_id is None
-                        or index is None
-                        or item_key is None
-                        or item_index is None
-                    ):
-                        output = {}
-                    else:
-                        output = self.graph_state.get_output_image(
-                            step_id, pin_id, index, item_key, item_index
-                        )
                 elif req["cmd"] == ProcessorStateRequest.GET_WORKER_QUEUE_SIZES:
                     output = self.dataloader.get_all_sizes()
                 elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:

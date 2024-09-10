@@ -1,10 +1,9 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple, Generator
-from types import GeneratorType
-import graphbook.dataloading as dataloader
-from graphbook.logger import log
-from ..utils import transform_function_string, convert_dict_values_to_list
+from ..utils import transform_function_string, convert_dict_values_to_list, is_batchable
 from graphbook import Note
+from graphbook.logger import log
+import graphbook.dataloading as dataloader
 import warnings
 
 
@@ -309,7 +308,7 @@ class BatchStep(AsyncStep):
         # Load
         if hasattr(self, "load_fn"):
             note_id = id(note)
-            if not isinstance(items, list):
+            if not is_batchable(items):
                 items = [items]
             
             if len(items) > 0:
@@ -393,16 +392,17 @@ class BatchStep(AsyncStep):
         )
 
     def handle_batch(self, batch: StepData):
-        load, notes, completed = batch
-        outputs = [l[0] for l in load]
-        indexes = [l[1] for l in load]
+        loaded, notes, completed = batch
+        outputs = [l[0] for l in loaded]
+        indexes = [l[1] for l in loaded]
         
         items = []
         for note, index in zip(notes, indexes):
-            if isinstance(note.items[self.item_key], list):
-                items.append(note.items[self.item_key][index])
+            item = note.items[self.item_key]
+            if is_batchable(item):
+                items.append(item[index])
             else:
-                items.append(note.items[self.item_key])
+                items.append(item)
 
         data_dump = self.on_item_batch(outputs, items, notes)
         if data_dump is not None:

@@ -128,9 +128,7 @@ class GraphServer:
             if shm_id is not None:
                 img = self.img_mem.get_image(shm_id)
                 if img is None:
-                    print(f"Image not found {shm_id}")
                     raise web.HTTPNotFound()
-                print(f"Returning image {shm_id}")
                 return web.Response(body=img, content_type="image/png")
 
         @routes.post("/run")
@@ -214,7 +212,7 @@ class GraphServer:
             res = poll_conn_for(
                 state_conn,
                 ProcessorStateRequest.GET_OUTPUT_NOTE,
-                {"step_id": step_id, "pin_id": pin_id, "index": int(index)},
+                {"step_id": step_id, "pin_id": pin_id, "index": index},
             )
             if (
                 res

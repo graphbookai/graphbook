@@ -1,6 +1,5 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Iterable
 import importlib
 import shutil
 import subprocess
@@ -16,12 +15,12 @@ from .note import Note
 MP_WORKER_TIMEOUT = 5.0
 ProcessorStateRequest = Enum(
     "ProcessorStateRequest",
-    ["GET_OUTPUT_NOTE", "GET_OUTPUT_IMAGE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"],
+    ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"],
 )
 
 
 def is_batchable(obj: any) -> bool:
-    return isinstance(obj, Iterable)
+    return isinstance(obj, list) or isinstance(obj, Tensor)
 
 
 def transform_function_string(func_str):
@@ -166,6 +165,13 @@ def transform_json_log(log: any) -> any:
         return f"(ndarray of shape {log.shape})"
     if isinstance(log, Image.Image):
         return f"(PIL Image of size {log.size})"
+    if (
+        isinstance(log, float)
+        or isinstance(log, int)
+        or isinstance(log, str)
+        or isinstance(log, bool)
+    ):
+        return log
     if hasattr(log, "__str__"):
         return str(log)
     return "(Not JSON serializable)"
