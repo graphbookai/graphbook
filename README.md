@@ -44,15 +44,19 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 - Autosaving and shareable serialized workflow files
 - Registers node code changes without needing a restart
 - Monitorable CPU and GPU resource usage
-- (BETA) Remote subgraphs for scaling workflows on other Graphbook services
+- (BETA) Third Party Plugins *
+
+\* We plan on adding documentation for the community to build plugins, but for now, an example can be seen at
+[example_plugin](example_plugin) and
+[graphbook-huggingface](https://github.com/graphbookai/graphbook-huggingface)
 
 ### Planned Features
 - A `graphbook run` command to execute workflows in a CLI
 - Step/Resource functions with decorators to reduce verbosity
 - Human-in-the-loop Steps for manual feedback/control during DAG execution
 - All-code workflows, so users never have to leave their IDE
-- UI extensibility
 - And many optimizations for large data processing workloads
+- Remote subgraphs for scaling workflows on other Graphbook services
 
 ### Supported OS
 The following operating systems are supported in order of most to least recommended:
