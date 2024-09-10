@@ -2,13 +2,15 @@ import importlib
 import inspect
 from .steps import Step
 from .resources import Resource
+import graphbook.config as config
 
 exported_steps = {}
 exported_resources = {}
 exported_web = {}
 
 
-def setup_plugins(plugin_modules):
+def setup_plugins():
+    plugin_modules = config.get("plugins", [])
     for module in plugin_modules:
         importlib.import_module(module)
 

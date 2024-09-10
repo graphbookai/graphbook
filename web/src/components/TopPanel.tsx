@@ -245,17 +245,16 @@ function WorkerChart() {
                     queueSizes.load.reduce((acc, val) => acc + val, 0);
                 const outgoingSize =
                     queueSizes.load_result.reduce((acc, val) => acc + val, 0) +
-                    queueSizes.dump_result.reduce((acc, val) => acc + val, 0) +
-                    queueSizes.total_consumer_size;
+                    queueSizes.dump_result.reduce((acc, val) => acc + val, 0);
                 const newData = [
                     ...prev,
                     {
                         data: [{
                             key: 'enqueued',
-                            data: -enqueuedSize
+                            data: -Math.min(enqueuedSize, 32)
                         }, {
                             key: 'outgoing',
-                            data: outgoingSize
+                            data: Math.min(outgoingSize, 32)
                         }],
                         key: new Date()
                     }

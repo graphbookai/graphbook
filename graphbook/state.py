@@ -4,7 +4,9 @@ from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
 from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
-from graphbook.viewer import Logger, ViewManagerInterface
+from graphbook.viewer import ViewManagerInterface
+from graphbook.plugins import setup_plugins
+from graphbook.logger import setup_logging_nodes
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import graphbook.exports as exports
@@ -50,12 +52,18 @@ class UIState:
 
 
 class NodeCatalog:
-    def __init__(self, custom_nodes_path: str):
+    def __init__(self, custom_nodes_path: str, plugin_modules: List[str] = []):
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.nodes = {"steps": {}, "resources": {}}
         self.nodes["steps"] |= exports.default_exported_steps
         self.nodes["resources"] |= exports.default_exported_resources
+        self.plugins = setup_plugins()
+        steps, resources, _ = self.plugins
+        for plugin in steps:
+            self.nodes["steps"] |= steps[plugin]
+        for plugin in resources:
+            self.nodes["steps"] |= resources[plugin]
         self.hashes = {}
 
     def _hash(self, data: str) -> str:
@@ -163,14 +171,14 @@ class GraphState:
             p = {}
             input_resources_have_changed = False
             for p_key, p_value in resource_data["parameters"].items():
-                if isinstance(p_value, dict):
+                if isinstance(p_value, dict) and "node" in p_value:
                     p_id = p_value["node"]
                     set_resource_value(p_id, graph_resources[p_id])
                     p[p_key] = resource_values[p_id]
                     input_resources_have_changed |= resource_has_changed[p_id]
                 else:
                     p[p_key] = p_value
-                    
+
             if (
                 curr_resource is not None
                 and curr_resource == resource_data
@@ -199,12 +207,13 @@ class GraphState:
         steps = {}
         queues = {}
         step_states = {}
+        logger_param_pool = {}
         for step_id, step_data in graph.items():
             step_name = step_data["name"]
             step_input = {}
             step_input_has_changed = False
             for param_name, lookup in step_data["parameters"].items():
-                if isinstance(lookup, dict):
+                if isinstance(lookup, dict) and "node" in lookup:
                     step_input[param_name] = resource_values[lookup["node"]]
                     step_input_has_changed |= resource_has_changed[lookup["node"]]
                 else:
@@ -221,15 +230,17 @@ class GraphState:
                 queues[step_id] = self._queues[step_id]
                 step_states[step_id] = self._step_states[step_id]
                 step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
+                logger_param_pool[id(self._steps[step_id])] = (step_id, step_name)
             else:
-                logger = Logger(self.view_manager_queue, step_id, step_name)
                 try:
-                    step = step_hub[step_name](**step_input, id=step_id, logger=logger)
+                    step = step_hub[step_name](**step_input)
+                    step.id = step_id
                 except Exception as e:
                     raise NodeInstantiationError(str(e), step_id, step_name)
                 steps[step_id] = step
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()
+                logger_param_pool[id(step)] = (step_id, step_name)
 
                 previous_obj = self._steps.get(step_id)
                 if previous_obj is not None:
@@ -269,6 +280,8 @@ class GraphState:
         self._parent_iterators = {
             step_id: get_parent_iterator(step_id) for step_id in steps
         }
+
+        setup_logging_nodes(logger_param_pool, self.view_manager_queue)
 
         # Update current graph and resource state
         self._dict_graph = graph
@@ -328,8 +341,11 @@ class GraphState:
             for q in self._queues.values():
                 q.clear()
             for step_id in self._step_states:
-                self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
+                self.view_manager.handle_queue_size(
+                    step_id, self._queues[step_id].dict_sizes()
+                )
                 self._step_states[step_id] = set()
+                self._steps[step_id].on_clear()
             self._dict_resources.clear()
             self._resource_values.clear()
         else:
@@ -339,7 +355,10 @@ class GraphState:
                 for p in step.parents:
                     self._queues[p.id].reset_consumer_idx(id(step))
                 self._step_states[node_id] = set()
-                self.view_manager.handle_queue_size(node_id, self._queues[node_id].dict_sizes())
+                self.view_manager.handle_queue_size(
+                    node_id, self._queues[node_id].dict_sizes()
+                )
+                self._steps[node_id].on_clear()
             elif node_id in self._dict_resources:
                 del self._resource_values[node_id], self._dict_resources[node_id]
 
@@ -367,11 +386,17 @@ class GraphState:
         internal_list = step_queue._dict.get(pin_id)
         if internal_list is None:
             return entry
-        if index >= len(internal_list) or index < 0:
+        if index >= len(internal_list):
             return entry
         note = internal_list[index]
         entry.update(data=note.items)
         return entry
+
+    def get_step(self, step_id: str):
+        return self._steps.get(step_id)
+
+    def get_resource(self, resource_id: str):
+        return self._dict_resources.get(resource_id)
 
 
 class MultiConsumerStateDictionaryQueue:

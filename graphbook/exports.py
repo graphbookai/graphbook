@@ -17,17 +17,19 @@ default_exported_resources = {
     "Text": resources.Resource,
     "Number": resources.NumberResource,
     "Function": resources.FunctionResource,
+    "List": resources.ListResource,
+    "Dict": resources.DictResource,
 }
 
 
 class NodeHub:
-    def __init__(self, path, plugin_modules):
+    def __init__(self, path):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources
         self.custom_node_importer = custom_nodes.CustomNodeImporter(
             path, self.handle_step, self.handle_resource
         )
-        self.plugins = setup_plugins(plugin_modules)
+        self.plugins = setup_plugins()
         steps, resources, web = self.plugins
         for plugin in steps:
             self.exported_steps.update(steps[plugin])
@@ -42,17 +44,11 @@ class NodeHub:
         self.custom_node_importer.stop_observer()
 
     async def handle_step(self, filename, name, step):
-        if name in self.exported_steps:
-            print(f"Reloading custom step node {name} from {filename}")
-        else:
-            print(f"Loading custom step node {name} from {filename}")
+        print(f"{filename}: {name} (step)")
         self.exported_steps[name] = step
 
     async def handle_resource(self, filename, name, resource):
-        if name in self.exported_resources:
-            print(f"Reloading custom resource node {name} from {filename}")
-        else:
-            print(f"Loading custom resource node {name} from {filename}")
+        print(f"{filename}: {name} (resource)")
         self.exported_resources[name] = resource
 
     def get_steps(self):

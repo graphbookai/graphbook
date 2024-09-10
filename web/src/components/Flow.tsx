@@ -14,7 +14,7 @@ import { Graph } from '../graph.ts';
 import AddNode from './AddNode.tsx';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle, filesystemDragEnd } from '../utils.ts';
+import { getHandle, evalDragData } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
@@ -212,7 +212,7 @@ export default function Flow({ filename }) {
         if (!reactFlowInstance.current || !API) {
             return;
         }
-        filesystemDragEnd(reactFlowInstance.current, API, event);
+        evalDragData(reactFlowInstance.current, API, event);
     }, [reactFlowInstance, API]);
 
     const onNodeContextMenu = useCallback((event, node) => {
