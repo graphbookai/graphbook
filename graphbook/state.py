@@ -233,7 +233,7 @@ class GraphState:
                 logger_param_pool[id(self._steps[step_id])] = (step_id, step_name)
             else:
                 try:
-                    step = step_hub[step_name](**step_input, id=step_id)
+                    step = step_hub[step_name](**step_input)
                     step.id = step_id
                 except Exception as e:
                     raise NodeInstantiationError(str(e), step_id, step_name)
