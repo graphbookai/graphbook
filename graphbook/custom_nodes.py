@@ -83,11 +83,9 @@ class CustomModuleEventHandler(FileSystemEventHandler):
         try:
             if og_hash_code is None:
                 importlib.import_module(module_name)
-                print("Loaded", module_name)
             else:
                 module = importlib.import_module(module_name)
                 importlib.reload(module)
-                print("Reloaded", module_name)
         except Exception as e:
             print(f"Error loading {module_name}: {e}")
             return

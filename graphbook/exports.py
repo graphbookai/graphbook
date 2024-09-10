@@ -44,17 +44,11 @@ class NodeHub:
         self.custom_node_importer.stop_observer()
 
     async def handle_step(self, filename, name, step):
-        if name in self.exported_steps:
-            print(f"Reloading custom step node {name} from {filename}")
-        else:
-            print(f"Loading custom step node {name} from {filename}")
+        print(f"{filename}: {name} (step)")
         self.exported_steps[name] = step
 
     async def handle_resource(self, filename, name, resource):
-        if name in self.exported_resources:
-            print(f"Reloading custom resource node {name} from {filename}")
-        else:
-            print(f"Loading custom resource node {name} from {filename}")
+        print(f"{filename}: {name} (resource)")
         self.exported_resources[name] = resource
 
     def get_steps(self):
