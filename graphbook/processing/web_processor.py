@@ -1,18 +1,20 @@
 from graphbook.steps import Step, SourceStep, GeneratorSourceStep, AsyncStep, StepOutput
 from graphbook.dataloading import Dataloader, setup_global_dl
+from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
+from graphbook.state import GraphState, StepState, NodeInstantiationError
+from graphbook.viewer import ViewManagerInterface
+from graphbook.logger import log
+from graphbook.shm import SharedMemoryManager
 from ..note import Note
 from typing import List
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
-from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
-from graphbook.state import GraphState, StepState, NodeInstantiationError
-from graphbook.viewer import ViewManagerInterface
-from graphbook.logger import log
 import traceback
 import asyncio
 import time
 import copy
+from PIL import Image
 
 step_output_err_res = (
     "Step output must be a dictionary, and dict values must be lists of notes."
@@ -25,6 +27,7 @@ class WebInstanceProcessor:
         cmd_queue: mp.Queue,
         server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
+        img_mem: SharedMemoryManager,
         continue_on_failure: bool,
         copy_outputs: bool,
         custom_nodes_path: str,
@@ -36,6 +39,7 @@ class WebInstanceProcessor:
         self.close_event = close_event
         self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
+        self.img_mem = img_mem
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
@@ -49,6 +53,23 @@ class WebInstanceProcessor:
         )
         self.is_running = False
         self.filename = None
+        
+    def handle_images(self, outputs: StepOutput):
+        def try_add_image(item):
+            if isinstance(item, dict):
+                if item.get("shm_id") is not None:
+                    return
+                if item.get("type") == "image" and isinstance(item.get("value"), Image.Image):
+                    shm_id = self.img_mem.add_image(item["value"])
+                    item["shm_id"] = shm_id
+            elif isinstance(item, list):
+                for val in item:
+                    try_add_image(val)
+
+        for output in outputs.values():
+            for note in output:
+                for item in note.items.values():
+                    try_add_image(item)
 
     def exec_step(
         self, step: Step, input: Note | None = None, flush: bool = False
@@ -62,10 +83,11 @@ class WebInstanceProcessor:
             else:
                 if isinstance(step, AsyncStep):
                     step.in_q(input)
+                    outputs = step_fn()
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            log(str(e), "error", id(step))
+            log(f"{type(e)}: {str(e)}", "error", id(step))
             traceback.print_exc()
             return None
 
@@ -92,6 +114,7 @@ class WebInstanceProcessor:
                 )
                 return None
 
+            self.handle_images(outputs)
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
@@ -102,6 +125,7 @@ class WebInstanceProcessor:
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
         for step in steps:
+            print(step.id)
             output = {}
             if isinstance(step, GeneratorSourceStep):
                 output = self.exec_step(step)

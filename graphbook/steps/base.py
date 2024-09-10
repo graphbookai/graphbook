@@ -308,12 +308,15 @@ class BatchStep(AsyncStep):
 
         # Load
         if hasattr(self, "load_fn"):
+            note_id = id(note)
+            if not isinstance(items, list):
+                items = [items]
+            
             if len(items) > 0:
-                note_id = id(note)
                 dataloader.put_load(items, note_id, id(self))
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
-                
+
     def on_clear(self):
         self.loaded_notes = {}
         self.num_loaded_notes = {}
@@ -390,12 +393,17 @@ class BatchStep(AsyncStep):
         )
 
     def handle_batch(self, batch: StepData):
-        items, notes, completed = batch
-        outputs = [item[0] for item in items]
-        indexes = [item[1] for item in items]
-        items = [
-            note.items[self.item_key][index] for note, index in zip(notes, indexes)
-        ]
+        load, notes, completed = batch
+        outputs = [l[0] for l in load]
+        indexes = [l[1] for l in load]
+        
+        items = []
+        for note, index in zip(notes, indexes):
+            if isinstance(note.items[self.item_key], list):
+                items.append(note.items[self.item_key][index])
+            else:
+                items.append(note.items[self.item_key])
+
         data_dump = self.on_item_batch(outputs, items, notes)
         if data_dump is not None:
             if isinstance(data_dump, dict):

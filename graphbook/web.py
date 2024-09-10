@@ -3,6 +3,10 @@ from aiohttp import web
 from graphbook.processing.web_processor import WebInstanceProcessor
 from graphbook.viewer import ViewManager
 from graphbook.exports import NodeHub
+from graphbook.state import UIState
+from graphbook.media import create_media_server
+from graphbook.utils import poll_conn_for, ProcessorStateRequest, MP_WORKER_TIMEOUT
+from graphbook.shm import SharedMemoryManager
 import os
 import os.path as osp
 import re
@@ -12,9 +16,7 @@ import multiprocessing.connection as mpc
 import asyncio
 import base64
 import hashlib
-from graphbook.state import UIState
-from graphbook.media import create_media_server
-from graphbook.utils import poll_conn_for, ProcessorStateRequest, MP_WORKER_TIMEOUT
+
 
 try:
     import magic
@@ -49,6 +51,7 @@ class GraphServer:
         state_conn: mpc.Connection,
         processor_pause_event: mp.Event,
         view_manager_queue: mp.Queue,
+        img_mem_args: dict,
         close_event: mp.Event,
         root_path: str,
         custom_nodes_path: str,
@@ -68,6 +71,7 @@ class GraphServer:
         routes = web.RouteTableDef()
         self.routes = routes
         self.view_manager = ViewManager(view_manager_queue, close_event, state_conn)
+        self.img_mem = SharedMemoryManager(**img_mem_args)
         abs_root_path = osp.abspath(root_path)
         middlewares = [cors_middleware]
         max_upload_size = 100  # MB
@@ -116,16 +120,18 @@ class GraphServer:
         @routes.get("/media")
         async def get_media(request: web.Request) -> web.Response:
             path = request.query.get("path", None)
-            if path is None:
-                step_id = request.query.get("step_id", None)
-                pin_id = request.query.get("pin_id", None)
-                index = request.query.get("index", None)
-                if step_id is None or pin_id is None or index is None:
-                    raise web.HTTPBadRequest()
-            
-            if not osp.exists(path):
-                raise web.HTTPNotFound()
-            return web.FileResponse(path)
+            shm_id = request.query.get("shm_id", None)
+            if path is not None:
+                if not osp.exists(path):
+                    raise web.HTTPNotFound()
+                return web.FileResponse(path)
+            if shm_id is not None:
+                img = self.img_mem.get_image(shm_id)
+                if img is None:
+                    print(f"Image not found {shm_id}")
+                    raise web.HTTPNotFound()
+                print(f"Returning image {shm_id}")
+                return web.Response(body=img, content_type="image/png")
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
@@ -433,6 +439,7 @@ def create_graph_server(
     processor_pause_event,
     view_manager_queue,
     close_event,
+    img_mem_args,
     root_path,
     custom_nodes_path,
     docs_path,
@@ -443,6 +450,7 @@ def create_graph_server(
         state_conn,
         processor_pause_event,
         view_manager_queue,
+        img_mem_args,
         close_event,
         root_path=root_path,
         custom_nodes_path=custom_nodes_path,
@@ -458,6 +466,7 @@ def start_web(args):
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
+    img_mem = SharedMemoryManager()
     close_event = mp.Event()
     pause_event = mp.Event()
     workflow_dir = args.workflow_dir
@@ -479,6 +488,7 @@ def start_web(args):
                 pause_event,
                 view_manager_queue,
                 close_event,
+                img_mem.get_shared_args(),
                 workflow_dir,
                 custom_nodes_path,
                 docs_path,
@@ -495,6 +505,7 @@ def start_web(args):
 
     def signal_handler(*_):
         close_event.set()
+        img_mem.close()
         try:
             for p in processes:
                 p.join(timeout=MP_WORKER_TIMEOUT)
@@ -513,6 +524,7 @@ def start_web(args):
             cmd_queue,
             parent_conn,
             view_manager_queue,
+            img_mem,
             args.continue_on_failure,
             args.copy_outputs,
             custom_nodes_path,

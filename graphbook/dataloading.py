@@ -89,6 +89,8 @@ def load_loop(
                     pending_load_results[rank] = None
                 except queue.Full:
                     pass
+                except KeyError:
+                    pass
             else:
                 consumer_id = consumer_ids[cycle]
                 succeeded, pending_item = do_load(
@@ -132,6 +134,8 @@ def dump_loop(
                     )
                     pending_dump_results[rank] = None
                 except queue.Full:
+                    pass
+                except KeyError:
                     pass
             else:
                 consumer_id = consumer_ids[cycle]
@@ -316,6 +320,9 @@ class Dataloader:
             self._dump_result_queues = {}
             self._consumer_load_fn = {}
             self._consumer_dump_fn = {}
+            for i in range(self.num_workers):
+                self._pending_load_results[i] = None
+                self._pending_dump_results[i] = None
         else:
             if consumer_id in self._load_queues:
                 clear_queue(self._load_queues[consumer_id])

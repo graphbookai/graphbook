@@ -169,4 +169,3 @@ def transform_json_log(log: any) -> any:
     if hasattr(log, "__str__"):
         return str(log)
     return "(Not JSON serializable)"
-    return log

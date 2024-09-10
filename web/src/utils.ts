@@ -24,27 +24,36 @@ export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"
     return keyRec(obj);
 }
 
-export const getMediaPath = (settings: any, path: string): string => {
+export type ImageRef = {
+    type: string;
+    value: string;
+    shm_id?: string;
+};
+export const getMediaPath = (settings: any, item: ImageRef): string => {
+    let query = '';
+    if (item.shm_id) {
+        query = `?shm_id=${item.shm_id}`;
+    } else if (!item.value.startsWith('(')) {
+        query = `?path=${item.value}`;
+    } else {
+        return '';
+    }
+
     if (!settings.useExternalMediaServer) {
         let graphHost = settings.graphServerHost;
         if (!graphHost.startsWith('http')) {
             graphHost = 'http://' + graphHost;
         }
-        return `${graphHost}/media?path=${path}`;
+        console.log(`${graphHost}/media${query}`);
+        return `${graphHost}/media${query}`;
     }
 
     let mediaHost = settings.mediaServerHost;
     if (!mediaHost.startsWith('http')) {
-        mediaHost = 'http://' + mediaHost;
+        mediaHost = 'http://' + query;
     }
 
-    try {
-        const url = new URL(path, mediaHost);
-        return url.toString();
-    } catch (e) {
-        console.warn("Failed to parse URL", e);
-        return mediaHost + path;
-    }
+    return mediaHost + query;
 }
 
 export const uniqueIdFrom = (obj: any): string => {

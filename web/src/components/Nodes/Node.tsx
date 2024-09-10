@@ -12,7 +12,7 @@ import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
-import type { LogEntry, Parameter } from '../../utils';
+import type { LogEntry, Parameter, ImageRef } from '../../utils';
 import ReactJson from '@microlink/react-json-view';
 const { Panel } = Collapse;
 const { useToken } = theme;
@@ -276,14 +276,14 @@ function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProper
     const [settings, _] = useSettings();
 
     const imageEntries = useMemo(() => {
-        let entries: any = {};
+        let entries: { [key: string]: ImageRef[] } = {};
         Object.entries<QuickViewEntry>(entry).forEach(([key, item]) => {
             let imageItems: any = [];
             if (Array.isArray(item)) {
-                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image').map(item => item.value);
+                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image');
             } else {
                 if (item.type?.slice(0, 5) === 'image') {
-                    imageItems.push(item.value);
+                    imageItems.push(item);
                 }
             }
             if (imageItems.length > 0) {
@@ -296,7 +296,7 @@ function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProper
     return (
         <Flex style={style}>
             {
-                Object.entries<string[]>(imageEntries).map(([key, images]) => {
+                Object.entries<ImageRef[]>(imageEntries).map(([key, images]) => {
                     return (
                         <Space key={key} direction="vertical" align='center'>
                             <div>{key}</div>
