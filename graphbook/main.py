@@ -57,6 +57,12 @@ def get_args():
         default=osp.join(workflow_dir, docs_dir),
         help="Path to the docs directory",
     )
+    parser.add_argument(
+        "--img_shm_size",
+        type=int,
+        default=1024,
+        help="Size of the shared memory in MB for serving PIL images. Set to 0 to disable this feature.",
+    )
 
     return parser.parse_args()
 

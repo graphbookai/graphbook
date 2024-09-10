@@ -27,7 +27,7 @@ class WebInstanceProcessor:
         cmd_queue: mp.Queue,
         server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
-        img_mem: SharedMemoryManager,
+        img_mem: SharedMemoryManager | None,
         continue_on_failure: bool,
         copy_outputs: bool,
         custom_nodes_path: str,
@@ -55,6 +55,9 @@ class WebInstanceProcessor:
         self.filename = None
         
     def handle_images(self, outputs: StepOutput):
+        if self.img_mem is None:
+            return
+
         def try_add_image(item):
             if isinstance(item, dict):
                 if item.get("shm_id") is not None:

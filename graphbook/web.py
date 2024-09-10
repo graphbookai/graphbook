@@ -71,7 +71,7 @@ class GraphServer:
         routes = web.RouteTableDef()
         self.routes = routes
         self.view_manager = ViewManager(view_manager_queue, close_event, state_conn)
-        self.img_mem = SharedMemoryManager(**img_mem_args)
+        self.img_mem = SharedMemoryManager(**img_mem_args) if img_mem_args else None
         abs_root_path = osp.abspath(root_path)
         middlewares = [cors_middleware]
         max_upload_size = 100  # MB
@@ -126,6 +126,8 @@ class GraphServer:
                     raise web.HTTPNotFound()
                 return web.FileResponse(path)
             if shm_id is not None:
+                if self.img_mem is None:
+                    raise web.HTTPNotFound()
                 img = self.img_mem.get_image(shm_id)
                 if img is None:
                     raise web.HTTPNotFound()
@@ -464,7 +466,7 @@ def start_web(args):
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
-    img_mem = SharedMemoryManager()
+    img_mem = SharedMemoryManager(size=args.img_shm_size) if args.img_shm_size > 0 else None
     close_event = mp.Event()
     pause_event = mp.Event()
     workflow_dir = args.workflow_dir
@@ -486,7 +488,7 @@ def start_web(args):
                 pause_event,
                 view_manager_queue,
                 close_event,
-                img_mem.get_shared_args(),
+                img_mem.get_shared_args() if img_mem else {},
                 workflow_dir,
                 custom_nodes_path,
                 docs_path,
@@ -503,7 +505,8 @@ def start_web(args):
 
     def signal_handler(*_):
         close_event.set()
-        img_mem.close()
+        if img_mem:
+            img_mem.close()
         try:
             for p in processes:
                 p.join(timeout=MP_WORKER_TIMEOUT)
