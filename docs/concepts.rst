@@ -38,11 +38,10 @@ In order to maximize the utilization of the GPU during graph execution, we paral
 for each BatchStep (an extension of Step) across a number of workers.
 A BatchStep can require inputs to be prepared and outputs to be saved by workers.
 Each worker is a separate process that can run in parallel with others.
-Each worker has its own work queue and result queue for incoming work and outgoing results, respectively.
 A worker is dedicated to either preparing inputs or saving outputs, but not both. Whether it is preparing inputs or saving outputs, the worker logic
 is relatively the same.
 The Graphbook worker implementation also accounts for graph changes.
-In between graph executions, nodes can be added, removed, or modified, so the workers must adapt to these changes.
+In between graph executions, the workers are restarted to register any code changes, and the queues along with its elements are retained and given to the new workers.
 
 Logic Details
 =============
@@ -61,19 +60,15 @@ The above graph is used to explain the worker logic.
 The logic behind the workers is detailed in the following steps (1-6):
 
 #.
-    A BatchStep prepares the item's parameter inputs and its belonging Note ID and Step ID. The IDs are Python's unique identifiers for each object taken with ``id()``.
-    We supply the workers with this information, so that when they are done processing the item, they can be matched later with the correct Note and Step.
+    A BatchStep prepares the item's parameter inputs.
     The actual function, implemented by the BatchStep, is stored inside of a shared dictionary that the workers can access later.
 #.
-    A BatchStep enqueues the item in one of the load and dump queues, so that the workers can access them.
+    A BatchStep enqueues the item in one of the load and dump queues, so that the workers can access them. The item is stored in its respective queue based on the ``id()`` of the BatchStep.
 #.
     The workers will then dequeue the work from their work queues and execute the corresponding BatchStep's function (``load_fn()`` and ``dump_fn()``) on the item if the BatchStep still exists, but before they do that, they need to check the size of the result queue.
-    If the result queue is full, the worker will block until space is available.
+    If the result queue is full, the worker will block until space is available. The workers will rotate between queues in a round-robin fashion.
 #.
-    After the worker has finished processing the item, it will enqueue the result in the result queue. The workers cannot deliver the results directly to the consumer queues because they are provisioned
-    dynamically by the main process since the graph can have different nodes in between different executions.
-#.
-    The main process will then dequeue the results from the result queues and deliver them to the correct corresponding consumer queues as long as the sum of the sizes of all consumer queues is less than a certain limit and if the consumer node still exists.
+    After the worker has finished processing the item, it will enqueue the result in its respective result queue.
 #.
     The consumer nodes will then dequeue the results from their consumer queues and process them in their correct lifecycle method.
     Completed load items will be delivered to ``on_item_batch(results: List[any], items: List[any], notes: List[Note])`` where results, items, and notes are in order; i.e. ``results[i]`` corresponds to input ``items[i]`` and belonging to note ``notes[i]``.
@@ -96,7 +91,9 @@ See example below:
     :align: center
 
 
-The visualization is in the form of a centered bar chart that shows the number of items that are enqueued in the work queues as red bars and the number of items that are in the result and consumer queues as green bars. Refer to the following when reading this chart:
+The visualization is in the form of a centered bar chart that shows the number of items that are enqueued in the work queues as red bars and the number of items that are in the result and consumer queues as green bars.
+Because the result queue has a max size of 32, each half of the chart is clipped at 32 to show a relative comparison between the two queue types.
+Refer to the following when reading this chart:
 
 #. If the red bars are consistently longer than the green bars and there's hardly any green, it indicates that there are too few workers.
 #. If the red bars are consistently longer than the green bars but there is some green, then it indicates that the graph execution on the main process is just too slow to consume all of the results which, in turn, creates a conjestion in the workers work queues. This is because the result queues have a max size, and if they are full, the workers will be blocked until space is available while the work queues are being loaded. A max size per result queue is enforced to help prevent memory overloading issues.
