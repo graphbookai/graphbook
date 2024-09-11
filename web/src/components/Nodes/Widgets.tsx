@@ -247,8 +247,8 @@ function Select({ onChange, options, value }) {
         <div className="input-container">
             <select className="input" onChange={onValueChange} value={value} style={inputStyle}>
                 {
-                    options.map((option) => {
-                        return <option value={option.value}>{option.label}</option>
+                    options.map((option, i) => {
+                        return <option key={i} value={option.value}>{option.label}</option>
                     })
                 }
             </select>
