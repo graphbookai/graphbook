@@ -123,12 +123,11 @@ class Step:
         self.on_before_items(note)
 
         if self.item_key is not None:
-            items = note.items.get(self.item_key, None)
+            item = note.items.get(self.item_key, None)
             assert (
-                items is not None
+                item is not None
             ), f"Item key {self.item_key} not found in Note. Cannot retrieve any iterable."
-            for item in items:
-                self.on_item(item, note)
+            self.on_item(item, note)
 
         self.on_after_items(note)
 
