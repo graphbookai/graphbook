@@ -2,6 +2,7 @@
 import argparse
 from graphbook.web import start_web
 import os.path as osp
+import graphbook.config as config
 
 DESCRIPTION = """
 Graphbook | ML Workflow Framework
@@ -28,6 +29,12 @@ def get_args():
     parser.add_argument("--start_media_server", action="store_true")
     parser.add_argument("--media_port", type=int, default=8006)
     parser.add_argument(
+        "--config",
+        type=str,
+        default="config.yaml",
+        help="Path to a config file for supplementary settings",
+    )
+    parser.add_argument(
         "--root_dir",
         type=str,
         help="If setting this directory, workflow_dir, nodes_dir, and docs_dir will be ignored",
@@ -50,6 +57,12 @@ def get_args():
         default=osp.join(workflow_dir, docs_dir),
         help="Path to the docs directory",
     )
+    parser.add_argument(
+        "--img_shm_size",
+        type=int,
+        default=1024,
+        help="Size of the shared memory in MB for serving PIL images. Set to 0 to disable this feature.",
+    )
 
     return parser.parse_args()
 
@@ -65,6 +78,8 @@ def resolve_paths(args):
 def main():
     args = get_args()
     args = resolve_paths(args)
+    if args.config:
+        config.setup(args.config)
 
     start_web(args)
 

@@ -1,17 +1,24 @@
-from graphbook.steps import Step, SourceStep, AsyncStep, StepOutput
-from graphbook.dataloading import Dataloader
+from graphbook.steps import Step, SourceStep, GeneratorSourceStep, AsyncStep, StepOutput
+from graphbook.dataloading import Dataloader, setup_global_dl
+from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
+from graphbook.state import GraphState, StepState, NodeInstantiationError
+from graphbook.viewer import ViewManagerInterface
+from graphbook.logger import log
+from graphbook.shm import SharedMemoryManager
 from ..note import Note
-from typing import List, Dict
+from typing import List
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
-from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest
-from graphbook.state import GraphState, StepState, NodeInstantiationError
-from graphbook.viewer import ViewManagerInterface
 import traceback
 import asyncio
 import time
 import copy
+from PIL import Image
+
+step_output_err_res = (
+    "Step output must be a dictionary, and dict values must be lists of notes."
+)
 
 
 class WebInstanceProcessor:
@@ -20,6 +27,7 @@ class WebInstanceProcessor:
         cmd_queue: mp.Queue,
         server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
+        img_mem: SharedMemoryManager | None,
         continue_on_failure: bool,
         copy_outputs: bool,
         custom_nodes_path: str,
@@ -31,6 +39,7 @@ class WebInstanceProcessor:
         self.close_event = close_event
         self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
+        self.img_mem = img_mem
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
@@ -38,12 +47,32 @@ class WebInstanceProcessor:
         self.num_workers = num_workers
         self.steps = {}
         self.dataloader = Dataloader(self.num_workers)
+        setup_global_dl(self.dataloader)
         self.state_client = ProcessorStateClient(
             server_request_conn, close_event, self.graph_state, self.dataloader
         )
-        self.remote_subgraphs: Dict[str, NetworkClient] = {}
         self.is_running = False
         self.filename = None
+        
+    def handle_images(self, outputs: StepOutput):
+        if self.img_mem is None:
+            return
+
+        def try_add_image(item):
+            if isinstance(item, dict):
+                if item.get("shm_id") is not None:
+                    return
+                if item.get("type") == "image" and isinstance(item.get("value"), Image.Image):
+                    shm_id = self.img_mem.add_image(item["value"])
+                    item["shm_id"] = shm_id
+            elif isinstance(item, list):
+                for val in item:
+                    try_add_image(val)
+
+        for output in outputs.values():
+            for note in output:
+                for item in note.items.values():
+                    try_add_image(item)
 
     def exec_step(
         self, step: Step, input: Note | None = None, flush: bool = False
@@ -57,18 +86,42 @@ class WebInstanceProcessor:
             else:
                 if isinstance(step, AsyncStep):
                     step.in_q(input)
+                    outputs = step_fn()
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            step.logger.log_exception(e)
+            log(f"{type(e).__name__}: {str(e)}", "error", id(step))
             traceback.print_exc()
             return None
 
-        if outputs is not None:
+        if outputs:
+            if not isinstance(outputs, dict):
+                log(f"{step_output_err_res} Output was not a dict.", "error", id(step))
+                return None
+
+            if not all(isinstance(v, list) for v in outputs.values()):
+                log(
+                    f"{step_output_err_res} Dict values were not all lists.",
+                    "error",
+                    id(step),
+                )
+                return None
+
+            if not all(
+                [all(isinstance(v, Note) for v in out) for out in outputs.values()]
+            ):
+                log(
+                    f"{step_output_err_res} List values did not all contain Notes.",
+                    "error",
+                    id(step),
+                )
+                return None
+
+            self.handle_images(outputs)
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
-            self.view_manager.handle_outputs(step.id, outputs)
+            self.view_manager.handle_outputs(step.id, transform_json_log(outputs))
         self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
 
@@ -76,7 +129,9 @@ class WebInstanceProcessor:
         is_active = False
         for step in steps:
             output = {}
-            if isinstance(step, SourceStep):
+            if isinstance(step, GeneratorSourceStep):
+                output = self.exec_step(step)
+            elif isinstance(step, SourceStep):
                 if not self.graph_state.get_state(step, StepState.EXECUTED):
                     output = self.exec_step(step)
             else:
@@ -116,6 +171,7 @@ class WebInstanceProcessor:
             is_active
             and not step_executed
             and not self.pause_event.is_set()
+            and not self.close_event.is_set()
             and not self.dataloader.is_failed()
         ):
             is_active = self.handle_steps(steps)
@@ -135,6 +191,7 @@ class WebInstanceProcessor:
             while (
                 dag_is_active
                 and not self.pause_event.is_set()
+                and not self.close_event.is_set()
                 and not self.dataloader.is_failed()
             ):
                 dag_is_active = self.handle_steps(steps)
@@ -142,6 +199,7 @@ class WebInstanceProcessor:
             self.view_manager.handle_end()
             for step in steps:
                 step.on_end()
+            self.dataloader.stop()
 
     def step(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
@@ -156,6 +214,7 @@ class WebInstanceProcessor:
             self.view_manager.handle_end()
             for step in steps:
                 step.on_end()
+            self.dataloader.stop()
 
     def set_is_running(self, is_running: bool = True, filename: str | None = None):
         self.is_running = is_running
@@ -177,9 +236,7 @@ class WebInstanceProcessor:
         consumer_dump_fn = [
             c.dump_fn if hasattr(c, "dump_fn") else None for c in dataloader_consumers
         ]
-        self.dataloader.setup(consumer_ids, consumer_load_fn, consumer_dump_fn)
-        for c in dataloader_consumers:
-            c.set_dataloader(self.dataloader)
+        self.dataloader.start(consumer_ids, consumer_load_fn, consumer_dump_fn)
 
     def try_update_state(self, local_graph: dict) -> bool:
         try:
@@ -219,8 +276,8 @@ class WebInstanceProcessor:
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
-                    if work.get("node_id") is None:
-                        self.dataloader.clear()
+                    step = self.graph_state.get_step(work.get("node_id"))
+                    self.dataloader.clear(id(step) if step != None else None)
             except KeyboardInterrupt:
                 self.cleanup()
                 break
@@ -257,6 +314,7 @@ class ProcessorStateClient:
                         output = self.graph_state.get_output_note(
                             step_id, pin_id, index
                         )
+                        output = transform_json_log(output)
                 elif req["cmd"] == ProcessorStateRequest.GET_WORKER_QUEUE_SIZES:
                     output = self.dataloader.get_all_sizes()
                 elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:

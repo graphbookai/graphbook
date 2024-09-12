@@ -1,7 +1,8 @@
 import graphbook.steps as steps
-import graphbook.resources.base as rbase
+import graphbook.resources as resources
 import graphbook.custom_nodes as custom_nodes
 from graphbook.doc2md import convert_to_md
+from graphbook.plugins import setup_plugins
 from aiohttp import web
 
 default_exported_steps = {
@@ -13,9 +14,11 @@ default_exported_steps = {
 }
 
 default_exported_resources = {
-    "Text": rbase.Resource,
-    "Number": rbase.NumberResource,
-    "Function": rbase.FunctionResource,
+    "Text": resources.Resource,
+    "Number": resources.NumberResource,
+    "Function": resources.FunctionResource,
+    "List": resources.ListResource,
+    "Dict": resources.DictResource,
 }
 
 
@@ -26,6 +29,13 @@ class NodeHub:
         self.custom_node_importer = custom_nodes.CustomNodeImporter(
             path, self.handle_step, self.handle_resource
         )
+        self.plugins = setup_plugins()
+        steps, resources, web = self.plugins
+        for plugin in steps:
+            self.exported_steps.update(steps[plugin])
+        for plugin in resources:
+            self.exported_resources.update(resources[plugin])
+        self.web_plugins = web
 
     def start(self):
         self.custom_node_importer.start_observer()
@@ -34,17 +44,11 @@ class NodeHub:
         self.custom_node_importer.stop_observer()
 
     async def handle_step(self, filename, name, step):
-        if name in self.exported_steps:
-            print(f"Reloading custom step node {name} from {filename}")
-        else:
-            print(f"Loading custom step node {name} from {filename}")
+        print(f"{filename}: {name} (step)")
         self.exported_steps[name] = step
 
     async def handle_resource(self, filename, name, resource):
-        if name in self.exported_resources:
-            print(f"Reloading custom resource node {name} from {filename}")
-        else:
-            print(f"Loading custom resource node {name} from {filename}")
+        print(f"{filename}: {name} (resource)")
         self.exported_resources[name] = resource
 
     def get_steps(self):
@@ -55,6 +59,9 @@ class NodeHub:
 
     def get_all(self):
         return {"steps": self.get_steps(), "resources": self.get_resources()}
+    
+    def get_web_plugins(self):
+        return self.web_plugins
 
     def get_step_docstring(self, name):
         if name in self.exported_steps:

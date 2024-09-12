@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple
-from graphbook.dataloading import Dataloader
-from ..utils import transform_function_string
+from typing import List, Dict, Tuple, Generator
+from ..utils import transform_function_string, convert_dict_values_to_list, is_batchable
 from graphbook import Note
+from graphbook.logger import log
+import graphbook.dataloading as dataloader
 import warnings
 
 
@@ -15,16 +16,10 @@ StepOutput = Dict[str, List[Note]]
 class Step:
     """
     The base class of an executable workflow node. All other workflow nodes should inherit from Step.
-
-    Args:
-        key (str): An optional key or id
-        annotation (Dict[str, str]): An optional dictionary of annotations for this item
-        items (Dict[str, List[anys]]): An optional dictionary of anys
     """
 
-    def __init__(self, id, logger, item_key=None):
-        self.id = id
-        self.logger = logger
+    def __init__(self, item_key=None):
+        self.id = None
         self.item_key = item_key
         self.parents = []
         self.children = {"out": []}
@@ -53,6 +48,16 @@ class Step:
                 if self in child.parents:
                     child.parents.remove(self)
         self.children = {}
+
+    def log(self, message: str, type: str = "info"):
+        """
+        Logs a message
+
+        Args:
+            message (str): message to log
+            type (str): type of log
+        """
+        log(message, type)
 
     def on_start(self):
         """
@@ -94,6 +99,12 @@ class Step:
         """
         pass
 
+    def on_clear(self):
+        """
+        Executes when a request to clear the step is made. This is useful for steps that have internal states that need to be reset.
+        """
+        pass
+
     def forward_note(self, note: Note) -> str | StepOutput:
         """
         Routes a Note. Must return the corresponding output key or a dictionary that contains Notes.
@@ -112,12 +123,11 @@ class Step:
         self.on_before_items(note)
 
         if self.item_key is not None:
-            items = note.items.get(self.item_key, None)
+            item = note.items.get(self.item_key, None)
             assert (
-                items is not None
+                item is not None
             ), f"Item key {self.item_key} not found in Note. Cannot retrieve any iterable."
-            for item in items:
-                self.on_item(item, note)
+            self.on_item(item, note)
 
         self.on_after_items(note)
 
@@ -148,7 +158,7 @@ class Step:
 
     def __str__(self):
         def get_str(step, indent):
-            s = f"{' ' * indent}({step._id}) {type(step).__name__}\n"
+            s = f"{' ' * indent}({step.id}) {type(step).__name__}\n"
             for child in step.children.values():
                 for c in child:
                     s += get_str(c, indent + 2)
@@ -162,8 +172,8 @@ class SourceStep(Step):
     A Step that accepts no input but produce outputs.
     """
 
-    def __init__(self, id, logger):
-        super().__init__(id, logger)
+    def __init__(self):
+        super().__init__()
 
     def load(self) -> StepOutput:
         """
@@ -173,10 +183,33 @@ class SourceStep(Step):
 
     def __call__(self):
         result = self.load()
-        for k, v in result.items():
-            if not isinstance(v, list):
-                result[k] = [v]
+        convert_dict_values_to_list(result)
         return result
+
+
+class GeneratorSourceStep(SourceStep):
+    """
+    A Step that accepts no input but produce outputs.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.generator = self.load()
+
+    def load(self) -> Generator[StepOutput, None, None]:
+        """
+        Function to load data and convert into Notes. Must output a generator that yields a dictionary of Notes.
+        """
+        raise NotImplementedError("load function must be implemented for SourceStep")
+
+    def on_clear(self):
+        self.generator = self.load()
+
+    def __call__(self):
+        try:
+            return next(self.generator)
+        except StopIteration:
+            return {}
 
 
 class AsyncStep(Step):
@@ -186,14 +219,10 @@ class AsyncStep(Step):
     processing the rest of the graph.
     """
 
-    def __init__(self, id, logger, item_key=None):
-        super().__init__(id, logger, item_key)
+    def __init__(self, item_key=None):
+        super().__init__(item_key)
         self._is_processing = True
         self._in_queue = []
-        self.dl = None
-
-    def set_dataloader(self, dataloader: Dataloader):
-        self.dl = dataloader
 
     def in_q(self, note: Note | None):
         if note is None:
@@ -251,13 +280,15 @@ class BatchStep(AsyncStep):
     A Step used for batch processing. This step will consume Pytorch tensor batches loaded by the worker pool by default.
     """
 
-    def __init__(self, id, logger, batch_size, item_key):
-        super().__init__(id, logger, item_key=item_key)
+    def __init__(self, batch_size, item_key):
+        super().__init__(item_key=item_key)
         self.batch_size = int(batch_size)
         self.loaded_notes = {}
         self.num_loaded_notes = {}
         self.dumped_item_holders = NoteItemHolders()
         self.accumulated_items = [[], [], []]
+        self._c = 0
+        self._d = {}
 
     def in_q(self, note: Note | None):
         """
@@ -269,20 +300,30 @@ class BatchStep(AsyncStep):
         if note is None:
             return
         self.on_before_items(note)
-        items = note.items[self.item_key]
+        items = note[self.item_key]
+        if items is None:
+            raise ValueError(f"Item key {self.item_key} not found in Note.")
 
         # Load
         if hasattr(self, "load_fn"):
+            note_id = id(note)
+            if not is_batchable(items):
+                items = [items]
+            
             if len(items) > 0:
-                note_id = id(note)
-                self.dl.put_load(items, note_id, id(self))
-
+                dataloader.put_load(items, note_id, id(self))
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
 
+    def on_clear(self):
+        self.loaded_notes = {}
+        self.num_loaded_notes = {}
+        self.dumped_item_holders = NoteItemHolders()
+        self.accumulated_items = [[], [], []]
+
     def get_batch(self, flush: bool = False) -> StepData:
         items, notes, completed = self.accumulated_items
-        next_in = self.dl.get_load(id(self))
+        next_in = dataloader.get_load(id(self))
         if next_in is not None:
             item, note_id = next_in
             # get original note (not pickled one)
@@ -329,38 +370,50 @@ class BatchStep(AsyncStep):
             output (any): The output data to
         """
         self.dumped_item_holders.handle_note(note)
-        self.dl.put_dump(output, id(note), id(self))
+        dataloader.put_dump(output, id(note), id(self))
 
     @staticmethod
-    def dump_fn(data: any, output_dir: str, uid: int):
+    def dump_fn(**args):
         """
         The dump function to be overriden by BatchSteps that write outputs to disk.
-
-        Args:
-            data (any): The data to be dumped
-            output_dir (str): The output directory
-            uid (int): A unique identifier for the data
         """
-        raise NotImplementedError("dump_fn must be implemented for BatchStep when dumping outputs")
+        raise NotImplementedError(
+            "dump_fn must be implemented for BatchStep when using the worker pool to dump outputs"
+        )
+
+    @staticmethod
+    def load_fn(**args):
+        """
+        The load function to be overriden by BatchSteps that will forward preprocessed data to `on_item_batch`.
+        """
+        raise NotImplementedError(
+            "load_fn must be implemented for BatchStep when using the worker pool to load inputs"
+        )
 
     def handle_batch(self, batch: StepData):
-        items, notes, completed = batch
-        tensors = [item[0] for item in items]
-        indexes = [item[1] for item in items]
-        items = [
-            note.items[self.item_key][index] for note, index in zip(notes, indexes)
-        ]
-        data_dump = self.on_item_batch(tensors, items, notes)
+        loaded, notes, completed = batch
+        outputs = [l[0] for l in loaded]
+        indexes = [l[1] for l in loaded]
+        
+        items = []
+        for note, index in zip(notes, indexes):
+            item = note.items[self.item_key]
+            if is_batchable(item):
+                items.append(item[index])
+            else:
+                items.append(item)
+
+        data_dump = self.on_item_batch(outputs, items, notes)
         if data_dump is not None:
             if isinstance(data_dump, dict):
                 # Dict returns are deprecated
                 warnings.warn(
-                    "dict returns for on_item_batch are deprecated and will be removed in a future version. Please return a list of your parameters to provide to dump_fn instead.",
+                    "dict returns for on_item_batch are deprecated and will be removed in a future version. Please return a list of your parameter tuples to provide to dump_fn instead.",
                     DeprecationWarning,
                 )
                 for k, v in data_dump.items():
                     if len(notes) != len(v):
-                        self.logger.log(
+                        self.log(
                             f"Unexpected number of notes ({len(notes)}) does not match returned outputs ({len(v)}). Will not write outputs!"
                         )
                     else:
@@ -374,7 +427,7 @@ class BatchStep(AsyncStep):
             self.dumped_item_holders.set_completed(note)
 
     def handle_completed_notes(self):
-        note_id = self.dl.get_dump(id(self))
+        note_id = dataloader.get_dump(id(self))
         if note_id is not None:
             self.dumped_item_holders.handle_item(note_id)
         output = {}
@@ -386,19 +439,19 @@ class BatchStep(AsyncStep):
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, tensors, items, notes) -> List[any] | None:
+    def on_item_batch(self, outputs, items, notes) -> List[Tuple[any]] | None:
         """
-        Called when B items are loaded into PyTorch tensors and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
+        Called when B items are loaded and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
         Args:
-            tensors (List[torch.Tensor]): The list of loaded tensors of length B
-            items (List[any]): The list of anys of length B associated with tensors. This list has the same order as tensors does
+            outputs (List[any]): The list of loaded outputs of length B
+            items (List[any]): The list of anys of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
-            notes (List[Note]): The list of Notes of length B associated with tensors. This list has the same order as tensor does
+            notes (List[Note]): The list of Notes of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
-                
+
         Returns:
-            List[any] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
+            List[Tuple[any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
         """
         pass
 
@@ -451,8 +504,8 @@ class Split(Step):
     Outputs = ["A", "B"]
     Category = "Filtering"
 
-    def __init__(self, id, logger, split_fn):
-        super().__init__(id, logger)
+    def __init__(self, split_fn):
+        super().__init__()
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
 
@@ -482,8 +535,8 @@ class SplitNotesByItems(Step):
     Outputs = ["A", "B"]
     Category = "Filtering"
 
-    def __init__(self, id, logger, split_items_fn, item_key):
-        super().__init__(id, logger, item_key=item_key)
+    def __init__(self, split_items_fn, item_key):
+        super().__init__(item_key=item_key)
         self.split_fn = split_items_fn
         self.fn = transform_function_string(split_items_fn)
 
@@ -517,9 +570,9 @@ class SplitItemField(Step):
     Outputs = ["out"]
 
     def __init__(
-        self, id, logger, split_fn, item_key, a_key, b_key, should_delete_original=True
+        self, split_fn, item_key, a_key, b_key, should_delete_original=True
     ):
-        super().__init__(id, logger, item_key=item_key)
+        super().__init__(item_key=item_key)
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
         self.a_key = a_key

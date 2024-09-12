@@ -2,7 +2,7 @@ import { Flex, Input, Tree, Button, Typography, Menu, theme } from "antd";
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
-import { filesystemDragBegin } from "../../utils";
+import { bindDragData } from "../../utils";
 import { ActiveOverlay } from "../ActiveOverlay";
 import DefaultWorkflow from "../../DefaultWorkflow.json";
 import type { TreeProps } from 'antd';
@@ -45,8 +45,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
 
-        const splitPath = files.children[0].from_root.split('/');
-        const filesRoot = splitPath[splitPath.length - 1];
+        const filesRoot = files.from_root.toUpperCase();
         const setKey = (data) => {
             data.forEach((item) => {
                 item.key = item.path;
@@ -254,8 +253,11 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     }, [contextMenu]);
 
     const onDragStart: TreeProps['onDragStart'] = useCallback(({ event, node }) => {
-        const nameFromCwd = node.path_from_cwd;
-        filesystemDragBegin(nameFromCwd, event);
+        if (node.path.endsWith('.json')) {
+            bindDragData({ subflow: node.path }, event);
+        } else {
+            bindDragData({ text: node.path_from_cwd }, event);
+        }
     }, []);
 
     const onDrop: TreeProps['onDrop'] = useCallback(async (info) => {
@@ -283,7 +285,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             <Flex vertical className="filesystem">
                 <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
                 <Flex justify="space-between">
-                    <Text>{filesRoot}/</Text>
+                    <Text ellipsis style={{fontWeight: 'bold'}}>{filesRoot}</Text>
                     <div style={{ display: 'flex', flexDirection: 'row' }}>
                         <Button className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
                         <Button className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />

@@ -25,6 +25,13 @@
 ## Overview
 Graphbook is a framework for building efficient, visual DAG-structured ML workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching, and it features a web-based UI to assemble, monitor, and execute data processing workflows. It can be used to prepare training data for custom ML models, experiment with custom trained or off-the-shelf models, and to build ML-based ETL applications. Custom nodes can be built in Python, and Graphbook will behave like a framework and call lifecycle methods on those nodes.
 
+<p align="center">
+  <a href="https://graphbook.ai">
+    <img src="https://media.githubusercontent.com/media/rsamf/public/main/docs/overview/huggingface-pipeline-demo.gif" alt="Huggingface Pipeline Demo" width="512">
+  </a>
+  <div align="center">Build, run, monitor!</div>
+</p>
+
 ## Status
 Graphbook is in a very early stage of development, so expect minor bugs and rapid design changes through the coming releases. If you would like to [report a bug](https://github.com/graphbookai/graphbook/issues/new?template=bug_report.md&labels=bug) or [request a feature](https://github.com/graphbookai/graphbook/issues/new?template=feature_request.md&labels=enhancement), please feel free to do so. We aim to make Graphbook serve our users in the best way possible.
 
@@ -44,15 +51,27 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 - Autosaving and shareable serialized workflow files
 - Registers node code changes without needing a restart
 - Monitorable CPU and GPU resource usage
-- (BETA) Remote subgraphs for scaling workflows on other Graphbook services
+- (BETA) Third Party Plugins *
+
+\* We plan on adding documentation for the community to build plugins, but for now, an example can be seen at
+[example_plugin](example_plugin) and
+[graphbook-huggingface](https://github.com/graphbookai/graphbook-huggingface)
 
 ### Planned Features
 - A `graphbook run` command to execute workflows in a CLI
 - Step/Resource functions with decorators to reduce verbosity
 - Human-in-the-loop Steps for manual feedback/control during DAG execution
 - All-code workflows, so users never have to leave their IDE
-- UI extensibility
 - And many optimizations for large data processing workloads
+- Remote subgraphs for scaling workflows on other Graphbook services
+
+### Supported OS
+The following operating systems are supported in order of most to least recommended:
+- Linux
+- Mac
+- Windows (not recommended) *
+
+\* There may be issues with running Graphbook on Windows. With limited resources, we can only focus testing and development on Linux.
 
 ## Getting Started
 ### Install from PyPI
@@ -66,6 +85,9 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
     docker run --rm -p 8005:8005 -v $PWD/workflows:/app/workflows rsamf/graphbook:latest
     ```
 1. Visit http://localhost:8005
+
+### Recommended Plugins
+* [Huggingface](https://github.com/graphbookai/graphbook-huggingface)
 
 Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
 
