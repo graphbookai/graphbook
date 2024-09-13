@@ -43,11 +43,11 @@ class NodeHub:
     def stop(self):
         self.custom_node_importer.stop_observer()
 
-    async def handle_step(self, filename, name, step):
+    def handle_step(self, filename, name, step):
         print(f"{filename}: {name} (step)")
         self.exported_steps[name] = step
 
-    async def handle_resource(self, filename, name, resource):
+    def handle_resource(self, filename, name, resource):
         print(f"{filename}: {name} (resource)")
         self.exported_resources[name] = resource
 
@@ -85,13 +85,16 @@ class NodeHub:
             node_tree = {}
             for node_name in nodes:
                 node = nodes[node_name]
-                category_tree = node["category"].split("/")
-                curr_category = node_tree
-                for category in category_tree:
-                    if curr_category.get(category) is None:
-                        curr_category[category] = {"children": {}}
-                    curr_category = curr_category[category]["children"]
-                curr_category[node_name] = node
+                if node["category"] == "":
+                    node_tree[node_name] = node
+                else:
+                    category_tree = node["category"].split("/")
+                    curr_category = node_tree
+                    for category in category_tree:
+                        if curr_category.get(category) is None:
+                            curr_category[category] = {"children": {}}
+                        curr_category = curr_category[category]["children"]
+                    curr_category[node_name] = node
             return node_tree
 
         steps = {
