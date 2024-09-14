@@ -38,10 +38,30 @@ class StepClassFactory:
             self.is_outputs_specified = True
             self.Outputs = []
         self.Outputs.extend(outputs)
+        
+    def batch(self, batch_size: int | None, item_key: str | None, load_fn=None):
+        self.BaseClass = steps.BatchStep
+        self.Parameters["batch_size"] = {
+            "type": "number",
+            "default": batch_size,
+            "required": True,
+            "description": "The size of the batch to be loaded",
+        }
+        self.Parameters["item_key"] = {
+            "type": "string",
+            "default": item_key,
+            "required": True,
+            "description": "The key to use for batching",
+        }
+        if load_fn is not None:
+            self.event("load_fn", load_fn)
 
     def build(self):
         def __init__(cls, **kwargs):
-            self.BaseClass.__init__(cls)  # might be only needed for Python 2
+            if self.BaseClass == steps.BatchStep:
+                self.BaseClass.__init__(cls, batch_size=kwargs["batch_size"], item_key=kwargs["item_key"])
+            else:
+                self.BaseClass.__init__(cls)
             for key, value in kwargs.items():
                 if key in self.Parameters:
                     cast_as = self.parameter_type_casts[key]
@@ -97,6 +117,8 @@ def step(name, event: str | None = None):
         else:
             if factory.BaseClass == steps.Step:
                 factory.event("on_note", func)
+            elif factory.BaseClass == steps.BatchStep:
+                factory.event("on_item_batch", func)
             else:
                 factory.event("load", func)
 
@@ -154,5 +176,14 @@ def output(*outputs: List[str]):
             factory.output(outputs)
 
         return DecoratorFunction(func, set_output)
+
+    return decorator
+
+def batch(batch_size: int | None = None, item_key: str | None = None, *, load_fn=None):
+    def decorator(func):
+        def set_batch(factory: StepClassFactory):
+            factory.batch(batch_size, item_key, load_fn)
+
+        return DecoratorFunction(func, set_batch)
 
     return decorator

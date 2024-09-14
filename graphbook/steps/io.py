@@ -52,7 +52,7 @@ class DumpJSONL(Step):
         super().__init__()
         self.jsonl_path = jsonl_path
 
-    def on_after_items(self, note: Note):
+    def on_after_item(self, note: Note):
         with open(self.jsonl_path, "a") as f:
             note_entry = note.items
             json.dump(note_entry, f)

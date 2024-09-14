@@ -70,7 +70,7 @@ class Step:
         Executes upon end of graph execution
         """
         pass
-    
+
     def on_note(self, note: Note):
         """
         Executes upon receiving a Note
@@ -91,7 +91,7 @@ class Step:
 
     def on_item(self, item: any, note: Note):
         """
-        Executes upon receiving an item. Is called after *on_before_items()* and before *on_after_item()*.
+        Executes upon receiving an item. Is called after *on_note()* and before *on_after_item()*.
 
         Args:
             item (any): The  input
@@ -299,7 +299,7 @@ class BatchStep(AsyncStep):
         """
         if note is None:
             return
-        self.on_before_items(note)
+        self.on_note(note)
         items = note[self.item_key]
         if items is None:
             raise ValueError(f"Item key {self.item_key} not found in Note.")
@@ -309,7 +309,7 @@ class BatchStep(AsyncStep):
             note_id = id(note)
             if not is_batchable(items):
                 items = [items]
-            
+
             if len(items) > 0:
                 dataloader.put_load(items, note_id, id(self))
                 self.loaded_notes[note_id] = note
@@ -394,7 +394,7 @@ class BatchStep(AsyncStep):
         loaded, notes, completed = batch
         outputs = [l[0] for l in loaded]
         indexes = [l[1] for l in loaded]
-        
+
         items = []
         for note, index in zip(notes, indexes):
             item = note.items[self.item_key]
@@ -569,9 +569,7 @@ class SplitItemField(Step):
     Category = "Filtering"
     Outputs = ["out"]
 
-    def __init__(
-        self, split_fn, item_key, a_key, b_key, should_delete_original=True
-    ):
+    def __init__(self, split_fn, item_key, a_key, b_key, should_delete_original=True):
         super().__init__(item_key=item_key)
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)

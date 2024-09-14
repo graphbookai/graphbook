@@ -1,3 +1,3 @@
 from .base import Step, SourceStep, GeneratorSourceStep, BatchStep, StepOutput, AsyncStep, Split, SplitNotesByItems, SplitItemField
 from .io import LoadJSONL, DumpJSONL
-from .decorators import step, param, source, output
+from .decorators import step, param, source, output, batch
