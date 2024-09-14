@@ -39,20 +39,10 @@ class StepClassFactory:
             self.Outputs = []
         self.Outputs.extend(outputs)
         
-    def batch(self, batch_size: int | None, item_key: str | None, load_fn=None):
+    def batch(self, default_batch_size: int | None, default_item_key: str | None, load_fn=None):
         self.BaseClass = steps.BatchStep
-        self.Parameters["batch_size"] = {
-            "type": "number",
-            "default": batch_size,
-            "required": True,
-            "description": "The size of the batch to be loaded",
-        }
-        self.Parameters["item_key"] = {
-            "type": "string",
-            "default": item_key,
-            "required": True,
-            "description": "The key to use for batching",
-        }
+        self.param("batch_size", "number", default=default_batch_size, required=True, description="The size of the batch to be loaded")
+        self.param("item_key", "string", default=default_item_key, required=True, description="The key to use for batching")
         if load_fn is not None:
             self.event("load_fn", load_fn)
 
@@ -68,9 +58,14 @@ class StepClassFactory:
                     if cast_as is not None:
                         value = cast_as(value)
                 setattr(cls, key, value)
+            init_event = self.events.get("__init__")
+            if init_event:
+                init_event(cls, **kwargs)
 
         cls_methods = {"__init__": __init__}
         for event, fn in self.events.items():
+            if event == "__init__":
+                continue
             cls_methods[event] = fn
         newclass = type(self.name, (self.BaseClass,), cls_methods)
         newclass.Category = self.category
@@ -106,7 +101,7 @@ def step(name, event: str | None = None):
         global step_factories
         short_name = name.split("/")[-1]
         category = "/".join(name.split("/")[:-1])
-        factory = StepClassFactory(short_name, category)
+        factory = step_factories.get(short_name) or StepClassFactory(short_name, category)
 
         while isinstance(func, DecoratorFunction):
             func.fn(factory, **func.kwargs)
@@ -149,6 +144,15 @@ def param(
 
     return decorator
 
+def event(event: str, event_fn: callable):
+    def decorator(func):
+        def set_event(factory: StepClassFactory):
+            factory.event(event, event_fn)
+
+        return DecoratorFunction(func, set_event)
+
+    return decorator
+
 
 def source(is_generator=True):
     def decorator(func):
@@ -156,16 +160,6 @@ def source(is_generator=True):
             factory.source(is_generator)
 
         return DecoratorFunction(func, set_source)
-
-    return decorator
-
-
-def sink():
-    def decorator(func):
-        def set_sink(factory: StepClassFactory):
-            factory.sink()
-
-        return DecoratorFunction(func, set_sink)
 
     return decorator
 
