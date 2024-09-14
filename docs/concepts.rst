@@ -24,10 +24,10 @@ A Step goes through lifecycle methods upon processing a Note. The below methods 
 #. ``__init__``: The constructor of the Step. This is where you can set up the Step and its parameters. This will not be re-called if a node's code or its parameter values have not changed.
 #. ``on_clear``: Called when the step is cleared. This is where you can delete any state that the Step has stored.
 #. ``on_start``: This is called at the start of each graph execution.
-#. ``on_before_items``: This is called before the Step processes each Note.
+#. ``on_note``: This is called before the Step processes each Note.
 #. ``on_item``: This is called for each item.
 #. ``on_item_batch``: This is called for each batch of items. *This only gets called if the Step is a BatchStep.*
-#. ``on_after_items``: This is called after the Step processes each Note.
+#. ``on_after_item``: This is called after the Step processes each Note.
 #. ``forward_note``: This is called after the Step processes each Note and is used to route the Note to a certain output slot.
 #. ``on_end``: This is called at the end of each graph execution.
 
