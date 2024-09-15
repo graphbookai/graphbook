@@ -9,7 +9,7 @@ import os
 import os.path as osp
 import inspect
 import traceback
-from graphbook.steps.decorators import step, get_steps
+from graphbook.decorators import get_steps, get_resources
 from graphbook.steps import (
     Step,
     BatchStep,
@@ -130,8 +130,10 @@ class CustomNodeImporter:
                 if issubclass(obj, Resource) and not obj in BUILT_IN_RESOURCES:
                     self.resource_handler(filename, name, obj)
 
-        for step_name, step_class in get_steps().items():
-            self.step_handler(filename, step_name, step_class)
+        for name, cls in get_steps().items():
+            self.step_handler(filename, name, cls)
+        for name, cls in get_resources().items():
+            self.resource_handler(filename, name, cls)
 
         if self.websocket is not None and not self.websocket.closed:
             print("Sending node updated")

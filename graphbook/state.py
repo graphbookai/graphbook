@@ -2,8 +2,9 @@ from __future__ import annotations
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
-from graphbook.steps import Step, decorators, StepOutput as Outputs
+from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
+from graphbook.decorators import get_steps, get_resources
 from graphbook.viewer import ViewManagerInterface
 from graphbook.plugins import setup_plugins
 from graphbook.logger import setup_logging_nodes
@@ -124,9 +125,12 @@ class NodeCatalog:
                             self.nodes["resources"][name] = obj
                             updated_nodes["resources"][name] = True
                 
-                for name, cls in decorators.get_steps().items():
+                for name, cls in get_steps().items():
                     self.nodes["steps"][name] = cls
                     updated_nodes["steps"][name] = True
+                for name, cls in get_resources().items():
+                    self.nodes["resources"][name] = cls
+                    updated_nodes["resources"][name] = True
 
         return updated_nodes
 

@@ -1,21 +1,24 @@
 import graphbook.steps as steps
+import graphbook.resources as resources
 from typing import List, Dict
+import abc
 
 
-class StepClassFactory:
-    def __init__(self, name, category, BaseClass=steps.Step):
+class NodeClassFactory:
+    def __init__(self, name, category, BaseClass):
         self.name = name
         self.category = category
         self.BaseClass = BaseClass
-        self.events = {}
         self.Parameters = {}
         self.parameter_type_casts = {}
-        self.RequiresInput = True
-        self.Outputs = ["out"]
-        self.is_outputs_specified = False
+        self.events = {}
+        self.docstring = ""
 
     def event(self, event, func):
         self.events[event] = func
+
+    def doc(self, docstring):
+        self.docstring = docstring
 
     def param(
         self, name, type, cast_as=None, default=None, required=False, description=""
@@ -29,6 +32,18 @@ class StepClassFactory:
             }
             self.parameter_type_casts[name] = cast_as
 
+    @abc.abstractmethod
+    def build():
+        return None
+
+
+class StepClassFactory(NodeClassFactory):
+    def __init__(self, name, category, BaseClass=steps.Step):
+        super().__init__(name, category, BaseClass)
+        self.RequiresInput = True
+        self.Outputs = ["out"]
+        self.is_outputs_specified = False
+
     def source(self, is_generator=True):
         self.RequiresInput = False
         self.BaseClass = steps.GeneratorSourceStep if is_generator else steps.SourceStep
@@ -38,18 +53,34 @@ class StepClassFactory:
             self.is_outputs_specified = True
             self.Outputs = []
         self.Outputs.extend(outputs)
-        
-    def batch(self, default_batch_size: int | None, default_item_key: str | None, load_fn=None):
+
+    def batch(
+        self, default_batch_size: int | None, default_item_key: str | None, load_fn=None
+    ):
         self.BaseClass = steps.BatchStep
-        self.param("batch_size", "number", default=default_batch_size, required=True, description="The size of the batch to be loaded")
-        self.param("item_key", "string", default=default_item_key, required=True, description="The key to use for batching")
+        self.param(
+            "batch_size",
+            "number",
+            default=default_batch_size,
+            required=True,
+            description="The size of the batch to be loaded",
+        )
+        self.param(
+            "item_key",
+            "string",
+            default=default_item_key,
+            required=True,
+            description="The key to use for batching",
+        )
         if load_fn is not None:
             self.event("load_fn", load_fn)
 
     def build(self):
         def __init__(cls, **kwargs):
             if self.BaseClass == steps.BatchStep:
-                self.BaseClass.__init__(cls, batch_size=kwargs["batch_size"], item_key=kwargs["item_key"])
+                self.BaseClass.__init__(
+                    cls, batch_size=kwargs["batch_size"], item_key=kwargs["item_key"]
+                )
             else:
                 self.BaseClass.__init__(cls)
             for key, value in kwargs.items():
@@ -70,8 +101,35 @@ class StepClassFactory:
         newclass = type(self.name, (self.BaseClass,), cls_methods)
         newclass.Category = self.category
         newclass.Parameters = self.Parameters
+        newclass.__doc__ = self.docstring
         newclass.RequiresInput = self.RequiresInput
         newclass.Outputs = self.Outputs
+        return newclass
+
+
+class ResourceClassFactory(NodeClassFactory):
+    def __init__(self, name, category, BaseClass=resources.Resource):
+        super().__init__(name, category, BaseClass)
+
+    def build(self):
+        def __init__(cls, **kwargs):
+            self.BaseClass.__init__(cls)
+            for key, value in kwargs.items():
+                if key in self.Parameters:
+                    cast_as = self.parameter_type_casts[key]
+                    if cast_as is not None:
+                        value = cast_as(value)
+                setattr(cls, key, value)
+
+        cls_methods = {"__init__": __init__}
+        for event, fn in self.events.items():
+            if event == "__init__":
+                continue
+            cls_methods[event] = fn
+        newclass = type(self.name, (self.BaseClass,), cls_methods)
+        newclass.Category = self.category
+        newclass.Parameters = self.Parameters
+        newclass.__doc__ = self.docstring
         return newclass
 
 
@@ -83,7 +141,7 @@ class DecoratorFunction:
 
 
 step_factories: Dict[str, StepClassFactory] = {}
-resource_factories = {}
+resource_factories: Dict[str, ResourceClassFactory] = {}
 
 
 def get_steps():
@@ -96,12 +154,24 @@ def get_steps():
     return steps
 
 
+def get_resources():
+    global resource_factories
+    resources = {}
+    for name, factory in resource_factories.items():
+        resources[name] = factory.build()
+
+    resource_factories.clear()
+    return resources
+
+
 def step(name, event: str | None = None):
     def decorator(func):
         global step_factories
         short_name = name.split("/")[-1]
         category = "/".join(name.split("/")[:-1])
-        factory = step_factories.get(short_name) or StepClassFactory(short_name, category)
+        factory = step_factories.get(short_name) or StepClassFactory(
+            short_name, category
+        )
 
         while isinstance(func, DecoratorFunction):
             func.fn(factory, **func.kwargs)
@@ -117,6 +187,7 @@ def step(name, event: str | None = None):
             else:
                 factory.event("load", func)
 
+        factory.doc(func.__doc__)
         step_factories[short_name] = factory
 
         def wrapper(*args, **kwargs):
@@ -137,12 +208,13 @@ def param(
     cast_as: type | None = None,
 ):
     def decorator(func):
-        def set_p(factory: StepClassFactory):
+        def set_p(factory: NodeClassFactory):
             factory.param(name, type, cast_as, default, required, description)
 
         return DecoratorFunction(func, set_p)
 
     return decorator
+
 
 def event(event: str, event_fn: callable):
     def decorator(func):
@@ -173,11 +245,37 @@ def output(*outputs: List[str]):
 
     return decorator
 
+
 def batch(batch_size: int | None = None, item_key: str | None = None, *, load_fn=None):
     def decorator(func):
         def set_batch(factory: StepClassFactory):
             factory.batch(batch_size, item_key, load_fn)
 
         return DecoratorFunction(func, set_batch)
+
+    return decorator
+
+
+def resource(name):
+    def decorator(func):
+        global resource_factories
+        short_name = name.split("/")[-1]
+        category = "/".join(name.split("/")[:-1])
+        factory = resource_factories.get(short_name) or ResourceClassFactory(
+            short_name, category
+        )
+
+        while isinstance(func, DecoratorFunction):
+            func.fn(factory, **func.kwargs)
+            func = func.next
+
+        factory.event("value", func)
+        factory.doc(func.__doc__)
+        resource_factories[short_name] = factory
+
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
 
     return decorator
