@@ -12,9 +12,13 @@ class NodeClassFactory:
         self.Parameters = {}
         self.parameter_type_casts = {}
         self.events = {}
-        
+        self.docstring = ""
+
     def event(self, event, func):
         self.events[event] = func
+
+    def doc(self, docstring):
+        self.docstring = docstring
 
     def param(
         self, name, type, cast_as=None, default=None, required=False, description=""
@@ -27,8 +31,8 @@ class NodeClassFactory:
                 "description": description,
             }
             self.parameter_type_casts[name] = cast_as
-        
-    @abc.abstractmethod    
+
+    @abc.abstractmethod
     def build():
         return None
 
@@ -97,6 +101,7 @@ class StepClassFactory(NodeClassFactory):
         newclass = type(self.name, (self.BaseClass,), cls_methods)
         newclass.Category = self.category
         newclass.Parameters = self.Parameters
+        newclass.__doc__ = self.docstring
         newclass.RequiresInput = self.RequiresInput
         newclass.Outputs = self.Outputs
         return newclass
@@ -124,6 +129,7 @@ class ResourceClassFactory(NodeClassFactory):
         newclass = type(self.name, (self.BaseClass,), cls_methods)
         newclass.Category = self.category
         newclass.Parameters = self.Parameters
+        newclass.__doc__ = self.docstring
         return newclass
 
 
@@ -181,6 +187,7 @@ def step(name, event: str | None = None):
             else:
                 factory.event("load", func)
 
+        factory.doc(func.__doc__)
         step_factories[short_name] = factory
 
         def wrapper(*args, **kwargs):
@@ -263,6 +270,7 @@ def resource(name):
             func = func.next
 
         factory.event("value", func)
+        factory.doc(func.__doc__)
         resource_factories[short_name] = factory
 
         def wrapper(*args, **kwargs):
