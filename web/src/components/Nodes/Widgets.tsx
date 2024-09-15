@@ -129,7 +129,7 @@ export function ListWidget({ name, def, onChange, type }) {
 
     return (
         <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}` }}>
-            <Text style={{margin: "2px 1px"}}>{name}</Text>
+            <Text style={{ margin: "2px 1px" }}>{name}</Text>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {def && def.map((item, i) => {
                     return (
@@ -228,14 +228,14 @@ export function DictWidget({ name, def, onChange, type }) {
             value: option,
         }));
     }, []);
-    
+
     return (
         <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}` }}>
-            <Text style={{margin: "2px 1px"}}>{name}</Text>
+            <Text style={{ margin: "2px 1px" }}>{name}</Text>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {value && value.map((item, i) => {
                     return (
-                        <Flex justify='space-between' style={{margin: '1px 0' }} key={i}>
+                        <Flex justify='space-between' style={{ margin: '1px 0' }} key={i}>
                             <Flex>
                                 <Select
                                     value={item[0]}
@@ -244,7 +244,7 @@ export function DictWidget({ name, def, onChange, type }) {
                                 />
                                 <Input onChange={(value) => onKeyChange(i, value)} value={item[1]} />
                             </Flex>
-                            
+
                             <Flex>
                                 {
                                     selectedInputs[i]

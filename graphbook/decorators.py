@@ -383,12 +383,12 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
     Examples:
         .. highlight:: python
         .. code-block:: python
-        
+
             def load_fn(ctx, item: dict) -> torch.Tensor:
                 im = Image.open(item["value"])
                 image = F.to_tensor(im)
                 return image
-                
+
             def dump_fn(ctx, data: torch.Tensor, path: str):
                 im = F.to_pil_image(data)
                 im.save(path)
@@ -413,14 +413,14 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
 def resource(name):
     """
     Marks a function as a resource that returns an object that can be used by other steps or resources.
-    
+
     Args:
         name (str): The name of the resource including the category.
-        
+
     Examples:
         .. highlight:: python
         .. code-block:: python
-        
+
             @resource("Custom/MyResource")
             @param("model_path", "string", description="The path to the resource")
             @param("fp16", "boolean", default=False, description="Whether to use FP16")
@@ -428,6 +428,7 @@ def resource(name):
                 model = load_model(ctx.model_path, fp16=ctx.fp16)
                 return model
     """
+
     def decorator(func):
         global resource_factories
         short_name = name.split("/")[-1]
