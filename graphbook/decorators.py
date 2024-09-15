@@ -31,9 +31,14 @@ class NodeClassFactory:
                 "required": required,
                 "description": description,
             }
-            if type == "function":
-                self.parameter_type_casts[name] = transform_function_string
-            self.parameter_type_casts[name] = cast_as
+            if cast_as is None:
+                # Default casts
+                if type == "function":
+                    self.parameter_type_casts[name] = transform_function_string
+                if type == "int":
+                    self.parameter_type_casts[name] = int
+            else:
+                self.parameter_type_casts[name] = cast_as
 
     @abc.abstractmethod
     def build():
