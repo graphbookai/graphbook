@@ -1,11 +1,10 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 import queue
 import torch
 from torch import Tensor
 import torch.multiprocessing as mp
 import traceback
 from .utils import MP_WORKER_TIMEOUT
-import time
 
 torch.set_num_threads(1)
 MAX_RESULT_QUEUE_SIZE = 32
@@ -13,7 +12,7 @@ MAX_RESULT_QUEUE_SIZE = 32
 
 def do_load(
     work_queue: mp.Queue, result_queue: mp.Queue, load_fn: callable
-) -> Tuple[bool, any]:
+) -> Tuple[bool, Any]:
 
     try:
         item, index, note_id = work_queue.get(False)
@@ -39,7 +38,7 @@ def do_load(
 
 def do_dump(
     work_queue: mp.Queue, result_queue: mp.Queue, dump_fn: callable
-) -> Tuple[bool, any]:
+) -> Tuple[bool, Any]:
     try:
         data, note_id = work_queue.get(False)
     except queue.Empty:
@@ -60,7 +59,7 @@ def do_dump(
     return True, None
 
 
-PendingResult = Tuple[int, any] | None
+PendingResult = Tuple[int, Any] | None
 
 
 def load_loop(
@@ -363,7 +362,7 @@ class Dataloader:
 
     def put_dump(
         self,
-        data: any,
+        data: Any,
         note_id: int,
         consumer_id: int,
     ):
@@ -406,7 +405,7 @@ def get_load(consumer_id):
     return workers.get_load(consumer_id)
 
 
-def put_dump(data: any, note_id: int, consumer_id: int):
+def put_dump(data: Any, note_id: int, consumer_id: int):
     global workers
     workers.put_dump(data, note_id, consumer_id)
 

@@ -16,7 +16,9 @@ const getWidgetLookup = (pluginWidgets) => {
         number: NumberWidget,
         string: StringWidget,
         boolean: BooleanWidget,
+        bool: BooleanWidget,
         function: FunctionWidget,
+        dict: DictWidget,
     };
     pluginWidgets.forEach((widget) => {
         lookup[widget.type] = widget.children;
@@ -41,15 +43,9 @@ export function Widget({ id, type, name, value }) {
         return <ListWidget name={name} def={value} onChange={onChange} type={type} />
     }
 
-    if (type.startsWith('dict')) {
-        return <DictWidget name={name} def={value} onChange={onChange} type={type} />
-    }
-
     if (widgets[type]) {
         return widgets[type]({ name, def: value, onChange });
     }
-
-    return <StringWidget name={name} def={value} onChange={onChange} />
 }
 
 export function NumberWidget({ name, def, onChange }) {
@@ -89,6 +85,13 @@ export function FunctionWidget({ name, def, onChange }) {
     );
 }
 
+const listElementDefaultValues = {
+    "string": "",
+    "number": 0,
+    "boolean": false,
+    "function": "",
+};
+
 export function ListWidget({ name, def, onChange, type }) {
     const { token } = useToken();
     const subType = useMemo(() => type.split('[')[1].split(']')[0], [type]);
@@ -96,14 +99,18 @@ export function ListWidget({ name, def, onChange, type }) {
     const widgets = useMemo(() => {
         return getWidgetLookup(pluginWidgets);
     }, [pluginWidgets]);
-    const Widget = widgets[subType];
+
+    const Widget = useMemo(() => {
+        return widgets[subType];
+    }, [subType]);
 
     const onAddItem = useCallback(() => {
+        const value = listElementDefaultValues[subType];
         if (!def) {
-            onChange([null]);
+            onChange([value]);
             return;
         }
-        onChange([...def, null]);
+        onChange([...def, value]);
     }, [def]);
 
     const onRemoveItem = useCallback((index) => {
@@ -112,9 +119,17 @@ export function ListWidget({ name, def, onChange, type }) {
         onChange(newDef);
     }, [def]);
 
+    if (!Widget) {
+        return (
+            <div className="input-container">
+                <Text type="danger">(Invalid widget type: {subType})</Text>
+            </div>
+        );
+    }
+
     return (
-        <Flex justify='space-between' align="top" className="input-container" style={{ border: `1px solid ${token.colorBorderBg}` }}>
-            <Text>{name}</Text>
+        <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}` }}>
+            <Text style={{margin: "2px 1px"}}>{name}</Text>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {def && def.map((item, i) => {
                     return (
@@ -138,58 +153,76 @@ export function ListWidget({ name, def, onChange, type }) {
 
 export function DictWidget({ name, def, onChange, type }) {
     const { token } = useToken();
-
-    const onAddItem = useCallback(() => {
-        if (!def) {
-            onChange([['string', '', null]]);
-            return;
-        }
-        onChange([...def, ['string', '', null]]);
-    }, [def]);
-
-    const onRemoveItem = useCallback((index) => {
-        const newDef = [...def];
-        newDef.splice(index, 1);
-        onChange(newDef);
-    }, [def]);
-
-    const onTypeChange = useCallback((index, value) => {
-        const newDef = [...def];
-        newDef[index][0] = value;
-        onChange(newDef);
-    }, [def]);
-
-    const onKeyChange = useCallback((index, value) => {
-        const newDef = [...def];
-        newDef[index][1] = value;
-        onChange(newDef);
-    }, [def]);
-
-    const onValueChange = useCallback((index, value) => {
-        const newDef = [...def];
-        newDef[index][2] = value;
-        onChange(newDef);
-    }, [def]);
-
-    const selectedInputs = useMemo(() => {
+    const value = useMemo(() => {
         if (!def) {
             return [];
         }
-        return def.map((item, i) => {
+
+        if (Array.isArray(def)) {
+            return def;
+        }
+
+        try {
+            return Object.entries(def).map(([key, value]) => {
+                let type = typeof value as string;
+                if (type === 'number') {
+                    type = 'float';
+                }
+                return [type, key, value];
+            });
+        } catch (e) {
+            return [];
+        }
+    }, [def]);
+
+    const onAddItem = useCallback(() => {
+        if (!value) {
+            onChange([['string', '', '']]);
+            return;
+        }
+        onChange([...value, ['string', '', '']]);
+    }, [value]);
+
+    const onRemoveItem = useCallback((index) => {
+        const newValue = [...value];
+        newValue.splice(index, 1);
+        onChange(newValue);
+    }, [value]);
+
+    const onTypeChange = useCallback((index, type) => {
+        const newValue = [...value];
+        newValue[index][0] = type;
+        onChange(newValue);
+    }, [value]);
+
+    const onKeyChange = useCallback((index, key) => {
+        const newValue = [...value];
+        newValue[index][1] = key;
+        onChange(newValue);
+    }, [value]);
+
+    const onValueChange = useCallback((index, v) => {
+        const newValue = [...value];
+        newValue[index][2] = v;
+        onChange(newValue);
+    }, [value]);
+
+    const selectedInputs = useMemo(() => {
+        return value.map((item, i) => {
             if (item[0] === 'string') {
                 return <Input onChange={(value) => onValueChange(i, value)} value={item[2]} />
             }
-            if (item[0] === 'float' || item[0] === 'int') {
+            if (item[0] === 'float' || item[0] === 'int' || item[0] === 'number') {
                 return <InputNumber onChange={(value) => onValueChange(i, value)} value={item[2]} />
             }
-            if (item[0] === 'bool') {
+            if (item[0] === 'boolean') {
                 return <Switch size="small" defaultChecked={def} onChange={(value) => onValueChange(i, value)} value={item[2]} />
             }
         });
-    }, [def]);
+    }, [value]);
 
     const options = useMemo(() => {
-        const options = ['string', 'float', 'int', 'bool'];
+        const options = ['string', 'float', 'int', 'boolean'];
         return options.map((option) => ({
             label: option,
             value: option,
@@ -197,10 +230,10 @@ export function DictWidget({ name, def, onChange, type }) {
     }, []);
     
     return (
-        <Flex justify='space-between' align="top" className="input-container" style={{ border: `1px solid ${token.colorBorderBg}` }}>
-            <Text>{name}</Text>
+        <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}` }}>
+            <Text style={{margin: "2px 1px"}}>{name}</Text>
             <Flex vertical style={{ marginLeft: '4px' }}>
-                {def && def.map((item, i) => {
+                {value && value.map((item, i) => {
                     return (
                         <Flex justify='space-between' style={{margin: '1px 0' }} key={i}>
                             <Flex>
@@ -341,5 +374,5 @@ function Input({ onChange, label, value }: { onChange: (value: string) => void, 
 }
 
 export const isWidgetType = (type) => {
-    return ['number', 'string', 'boolean', 'function'].includes(type) || type.startsWith('list') || type.startsWith('dict');
+    return ['number', 'string', 'boolean', 'bool', 'function'].includes(type) || type.startsWith('list') || type.startsWith('dict');
 };

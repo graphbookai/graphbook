@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator
+from typing import List, Dict, Tuple, Generator, Any
 from ..utils import transform_function_string, convert_dict_values_to_list, is_batchable
 from graphbook import Note
 from graphbook.logger import log
@@ -89,13 +89,13 @@ class Step:
         """
         pass
 
-    def on_item(self, item: any, note: Note):
+    def on_item(self, item: Any, note: Note):
         """
         Executes upon receiving an item. Is called after *on_note()* and before *on_after_item()*.
 
         Args:
-            item (any): The  input
-            note (Note): The Note that the any belongs to
+            item (Any): The item to process
+            note (Note): The Note that the item belongs to
         """
         pass
 
@@ -272,7 +272,7 @@ class NoteItemHolders:
         return len(self.completed_notes) > 0
 
 
-StepData = Tuple[List[any], List[Note], List[Note]]
+StepData = Tuple[List[Any], List[Note], List[Note]]
 
 
 class BatchStep(AsyncStep):
@@ -367,7 +367,7 @@ class BatchStep(AsyncStep):
         Args:
             note (Note): The Note input
             item_key (str): The item key to dump
-            output (any): The output data to
+            output (Any): The output data to dump
         """
         self.dumped_item_holders.handle_note(note)
         dataloader.put_dump(output, id(note), id(self))
@@ -439,19 +439,19 @@ class BatchStep(AsyncStep):
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, outputs, items, notes) -> List[Tuple[any]] | None:
+    def on_item_batch(self, outputs, items, notes) -> List[Tuple[Any]] | None:
         """
         Called when B items are loaded and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
         Args:
-            outputs (List[any]): The list of loaded outputs of length B
-            items (List[any]): The list of anys of length B associated with outputs. This list has the same order as outputs does
+            outputs (List[Any]): The list of loaded outputs of length B
+            items (List[Any]): The list of anys of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
             notes (List[Note]): The list of Notes of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
 
         Returns:
-            List[Tuple[any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
+            List[Tuple[Any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
         """
         pass
 
