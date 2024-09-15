@@ -1,6 +1,6 @@
 from typing import Literal
 import multiprocessing as mp
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any
 import inspect
 from graphbook.viewer import ViewManagerInterface
 from graphbook.utils import transform_json_log
@@ -19,7 +19,7 @@ def setup_logging_nodes(nodes: Dict[int, Tuple[str, str]], queue: mp.Queue):
     view_manager = ViewManagerInterface(queue)
 
 
-def log(msg: any, type: LogType = "info", caller_id: int | None = None):
+def log(msg: Any, type: LogType = "info", caller_id: int | None = None):
     if caller_id is None:
         prev_frame = inspect.currentframe().f_back
         caller = prev_frame.f_locals.get("self")

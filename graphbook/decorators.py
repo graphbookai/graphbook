@@ -2,6 +2,7 @@ import graphbook.steps as steps
 import graphbook.resources as resources
 from typing import List, Dict
 import abc
+from graphbook.utils import transform_function_string
 
 
 class NodeClassFactory:
@@ -30,7 +31,14 @@ class NodeClassFactory:
                 "required": required,
                 "description": description,
             }
-            self.parameter_type_casts[name] = cast_as
+            if cast_as is None:
+                # Default casts
+                if type == "function":
+                    self.parameter_type_casts[name] = transform_function_string
+                if type == "int":
+                    self.parameter_type_casts[name] = int
+            else:
+                self.parameter_type_casts[name] = cast_as
 
     @abc.abstractmethod
     def build():
@@ -55,7 +63,7 @@ class StepClassFactory(NodeClassFactory):
         self.Outputs.extend(outputs)
 
     def batch(
-        self, default_batch_size: int | None, default_item_key: str | None, load_fn=None
+        self, default_batch_size: int, default_item_key: str, load_fn=None, dump_fn=None
     ):
         self.BaseClass = steps.BatchStep
         self.param(
@@ -74,6 +82,8 @@ class StepClassFactory(NodeClassFactory):
         )
         if load_fn is not None:
             self.event("load_fn", load_fn)
+        if dump_fn is not None:
+            self.event("dump_fn", dump_fn)
 
     def build(self):
         def __init__(cls, **kwargs):
@@ -165,6 +175,24 @@ def get_resources():
 
 
 def step(name, event: str | None = None):
+    """
+    Marks a function as belonging to a step method.
+    Use this decorator if you want to create a new step node or attach new functions as events to an existing step node.
+
+    Args:
+        name (str): The name of the step including the category
+        event (str): The event that the function should be called on.
+            Default is ``on_note``, ``on_item_batch`` if it is a BatchStep, and ``load`` if it is a SourceStep.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            @step("Custom/Simple/MyStep")
+            def my_step(ctx, note):
+                note["value"] = 42
+    """
+
     def decorator(func):
         global step_factories
         short_name = name.split("/")[-1]
@@ -207,6 +235,36 @@ def param(
     description: str = "",
     cast_as: type | None = None,
 ):
+    """
+    Assigns a parameter to a step or resource.
+    Graphbook's web UI will display the parameter as a widget and supply the parameter as kwargs to the step or resource's ``__init__`` event.
+    If the type is a *function*, the parameter will be cast as a function using ``transform_function_string()``.
+
+    Args:
+        name (str): The name of the parameter
+        type (str): The type of the parameter. Can be one of: *string*, *number*, *boolean*, *function*, or *resource*, *dict*, *list[string]*, *list[number]*, *list[boolean]*, *list[function]*.
+        default (Any): The default value of the parameter.
+        required (bool): Whether the parameter is required.
+        description (str): A description of the parameter.
+        cast_as (type | callable): A function or class type to cast the parameter to a specific type.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            @step("SimpleStep")
+            @param("value", "number", default=42, description="The value to set")
+            def my_step(ctx, note):
+                note["value"] = ctx.value
+
+            @step("Foo")
+            @param("param1", "string", default="foo")
+            @param("param2", "function")
+            def my_step(ctx, note):
+                note["value"] += ctx.param1
+                note["processed"] = ctx.param2(note["value"])
+    """
+
     def decorator(func):
         def set_p(factory: NodeClassFactory):
             factory.param(name, type, cast_as, default, required, description)
@@ -217,6 +275,32 @@ def param(
 
 
 def event(event: str, event_fn: callable):
+    """
+    Assigns a callable function as an event i.e. a lifecycle method to a step.
+    Graphbook's web UI will display the parameter as a widget and supply the parameter as kwargs to the step or resource's ``__init__`` event.
+
+    Args:
+        event (str): The name of the event
+        event_fn (callable): The function to call when the event is triggered.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            def init(ctx, **kwargs):
+                ctx.num_processed = 0
+
+            def on_clear(ctx):
+                ctx.num_processed = 0
+
+            @step("StatefulStep")
+            @event("__init__", init)
+            @event("on_clear", on_clear)
+            def my_step(ctx, note):
+                ctx.num_processed += 1
+                note["num_processed"] = ctx.num_processed
+    """
+
     def decorator(func):
         def set_event(factory: StepClassFactory):
             factory.event(event, event_fn)
@@ -227,6 +311,28 @@ def event(event: str, event_fn: callable):
 
 
 def source(is_generator=True):
+    """
+    Marks a step function as a SourceStep.
+    Use this decorator if this step requires no input step and creates Notes to be processed by the rest of the graph.
+
+    Args:
+        is_generator (bool): Whether the assigned function is a generator function. Default is true. This means that the function is expected to yield Notes.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            @step("LoadData")
+            @source()
+            @param("path", "string", description="The path to the data")
+            def my_data(ctx, note):
+                files = os.listdir(ctx.path)
+                for file in files:
+                    file = os.path.join(ctx.path, file)
+                    with open(file) as f:
+                        yield Note({"data": f.read()})
+    """
+
     def decorator(func):
         def set_source(factory: StepClassFactory):
             factory.source(is_generator)
@@ -237,6 +343,27 @@ def source(is_generator=True):
 
 
 def output(*outputs: List[str]):
+    """
+    Assigns extra outputs slots to a step.
+    By default, Graphbook will assign the step an output slot name "out".
+    When using this decorator, you will get rid of the default output slot "out" and replace it with your own.
+
+    Args:
+        outputs (str...): A sequence of strings representing the names of the output slots.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            @step("Custom/MyStep", event="forward_note")
+            @output("Good", "Bad")
+            def evaluate(ctx, note):
+                if note["value"] > 0:
+                    return "Good"
+                else:
+                    return "Bad"
+    """
+
     def decorator(func):
         def set_output(factory: StepClassFactory):
             factory.output(outputs)
@@ -246,7 +373,39 @@ def output(*outputs: List[str]):
     return decorator
 
 
-def batch(batch_size: int | None = None, item_key: str | None = None, *, load_fn=None):
+def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None):
+    """
+    Marks a step function as a BatchStep which can interface with the worker pool to load, batch, and dump data such as images and PyTorch Tensors.
+    This will also assign the parameters *batch_size* and *item_key* to the step.
+    The decorated function will by default be called on the event ``on_item_batch``.
+
+    Args:
+        batch_size (int): The default batch size to use when batching data.
+        item_key (str): The expected key in the Note to use for batching. Will be used to find the value of the item to batch.
+        load_fn (callable): A function to load the data. This function should take the context and an item and return the loaded data.
+        dump_fn (callable): A function to dump the data. This function should take the context and the data and return the dumped data.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            def load_fn(ctx, item: dict) -> torch.Tensor:
+                im = Image.open(item["value"])
+                image = F.to_tensor(im)
+                return image
+
+            def dump_fn(ctx, data: torch.Tensor, path: str):
+                im = F.to_pil_image(data)
+                im.save(path)
+
+            @step("ModelTask")
+            @batch(load_fn=load_fn, dump_fn=dump_fn)
+            @param("model", "resource")
+            def task(ctx, note):
+                prediction = ctx.model(note["value"])
+                note["prediction"] = prediction
+    """
+
     def decorator(func):
         def set_batch(factory: StepClassFactory):
             factory.batch(batch_size, item_key, load_fn)
@@ -257,6 +416,24 @@ def batch(batch_size: int | None = None, item_key: str | None = None, *, load_fn
 
 
 def resource(name):
+    """
+    Marks a function as a resource that returns an object that can be used by other steps or resources.
+
+    Args:
+        name (str): The name of the resource including the category.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            @resource("Custom/MyResource")
+            @param("model_path", "string", description="The path to the resource")
+            @param("fp16", "boolean", default=False, description="Whether to use FP16")
+            def my_resource(ctx):
+                model = load_model(ctx.model_path, fp16=ctx.fp16)
+                return model
+    """
+
     def decorator(func):
         global resource_factories
         short_name = name.split("/")[-1]
