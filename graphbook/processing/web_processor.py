@@ -53,7 +53,7 @@ class WebInstanceProcessor:
         )
         self.is_running = False
         self.filename = None
-        
+
     def handle_images(self, outputs: StepOutput):
         if self.img_mem is None:
             return
@@ -62,7 +62,9 @@ class WebInstanceProcessor:
             if isinstance(item, dict):
                 if item.get("shm_id") is not None:
                     return
-                if item.get("type") == "image" and isinstance(item.get("value"), Image.Image):
+                if item.get("type") == "image" and isinstance(
+                    item.get("value"), Image.Image
+                ):
                     shm_id = self.img_mem.add_image(item["value"])
                     item["shm_id"] = shm_id
             elif isinstance(item, list):
@@ -96,16 +98,18 @@ class WebInstanceProcessor:
 
         if outputs:
             if not isinstance(outputs, dict):
-                log(f"{step_output_err_res} Output was not a dict.", "error", id(step))
-                return None
+                if not len(step.Outputs) == 1:
+                    log(
+                        f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value.",
+                        "error",
+                        id(step),
+                    )
+                    return None
+                outputs = {step.Outputs[0]: outputs}
 
-            if not all(isinstance(v, list) for v in outputs.values()):
-                log(
-                    f"{step_output_err_res} Dict values were not all lists.",
-                    "error",
-                    id(step),
-                )
-                return None
+            for k, v in outputs.items():
+                if not isinstance(v, list):
+                    outputs[k] = [v]
 
             if not all(
                 [all(isinstance(v, Note) for v in out) for out in outputs.values()]

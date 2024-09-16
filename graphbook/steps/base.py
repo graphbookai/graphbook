@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator
+from typing import List, Dict, Tuple, Generator, Any
 from ..utils import transform_function_string, convert_dict_values_to_list, is_batchable
 from graphbook import Note
 from graphbook.logger import log
@@ -71,16 +71,16 @@ class Step:
         """
         pass
 
-    def on_before_items(self, note: Note):
+    def on_note(self, note: Note):
         """
-        Executes upon receiving a Note and before receiving items
+        Executes upon receiving a Note
 
         Args:
             note (Note): The Note input
         """
         pass
 
-    def on_after_items(self, note: Note):
+    def on_after_item(self, note: Note):
         """
         Executes upon receiving a Note and after processing items
 
@@ -89,13 +89,13 @@ class Step:
         """
         pass
 
-    def on_item(self, item: any, note: Note):
+    def on_item(self, item: Any, note: Note):
         """
-        Executes upon receiving an item. Is called after *on_before_items()* and before *on_after_items()*.
+        Executes upon receiving an item. Is called after *on_note()* and before *on_after_item()*.
 
         Args:
-            item (any): The  input
-            note (Note): The Note that the any belongs to
+            item (Any): The item to process
+            note (Note): The Note that the item belongs to
         """
         pass
 
@@ -108,7 +108,7 @@ class Step:
     def forward_note(self, note: Note) -> str | StepOutput:
         """
         Routes a Note. Must return the corresponding output key or a dictionary that contains Notes.
-        Is called after *on_after_items()*.
+        Is called after *on_after_item()*.
 
         Args:
             note (Note): The Note input
@@ -119,8 +119,8 @@ class Step:
         return "out"
 
     def __call__(self, note: Note) -> StepOutput:
-        # 1. on_before_items -> 2. on_item -> 3. on_after_items -> 4. forward_note
-        self.on_before_items(note)
+        # 1. on_note -> 2. on_item -> 3. on_after_item -> 4. forward_note
+        self.on_note(note)
 
         if self.item_key is not None:
             item = note.items.get(self.item_key, None)
@@ -129,7 +129,7 @@ class Step:
             ), f"Item key {self.item_key} not found in Note. Cannot retrieve any iterable."
             self.on_item(item, note)
 
-        self.on_after_items(note)
+        self.on_after_item(note)
 
         out = self.forward_note(note)
         output = {}
@@ -272,7 +272,7 @@ class NoteItemHolders:
         return len(self.completed_notes) > 0
 
 
-StepData = Tuple[List[any], List[Note], List[Note]]
+StepData = Tuple[List[Any], List[Note], List[Note]]
 
 
 class BatchStep(AsyncStep):
@@ -299,7 +299,7 @@ class BatchStep(AsyncStep):
         """
         if note is None:
             return
-        self.on_before_items(note)
+        self.on_note(note)
         items = note[self.item_key]
         if items is None:
             raise ValueError(f"Item key {self.item_key} not found in Note.")
@@ -309,7 +309,7 @@ class BatchStep(AsyncStep):
             note_id = id(note)
             if not is_batchable(items):
                 items = [items]
-            
+
             if len(items) > 0:
                 dataloader.put_load(items, note_id, id(self))
                 self.loaded_notes[note_id] = note
@@ -367,7 +367,7 @@ class BatchStep(AsyncStep):
         Args:
             note (Note): The Note input
             item_key (str): The item key to dump
-            output (any): The output data to
+            output (Any): The output data to dump
         """
         self.dumped_item_holders.handle_note(note)
         dataloader.put_dump(output, id(note), id(self))
@@ -394,7 +394,7 @@ class BatchStep(AsyncStep):
         loaded, notes, completed = batch
         outputs = [l[0] for l in loaded]
         indexes = [l[1] for l in loaded]
-        
+
         items = []
         for note, index in zip(notes, indexes):
             item = note.items[self.item_key]
@@ -432,26 +432,26 @@ class BatchStep(AsyncStep):
             self.dumped_item_holders.handle_item(note_id)
         output = {}
         for note in self.dumped_item_holders.pop_all_completed():
-            self.on_after_items(note)
+            self.on_after_item(note)
             output_key = self.forward_note(note)
             if output_key not in output:
                 output[output_key] = []
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, outputs, items, notes) -> List[Tuple[any]] | None:
+    def on_item_batch(self, outputs, items, notes) -> List[Tuple[Any]] | None:
         """
         Called when B items are loaded and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
         Args:
-            outputs (List[any]): The list of loaded outputs of length B
-            items (List[any]): The list of anys of length B associated with outputs. This list has the same order as outputs does
+            outputs (List[Any]): The list of loaded outputs of length B
+            items (List[Any]): The list of anys of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
             notes (List[Note]): The list of Notes of length B associated with outputs. This list has the same order as outputs does
                 along the batch dimension
 
         Returns:
-            List[Tuple[any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
+            List[Tuple[Any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
         """
         pass
 
@@ -555,7 +555,7 @@ class SplitItemField(Step):
 
     Args:
         split_fn (str): A Python syntax function. The str must contain the function header (def ...). The function \
-        will be evaluated on *on_after_items(note)* where each selected item from item_key is fed into \
+        will be evaluated on *on_after_item(note)* where each selected item from item_key is fed into \
         *split_fn(item)*.
         item_key (str): Original item_key that the items come from
         a_key (str): Will append item to any list associated with the a_key if *split_fn(item)* evaluates to True
@@ -569,9 +569,7 @@ class SplitItemField(Step):
     Category = "Filtering"
     Outputs = ["out"]
 
-    def __init__(
-        self, split_fn, item_key, a_key, b_key, should_delete_original=True
-    ):
+    def __init__(self, split_fn, item_key, a_key, b_key, should_delete_original=True):
         super().__init__(item_key=item_key)
         self.split_fn = split_fn
         self.fn = transform_function_string(split_fn)
@@ -579,7 +577,7 @@ class SplitItemField(Step):
         self.b_key = b_key
         self.should_delete_original = should_delete_original
 
-    def on_after_items(self, note: Note) -> StepOutput:
+    def on_after_item(self, note: Note) -> StepOutput:
         a_items = []
         b_items = []
         for item in note.items[self.item_key]:

@@ -1,14 +1,14 @@
 Reference
 #########
 
-.. automodule:: graphbook.steps.base
+.. automodule:: graphbook.steps
    :members:
 
-.. automodule:: graphbook.steps.io
-   :members:
-
-.. automodule:: graphbook.resources.base
+.. automodule:: graphbook.resources
    :members:
 
 .. automodule:: graphbook.utils
+   :members:
+
+.. automodule:: graphbook
    :members:

@@ -8,6 +8,8 @@ import sys
 import os
 import os.path as osp
 import inspect
+import traceback
+from graphbook.decorators import get_steps, get_resources
 from graphbook.steps import (
     Step,
     BatchStep,
@@ -87,7 +89,8 @@ class CustomModuleEventHandler(FileSystemEventHandler):
                 module = importlib.import_module(module_name)
                 importlib.reload(module)
         except Exception as e:
-            print(f"Error loading {module_name}: {e}")
+            print(f"Error loading {module_name}:")
+            traceback.print_exc()
             return
 
         module = sys.modules[module_name]
@@ -123,11 +126,17 @@ class CustomNodeImporter:
         for name, obj in inspect.getmembers(mod):
             if inspect.isclass(obj):
                 if issubclass(obj, Step) and not obj in BUILT_IN_STEPS:
-                    await self.step_handler(filename, name, obj)
+                    self.step_handler(filename, name, obj)
                 if issubclass(obj, Resource) and not obj in BUILT_IN_RESOURCES:
-                    await self.resource_handler(filename, name, obj)
+                    self.resource_handler(filename, name, obj)
+
+        for name, cls in get_steps().items():
+            self.step_handler(filename, name, cls)
+        for name, cls in get_resources().items():
+            self.resource_handler(filename, name, cls)
 
         if self.websocket is not None and not self.websocket.closed:
+            print("Sending node updated")
             await self.websocket.send_json({"type": "node_updated"})
 
     def start_observer(self):

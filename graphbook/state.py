@@ -4,6 +4,7 @@ from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
 from graphbook.steps import Step, StepOutput as Outputs
 from graphbook.resources import Resource
+from graphbook.decorators import get_steps, get_resources
 from graphbook.viewer import ViewManagerInterface
 from graphbook.plugins import setup_plugins
 from graphbook.logger import setup_logging_nodes
@@ -52,7 +53,7 @@ class UIState:
 
 
 class NodeCatalog:
-    def __init__(self, custom_nodes_path: str, plugin_modules: List[str] = []):
+    def __init__(self, custom_nodes_path: str):
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.nodes = {"steps": {}, "resources": {}}
@@ -123,6 +124,14 @@ class NodeCatalog:
                         if issubclass(obj, Resource):
                             self.nodes["resources"][name] = obj
                             updated_nodes["resources"][name] = True
+                
+                for name, cls in get_steps().items():
+                    self.nodes["steps"][name] = cls
+                    updated_nodes["steps"][name] = True
+                for name, cls in get_resources().items():
+                    self.nodes["resources"][name] = cls
+                    updated_nodes["resources"][name] = True
+
         return updated_nodes
 
     def get_nodes(self) -> Tuple[dict, dict]:

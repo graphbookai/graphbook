@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum
+from typing import Any
 import importlib
 import shutil
 import subprocess
@@ -19,7 +20,7 @@ ProcessorStateRequest = Enum(
 )
 
 
-def is_batchable(obj: any) -> bool:
+def is_batchable(obj: Any) -> bool:
     return isinstance(obj, list) or isinstance(obj, Tensor)
 
 
@@ -146,7 +147,7 @@ def convert_dict_values_to_list(d: dict):
             d[k] = [v]
 
 
-def transform_json_log(log: any) -> any:
+def transform_json_log(log: Any) -> Any:
     if isinstance(log, Note):
         return transform_json_log(log.items)
     if isinstance(log, dict):

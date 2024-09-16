@@ -1,6 +1,6 @@
 # CUDA 12.0.1
 # Ubuntu 22.04
-# Python 3.11
+# Python 3.10
 # Nodejs 22
 FROM nvcr.io/nvidia/cuda:12.0.1-runtime-ubuntu22.04
 ARG DEADSNAKES_PPA_KEY="F23C5A6CF475977595C89F51BA6932366A755776"
@@ -20,12 +20,12 @@ RUN apt install -y \
     curl \
     wget \
     make \
-    python3.11
+    python3.10
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash
 RUN apt install -y nodejs
 
 # Setup python and poetry
-RUN ln -s /usr/bin/python3.11 /usr/bin/python
+RUN ln -s /usr/bin/python3.10 /usr/bin/python
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python
 RUN curl -sSL https://install.python-poetry.org | python
 ENV PATH=$PATH:/root/.local/bin
@@ -39,4 +39,4 @@ RUN make web
 
 EXPOSE 8005 8006
 
-CMD ["python", "graphbook/main.py", "--web", "--web_dir", "web/dist"]
+CMD ["python", "graphbook/main.py", "--web_dir", "web/dist"]

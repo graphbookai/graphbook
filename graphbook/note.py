@@ -5,9 +5,9 @@ class Note:
     The unit that passes through workflow steps. A Note contains a dictionary of items related to the note.
 
     Args:
-        items (Dict[str, any]): An optional dictionary of items to store in the Note
+        items (Dict[str, Any]): An optional dictionary of items to store in the Note
 
-    Example:
+    Examples:
         .. highlight:: python
         .. code-block:: python
 
