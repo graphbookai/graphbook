@@ -16,7 +16,7 @@ from .note import Note
 MP_WORKER_TIMEOUT = 5.0
 ProcessorStateRequest = Enum(
     "ProcessorStateRequest",
-    ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE"],
+    ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE", "PROMPT_RESPONSE"],
 )
 
 

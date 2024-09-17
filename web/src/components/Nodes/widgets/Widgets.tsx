@@ -1,13 +1,13 @@
-import { Switch, Typography, theme, Flex, Button } from 'antd';
-import { PlusOutlined, MinusCircleOutlined, MinusOutlined } from '@ant-design/icons';
+import { Switch, Typography, theme, Flex, Button, Radio } from 'antd';
+import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
 import React, { useCallback, useState, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { basicDark } from '@uiw/codemirror-theme-basic';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
-import { Graph } from '../../graph';
+import { Graph } from '../../../graph';
 import { useReactFlow } from 'reactflow';
-import { usePluginWidgets } from '../../hooks/Plugins';
+import { usePluginWidgets } from '../../../hooks/Plugins';
 const { Text } = Typography;
 const { useToken } = theme;
 
@@ -60,13 +60,19 @@ export function StringWidget({ name, def, onChange }) {
     );
 }
 
-export function BooleanWidget({ name, def, onChange }) {
+export function BooleanWidget({ name, def, onChange, style }) {
+    const input = useMemo(() => {
+        if (style === "yes/no") {
+            return <Radio.Group options={["Yes", "No"]} onChange={(e)=>onChange(e.target.value)} value={def} optionType="button" />
+        }
+        return <Switch size="small" defaultChecked={def} onChange={onChange} />
+    }, [style, def]);
     return (
-        <Flex justify='space-between' align="center" className="input-container">
+        <Flex justify='space-between' align="center">
             <Text>{name}</Text>
-            <Switch size="small" defaultChecked={def} onChange={onChange} />
+            {input}
         </Flex>
-    )
+    );
 }
 
 export function FunctionWidget({ name, def, onChange }) {

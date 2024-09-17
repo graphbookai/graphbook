@@ -205,6 +205,14 @@ class GraphServer:
                 }
             )
             return web.json_response({"success": True})
+        
+        @routes.post("/prompt_response/{id}")
+        async def prompt_response(request: web.Request) -> web.Response:
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            response = data.get("response")
+            poll_conn_for(state_conn, ProcessorStateRequest.PROMPT_RESPONSE, {"step_id": step_id, "response": response})
+            return web.json_response({"success": True})
 
         @routes.get("/nodes")
         async def get_nodes(request: web.Request) -> web.Response:

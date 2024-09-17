@@ -1,8 +1,13 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple, Generator, Any
-from ..utils import transform_function_string, convert_dict_values_to_list, is_batchable
 from graphbook import Note
+from graphbook.utils import (
+    transform_function_string,
+    convert_dict_values_to_list,
+    is_batchable,
+)
 from graphbook.logger import log
+import graphbook.prompts as prompts
 import graphbook.dataloading as dataloader
 import warnings
 
@@ -487,6 +492,26 @@ class BatchStep(AsyncStep):
             or len(self.accumulated_items[0]) > 0
             or self.dumped_item_holders.is_active()
         )
+
+
+class PromptStep(Step):
+    def __init__(self):
+        super().__init__()
+        self.waiting = False
+
+    def get_prompt(self, note: Note) -> dict:
+        return prompts.bool_prompt(note, "Continue?", "yes/no")
+
+    def on_prompt_response(self, note: Note, response: Any):
+        raise NotImplementedError(
+            "on_prompt_response must be implemented for PromptStep"
+        )
+        
+    def __call__(self, note: Note) -> StepOutput:
+        if self.waiting:
+            return {}
+        else:
+            return
 
 
 class Split(Step):

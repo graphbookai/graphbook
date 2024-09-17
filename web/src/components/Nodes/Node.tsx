@@ -2,7 +2,7 @@ import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
 import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space } from 'antd';
 import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
-import { Widget, isWidgetType } from './Widgets';
+import { Widget, isWidgetType } from './widgets/Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
@@ -12,8 +12,10 @@ import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
+import { Prompt, PromptProps } from './widgets/Prompts';
 import type { LogEntry, Parameter, ImageRef } from '../../utils';
 import ReactJson from '@microlink/react-json-view';
+import { usePrompt } from '../../hooks/Prompts';
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -27,6 +29,7 @@ export function WorkflowStep({ id, data, selected }) {
     const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [recordCount, setRecordCount] = useState({});
     const [errored, setErrored] = useState(false);
+    const [prompt, setPrompt] = useState<PromptProps | null>(null);
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
     const nodes = useNodes();
@@ -46,6 +49,11 @@ export function WorkflowStep({ id, data, selected }) {
     useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
         setLogsData(prev => getMergedLogs(prev, newEntries));
     }, [setLogsData]));
+
+    usePrompt(id, (data: PromptProps) => {
+        console.log(data);
+        setPrompt({ ...data, stepId: id });
+    });
 
     useEffect(() => {
         for (const log of logsData) {
@@ -164,6 +172,11 @@ export function WorkflowStep({ id, data, selected }) {
                         }).filter(x => x)
                     }
                 </div>
+                {prompt && 
+                    <div className='widgets'>
+                        <Prompt {...prompt} />
+                    </div>
+                }
                 {!data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
             </Card>
         </div>
@@ -229,7 +242,7 @@ function QuickviewCollapse({ data }) {
                     <ReactJson
                         style={{ maxHeight: '200px', overflow: 'auto', fontSize: '0.6em' }}
                         theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
-                        name=""
+                        name={false}
                         displayDataTypes={false}
                         indentWidth={2}
                         src={noteData}

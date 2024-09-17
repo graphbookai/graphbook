@@ -13,6 +13,7 @@ from graphbook.decorators import get_steps, get_resources
 from graphbook.steps import (
     Step,
     BatchStep,
+    PromptStep,
     SourceStep,
     GeneratorSourceStep,
     AsyncStep,
@@ -25,6 +26,7 @@ from graphbook.resources import Resource, NumberResource, FunctionResource, List
 BUILT_IN_STEPS = [
     Step,
     BatchStep,
+    PromptStep,
     SourceStep,
     GeneratorSourceStep,
     AsyncStep,
