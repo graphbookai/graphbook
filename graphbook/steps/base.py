@@ -6,7 +6,7 @@ from graphbook.utils import (
     convert_dict_values_to_list,
     is_batchable,
 )
-from graphbook.logger import log
+from graphbook.logger import log, prompt
 import graphbook.prompts as prompts
 import graphbook.dataloading as dataloader
 import warnings
@@ -226,8 +226,8 @@ class AsyncStep(Step):
 
     def __init__(self, item_key=None):
         super().__init__(item_key)
-        self._is_processing = True
         self._in_queue = []
+        self._out_queue = []
 
     def in_q(self, note: Note | None):
         if note is None:
@@ -235,7 +235,18 @@ class AsyncStep(Step):
         self._in_queue.append(note)
 
     def is_active(self) -> bool:
-        return self._is_processing
+        print("In queue", len(self._in_queue))
+        return len(self._in_queue) > 0
+    
+    def __call__(self) -> StepOutput:
+        # 1. on_note -> 2. on_item -> 3. on_after_item -> 4. forward_note
+        if len(self._out_queue) == 0:
+            return {}
+        note = self._out_queue.pop(0)
+        return super().__call__(note)
+    
+    def all(self) -> StepOutput:
+        return self.__call__()
 
 
 class NoteItemHolders:
@@ -494,10 +505,18 @@ class BatchStep(AsyncStep):
         )
 
 
-class PromptStep(Step):
+class PromptStep(AsyncStep):
     def __init__(self):
         super().__init__()
-        self.waiting = False
+        self._is_awaiting_response = False
+        self._awaiting_note = None
+
+    def handle_prompt_response(self, response: dict):
+        note = self._awaiting_note
+        self.on_prompt_response(note, response)
+        self._out_queue.append(note)
+        self._is_awaiting_response = False
+        self._awaiting_note = None
 
     def get_prompt(self, note: Note) -> dict:
         return prompts.bool_prompt(note, "Continue?", "yes/no")
@@ -505,13 +524,21 @@ class PromptStep(Step):
     def on_prompt_response(self, note: Note, response: Any):
         raise NotImplementedError(
             "on_prompt_response must be implemented for PromptStep"
-        )
+        )        
         
-    def __call__(self, note: Note) -> StepOutput:
-        if self.waiting:
-            return {}
-        else:
-            return
+    def __call__(self):
+        # Handle Prompt
+        if not self._is_awaiting_response and len(self._in_queue) > 0:
+            note = self._in_queue.pop(0)
+            prompt(self.get_prompt(note))
+            self._is_awaiting_response = True
+            self._awaiting_note = note
+        return super().__call__()
+    
+    def is_active(self) -> bool:
+        print("In queue", len(self._in_queue))
+        return len(self._in_queue) > 0 or self._awaiting_note is not None
+        
 
 
 class Split(Step):

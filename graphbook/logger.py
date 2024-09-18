@@ -2,6 +2,7 @@ from typing import Literal
 import multiprocessing as mp
 from typing import Dict, Tuple, Any
 import inspect
+from graphbook.note import Note
 from graphbook.viewer import ViewManagerInterface
 from graphbook.utils import transform_json_log
 
@@ -44,3 +45,18 @@ def log(msg: Any, type: LogType = "info", caller_id: int | None = None):
     else:
         raise ValueError(f"Unknown log type {type}")
     view_manager.handle_log(node_id, msg, type)
+    
+def prompt(prompt: dict, caller_id: int | None = None):
+    if caller_id is None:
+        prev_frame = inspect.currentframe().f_back
+        caller = prev_frame.f_locals.get("self")
+        if caller is not None:
+            caller_id = id(caller)
+
+    node = logging_nodes.get(caller_id, None)
+    if node is None:
+        raise ValueError(
+            f"Can't find node id in {caller}. Only initialized steps can log."
+        )
+    node_id, node_name = node
+    view_manager.handle_prompt(node_id, prompt)

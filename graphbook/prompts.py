@@ -11,6 +11,7 @@ def prompt(note: Note, msg: str, show_images: bool=False, default: Any=""):
     }
 
 def bool_prompt(note: Note, msg: str="", style: str="yes/no", default: bool=False, show_images: bool=False):
+    default = "Yes" if default else "No"
     p = prompt(note, msg, default=default, show_images=show_images)
     p["type"] = "bool"
     p["options"] = {

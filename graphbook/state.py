@@ -2,7 +2,7 @@ from __future__ import annotations
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
-from graphbook.steps import Step, StepOutput as Outputs
+from graphbook.steps import Step, PromptStep, StepOutput as Outputs
 from graphbook.resources import Resource
 from graphbook.decorators import get_steps, get_resources
 from graphbook.viewer import ViewManagerInterface
@@ -400,6 +400,12 @@ class GraphState:
         note = internal_list[index]
         entry.update(data=note.items)
         return entry
+    
+    def handle_prompt_response(self, step_id: str, response: dict):
+        step = self._steps.get(step_id)
+        if not isinstance(step, PromptStep):
+            return
+        step.handle_prompt_response(response)
 
     def get_step(self, step_id: str):
         return self._steps.get(step_id)
