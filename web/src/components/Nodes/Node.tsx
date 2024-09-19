@@ -12,10 +12,10 @@ import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
-import { Prompt, PromptProps } from './widgets/Prompts';
-import type { LogEntry, Parameter, ImageRef } from '../../utils';
+import { Prompt } from './widgets/Prompts';
 import ReactJson from '@microlink/react-json-view';
-import { usePrompt } from '../../hooks/Prompts';
+import type { LogEntry, Parameter, ImageRef } from '../../utils';
+
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -29,7 +29,6 @@ export function WorkflowStep({ id, data, selected }) {
     const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [recordCount, setRecordCount] = useState({});
     const [errored, setErrored] = useState(false);
-    const [prompt, setPrompt] = useState<PromptProps | null>(null);
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
     const nodes = useNodes();
@@ -40,6 +39,8 @@ export function WorkflowStep({ id, data, selected }) {
     const API = useAPI();
     const filename = useFilename();
 
+    console.log("WorkflowStep");
+
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
     });
@@ -49,11 +50,6 @@ export function WorkflowStep({ id, data, selected }) {
     useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
         setLogsData(prev => getMergedLogs(prev, newEntries));
     }, [setLogsData]));
-
-    usePrompt(id, (data: PromptProps) => {
-        console.log(data);
-        setPrompt({ ...data, stepId: id });
-    });
 
     useEffect(() => {
         for (const log of logsData) {
@@ -172,11 +168,9 @@ export function WorkflowStep({ id, data, selected }) {
                         }).filter(x => x)
                     }
                 </div>
-                {prompt && 
-                    <div className='widgets'>
-                        <Prompt {...prompt} />
-                    </div>
-                }
+                <div className="widgets">
+                    <Prompt nodeId={id}/>
+                </div>
                 {!data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
             </Card>
         </div>

@@ -77,6 +77,8 @@ export function useAPINodeMessage(event_type: string, node_id: string, filename:
             callback(msg[node_id]);
         }
     }, [node_id, callback, filename]));
+    
+    console.log("useAPINodeMessage");
 }
 
 

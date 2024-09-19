@@ -183,10 +183,14 @@ class PromptViewer(Viewer):
         self.prompts = {}
 
     def handle_prompt(self, node_id: str, prompt: dict):
+        prev_prompt = self.prompts.get(node_id)
+        idx = 0
+        if prev_prompt:
+            idx = prev_prompt["idx"] + 1
+        prompt["idx"] = idx
         self.prompts[node_id] = prompt
 
     def get_next(self):
-        print(self.prompts)
         return self.prompts
 
 

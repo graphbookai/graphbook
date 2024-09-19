@@ -235,16 +235,15 @@ class AsyncStep(Step):
         self._in_queue.append(note)
 
     def is_active(self) -> bool:
-        print("In queue", len(self._in_queue))
         return len(self._in_queue) > 0
-    
+
     def __call__(self) -> StepOutput:
         # 1. on_note -> 2. on_item -> 3. on_after_item -> 4. forward_note
         if len(self._out_queue) == 0:
             return {}
         note = self._out_queue.pop(0)
         return super().__call__(note)
-    
+
     def all(self) -> StepOutput:
         return self.__call__()
 
@@ -513,6 +512,7 @@ class PromptStep(AsyncStep):
 
     def handle_prompt_response(self, response: dict):
         note = self._awaiting_note
+        assert note is not None, "PromptStep is not awaiting a response."
         self.on_prompt_response(note, response)
         self._out_queue.append(note)
         self._is_awaiting_response = False
@@ -524,8 +524,8 @@ class PromptStep(AsyncStep):
     def on_prompt_response(self, note: Note, response: Any):
         raise NotImplementedError(
             "on_prompt_response must be implemented for PromptStep"
-        )        
-        
+        )
+
     def __call__(self):
         # Handle Prompt
         if not self._is_awaiting_response and len(self._in_queue) > 0:
@@ -534,11 +534,9 @@ class PromptStep(AsyncStep):
             self._is_awaiting_response = True
             self._awaiting_note = note
         return super().__call__()
-    
+
     def is_active(self) -> bool:
-        print("In queue", len(self._in_queue))
         return len(self._in_queue) > 0 or self._awaiting_note is not None
-        
 
 
 class Split(Step):

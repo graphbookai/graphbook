@@ -10,10 +10,10 @@ type QuickViewEntry = {
     [key: string]: any;
 };
 
-export function NotePreview({ data, show_images }: { data: QuickViewEntry, show_images: boolean }) {
+export function NotePreview({ data, showImages }: { data: QuickViewEntry, showImages: boolean }) {
     const globalTheme = theme.useToken().theme;
 
-    if (!show_images) {
+    if (!showImages) {
         return (
             <ReactJson
                 style={{ maxHeight: '200px', overflow: 'auto', fontSize: '0.6em' }}

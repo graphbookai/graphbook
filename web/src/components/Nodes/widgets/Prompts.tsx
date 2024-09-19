@@ -1,9 +1,10 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Typography, Flex, Button } from 'antd';
 import { usePluginWidgets } from '../../../hooks/Plugins';
 import { NotePreview } from './NotePreview';
 import { NumberWidget, StringWidget, BooleanWidget, FunctionWidget, DictWidget, ListWidget } from './Widgets';
 import { useAPI } from '../../../hooks/API';
+import { usePrompt } from '../../../hooks/Prompts';
 
 const { Text } = Typography;
 export type PromptProps = {
@@ -47,25 +48,34 @@ function Widget({ type, options, value, onChange }) {
 }
 
 
-export function Prompt({ stepId, note, msg, type, options, def, show_images }: PromptProps) {
+export function Prompt({ nodeId }: { nodeId: string }) {
     const API = useAPI();
-    const [value, setValue] = useState(def);
+    const prompt = usePrompt(nodeId);
+    const [value, setValue] = useState(null);
     const onChange = useCallback((value) => {
         setValue(value);
     }, []);
 
     const onSubmit = useCallback(() => {
         if (API) {
-            API.respondToPrompt(stepId, value);
+            API.respondToPrompt(nodeId, value);
         }
-    }, [value]);
+    }, [value, API, nodeId]);
+
+    useEffect(() => {
+        console.log('Prompted:', prompt);
+    }, [prompt]);
+
+    if (!prompt) {
+        return null;
+    }
 
     return (
         <Flex className="prompt" vertical>
             <Text>Prompted:</Text>
-            <NotePreview data={note} show_images={show_images || false}/>
-            <Text>{msg}</Text>
-            <Widget type={type} options={options} value={value} onChange={onChange} />
+            <NotePreview data={prompt.note} showImages={prompt.showImages || false}/>
+            <Text>{prompt.msg}</Text>
+            <Widget type={prompt.type} options={prompt.options} value={value} onChange={onChange} />
             <Button className="prompt" type="primary" size="small" onClick={onSubmit}>Submit</Button>
         </Flex>
     );
