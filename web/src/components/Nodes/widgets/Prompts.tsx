@@ -50,23 +50,24 @@ function Widget({ type, options, value, onChange }) {
 
 export function Prompt({ nodeId }: { nodeId: string }) {
     const API = useAPI();
-    const prompt = usePrompt(nodeId);
+    const [prompt, setSubmitted] = usePrompt(nodeId);
     const [value, setValue] = useState(null);
+    const [loading, setLoading] = useState(false);
     const onChange = useCallback((value) => {
         setValue(value);
     }, []);
 
-    const onSubmit = useCallback(() => {
+    const onSubmit = useCallback(async () => {
         if (API) {
-            API.respondToPrompt(nodeId, value);
+            setLoading(true);
+            const res = await API.respondToPrompt(nodeId, value);
+            console.log(res);
+            setLoading(false);
+            setSubmitted();
         }
     }, [value, API, nodeId]);
 
-    useEffect(() => {
-        console.log('Prompted:', prompt);
-    }, [prompt]);
-
-    if (!prompt) {
+    if (!prompt || prompt.type === null) {
         return null;
     }
 
@@ -76,7 +77,7 @@ export function Prompt({ nodeId }: { nodeId: string }) {
             <NotePreview data={prompt.note} showImages={prompt.showImages || false}/>
             <Text>{prompt.msg}</Text>
             <Widget type={prompt.type} options={prompt.options} value={value} onChange={onChange} />
-            <Button className="prompt" type="primary" size="small" onClick={onSubmit}>Submit</Button>
+            <Button loading={loading} className="prompt" type="primary" size="small" onClick={onSubmit}>Submit</Button>
         </Flex>
     );
 }

@@ -25,7 +25,7 @@ type Prompt = {
     "type": string
 };
 
-export function usePrompt(nodeId: string): Prompt | null {
+export function usePrompt(nodeId: string): [Prompt | null, Function] {
     const filename = useFilename();
     const [_, setPrompt] = useState<Prompt | null>(null);
 
@@ -47,19 +47,26 @@ export function usePrompt(nodeId: string): Prompt | null {
         globalPrompts[nodeId] = data;
     }, [nodeId]);
 
+    const setSubmitted = useCallback(() => {
+        if (!globalPrompts[nodeId]) {
+            return;
+        }
+        globalPrompts[nodeId] = { ...globalPrompts[nodeId], "type": null };
+    }, []);
+
     useAPINodeMessage("prompt", nodeId, filename, onPrompt);
 
     const promptData = globalPrompts[nodeId];
     if (!promptData) {
-        return null;
+        return [null, setSubmitted];
     }
 
-    return {
+    return [{
         note: promptData.note,
         msg: promptData.msg,
         showImages: promptData.show_images,
         def: promptData.def,
         options: promptData.options,
         type: promptData.type
-    };
+    }, setSubmitted];
 }

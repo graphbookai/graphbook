@@ -39,8 +39,6 @@ export function WorkflowStep({ id, data, selected }) {
     const API = useAPI();
     const filename = useFilename();
 
-    console.log("WorkflowStep");
-
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
     });

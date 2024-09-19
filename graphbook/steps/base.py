@@ -10,7 +10,7 @@ from graphbook.logger import log, prompt
 import graphbook.prompts as prompts
 import graphbook.dataloading as dataloader
 import warnings
-
+import traceback
 
 warnings.simplefilter("default", DeprecationWarning)
 
@@ -510,16 +510,22 @@ class PromptStep(AsyncStep):
         self._is_awaiting_response = False
         self._awaiting_note = None
 
-    def handle_prompt_response(self, response: dict):
+    def handle_prompt_response(self, response: Any):
         note = self._awaiting_note
-        assert note is not None, "PromptStep is not awaiting a response."
-        self.on_prompt_response(note, response)
-        self._out_queue.append(note)
+        try:
+            assert note is not None, "PromptStep is not awaiting a response."
+            self.on_prompt_response(note, response)
+            self._out_queue.append(note)
+        except Exception as e:
+            self.log(f"{type(e).__name__}: {str(e)}", "error")
+            traceback.print_exc()
+
         self._is_awaiting_response = False
         self._awaiting_note = None
+        prompt(prompts.none())
 
     def get_prompt(self, note: Note) -> dict:
-        return prompts.bool_prompt(note, "Continue?", "yes/no")
+        return prompts.bool_prompt(note)
 
     def on_prompt_response(self, note: Note, response: Any):
         raise NotImplementedError(
@@ -527,7 +533,6 @@ class PromptStep(AsyncStep):
         )
 
     def __call__(self):
-        # Handle Prompt
         if not self._is_awaiting_response and len(self._in_queue) > 0:
             note = self._in_queue.pop(0)
             prompt(self.get_prompt(note))

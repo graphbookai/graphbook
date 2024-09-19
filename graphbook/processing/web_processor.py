@@ -4,7 +4,6 @@ from graphbook.steps import (
     GeneratorSourceStep,
     AsyncStep,
     BatchStep,
-    PromptStep,
     StepOutput,
 )
 from graphbook.dataloading import Dataloader, setup_global_dl
@@ -134,44 +133,12 @@ class WebInstanceProcessor:
                     id(step),
                 )
                 return None
-
             self.handle_images(outputs)
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
-            self.view_manager.handle_outputs(step.id, transform_json_log(outputs))
-        self.view_manager.handle_time(step.id, time.time() - start_time)
+            self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
-
-    def handle_prompt_step(self, step: PromptStep, input: Note | None = None):
-        print("Handling prompt with input", input)
-        unhandled_prompt = self.unhandled_prompts.get(step.id)
-        if unhandled_prompt:
-            response = unhandled_prompt.get("response")
-            if response:
-                note = unhandled_prompt.get("note")
-                step.on_prompt_response(note, response)
-                self.unhandled_prompts.pop(step.id)
-                outputs = self.exec_step(step, unhandled_prompt.get("note"))
-                return outputs
-            return {}
-
-        if input is None:
-            return {}
-
-        prompt = step.get_prompt(input)
-        if prompt is None:
-            return {}
-
-        if prompt.get("pause"):
-            self.prompted_pause_event = True
-        self.view_manager.handle_prompt(step.id, prompt)
-        self.unhandled_prompts[step.id] = {
-            "note": input,
-            "prompt": prompt,
-            "response": None,
-        }
-        return {}
 
     def handle_steps(self, steps: List[Step]) -> bool:
         is_active = False
@@ -189,10 +156,6 @@ class WebInstanceProcessor:
                 except StopIteration:
                     input = None
 
-                # if isinstance(step, PromptStep):
-                #     self.handle_prompt_step(step, input)
-                #     print("ON PROMPT", len(self.unhandled_prompts))
-                #     is_active = is_active or len(self.unhandled_prompts) > 0
                 if isinstance(step, AsyncStep):
                     if is_active:  # parent is active
                         # Proceed with normal step execution
@@ -247,8 +210,6 @@ class WebInstanceProcessor:
                 and not self.dataloader.is_failed()
             ):
                 dag_is_active = self.handle_steps(steps)
-            print("Done")
-            print(dag_is_active, self.pause_event.is_set(), self.close_event.is_set(), self.dataloader.is_failed())
         finally:
             self.view_manager.handle_end()
             for step in steps:
@@ -377,7 +338,8 @@ class ProcessorStateClient:
                     output = self.running_state
                 elif req["cmd"] == ProcessorStateRequest.PROMPT_RESPONSE:
                     step_id = req.get("step_id")
-                    self.graph_state.handle_prompt_response(step_id, req.get("response"))
+                    succeeded = self.graph_state.handle_prompt_response(step_id, req.get("response"))
+                    output = {"ok": succeeded}
                 else:
                     output = {}
                 entry = {"res": req["cmd"], "data": output}

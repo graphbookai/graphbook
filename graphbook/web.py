@@ -211,8 +211,8 @@ class GraphServer:
             step_id = request.match_info.get("id")
             data = await request.json()
             response = data.get("response")
-            poll_conn_for(state_conn, ProcessorStateRequest.PROMPT_RESPONSE, {"step_id": step_id, "response": response})
-            return web.json_response({"success": True})
+            res = poll_conn_for(state_conn, ProcessorStateRequest.PROMPT_RESPONSE, {"step_id": step_id, "response": response})
+            return web.json_response(res)
 
         @routes.get("/nodes")
         async def get_nodes(request: web.Request) -> web.Response:
@@ -524,7 +524,10 @@ def start_web(args):
         close_event.set()
 
         if img_mem:
-            img_mem.close()
+            try:
+                img_mem.close()
+            except FileNotFoundError:
+                pass
 
         raise KeyboardInterrupt()
 
