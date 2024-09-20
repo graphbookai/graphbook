@@ -58,5 +58,5 @@ def prompt(prompt: dict, caller_id: int | None = None):
         raise ValueError(
             f"Can't find node id in {caller}. Only initialized steps can log."
         )
-    node_id, node_name = node
+    node_id, _ = node
     view_manager.handle_prompt(node_id, prompt)

@@ -63,7 +63,15 @@ export function StringWidget({ name, def, onChange }) {
 export function BooleanWidget({ name, def, onChange, style }) {
     const input = useMemo(() => {
         if (style === "yes/no") {
-            return <Radio.Group options={["Yes", "No"]} onChange={(e)=>onChange(e.target.value)} value={def} optionType="button" />
+            const M = {
+                "Yes": true,
+                "No": false,
+            };
+            const M_ = {
+                true: "Yes",
+                false: "No",
+            };
+            return <Radio.Group options={["Yes", "No"]} onChange={(e)=>onChange(M[e.target.value])} value={M_[def]} optionType="button" />
         }
         return <Switch size="small" defaultChecked={def} onChange={onChange} />
     }, [style, def]);

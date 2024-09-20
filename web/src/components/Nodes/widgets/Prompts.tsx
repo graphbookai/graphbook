@@ -60,8 +60,7 @@ export function Prompt({ nodeId }: { nodeId: string }) {
     const onSubmit = useCallback(async () => {
         if (API) {
             setLoading(true);
-            const res = await API.respondToPrompt(nodeId, value);
-            console.log(res);
+            await API.respondToPrompt(nodeId, value);
             setLoading(false);
             setSubmitted();
         }
