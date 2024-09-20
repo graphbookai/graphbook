@@ -45,7 +45,6 @@ class WebInstanceProcessor:
         self.cmd_queue = cmd_queue
         self.close_event = close_event
         self.pause_event = pause_event
-        self.prompted_pause_event = False
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.img_mem = img_mem
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
@@ -56,13 +55,11 @@ class WebInstanceProcessor:
         self.steps = {}
         self.dataloader = Dataloader(self.num_workers)
         setup_global_dl(self.dataloader)
-        self.unhandled_prompts = {}
         self.state_client = ProcessorStateClient(
             server_request_conn,
             close_event,
             self.graph_state,
             self.dataloader,
-            self.unhandled_prompts,
         )
         self.is_running = False
         self.filename = None
@@ -307,14 +304,12 @@ class ProcessorStateClient:
         close_event: mp.Event,
         graph_state: GraphState,
         dataloader: Dataloader,
-        unhandled_prompts: dict,
     ):
         self.server_request_conn = server_request_conn
         self.close_event = close_event
         self.curr_task = None
         self.graph_state = graph_state
         self.dataloader = dataloader
-        self.unhandled_prompts = unhandled_prompts
         self.running_state = {}
 
     def _loop(self):
