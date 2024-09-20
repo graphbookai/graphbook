@@ -7,7 +7,7 @@ def none():
     return {"type": None}
 
 
-def prompt(note: Note, msg: str, show_images: bool = False, default: Any = ""):
+def prompt(note: Note, *, msg: str = "", show_images: bool = False, default: Any = ""):
     return {
         "note": transform_json_log(note),
         "msg": msg,
@@ -25,7 +25,7 @@ def bool_prompt(
     show_images: bool = False,
 ):
     default = "Yes" if default else "No"
-    p = prompt(note, msg, default=default, show_images=show_images)
+    p = prompt(note, msg=msg, default=default, show_images=show_images)
     p["type"] = "bool"
     p["options"] = {"style": style}
     return p
