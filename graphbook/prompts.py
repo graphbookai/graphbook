@@ -23,7 +23,6 @@ def bool_prompt(
     style: str = "yes/no",
     default: bool = False,
     show_images: bool = False,
-    pause: bool = True,
 ):
     default = "Yes" if default else "No"
     p = prompt(note, msg, default=default, show_images=show_images)
