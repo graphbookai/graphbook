@@ -248,6 +248,10 @@ export class ServerAPI {
         return await this.get('state');
     }
 
+    public async respondToPrompt(stepId: string, response: any) {
+        return await this.post(`prompt_response/${stepId}`, { response });
+    }
+
     /**
      * File API
      */

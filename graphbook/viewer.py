@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from aiohttp.web import WebSocketResponse
 import uuid
 import asyncio
@@ -8,7 +8,7 @@ import multiprocessing.connection as mpc
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for, transform_json_log
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for
 
 
 class Viewer:
@@ -177,6 +177,23 @@ class SystemUtilViewer(Viewer):
         }
 
 
+class PromptViewer(Viewer):
+    def __init__(self):
+        super().__init__("prompt")
+        self.prompts = {}
+
+    def handle_prompt(self, node_id: str, prompt: dict):
+        prev_prompt = self.prompts.get(node_id)
+        idx = 0
+        if prev_prompt:
+            idx = prev_prompt["idx"] + 1
+        prompt["idx"] = idx
+        self.prompts[node_id] = prompt
+
+    def get_next(self):
+        return self.prompts
+
+
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
@@ -224,11 +241,13 @@ class ViewManager:
         self.node_stats_viewer = NodeStatsViewer()
         self.logs_viewer = NodeLogsViewer()
         self.system_util_viewer = SystemUtilViewer(processor_state_conn)
+        self.prompt_viewer = PromptViewer()
         self.viewers: List[Viewer] = [
             self.data_viewer,
             self.node_stats_viewer,
             self.logs_viewer,
             self.system_util_viewer,
+            self.prompt_viewer,
         ]
         self.clients: Dict[str, Client] = {}
         self.work_queue = work_queue
@@ -275,6 +294,9 @@ class ViewManager:
     def handle_log(self, node_id: str, log: str, type: str):
         self.logs_viewer.handle_log(node_id, log, type)
 
+    def handle_prompt(self, node_id: str, prompt: dict):
+        self.prompt_viewer.handle_prompt(node_id, prompt)
+
     def handle_end(self):
         for viewer in self.viewers:
             viewer.handle_end()
@@ -315,6 +337,9 @@ class ViewManager:
                     self.handle_run_state(work["is_running"], work["filename"])
                 elif work["cmd"] == "handle_clear":
                     self.handle_clear(work["node_id"])
+                elif work["cmd"] == "handle_prompt":
+                    self.handle_prompt(work["node_id"], work["prompt"])
+
             except queue.Empty:
                 pass
 
@@ -364,3 +389,8 @@ class ViewManagerInterface:
 
     def handle_clear(self, node_id: str | None):
         self.view_manager_queue.put({"cmd": "handle_clear", "node_id": node_id})
+
+    def handle_prompt(self, node_id: str, prompt: dict):
+        self.view_manager_queue.put(
+            {"cmd": "handle_prompt", "node_id": node_id, "prompt": prompt}
+        )

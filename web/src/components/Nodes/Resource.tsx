@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useMemo } from 'react';
 import { Handle, Position, useOnSelectionChange, useReactFlow } from 'reactflow';
 import { Card, theme } from 'antd';
-import { Widget, isWidgetType } from './Widgets';
+import { Widget, isWidgetType } from './widgets/Widgets';
 import { outputHandleStyle, inputHandleStyle, nodeBorderStyle } from '../../styles';
 import { Parameter } from '../../utils';
 import { usePluginResources } from '../../hooks/Plugins';

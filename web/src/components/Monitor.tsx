@@ -403,7 +403,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                         <ReactJson
                             style={style}
                             theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
-                            name=""
+                            name={false}
                             displayDataTypes={false}
                             indentWidth={2}
                             src={note.data}

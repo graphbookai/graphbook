@@ -2,7 +2,7 @@ import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
 import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space } from 'antd';
 import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
-import { Widget, isWidgetType } from './Widgets';
+import { Widget, isWidgetType } from './widgets/Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
@@ -12,8 +12,10 @@ import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
-import type { LogEntry, Parameter, ImageRef } from '../../utils';
+import { Prompt } from './widgets/Prompts';
 import ReactJson from '@microlink/react-json-view';
+import type { LogEntry, Parameter, ImageRef } from '../../utils';
+
 const { Panel } = Collapse;
 const { useToken } = theme;
 
@@ -164,6 +166,9 @@ export function WorkflowStep({ id, data, selected }) {
                         }).filter(x => x)
                     }
                 </div>
+                <div className="widgets">
+                    <Prompt nodeId={id}/>
+                </div>
                 {!data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
             </Card>
         </div>
@@ -229,7 +234,7 @@ function QuickviewCollapse({ data }) {
                     <ReactJson
                         style={{ maxHeight: '200px', overflow: 'auto', fontSize: '0.6em' }}
                         theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
-                        name=""
+                        name={false}
                         displayDataTypes={false}
                         indentWidth={2}
                         src={noteData}

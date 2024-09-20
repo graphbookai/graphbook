@@ -1,4 +1,11 @@
-from graphbook.steps import Step, SourceStep, GeneratorSourceStep, AsyncStep, StepOutput
+from graphbook.steps import (
+    Step,
+    SourceStep,
+    GeneratorSourceStep,
+    AsyncStep,
+    BatchStep,
+    StepOutput,
+)
 from graphbook.dataloading import Dataloader, setup_global_dl
 from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
 from graphbook.state import GraphState, StepState, NodeInstantiationError
@@ -49,7 +56,10 @@ class WebInstanceProcessor:
         self.dataloader = Dataloader(self.num_workers)
         setup_global_dl(self.dataloader)
         self.state_client = ProcessorStateClient(
-            server_request_conn, close_event, self.graph_state, self.dataloader
+            server_request_conn,
+            close_event,
+            self.graph_state,
+            self.dataloader,
         )
         self.is_running = False
         self.filename = None
@@ -120,13 +130,11 @@ class WebInstanceProcessor:
                     id(step),
                 )
                 return None
-
             self.handle_images(outputs)
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
-            self.view_manager.handle_outputs(step.id, transform_json_log(outputs))
-        self.view_manager.handle_time(step.id, time.time() - start_time)
+            self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
 
     def handle_steps(self, steps: List[Step]) -> bool:
@@ -232,7 +240,7 @@ class WebInstanceProcessor:
         self.dataloader.shutdown()
 
     def setup_dataloader(self, steps: List[Step]):
-        dataloader_consumers = [step for step in steps if isinstance(step, AsyncStep)]
+        dataloader_consumers = [step for step in steps if isinstance(step, BatchStep)]
         consumer_ids = [id(c) for c in dataloader_consumers]
         consumer_load_fn = [
             c.load_fn if hasattr(c, "load_fn") else None for c in dataloader_consumers
@@ -323,6 +331,10 @@ class ProcessorStateClient:
                     output = self.dataloader.get_all_sizes()
                 elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:
                     output = self.running_state
+                elif req["cmd"] == ProcessorStateRequest.PROMPT_RESPONSE:
+                    step_id = req.get("step_id")
+                    succeeded = self.graph_state.handle_prompt_response(step_id, req.get("response"))
+                    output = {"ok": succeeded}
                 else:
                     output = {}
                 entry = {"res": req["cmd"], "data": output}
