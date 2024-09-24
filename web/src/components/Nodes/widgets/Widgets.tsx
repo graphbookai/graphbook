@@ -1,7 +1,7 @@
 import { Switch, Typography, theme, Flex, Button, Radio, Select as ASelect } from 'antd';
 import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
 import React, { useCallback, useState, useMemo, useEffect } from 'react';
-import CodeMirror, { placeholder } from '@uiw/react-codemirror';
+import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { basicDark } from '@uiw/codemirror-theme-basic';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
@@ -21,7 +21,7 @@ export const getWidgetLookup = (pluginWidgets) => {
         dict: DictWidget,
         selection: SelectionWidget,
     };
-    console.log(lookup);
+
     pluginWidgets.forEach((widget) => {
         lookup[widget.type] = widget.children;
     });
@@ -276,8 +276,7 @@ export function DictWidget({ name, def, onChange }) {
     );
 }
 
-export function SelectionWidget({ name, def, onChange, choices }) {
-    console.log(choices);
+export function SelectionWidget({ name, def, onChange, choices, multiple_allowed }) {
     const options = useMemo(() => {
         if (!choices) {
             return [];
@@ -295,26 +294,37 @@ export function SelectionWidget({ name, def, onChange, choices }) {
             {name &&
                 <Text>{name}</Text>
             }
-            <Select onChange={onChange} options={options} value={def} />
+            <Select onChange={onChange} options={options} value={def} multipleAllowed={multiple_allowed} />
         </div>
     );
 }
 
 type SelectProps = {
-    onChange: (value: string) => void,
+    onChange: (value: string | string[]) => void,
     options: { label: string, value: string }[],
     value: any,
     style?: React.CSSProperties,
+    multipleAllowed?: boolean,
 };
 
-function Select({ onChange, options, value, style }: SelectProps) {
+function Select({ onChange, options, value, style, multipleAllowed }: SelectProps) {
     const [open, setOpen] = useState(false);
 
-    const onValueChange = useCallback((val) => {
-        onChange(val);
+    const onSelect = useCallback((val) => {
+        if (multipleAllowed) {
+            onChange([...value, val]);
+        } else {
+            onChange(val);
+        }
         setOpen(false);
+        console.log(val);
+    }, [setOpen, open, multipleAllowed, value]);
 
-    }, [setOpen, open]);
+    const onDeselect = useCallback((val) => {
+        if (multipleAllowed) {
+            onChange(value.filter((v) => v !== val));
+        }
+    }, [value]);
 
     const onClick = useCallback(() => {
         setOpen(!open);
@@ -322,12 +332,14 @@ function Select({ onChange, options, value, style }: SelectProps) {
 
     return (
         <ASelect
+            mode={multipleAllowed ? 'multiple' : undefined}
             style={style}
             options={options}
             value={value}
             onClick={onClick}
             open={open}
-            onSelect={onValueChange}
+            onSelect={onSelect}
+            onDeselect={onDeselect}
             dropdownStyle={{minWidth: '90px'}}
         />
     );

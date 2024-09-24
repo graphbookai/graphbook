@@ -523,6 +523,11 @@ class PromptStep(AsyncStep):
         self._is_awaiting_response = False
         self._awaiting_note = None
         prompt(prompts.none())
+        
+    def on_clear(self):
+        self._is_awaiting_response = False
+        self._awaiting_note = None
+        prompt(prompts.none())
 
     def get_prompt(self, note: Note) -> dict:
         return prompts.bool_prompt(note)
