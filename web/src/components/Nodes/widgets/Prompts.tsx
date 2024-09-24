@@ -2,37 +2,13 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Typography, Flex, Button } from 'antd';
 import { usePluginWidgets } from '../../../hooks/Plugins';
 import { NotePreview } from './NotePreview';
-import { NumberWidget, StringWidget, BooleanWidget, FunctionWidget, DictWidget, ListWidget } from './Widgets';
+import { ListWidget, getWidgetLookup } from './Widgets';
 import { useAPI } from '../../../hooks/API';
 import { usePrompt } from '../../../hooks/Prompts';
 
 const { Text } = Typography;
-export type PromptProps = {
-    stepId: string,
-    note: any,
-    msg: string,
-    type: string,
-    def: any,
-    show_images?: boolean,
-    options?: any,
-};
 
-const getWidgetLookup = (pluginWidgets) => {
-    const lookup = {
-        number: NumberWidget,
-        string: StringWidget,
-        boolean: BooleanWidget,
-        bool: BooleanWidget,
-        function: FunctionWidget,
-        dict: DictWidget,
-    };
-    pluginWidgets.forEach((widget) => {
-        lookup[widget.type] = widget.children;
-    });
-    return lookup;
-};
-
-function Widget({ type, options, value, onChange }) {
+function WidgetPrompt({ type, options, value, onChange }) {
     const pluginWidgets = usePluginWidgets();
     const widgets = useMemo(() => {
         return getWidgetLookup(pluginWidgets);
@@ -75,7 +51,7 @@ export function Prompt({ nodeId }: { nodeId: string }) {
             <Text>Prompted:</Text>
             <NotePreview data={prompt.note} showImages={prompt.showImages || false}/>
             <Text>{prompt.msg}</Text>
-            <Widget type={prompt.type} options={prompt.options} value={value} onChange={onChange} />
+            <WidgetPrompt type={prompt.type} options={prompt.options} value={value} onChange={onChange} />
             <Button loading={loading} className="prompt" type="primary" size="small" onClick={onSubmit}>Submit</Button>
         </Flex>
     );

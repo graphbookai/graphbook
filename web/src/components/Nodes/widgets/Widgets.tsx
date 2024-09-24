@@ -11,7 +11,7 @@ import { usePluginWidgets } from '../../../hooks/Plugins';
 const { Text } = Typography;
 const { useToken } = theme;
 
-const getWidgetLookup = (pluginWidgets) => {
+export const getWidgetLookup = (pluginWidgets) => {
     const lookup = {
         number: NumberWidget,
         string: StringWidget,
@@ -19,14 +19,16 @@ const getWidgetLookup = (pluginWidgets) => {
         bool: BooleanWidget,
         function: FunctionWidget,
         dict: DictWidget,
+        selection: SelectionWidget,
     };
+    console.log(lookup);
     pluginWidgets.forEach((widget) => {
         lookup[widget.type] = widget.children;
     });
     return lookup;
 };
 
-export function Widget({ id, type, name, value }) {
+export function Widget({ id, type, name, value, ...props }) {
     const { setNodes } = useReactFlow();
     const pluginWidgets = usePluginWidgets();
     const widgets = useMemo(() => {
@@ -44,7 +46,7 @@ export function Widget({ id, type, name, value }) {
     }
 
     if (widgets[type]) {
-        return widgets[type]({ name, def: value, onChange });
+        return widgets[type]({ name, def: value, onChange, ...props });
     }
 }
 
@@ -71,7 +73,7 @@ export function BooleanWidget({ name, def, onChange, style }) {
                 true: "Yes",
                 false: "No",
             };
-            return <Radio.Group options={["Yes", "No"]} onChange={(e)=>onChange(M[e.target.value])} value={M_[def]} optionType="button" />
+            return <Radio.Group options={["Yes", "No"]} onChange={(e) => onChange(M[e.target.value])} value={M_[def]} optionType="button" />
         }
         return <Switch size="small" defaultChecked={def} onChange={onChange} />
     }, [style, def]);
@@ -162,10 +164,10 @@ export function ListWidget({ name, def, onChange, type }) {
                 </Flex>
             </Flex>
         </Flex>
-    )
+    );
 }
 
-export function DictWidget({ name, def, onChange, type }) {
+export function DictWidget({ name, def, onChange }) {
     const { token } = useToken();
     const value = useMemo(() => {
         if (!def) {
@@ -273,18 +275,39 @@ export function DictWidget({ name, def, onChange, type }) {
                 </Flex>
             </Flex>
         </Flex>
-    )
+    );
+}
+
+export function SelectionWidget({ name, def, onChange, choices }) {
+    console.log(choices);
+    const options = useMemo(() => {
+        if (!choices) {
+            return [];
+        }
+        return choices.map((choice) => {
+            return {
+                label: choice,
+                value: choice,
+            };
+        });
+    }, [choices]);
+
+    return (
+        <div className="input-container">
+            {name &&
+                <Text>{name}</Text>
+            }
+            <Select onChange={onChange} options={options} value={def} />
+        </div>
+    );
 }
 
 function Select({ onChange, options, value }) {
     const { token } = useToken();
-
     const inputStyle = {
         backgroundColor: token.colorBgContainer,
         color: token.colorText,
     };
-
-
 
     const onValueChange = useCallback((e) => {
         onChange(e.target.value);
@@ -300,7 +323,7 @@ function Select({ onChange, options, value }) {
                 }
             </select>
         </div>
-    )
+    );
 }
 
 function InputNumber({ onChange, label, value }: { onChange: (value: number) => void, label?: string, value?: number }) {
@@ -388,5 +411,5 @@ function Input({ onChange, label, value }: { onChange: (value: string) => void, 
 }
 
 export const isWidgetType = (type) => {
-    return ['number', 'string', 'boolean', 'bool', 'function'].includes(type) || type.startsWith('list') || type.startsWith('dict');
+    return ['number', 'string', 'boolean', 'bool', 'function', 'selection'].includes(type) || type.startsWith('list') || type.startsWith('dict');
 };
