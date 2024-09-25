@@ -412,8 +412,11 @@ export const Graph = {
 
         const parseEdges = (nodes: Node[], edges: Edge[]) => {
             return edges.map((edge) => {
-                const targetNode = nodes.find(n => n.id === edge.target)!;
-                const sourceNode = nodes.find(n => n.id === edge.source)!;
+                const targetNode = nodes.find(n => n.id === edge.target);
+                const sourceNode = nodes.find(n => n.id === edge.source);
+                if (!targetNode || !sourceNode) {
+                    return null;
+                }
                 const targetHandle = getHandle(targetNode, edge.targetHandle!, true);
                 const sourceHandle = getHandle(sourceNode, edge.sourceHandle!, false);
                 return {
@@ -427,7 +430,7 @@ export const Graph = {
 
                     }
                 };
-            });
+            }).filter(e => e !== null);
         };
 
         const { nodes, edges } = graph;
