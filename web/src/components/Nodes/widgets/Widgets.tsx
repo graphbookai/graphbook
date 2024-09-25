@@ -170,23 +170,29 @@ export function ListWidget({ name, def, onChange, type }) {
 export function DictWidget({ name, def, onChange }) {
     const { token } = useToken();
     const value = useMemo(() => {
-        if (!def) {
-            return [];
-        }
-
         if (Array.isArray(def)) {
             return def;
         }
 
+        // Needs to be converted to an array of 3-tuples
+
+        if (!def) {
+            onChange([]);
+            return [];
+        }
+
         try {
-            return Object.entries(def).map(([key, value]) => {
+            const newValue = Object.entries(def).map(([key, value]) => {
                 let type = typeof value as string;
                 if (type === 'number') {
                     type = 'float';
                 }
                 return [type, key, value];
             });
+            onChange(newValue);
+            return newValue;
         } catch (e) {
+            onChange([]);
             return [];
         }
     }, [def]);

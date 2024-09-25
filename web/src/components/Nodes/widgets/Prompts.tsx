@@ -43,11 +43,15 @@ export function Prompt({ nodeId }: { nodeId: string }) {
     const onSubmit = useCallback(async () => {
         if (API) {
             setLoading(true);
-            let answer = value;
-            if (prompt?.type === 'dict') {
-                answer = parseDictWidgetValue(answer);
+            try {
+                let answer = value;
+                if (prompt?.type === 'dict') {
+                    answer = parseDictWidgetValue(answer);
+                }
+                await API.respondToPrompt(nodeId, answer);
+            } catch (e) {
+                console.error(e);
             }
-            await API.respondToPrompt(nodeId, answer);
             setLoading(false);
             setSubmitted();
         }
