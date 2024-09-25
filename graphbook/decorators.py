@@ -84,6 +84,11 @@ class StepClassFactory(NodeClassFactory):
         if dump_fn is not None:
             self.event("dump_fn", dump_fn)
 
+    def prompt(self, get_prompt=None):
+        self.BaseClass = steps.PromptStep
+        if get_prompt is not None:
+            self.event("get_prompt", get_prompt)
+
     def build(self):
         def __init__(cls, **kwargs):
             if self.BaseClass == steps.BatchStep:
@@ -211,6 +216,8 @@ def step(name, event: str | None = None):
                 factory.event("on_note", func)
             elif factory.BaseClass == steps.BatchStep:
                 factory.event("on_item_batch", func)
+            elif factory.BaseClass == steps.PromptStep:
+                factory.event("on_prompt_response", func)
             else:
                 factory.event("load", func)
 
@@ -453,5 +460,67 @@ def resource(name):
             return func(*args, **kwargs)
 
         return wrapper
+
+    return decorator
+
+
+def prompt(get_prompt: callable = None):
+    """
+    Marks a function as a step that is capable of prompting the user.
+    This is useful for interactive workflows where data labeling, model evaluation, or any other human input is required.
+    Events ``get_prompt(ctx, note: Note)`` and ``on_prompt_response(ctx, note: Note, response: Any)`` are required to be implemented.
+    The decorator accepts the ``get_prompt`` function that returns a prompt to display to the user.
+    If nothing is passed as an argument, a ``bool_prompt`` will be used by default.
+    If the function returns **None** on any given note, no prompt will be displayed for that note allowing for conditional prompts based on the note's content.
+    Available prompts are located in the ``graphbook.prompts`` module.
+    The function that this decorator decorates is ``on_prompt_response`` and will be called when a response to a prompt is obtained from a user.
+    Once the prompt is handled, the execution lifecycle of the Step will proceed, normally.
+
+    Args:
+        get_prompt (callable): A function that returns a prompt. Default is ``bool_prompt``.
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            def dog_or_cat(ctx, note: Note):
+                return selection_prompt(note, choices=["dog", "cat"], show_images=True)
+
+
+            @step("Prompts/Label")
+            @prompt(dog_or_cat)
+            def label_images(ctx, note: Note, response: str):
+                note["label"] = response
+
+
+            def corrective_prompt(ctx, note: Note):
+                if note["prediction_confidence"] < 0.65:
+                    return bool_prompt(
+                        note,
+                        msg=f"Model prediction ({note['pred']}) was uncertain. Is its prediction correct?",
+                        show_images=True,
+                    )
+                else:
+                    return None
+
+
+            @step("Prompts/CorrectModelLabel")
+            @prompt(corrective_prompt)
+            def correct_model_labels(ctx, note: Note, response: bool):
+                if response:
+                    ctx.log("Model is correct!")
+                    note["label"] = note["pred"]
+                else:
+                    ctx.log("Model is incorrect!")
+                    if note["pred"] == "dog":
+                        note["label"] = "cat"
+                    else:
+                        note["label"] = "dog"
+    """
+    def decorator(func):
+        def set_prompt(factory: StepClassFactory):
+            factory.prompt(get_prompt)
+
+        return DecoratorFunction(func, set_prompt)
 
     return decorator
