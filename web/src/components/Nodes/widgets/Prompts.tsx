@@ -1,38 +1,16 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Typography, Flex, Button } from 'antd';
 import { usePluginWidgets } from '../../../hooks/Plugins';
 import { NotePreview } from './NotePreview';
-import { NumberWidget, StringWidget, BooleanWidget, FunctionWidget, DictWidget, ListWidget } from './Widgets';
+import { ListWidget, getWidgetLookup } from './Widgets';
 import { useAPI } from '../../../hooks/API';
 import { usePrompt } from '../../../hooks/Prompts';
+import type { Prompt } from '../../../hooks/Prompts';
+import { parseDictWidgetValue } from '../../../utils';
 
 const { Text } = Typography;
-export type PromptProps = {
-    stepId: string,
-    note: any,
-    msg: string,
-    type: string,
-    def: any,
-    show_images?: boolean,
-    options?: any,
-};
 
-const getWidgetLookup = (pluginWidgets) => {
-    const lookup = {
-        number: NumberWidget,
-        string: StringWidget,
-        boolean: BooleanWidget,
-        bool: BooleanWidget,
-        function: FunctionWidget,
-        dict: DictWidget,
-    };
-    pluginWidgets.forEach((widget) => {
-        lookup[widget.type] = widget.children;
-    });
-    return lookup;
-};
-
-function Widget({ type, options, value, onChange }) {
+function WidgetPrompt({ type, options, value, onChange }) {
     const pluginWidgets = usePluginWidgets();
     const widgets = useMemo(() => {
         return getWidgetLookup(pluginWidgets);
@@ -43,16 +21,21 @@ function Widget({ type, options, value, onChange }) {
     }
 
     if (widgets[type]) {
-        return widgets[type]({ name: "Answer", def: value, onChange, style: options.style });
+        return widgets[type]({ name: "Answer", def: value, onChange, ...options });
     }
 }
 
-
 export function Prompt({ nodeId }: { nodeId: string }) {
     const API = useAPI();
-    const [prompt, setSubmitted] = usePrompt(nodeId);
-    const [value, setValue] = useState(null);
+    const [value, setValue] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+
+    const onPromptChange = useCallback((prompt) => {
+        setValue(prompt?.def);
+    }, []);
+
+    const [prompt, setSubmitted] = usePrompt(nodeId, onPromptChange);
+
     const onChange = useCallback((value) => {
         setValue(value);
     }, []);
@@ -60,7 +43,11 @@ export function Prompt({ nodeId }: { nodeId: string }) {
     const onSubmit = useCallback(async () => {
         if (API) {
             setLoading(true);
-            await API.respondToPrompt(nodeId, value);
+            let answer = value;
+            if (prompt?.type === 'dict') {
+                answer = parseDictWidgetValue(answer);
+            }
+            await API.respondToPrompt(nodeId, answer);
             setLoading(false);
             setSubmitted();
         }
@@ -73,9 +60,9 @@ export function Prompt({ nodeId }: { nodeId: string }) {
     return (
         <Flex className="prompt" vertical>
             <Text>Prompted:</Text>
-            <NotePreview data={prompt.note} showImages={prompt.showImages || false}/>
+            <NotePreview data={prompt.note} showImages={prompt.showImages || false} />
             <Text>{prompt.msg}</Text>
-            <Widget type={prompt.type} options={prompt.options} value={value} onChange={onChange} />
+            <WidgetPrompt type={prompt.type} options={prompt.options} value={value} onChange={onChange} />
             <Button loading={loading} className="prompt" type="primary" size="small" onClick={onSubmit}>Submit</Button>
         </Flex>
     );

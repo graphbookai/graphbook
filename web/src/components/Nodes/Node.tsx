@@ -158,7 +158,7 @@ export function WorkflowStep({ id, data, selected }) {
                             if (isWidgetType(parameter.type)) {
                                 return (
                                     <div style={{ marginBottom: '2px' }} key={i} className="parameter">
-                                        <Widget id={id} type={parameter.type} name={parameterName} value={parameter.value} />
+                                        <Widget {...parameter} id={id} type={parameter.type} name={parameterName} value={parameter.value} />
                                     </div>
                                 );
                             }

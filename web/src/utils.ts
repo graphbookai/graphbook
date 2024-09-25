@@ -3,6 +3,14 @@ import type { ServerAPI } from "./api";
 import type { ReactFlowInstance } from "reactflow";
 import type { Node } from "reactflow";
 
+export const parseDictWidgetValue = (entries) => {
+    const obj = {};
+    for (const [type, key, val] of entries) {
+        obj[key] = val;
+    }
+    return obj;
+};
+
 export const keyRecursively = (obj: Array<any>, childrenKey: string = "children"): Array<any> => {
     let currKeyVal = 0;
     const keyRec = (obj: Array<any>) => {

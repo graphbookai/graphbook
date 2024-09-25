@@ -1,4 +1,4 @@
-import { uniqueIdFrom, getHandle, Parameter } from './utils';
+import { uniqueIdFrom, getHandle, Parameter, parseDictWidgetValue } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
@@ -180,11 +180,7 @@ export const Graph = {
                             parameters[key] = param.value;
                             if (param.type && param.value) {
                                 if (param.type === 'dict') {
-                                    const d = {};
-                                    for (const [t, k, v] of param.value) {
-                                        d[k] = v;
-                                    }
-                                    parameters[key] = d;
+                                    parameters[key] = parseDictWidgetValue(param.value);
                                 }
                             }
                         }

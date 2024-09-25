@@ -64,6 +64,51 @@ textarea.code {
     outline: none;
 }
 
+.workflow-node .widgets .ant-select-selection-item {
+    font-size: .6em;
+    line-height: 1.2;
+    padding-inline-end: 0px;
+    padding: 0;
+}
+
+.workflow-node .widgets .ant-select-arrow {
+    font-size: .6em;
+}
+
+.workflow-node .widgets .ant-select-selector {
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.workflow-node .widgets .ant-select-selector::after {
+    line-height: unset;
+}
+
+.workflow-node .widgets .ant-select-arrow {
+    display: none;
+}
+
+.workflow-node .widgets .ant-select {
+    height: unset;
+}
+
+.workflow-node .widgets input.ant-select-selection-search-input {
+    height: unset;
+}
+
+.workflow-node .widgets .ant-select-selection-item-remove svg {
+    width: 8px;
+    height: 8px;
+}
+
+.workflow-node .widgets .ant-select-selection-item-content {
+    line-height: 1;
+}
+
+.workflow-node .widgets .ant-select-selection-item {
+    height: 10px;
+}
+
 .workflow-node .collapsed {
     display: flex;
     flex-direction: row;

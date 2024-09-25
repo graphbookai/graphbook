@@ -1,6 +1,6 @@
-import { Switch, Typography, theme, Flex, Button, Radio } from 'antd';
+import { Switch, Typography, theme, Flex, Button, Radio, Select as ASelect } from 'antd';
 import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { basicDark } from '@uiw/codemirror-theme-basic';
@@ -11,7 +11,7 @@ import { usePluginWidgets } from '../../../hooks/Plugins';
 const { Text } = Typography;
 const { useToken } = theme;
 
-const getWidgetLookup = (pluginWidgets) => {
+export const getWidgetLookup = (pluginWidgets) => {
     const lookup = {
         number: NumberWidget,
         string: StringWidget,
@@ -19,14 +19,16 @@ const getWidgetLookup = (pluginWidgets) => {
         bool: BooleanWidget,
         function: FunctionWidget,
         dict: DictWidget,
+        selection: SelectionWidget,
     };
+
     pluginWidgets.forEach((widget) => {
         lookup[widget.type] = widget.children;
     });
     return lookup;
 };
 
-export function Widget({ id, type, name, value }) {
+export function Widget({ id, type, name, value, ...props }) {
     const { setNodes } = useReactFlow();
     const pluginWidgets = usePluginWidgets();
     const widgets = useMemo(() => {
@@ -44,7 +46,7 @@ export function Widget({ id, type, name, value }) {
     }
 
     if (widgets[type]) {
-        return widgets[type]({ name, def: value, onChange });
+        return widgets[type]({ name, def: value, onChange, ...props });
     }
 }
 
@@ -71,7 +73,7 @@ export function BooleanWidget({ name, def, onChange, style }) {
                 true: "Yes",
                 false: "No",
             };
-            return <Radio.Group options={["Yes", "No"]} onChange={(e)=>onChange(M[e.target.value])} value={M_[def]} optionType="button" />
+            return <Radio.Group options={["Yes", "No"]} onChange={(e) => onChange(M[e.target.value])} value={M_[def]} optionType="button" />
         }
         return <Switch size="small" defaultChecked={def} onChange={onChange} />
     }, [style, def]);
@@ -162,10 +164,10 @@ export function ListWidget({ name, def, onChange, type }) {
                 </Flex>
             </Flex>
         </Flex>
-    )
+    );
 }
 
-export function DictWidget({ name, def, onChange, type }) {
+export function DictWidget({ name, def, onChange }) {
     const { token } = useToken();
     const value = useMemo(() => {
         if (!def) {
@@ -224,10 +226,10 @@ export function DictWidget({ name, def, onChange, type }) {
     const selectedInputs = useMemo(() => {
         return value.map((item, i) => {
             if (item[0] === 'string') {
-                return <Input onChange={(value) => onValueChange(i, value)} value={item[2]} />
+                return <Input placeholder="value" onChange={(value) => onValueChange(i, value)} value={item[2]} />
             }
             if (item[0] === 'float' || item[0] === 'int' || item[0] === 'number') {
-                return <InputNumber onChange={(value) => onValueChange(i, value)} value={item[2]} />
+                return <InputNumber placeholder="32" onChange={(value) => onValueChange(i, value)} value={item[2]} />
             }
             if (item[0] === 'boolean') {
                 return <Switch size="small" defaultChecked={def} onChange={(value) => onValueChange(i, value)} value={item[2]} />
@@ -244,66 +246,113 @@ export function DictWidget({ name, def, onChange, type }) {
     }, []);
 
     return (
-        <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}` }}>
+        <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}`, padding: '0 1px 1px 1px' }}>
             <Text style={{ margin: "2px 1px" }}>{name}</Text>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {value && value.map((item, i) => {
                     return (
-                        <Flex justify='space-between' style={{ margin: '1px 0' }} key={i}>
-                            <Flex>
+                        <Flex justify='space-between' style={{ marginTop: 1 }} key={i}>
+                            <Flex style={{margin: '0 1px'}}>
                                 <Select
+                                    style={{width: '40px'}}
                                     value={item[0]}
                                     onChange={(value) => onTypeChange(i, value)}
                                     options={options}
                                 />
-                                <Input onChange={(value) => onKeyChange(i, value)} value={item[1]} />
+                                <Input style={{width: '40px'}} placeholder="key" onChange={(value) => onKeyChange(i, value)} value={item[1]} />
                             </Flex>
-
-                            <Flex>
-                                {
-                                    selectedInputs[i]
-                                }
-                                <Button tabIndex={-1} style={{ marginLeft: 1 }} size="small" icon={<MinusOutlined />} onClick={() => onRemoveItem(i)} />
-                            </Flex>
+                            {
+                                selectedInputs[i]
+                            }
+                            <Button tabIndex={-1} style={{ marginLeft: 1 }} size="small" icon={<MinusOutlined />} onClick={() => onRemoveItem(i)} />
                         </Flex>
                     )
                 })}
                 <Flex justify='end'>
-                    <Button size={"small"} icon={<PlusOutlined />} onClick={onAddItem} />
+                    <Button style={{marginTop: 1}} size={"small"} icon={<PlusOutlined />} onClick={onAddItem} />
                 </Flex>
             </Flex>
         </Flex>
-    )
+    );
 }
 
-function Select({ onChange, options, value }) {
-    const { token } = useToken();
-
-    const inputStyle = {
-        backgroundColor: token.colorBgContainer,
-        color: token.colorText,
-    };
-
-
-
-    const onValueChange = useCallback((e) => {
-        onChange(e.target.value);
-    }, []);
+export function SelectionWidget({ name, def, onChange, choices, multiple_allowed }) {
+    const options = useMemo(() => {
+        if (!choices) {
+            return [];
+        }
+        return choices.map((choice) => {
+            return {
+                label: choice,
+                value: choice,
+            };
+        });
+    }, [choices]);
 
     return (
         <div className="input-container">
-            <select className="input" onChange={onValueChange} value={value} style={inputStyle}>
-                {
-                    options.map((option, i) => {
-                        return <option key={i} value={option.value}>{option.label}</option>
-                    })
-                }
-            </select>
+            {name &&
+                <Text>{name}</Text>
+            }
+            <Select onChange={onChange} options={options} value={def} multipleAllowed={multiple_allowed} />
         </div>
-    )
+    );
 }
 
-function InputNumber({ onChange, label, value }: { onChange: (value: number) => void, label?: string, value?: number }) {
+type SelectProps = {
+    onChange: (value: string | string[]) => void,
+    options: { label: string, value: string }[],
+    value: any,
+    style?: React.CSSProperties,
+    multipleAllowed?: boolean,
+};
+
+function Select({ onChange, options, value, style, multipleAllowed }: SelectProps) {
+    const [open, setOpen] = useState(false);
+
+    const onSelect = useCallback((val) => {
+        if (multipleAllowed) {
+            onChange([...value, val]);
+        } else {
+            onChange(val);
+        }
+        setOpen(false);
+        console.log(val);
+    }, [setOpen, open, multipleAllowed, value]);
+
+    const onDeselect = useCallback((val) => {
+        if (multipleAllowed) {
+            onChange(value.filter((v) => v !== val));
+        }
+    }, [value]);
+
+    const onClick = useCallback(() => {
+        setOpen(!open);
+    }, [setOpen, open]);
+
+    return (
+        <ASelect
+            mode={multipleAllowed ? 'multiple' : undefined}
+            style={style}
+            options={options}
+            value={value}
+            onClick={onClick}
+            open={open}
+            onSelect={onSelect}
+            onDeselect={onDeselect}
+            dropdownStyle={{minWidth: '90px'}}
+        />
+    );
+}
+
+type InputNumberProps = {
+    onChange: (value: number) => void,
+    label?: string,
+    value?: number,
+    placeholder?: string,
+};
+
+function InputNumber({ onChange, label, value, placeholder }: InputNumberProps) {
     const { token } = useToken();
     const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
     const [focusedStyle, setFocusedStyle] = useState(defaultFocusedStyle);
@@ -339,13 +388,21 @@ function InputNumber({ onChange, label, value }: { onChange: (value: number) => 
                 className="input"
                 type="number"
                 value={value || 0}
+                placeholder={placeholder}
             />
         </div>
     );
 }
 
+type InputProps = {
+    onChange: (value: string) => void,
+    label?: string,
+    value?: string,
+    placeholder?: string,
+    style?: React.CSSProperties,
+};
 
-function Input({ onChange, label, value }: { onChange: (value: string) => void, label?: string, value?: string }) {
+function Input({ onChange, label, value, placeholder, style }: InputProps) {
     const { token } = useToken();
     const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
     const [focusedStyle, setFocusedStyle] = useState(defaultFocusedStyle)
@@ -353,6 +410,7 @@ function Input({ onChange, label, value }: { onChange: (value: string) => void, 
     const inputStyle = {
         backgroundColor: token.colorBgContainer,
         color: token.colorText,
+        ...style,
     };
     const labelStyle = {
         backgroundColor: token.colorBgContainer
@@ -382,11 +440,12 @@ function Input({ onChange, label, value }: { onChange: (value: string) => void, 
                 className="input"
                 type="text"
                 value={value || ''}
+                placeholder={placeholder}
             />
         </div>
     );
 }
 
 export const isWidgetType = (type) => {
-    return ['number', 'string', 'boolean', 'bool', 'function'].includes(type) || type.startsWith('list') || type.startsWith('dict');
+    return ['number', 'string', 'boolean', 'bool', 'function', 'selection'].includes(type) || type.startsWith('list') || type.startsWith('dict');
 };

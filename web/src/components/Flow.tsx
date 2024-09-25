@@ -118,7 +118,7 @@ export default function Flow({ filename }) {
             return onNodesChange(newChanges);
         }
         onNodesChange(changes);
-    }, []);
+    }, [runState]);
 
     const onEdgesChangeCallback = useCallback((changes) => {
         setIsAddNodeActive(false);
@@ -135,7 +135,7 @@ export default function Flow({ filename }) {
             return onEdgesChange(newChanges);
         }
         onEdgesChange(changes);
-    }, []);
+    }, [runState]);
 
     const onConnect = useCallback((params) => {
         const targetNode = nodes.find(n => n.id === params.target);

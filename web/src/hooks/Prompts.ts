@@ -16,7 +16,7 @@ type PromptData = {
     "type": string
 };
 
-type Prompt = {
+export type Prompt = {
     "note": object,
     "msg": string,
     "showImages": boolean,
@@ -25,7 +25,16 @@ type Prompt = {
     "type": string
 };
 
-export function usePrompt(nodeId: string): [Prompt | null, Function] {
+const dataToPrompt = (data: PromptData): Prompt => ({
+    note: data.note,
+    msg: data.msg,
+    showImages: data.show_images,
+    def: data.def,
+    options: data.options,
+    type: data.type
+});
+
+export function usePrompt(nodeId: string, callback?: Function | null): [Prompt | null, Function] {
     const filename = useFilename();
     const [_, setPrompt] = useState<Prompt | null>(null);
 
@@ -45,6 +54,9 @@ export function usePrompt(nodeId: string): [Prompt | null, Function] {
         }
 
         globalPrompts[nodeId] = data;
+        if (callback) {
+            callback(dataToPrompt(data));
+        }
     }, [nodeId]);
 
     const setSubmitted = useCallback(() => {
@@ -61,12 +73,5 @@ export function usePrompt(nodeId: string): [Prompt | null, Function] {
         return [null, setSubmitted];
     }
 
-    return [{
-        note: promptData.note,
-        msg: promptData.msg,
-        showImages: promptData.show_images,
-        def: promptData.def,
-        options: promptData.options,
-        type: promptData.type
-    }, setSubmitted];
+    return [dataToPrompt(promptData), setSubmitted];
 }
