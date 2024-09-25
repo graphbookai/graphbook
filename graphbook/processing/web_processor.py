@@ -190,13 +190,25 @@ class WebInstanceProcessor:
             step_executed = self.graph_state.get_state(
                 step_id, StepState.EXECUTED_THIS_RUN
             )
+            
+    def try_execute_step_event(self, step: Step, event: str):
+        try:
+            if hasattr(step, event):
+                getattr(step, event)()
+                return True
+        except Exception as e:
+            log(f"{type(e).__name__}: {str(e)}", "error", id(step))
+            traceback.print_exc()
+        return False
 
     def run(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
-        self.setup_dataloader(steps)
         for step in steps:
             self.view_manager.handle_start(step.id)
-            step.on_start()
+            succeeded = self.try_execute_step_event(step, "on_start")
+            if not succeeded:
+                return
+        self.setup_dataloader(steps)
         self.pause_event.clear()
         dag_is_active = True
         try:
@@ -209,24 +221,26 @@ class WebInstanceProcessor:
                 dag_is_active = self.handle_steps(steps)
         finally:
             self.view_manager.handle_end()
-            for step in steps:
-                step.on_end()
             self.dataloader.stop()
+            for step in steps:
+                self.try_execute_step_event(step, "on_end")
 
     def step(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
-        self.setup_dataloader(steps)
         for step in steps:
             self.view_manager.handle_start(step.id)
-            step.on_start()
+            succeeded = self.try_execute_step_event(step, "on_start")
+            if not succeeded:
+                return
+        self.setup_dataloader(steps)
         self.pause_event.clear()
         try:
             self.step_until_received_output(steps, step_id)
         finally:
             self.view_manager.handle_end()
-            for step in steps:
-                step.on_end()
             self.dataloader.stop()
+            for step in steps:
+                self.try_execute_step_event(step, "on_end")
 
     def set_is_running(self, is_running: bool = True, filename: str | None = None):
         self.is_running = is_running
