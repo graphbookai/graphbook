@@ -6,6 +6,34 @@
   <h1 align="center">Graphbook</h1>
 
   <p align="center">
+    <a href="https://github.com/graphbookai/graphbook/blob/main/LICENSE">
+      <img alt="GitHub License" src="https://img.shields.io/github/license/graphbookai/graphbook">
+    </a>
+    <a href="https://github.com/graphbookai/graphbook/actions/workflows/pypi.yml">
+      <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/graphbookai/graphbook/pypi.yml">
+    </a>
+    <a href="https://hub.docker.com/r/rsamf/graphbook">
+      <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/rsamf/graphbook">
+    </a>
+    <a href="https://www.pepy.tech/projects/graphbook">
+      <img alt="PyPI Downloads" src="https://static.pepy.tech/badge/graphbook">
+    </a>
+    <a href="https://pypi.org/project/graphbook/">
+      <img alt="PyPI - Version" src="https://img.shields.io/pypi/v/graphbook">
+    </a>
+  </p>
+  <div align="center">
+    <a href="https://discord.gg/XukMUDmjnt">
+      <img alt="Join Discord" src="https://img.shields.io/badge/Join%20our%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white">
+    </a>
+  </div>
+  <p align="center">
+    <a href="https://discord.gg/XukMUDmjnt">
+      <img alt="Discord" src="https://img.shields.io/discord/1199855707567177860">
+    </a>
+  </p>
+
+  <p align="center">
     The ML workflow framework
     <br>
     <a href="https://github.com/graphbookai/graphbook/issues/new?template=bug_report.md&labels=bug">Report bug</a>
@@ -23,7 +51,7 @@
 </p>
 
 ## Overview
-Graphbook is a framework for building efficient, visual DAG-structured ML workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching, and it features a web-based UI to assemble, monitor, and execute data processing workflows. It can be used to prepare training data for custom ML models, experiment with custom trained or off-the-shelf models, and to build ML-based ETL applications. Custom nodes can be built in Python, and Graphbook will behave like a framework and call lifecycle methods on those nodes.
+Graphbook is a framework for building efficient, visual DAG-structured ML workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching for PyTorch tensors, and it features a web-based UI to assemble, monitor, and execute data processing workflows. It can be used to prepare training data for custom ML models, experiment with custom trained or off-the-shelf models, and to build ML-based ETL applications. Custom nodes can be built in Python, and Graphbook will behave like a framework and call lifecycle methods on those nodes.
 
 <p align="center">
   <a href="https://graphbook.ai">
