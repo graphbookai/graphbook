@@ -1,4 +1,11 @@
-from graphbook.steps import Step, SourceStep, GeneratorSourceStep, AsyncStep, StepOutput
+from graphbook.steps import (
+    Step,
+    SourceStep,
+    GeneratorSourceStep,
+    AsyncStep,
+    BatchStep,
+    StepOutput,
+)
 from graphbook.dataloading import Dataloader, setup_global_dl
 from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
 from graphbook.state import GraphState, StepState, NodeInstantiationError
@@ -49,7 +56,10 @@ class WebInstanceProcessor:
         self.dataloader = Dataloader(self.num_workers)
         setup_global_dl(self.dataloader)
         self.state_client = ProcessorStateClient(
-            server_request_conn, close_event, self.graph_state, self.dataloader
+            server_request_conn,
+            close_event,
+            self.graph_state,
+            self.dataloader,
         )
         self.is_running = False
         self.filename = None
@@ -120,13 +130,11 @@ class WebInstanceProcessor:
                     id(step),
                 )
                 return None
-
             self.handle_images(outputs)
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
-            self.view_manager.handle_outputs(step.id, transform_json_log(outputs))
-        self.view_manager.handle_time(step.id, time.time() - start_time)
+            self.view_manager.handle_time(step.id, time.time() - start_time)
         return outputs
 
     def handle_steps(self, steps: List[Step]) -> bool:
@@ -182,13 +190,25 @@ class WebInstanceProcessor:
             step_executed = self.graph_state.get_state(
                 step_id, StepState.EXECUTED_THIS_RUN
             )
+            
+    def try_execute_step_event(self, step: Step, event: str):
+        try:
+            if hasattr(step, event):
+                getattr(step, event)()
+                return True
+        except Exception as e:
+            log(f"{type(e).__name__}: {str(e)}", "error", id(step))
+            traceback.print_exc()
+        return False
 
     def run(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
-        self.setup_dataloader(steps)
         for step in steps:
             self.view_manager.handle_start(step.id)
-            step.on_start()
+            succeeded = self.try_execute_step_event(step, "on_start")
+            if not succeeded:
+                return
+        self.setup_dataloader(steps)
         self.pause_event.clear()
         dag_is_active = True
         try:
@@ -201,24 +221,26 @@ class WebInstanceProcessor:
                 dag_is_active = self.handle_steps(steps)
         finally:
             self.view_manager.handle_end()
-            for step in steps:
-                step.on_end()
             self.dataloader.stop()
+            for step in steps:
+                self.try_execute_step_event(step, "on_end")
 
     def step(self, step_id: str = None):
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
-        self.setup_dataloader(steps)
         for step in steps:
             self.view_manager.handle_start(step.id)
-            step.on_start()
+            succeeded = self.try_execute_step_event(step, "on_start")
+            if not succeeded:
+                return
+        self.setup_dataloader(steps)
         self.pause_event.clear()
         try:
             self.step_until_received_output(steps, step_id)
         finally:
             self.view_manager.handle_end()
-            for step in steps:
-                step.on_end()
             self.dataloader.stop()
+            for step in steps:
+                self.try_execute_step_event(step, "on_end")
 
     def set_is_running(self, is_running: bool = True, filename: str | None = None):
         self.is_running = is_running
@@ -232,7 +254,7 @@ class WebInstanceProcessor:
         self.dataloader.shutdown()
 
     def setup_dataloader(self, steps: List[Step]):
-        dataloader_consumers = [step for step in steps if isinstance(step, AsyncStep)]
+        dataloader_consumers = [step for step in steps if isinstance(step, BatchStep)]
         consumer_ids = [id(c) for c in dataloader_consumers]
         consumer_load_fn = [
             c.load_fn if hasattr(c, "load_fn") else None for c in dataloader_consumers
@@ -323,6 +345,10 @@ class ProcessorStateClient:
                     output = self.dataloader.get_all_sizes()
                 elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:
                     output = self.running_state
+                elif req["cmd"] == ProcessorStateRequest.PROMPT_RESPONSE:
+                    step_id = req.get("step_id")
+                    succeeded = self.graph_state.handle_prompt_response(step_id, req.get("response"))
+                    output = {"ok": succeeded}
                 else:
                     output = {}
                 entry = {"res": req["cmd"], "data": output}

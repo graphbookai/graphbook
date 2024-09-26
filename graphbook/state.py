@@ -2,12 +2,13 @@ from __future__ import annotations
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from graphbook.note import Note
-from graphbook.steps import Step, StepOutput as Outputs
+from graphbook.steps import Step, PromptStep, StepOutput as Outputs
 from graphbook.resources import Resource
 from graphbook.decorators import get_steps, get_resources
 from graphbook.viewer import ViewManagerInterface
 from graphbook.plugins import setup_plugins
 from graphbook.logger import setup_logging_nodes
+from graphbook.utils import transform_json_log
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import graphbook.exports as exports
@@ -344,6 +345,7 @@ class GraphState:
         self._step_states[step_id].add(StepState.EXECUTED)
         self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
         self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
+        self.view_manager.handle_outputs(step_id, transform_json_log(outputs))
 
     def clear_outputs(self, node_id: str | None = None):
         if node_id is None:
@@ -400,6 +402,16 @@ class GraphState:
         note = internal_list[index]
         entry.update(data=note.items)
         return entry
+    
+    def handle_prompt_response(self, step_id: str, response: dict) -> bool:
+        step = self._steps.get(step_id)
+        if not isinstance(step, PromptStep):
+            return False
+        try:
+            step.handle_prompt_response(response)
+            return True
+        except:
+            return False
 
     def get_step(self, step_id: str):
         return self._steps.get(step_id)

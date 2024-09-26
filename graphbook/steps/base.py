@@ -1,11 +1,16 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple, Generator, Any
-from ..utils import transform_function_string, convert_dict_values_to_list, is_batchable
 from graphbook import Note
-from graphbook.logger import log
+from graphbook.utils import (
+    transform_function_string,
+    convert_dict_values_to_list,
+    is_batchable,
+)
+from graphbook.logger import log, prompt
+import graphbook.prompts as prompts
 import graphbook.dataloading as dataloader
 import warnings
-
+import traceback
 
 warnings.simplefilter("default", DeprecationWarning)
 
@@ -221,8 +226,12 @@ class AsyncStep(Step):
 
     def __init__(self, item_key=None):
         super().__init__(item_key)
-        self._is_processing = True
         self._in_queue = []
+        self._out_queue = []
+
+    def on_clear(self):
+        self._in_queue = []
+        self._out_queue = []
 
     def in_q(self, note: Note | None):
         if note is None:
@@ -230,7 +239,17 @@ class AsyncStep(Step):
         self._in_queue.append(note)
 
     def is_active(self) -> bool:
-        return self._is_processing
+        return len(self._in_queue) > 0
+
+    def __call__(self) -> StepOutput:
+        # 1. on_note -> 2. on_item -> 3. on_after_item -> 4. forward_note
+        if len(self._out_queue) == 0:
+            return {}
+        note = self._out_queue.pop(0)
+        return super().__call__(note)
+
+    def all(self) -> StepOutput:
+        return self.__call__()
 
 
 class NoteItemHolders:
@@ -487,6 +506,83 @@ class BatchStep(AsyncStep):
             or len(self.accumulated_items[0]) > 0
             or self.dumped_item_holders.is_active()
         )
+
+
+class PromptStep(AsyncStep):
+    """
+    A Step that is capable of prompting the user for input.
+    This is useful for interactive workflows where data labeling, model evaluation, or any other human input is required.
+    Once the prompt is handled, the execution lifecycle of the Step will proceed, normally.
+    """
+    def __init__(self):
+        super().__init__()
+        self._is_awaiting_response = False
+        self._awaiting_note = None
+
+    def handle_prompt_response(self, response: Any):
+        note = self._awaiting_note
+        try:
+            assert note is not None, "PromptStep is not awaiting a response."
+            self.on_prompt_response(note, response)
+            self._out_queue.append(note)
+        except Exception as e:
+            self.log(f"{type(e).__name__}: {str(e)}", "error")
+            traceback.print_exc()
+
+        self._is_awaiting_response = False
+        self._awaiting_note = None
+        prompt(prompts.none())
+
+    def on_clear(self):
+        """
+        Clears any awaiting prompts and the prompt queue.
+        If you plan on overriding this method, make sure to call super().on_clear() to ensure the prompt queue is cleared.
+        """
+        self._is_awaiting_response = False
+        self._awaiting_note = None
+        prompt(prompts.none())
+        super().on_clear()
+
+    def get_prompt(self, note: Note) -> dict:
+        """
+        Returns the prompt to be displayed to the user.
+        This method can be overriden by the subclass.
+        By default, it will return a boolean prompt.
+        If None is returned, the prompt will be skipped on this note.
+        A list of available prompts can be found in ``graphbook.prompts``.
+        
+        Args:
+            note (Note): The Note input to display to the user
+        """
+        return prompts.bool_prompt(note)
+
+    def on_prompt_response(self, note: Note, response: Any):
+        """
+        Called when the user responds to the prompt.
+        This method must be overriden by the subclass.
+
+        Args:
+            note (Note): The Note input that was prompted
+            response (Any): The user's response
+        """
+        raise NotImplementedError(
+            "on_prompt_response must be implemented for PromptStep"
+        )
+
+    def __call__(self):
+        if not self._is_awaiting_response and len(self._in_queue) > 0:
+            note = self._in_queue.pop(0)
+            p = self.get_prompt(note)
+            if p:
+                prompt(self.get_prompt(note))
+                self._is_awaiting_response = True
+                self._awaiting_note = note
+            else:
+                self._out_queue.append(note)
+        return super().__call__()
+
+    def is_active(self) -> bool:
+        return len(self._in_queue) > 0 or self._awaiting_note is not None
 
 
 class Split(Step):

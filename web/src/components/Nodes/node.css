@@ -64,6 +64,51 @@ textarea.code {
     outline: none;
 }
 
+.workflow-node .widgets .ant-select-selection-item {
+    font-size: .6em;
+    line-height: 1.2;
+    padding-inline-end: 0px;
+    padding: 0;
+}
+
+.workflow-node .widgets .ant-select-arrow {
+    font-size: .6em;
+}
+
+.workflow-node .widgets .ant-select-selector {
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.workflow-node .widgets .ant-select-selector::after {
+    line-height: unset;
+}
+
+.workflow-node .widgets .ant-select-arrow {
+    display: none;
+}
+
+.workflow-node .widgets .ant-select {
+    height: unset;
+}
+
+.workflow-node .widgets input.ant-select-selection-search-input {
+    height: unset;
+}
+
+.workflow-node .widgets .ant-select-selection-item-remove svg {
+    width: 8px;
+    height: 8px;
+}
+
+.workflow-node .widgets .ant-select-selection-item-content {
+    line-height: 1;
+}
+
+.workflow-node .widgets .ant-select-selection-item {
+    height: 10px;
+}
+
 .workflow-node .collapsed {
     display: flex;
     flex-direction: row;
@@ -107,6 +152,22 @@ textarea.code {
     height: 15px;
     min-width: 15px;
     margin: auto 0;
+    line-height: unset;
+    padding: unset;
+}
+
+.workflow-node button.ant-btn.prompt {
+    margin: auto 0;
+    width: unset;
+    height: 18px;
+    margin: 2px 0;
+    vertical-align: top;
+    line-height: .8;
+}
+
+
+.workflow-node button.ant-btn>span {
+    font-size: .6em;
 }
 
 .workflow-node .ant-btn-icon {
@@ -142,8 +203,19 @@ textarea.code {
     font-size: .6em;
 }
 
-.workflow-node .outputs .output .label{
+.workflow-node .outputs .output .label {
     font-size: .6em;
+}
+
+.workflow-node .widgets .prompt .ant-typography {
+    font-size: .6em;
+}
+
+.workflow-node .widgets .prompt .ant-radio-button-wrapper {
+    font-size: 10px;
+    line-height: 1.2;
+    height: 14px;
+    padding: 0 4px;
 }
 
 .workflow-node .handles {

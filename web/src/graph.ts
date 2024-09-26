@@ -1,4 +1,4 @@
-import { uniqueIdFrom, getHandle, Parameter } from './utils';
+import { uniqueIdFrom, getHandle, Parameter, parseDictWidgetValue } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
 import type { Node, Edge } from 'reactflow';
@@ -180,11 +180,7 @@ export const Graph = {
                             parameters[key] = param.value;
                             if (param.type && param.value) {
                                 if (param.type === 'dict') {
-                                    const d = {};
-                                    for (const [t, k, v] of param.value) {
-                                        d[k] = v;
-                                    }
-                                    parameters[key] = d;
+                                    parameters[key] = parseDictWidgetValue(param.value);
                                 }
                             }
                         }
@@ -416,8 +412,11 @@ export const Graph = {
 
         const parseEdges = (nodes: Node[], edges: Edge[]) => {
             return edges.map((edge) => {
-                const targetNode = nodes.find(n => n.id === edge.target)!;
-                const sourceNode = nodes.find(n => n.id === edge.source)!;
+                const targetNode = nodes.find(n => n.id === edge.target);
+                const sourceNode = nodes.find(n => n.id === edge.source);
+                if (!targetNode || !sourceNode) {
+                    return null;
+                }
                 const targetHandle = getHandle(targetNode, edge.targetHandle!, true);
                 const sourceHandle = getHandle(sourceNode, edge.sourceHandle!, false);
                 return {
@@ -431,7 +430,7 @@ export const Graph = {
 
                     }
                 };
-            });
+            }).filter(e => e !== null);
         };
 
         const { nodes, edges } = graph;
