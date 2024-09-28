@@ -53,3 +53,5 @@ html_context = {
     'og_image': 'https://cdn.prod.website-files.com/6620137e5938f28a7e4eef8a/66aebc5f3b8d7345af42babe_GB%20OpenGraph.png',
     'og_description': 'Graphbook is a framework for building efficient, interactive DAG-structured ML workflows composed of nodes which can be implemented in Python. It provides common ML processing features and a web UI to assemble, monitor, and execute data processing pipelines.'
 }
+pygments_style = "default"
+pygments_style_dark = "monokai"
