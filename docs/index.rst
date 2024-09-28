@@ -93,7 +93,7 @@ Most importantly, we need such a solution to be open source while offering a way
 Graphbook is completely free and open source and can be deployed anywhere. We offer the source on GitHub and maintain PyPI packages and container builds.
 
 .. toctree::
-   :caption: Graphbook
+   :caption: Docs
    :maxdepth: 2
    :hidden:
 
