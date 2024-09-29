@@ -1,47 +1,79 @@
+.. _Concepts:
+
 Concepts
 ########
 
-Note
+
+Workflows
+*********
+
+A Graphbook **workflow** is a directed acyclic graph (DAG) that acts as a data processing pipeline well-suited for ML inference. The nodes are the building blocks of the workflow and can be of two types: :ref:`step<Steps>` and :ref:`resource<Resources>`. The edges are the connections between the nodes and represent the flow of :ref:`notes<Notes>` between them where each step processes the note in a way that is defined by custom Python code. The workflow can be visualized and monitored by anyone with access to the Graphbook web UI.
+
+.. image:: _static/concepts/executed_workflow.png
+    :alt: Example Workflow
+    :align: center
+
+.. _Notes:
+
+Notes
 *****
 
-Note is the formal name given to the unit of data that flows through a Graphbook workflow. A Note simply holds a dictionary which encapsulates certain information about the thing that is being processed. For example, we can have Notes for all of the world's cars where each Note stores a car’s model, manufacturer, price, and an array of images of the car. 
+The **note** is the atomical unit of data that flows through a Graphbook workflow. A note simply holds a dictionary which encapsulates certain information about the thing that is being processed. We call them notes because they hold small units of information. For example, we can have notes for all of the world's cars where each note stores information about a car’s model, manufacturer, price, and images of that car. 
 
-Step
+.. code-block:: python
+    :caption: Example Note
+
+    note = Note({
+        "model": "Model S",
+        "manufacturer": "Tesla",
+        "price": 79999,
+        "images": [Image("image1.jpg"), Image("image2.jpg")]
+    })
+
+.. _Steps:
+
+Steps
 *****
 
-Step is the one of the two fundamental node types in Graphbook and is a class meant to be extended in Python. Steps are the functional nodes that define the logic of our data processing pipeline. They are fed Notes as input and respond with 0 or more Notes (or an array of notes) at each of its output slots.
+A **step** node defines a body of functional logic that executes when a note passes through it. Steps are fed notes as input and respond with 0 or more notes at each of its output slots. With multiple output slots, a step can be used to route or filter notes to different parts of the graph. A step can also be used as a source of notes, where it loads them from an external source or creates them from another format such as a CSV file. A step can also load and batch data belonging to a series of notes in parallel via our :ref:`custom multiprocessing method<Workers>` and feed them as inputs to ML models.
 
-Resource
-********
+.. code-block:: python
+    :caption: Example Step Called ImageSource
 
-Resource is the second fundamental node type in Graphbook and is also an extendible class. It simply holds static information, or is a Python object, that is fed as a parameter to another Resource or Step. A prime example of a Resource is a model. Tip: If a larger object such as a model is being used in multiple Steps in your workflow, it is best to reuse them by putting them in Resources and use the model as a parameter.
+    @step("Custom/ImageSource")
+    @source()
+    @param("img_path", "string", default="path/to/images")
+    def image_source(ctx: Step):
+        for root, dirs, files in os.walk(ctx.img_path):
+            for file in files:
+                yield Note({
+                    "img": {
+                        "type": "image",
+                        "value": os.path.join(root, file)
+                    }
+                })
 
-Step Lifecycle
-**************
+.. _Resources:
 
-A Step goes through lifecycle methods upon processing a Note.
-If you are creating a custom Step through the functional way, these method names can be passed into the ``@event()`` decorator to customize the behavior of a Step.
-If you are creating a custom Step through the class-based method, then you can override the below methods to customize the behavior of the Step within your class.
+Resources
+*********
 
-**Lifecycle Methods**
+A **resource** simply holds static information as a Python variable that is meant to serve as a parameter to another resource or step node. A prime example of a resource is a model. 
 
-#. ``__init__``: The constructor of the Step. This is where you can set up the Step and its parameters. This will not be re-called if a node's code or its parameter values have not changed.
-#. ``on_clear``: Called when the step is cleared. This is where you can delete any state that the Step has stored.
-#. ``on_start``: This is called at the start of each graph execution.
-#. ``on_note``: This is called before the Step processes each Note.
-#. ``on_item``: This is called for each item.
-#. ``on_after_item``: This is called after the Step processes each Note.
-#. ``forward_note``: This is called after the Step processes each Note and is used to route the Note to a certain output slot.
-#. ``on_end``: This is called at the end of each graph execution.
+.. tip::
+    If a larger object such as a model is being used in multiple steps in your workflow, it is best to reuse it by putting it in a resource and feed it to the step as a parameter. This will prevent you from having multiple copies of the same model consuming memory.
 
-**Special Methods**
+.. code-block:: python
+    :caption: Example Resource Called ImageClassifier
 
-* ``on_item_batch``: This is called for each batch of items. *This only gets called if the Step is a BatchStep.*
-* ``load``: This is called to load Notes from a source. *This only gets called if the Step is a SourceStep.*
+    from transformers import ViTForImageClassification
 
-.. warning::
+    @resource("Custom/ImageClassifer")
+    @param("model_name", "string", description="The name of the model to load.")
+    def image_classification_resource(ctx):
+        return ViTForImageClassification.from_pretrained(ctx.model_name).to('cuda')
 
-    The above methods are subject to change in future versions of Graphbook.
+.. _Workers:
 
 Workers
 ********
@@ -86,9 +118,9 @@ The logic behind the workers is detailed in the following steps (1-6):
     Completed load items will be delivered to ``on_item_batch(results: List[any], items: List[any], notes: List[Note])`` where results, items, and notes are in order; i.e. ``results[i]`` corresponds to input ``items[i]`` and belonging to note ``notes[i]``.
     The size of the results, items, and notes lists will be equal to the batch size (or less if the batch size is not met).
     Completed dumped items will not be delivered to any lifecycle method.
-    However, the BatchStep will still search for completed dumped items and keep track of which Note they belong to.
-    If all dumped items from a Note are completed, then the Note is considered finished and can be delivered to the next Step for processing.
-    We do this because if a following Step depends on the saving of a particular item from that Note, then that Step will execute too soon.
+    However, the BatchStep will still search for completed dumped items and keep track of which note they belong to.
+    If all dumped items from a note are completed, then the note is considered finished and can be delivered to the next Step for processing.
+    We do this because if a following Step depends on the saving of a particular item from that note, then that step will execute too soon.
 
 Worker Performance Visualization
 =================================================

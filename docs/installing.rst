@@ -44,3 +44,7 @@ Installing from source requires Poetry_ and Node.js_.
 #. cd into the directory you want to create your workflows in
 #. ``<PATH_TO_REPO>/scripts/graphbook``
 
+
+.. seealso::
+
+    :doc:`guides`

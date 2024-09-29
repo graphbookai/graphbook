@@ -35,17 +35,21 @@ Applications
 
 Graphbook can be used for a variety of applications, including the development of:
 
-* ML-powered data processing or ETL pipeline
-* Custom dataset curation
-* Monitoring solution for AI/ML workflows
-* A no-code ML development platform
-* Workflows for training/inference of custom ML models
+* Highly efficient ML-powered data processing or ETL pipelines
+* A platform to curate custom datasets to train ML models
+* A development tool to experiment with different ML models and hyperparameters
+* A tool to build highly efficient ML applications, tasks, and services
+* A no-code ML development platform for non-engineers to build robust ML data processing pipelines
 
 
 Why
 ****
 
 In developing ML workflows for AI applications, a number of problems arise.
+
+.. seealso::
+
+    :doc:`concepts`
 
 1. Multiprocessing
 ====================
@@ -57,7 +61,7 @@ Graphbook takes care of this by setting up worker processes that can perform bot
 2. Batching
 =================
 
-To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Our units of data, which we call Notes (which are basically just Python dicts), can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the Note.
+To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Our units of data, which we call :ref:`Notes` (which are basically just Python dicts), can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the Note.
 
 Thus, we have a specific batching process that allows our nodes to load and batch along an individual property within a Note while still holding a reference to that belonging Note.
 
@@ -99,7 +103,7 @@ Graphbook is completely free and open source and can be deployed anywhere. We of
 
    installing
    concepts
-   guides
-   reference
+   guides/index
+   reference/index
    examples
    contributing

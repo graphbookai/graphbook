@@ -12,6 +12,8 @@ author = 'Graphbook AI'
 
 import os
 import sys
+from sphinxawesome_theme.postprocess import Icons
+
 sys.path.insert(0, os.path.abspath('../src'))
 
 # -- General configuration ---------------------------------------------------
@@ -20,13 +22,16 @@ sys.path.insert(0, os.path.abspath('../src'))
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.coverage',
               'sphinx.ext.napoleon',
-              'sphinxawesome_theme']
+              'sphinxawesome_theme',
+              'sphinx_sitemap']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+html_baseurl = 'https://docs.graphbook.ai/'
 html_theme_options = {
     "logo_light": "_static/graphbook.png",
     "logo_dark": "_static/graphbook.png",
+    "show_prev_next": True,
     "show_scrolltop": True,
     'extra_header_link_icons': {
         'our github repo': {
@@ -41,17 +46,15 @@ html_theme_options = {
 
 html_favicon = '_static/graphbook_32.png'
 html_title = 'Graphbook - ML Workflow Framework'
-html_permalinks_icon = \
-"""
-<svg height="1em" viewBox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg">
-<path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path>
-</svg>
-"""
+html_permalinks_icon = Icons.permalinks_icon
 html_theme = 'sphinxawesome_theme'
 html_static_path = ['_static']
+html_extra_path = ["robots.txt"]
+sitemap_url_scheme = "{link}"
 html_context = {
     'og_image': 'https://cdn.prod.website-files.com/6620137e5938f28a7e4eef8a/66aebc5f3b8d7345af42babe_GB%20OpenGraph.png',
     'og_description': 'Graphbook is a framework for building efficient, interactive DAG-structured ML workflows composed of nodes which can be implemented in Python. It provides common ML processing features and a web UI to assemble, monitor, and execute data processing pipelines.'
 }
+
 pygments_style = "default"
 pygments_style_dark = "monokai"

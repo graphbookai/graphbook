@@ -20,7 +20,7 @@ StepOutput = Dict[str, List[Note]]
 
 class Step:
     """
-    The base class of an executable workflow node. All other workflow nodes should inherit from Step.
+    The base class of the executable workflow node, step. All other step classes should be a descendant of this class.
     """
 
     def __init__(self, item_key=None):
@@ -175,6 +175,7 @@ class Step:
 class SourceStep(Step):
     """
     A Step that accepts no input but produce outputs.
+    This this class will attempt to load all data at once, so it is recommended to use GeneratorSourceStep especially for large datasets.
     """
 
     def __init__(self):
