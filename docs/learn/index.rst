@@ -1,6 +1,6 @@
-.. _Guides:
+.. _Learn:
 
-Guides
+Learn
 ###########
 
 .. rst-class:: lead
@@ -19,7 +19,7 @@ Keep in mind that when working with Graphbook, the development cycle in building
 
 #. **Assemble in Graphbook**
 
-    Assemble an ML workflow in our graph-based editor with your own processing nodes
+    Assemble an ML workflow in the Graphbook web UI with your own processing nodes
 
 #. **Execute**
 
@@ -30,6 +30,8 @@ Keep in mind that when working with Graphbook, the development cycle in building
 .. toctree::
     :caption: In this section
 
-    first-workflow.rst
-    pokemon-classifier.rst
-    image-segmentation.rst
+    concepts
+    first-workflow
+    load-images
+    pokemon-classifier
+    image-segmentation

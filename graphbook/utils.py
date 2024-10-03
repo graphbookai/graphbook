@@ -16,7 +16,12 @@ from .note import Note
 MP_WORKER_TIMEOUT = 5.0
 ProcessorStateRequest = Enum(
     "ProcessorStateRequest",
-    ["GET_OUTPUT_NOTE", "GET_WORKER_QUEUE_SIZES", "GET_RUNNING_STATE", "PROMPT_RESPONSE"],
+    [
+        "GET_OUTPUT_NOTE",
+        "GET_WORKER_QUEUE_SIZES",
+        "GET_RUNNING_STATE",
+        "PROMPT_RESPONSE",
+    ],
 )
 
 
@@ -176,3 +181,17 @@ def transform_json_log(log: Any) -> Any:
     if hasattr(log, "__str__"):
         return str(log)
     return "(Not JSON serializable)"
+
+
+def image(path_or_pil: str | Image.Image) -> dict:
+    """
+    A simple helper function to create a Graphbook-recognizable image object.
+    A path to an image file or a PIL Image object is supported for rendering in the UI.
+    If the image is a PIL Image object, Graphbook will attempt to store it in a shared memory region if the feature is enabled.
+    If shared memory is disabled, PIL Image objects will not be rendered in the UI.
+
+    Args:
+        path_or_pil (str | Image.Image): A path to an image file or a PIL Image object.
+    """
+    assert isinstance(path_or_pil, str) or isinstance(path_or_pil, Image.Image)
+    return {"type": "image", "value": path_or_pil}

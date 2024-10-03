@@ -18,6 +18,9 @@ Download and extract the dataset into any folder in your filesystem.
 Just remember the path that it's in.
 In this guide, the path that the dataset is in is `/data/pokemon`.
 
+Load Images By File Paths
+=========================
+
 Create a new Source Step that loads the images and their labels:
 
 .. code-block:: python
@@ -64,6 +67,10 @@ The above node will load all the images from the dataset and output them as a li
 Notice how each image is structured.
 It contains a ``value`` and a ``type``.
 This is important for the UI to know how to fetch and render the image.
+
+Build a BatchStep to Classify Pokemon Images
+============================================
+
 Now, let's find an off-the-shelf pre-trained pokemon classifier from Huggingface.
 We can use the one with the id ``imjeffhi/pokemon_classifier``.
 Let's create the below BatchStep class that uses this model to classify the images:
@@ -153,6 +160,9 @@ When we clicked on "Step" in the dialogue menu, it didn't execute through the en
 Instead, it ran a single batch of images taken from the dataset.
 This is useful for debugging and testing.
 
+Filter Notes by Name
+====================
+
 In addition to limiting the number of images processed at a time, we can also filter what is fed into our PokemonClassifer node.
 We can do that by filtering the pokemon by their name.
 Add a node called Split (Add Step > Filtering > Split).
@@ -171,6 +181,10 @@ Now, connect the nodes together like so:
     :align: center
 
 Now, when you run the workflow, you can observe that the classification only happens for Pikachu, Charmander, and Bulbasaur.
+
+
+Create Model Resources
+======================
 
 Last but not least, let's create two resource nodes that will store the model and image processor and feed it to the PokemonClassifier step.
 This is important because models are heavy and we don't want to load them every time that we add a new PokemonClassifer to our workflow.

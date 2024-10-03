@@ -19,4 +19,5 @@ Reference
     resources
     notes
     decorators
+    prompts
     utils

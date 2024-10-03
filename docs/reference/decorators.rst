@@ -5,33 +5,17 @@
 Decorators
 ##########
 
-.. _step decorator:
-
-step
-----
-
 .. autodecorator:: graphbook.step
-
-.. _batch decorator:
-
-batch
-*****
 
 .. autodecorator:: graphbook.batch
 
-.. _source decorator:
-
-source
-******
-
 .. autodecorator:: graphbook.source
 
-.. _prompt decorator:
-
-prompt
-******
-
 .. autodecorator:: graphbook.prompt
+
+.. seealso::
+    
+    :mod:`graphbook.prompts` for available user prompts.
 
 .. autodecorator:: graphbook.param
 
@@ -40,5 +24,3 @@ prompt
 .. autodecorator:: graphbook.output
 
 .. autodecorator:: graphbook.resource
-
-

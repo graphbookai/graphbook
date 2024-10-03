@@ -3,10 +3,18 @@
     :twitter:description: Learn how to remove the background from images using a pre-trained model in Graphbook.
 
 Image Segmentation
-==================
+##################
+
+.. _transformers: https://huggingface.co/docs/transformers
+
+.. note::
+    Requires Huggingface transformers_
 
 In this guide, we will use a pre-trained model, RMBG-1.4, from Bria AI downloadable from Huggingface to remove the background from images.
 We can use the same dataset from the Pokemon Image Classification guide, so let's reuse the LoadImageDataset source step.
+
+Create the Model Resource
+=========================
 
 First, let's create a new Resource class that will store the RMBG-1.4 model:
 
@@ -21,6 +29,7 @@ First, let's create a new Resource class that will store the RMBG-1.4 model:
             "model_name": {
                 "type": "string",
                 "description": "The name of the image processor.",
+                "default": "briai/RMBG-1.4",
             }
         }
 
@@ -30,6 +39,9 @@ First, let's create a new Resource class that will store the RMBG-1.4 model:
                     model_name, trust_remote_code=True
                 ).to("cuda")
             )
+
+Create the BatchStep
+====================
 
 Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the background from the images:
 

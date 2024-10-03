@@ -1,6 +1,6 @@
 .. meta::
-    :description: Graphbook Reference Documentation for steps
-    :twitter:description: Graphbook Reference Documentation for steps
+    :description: Graphbook Reference Documentation for Step classes.
+    :twitter:description: Graphbook Reference Documentation for Step classes.
 
 Steps
 #####
@@ -11,7 +11,7 @@ Steps
 
 .. seealso::
 
-    Decorators that can define the extendible step classes: :ref:`step decorator`, :ref:`batch decorator`, :ref:`source decorator`, :ref:`prompt decorator`
+    Decorators :func:`graphbook.step`, :func:`graphbook.batch`, :func:`graphbook.source`, and :func:`graphbook.prompt` to create steps in a functional way.
 
 .. autoclass:: graphbook.steps.Step
     :members:
@@ -21,6 +21,10 @@ Steps
 
 .. autoclass:: graphbook.steps.PromptStep
     :members:
+
+.. seealso::
+    
+    :mod:`graphbook.prompts` for available user prompts.
 
 .. autoclass:: graphbook.steps.SourceStep
     :members:

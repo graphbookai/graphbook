@@ -11,13 +11,18 @@ Graphbook
 
 Graphbook is a framework for building efficient, visual DAG-structured ML workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching, and it features a web-based UI to assemble, monitor, and execute data processing workflows.
 
+.. image:: https://media.githubusercontent.com/media/rsamf/public/main/docs/overview/huggingface-pipeline-demo.gif
+    :alt: Huggingface Pipeline Demo
+    :width: 600px
+    :align: center
+
 Features
 *********
 
 * ​​Graph-based visual editor to experiment and create complex ML workflows
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
-* Custom buildable nodes with Python
+* Custom buildable nodes with Python via OOP and functional patterns
 * Automatic batching for Pytorch tensors
 * Multiprocessing I/O to and from disk and network
 * Customizable multiprocessing functions
@@ -29,6 +34,8 @@ Features
 * Autosaving and shareable serialized workflow files
 * Registers node code changes without needing a restart
 * Monitorable CPU and GPU resource usage
+* Human-in-the-loop prompting for interactivity and manual control during DAG execution
+* (BETA) Third Party Plugins
 
 Applications
 *************
@@ -49,7 +56,7 @@ In developing ML workflows for AI applications, a number of problems arise.
 
 .. seealso::
 
-    :doc:`concepts`
+    :doc:`learn/concepts`
 
 1. Multiprocessing
 ====================
@@ -102,8 +109,7 @@ Graphbook is completely free and open source and can be deployed anywhere. We of
    :hidden:
 
    installing
-   concepts
-   guides/index
+   learn/index
    reference/index
    examples
    contributing
