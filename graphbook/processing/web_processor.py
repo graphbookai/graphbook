@@ -75,7 +75,11 @@ class WebInstanceProcessor:
                 if item.get("type") == "image" and isinstance(
                     item.get("value"), Image.Image
                 ):
-                    shm_id = self.img_mem.add_image(item["value"])
+                    try:
+                        shm_id = self.img_mem.add_image(item["value"])
+                    except:
+                        shm_id = None
+                        
                     item["shm_id"] = shm_id
             elif isinstance(item, list):
                 for val in item:
