@@ -89,8 +89,8 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 ### Planned Features
 - A `graphbook run` command to execute workflows in a CLI
 - All-code workflows, so users never have to leave their IDE
-- And many optimizations for large data processing workloads
 - Remote subgraphs for scaling workflows on other Graphbook services
+- And many optimizations for large data processing workloads
 
 ### Supported OS
 The following operating systems are supported in order of most to least recommended:

@@ -11,13 +11,18 @@ Graphbook
 
 Graphbook is a framework for building efficient, visual DAG-structured ML workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching, and it features a web-based UI to assemble, monitor, and execute data processing workflows.
 
+.. image:: https://media.githubusercontent.com/media/rsamf/public/main/docs/overview/huggingface-pipeline-demo.gif
+    :alt: Huggingface Pipeline Demo
+    :width: 600px
+    :align: center
+
 Features
 *********
 
 * ​​Graph-based visual editor to experiment and create complex ML workflows
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
-* Custom buildable nodes with Python
+* Custom buildable nodes with Python via OOP and functional patterns
 * Automatic batching for Pytorch tensors
 * Multiprocessing I/O to and from disk and network
 * Customizable multiprocessing functions
@@ -29,23 +34,29 @@ Features
 * Autosaving and shareable serialized workflow files
 * Registers node code changes without needing a restart
 * Monitorable CPU and GPU resource usage
+* Human-in-the-loop prompting for interactivity and manual control during DAG execution
+* (BETA) Third Party Plugins
 
 Applications
 *************
 
 Graphbook can be used for a variety of applications, including the development of:
 
-* ML-powered data processing or ETL pipeline
-* Custom dataset curation
-* Monitoring solution for AI/ML workflows
-* A no-code ML development platform
-* Workflows for training/inference of custom ML models
+* Highly efficient ML-powered data processing or ETL pipelines
+* A platform to curate custom datasets to train ML models
+* A development tool to experiment with different ML models and hyperparameters
+* A tool to build highly efficient ML applications, tasks, and services
+* A no-code ML development platform for non-engineers to build robust ML data processing pipelines
 
 
 Why
 ****
 
 In developing ML workflows for AI applications, a number of problems arise.
+
+.. seealso::
+
+    :doc:`learn/concepts`
 
 1. Multiprocessing
 ====================
@@ -57,7 +68,7 @@ Graphbook takes care of this by setting up worker processes that can perform bot
 2. Batching
 =================
 
-To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Our units of data, which we call Notes (which are basically just Python dicts), can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the Note.
+To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Our units of data, which we call :ref:`Notes` (which are basically just Python dicts), can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the Note.
 
 Thus, we have a specific batching process that allows our nodes to load and batch along an individual property within a Note while still holding a reference to that belonging Note.
 
@@ -93,13 +104,12 @@ Most importantly, we need such a solution to be open source while offering a way
 Graphbook is completely free and open source and can be deployed anywhere. We offer the source on GitHub and maintain PyPI packages and container builds.
 
 .. toctree::
-   :caption: Graphbook
+   :caption: Docs
    :maxdepth: 2
    :hidden:
 
    installing
-   concepts
-   guides
-   reference
+   learn/index
+   reference/index
    examples
    contributing
