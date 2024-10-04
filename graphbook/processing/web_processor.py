@@ -75,11 +75,7 @@ class WebInstanceProcessor:
                 if item.get("type") == "image" and isinstance(
                     item.get("value"), Image.Image
                 ):
-                    try:
-                        shm_id = self.img_mem.add_image(item["value"])
-                    except:
-                        shm_id = None
-                        
+                    shm_id = self.img_mem.add_image(item["value"])
                     item["shm_id"] = shm_id
             elif isinstance(item, list):
                 for val in item:
@@ -88,7 +84,11 @@ class WebInstanceProcessor:
         for output in outputs.values():
             for note in output:
                 for item in note.items.values():
-                    try_add_image(item)
+                    if isinstance(item, list):
+                        for i in item:
+                            try_add_image(i)
+                    else:
+                        try_add_image(item)
 
     def exec_step(
         self, step: Step, input: Note | None = None, flush: bool = False
@@ -194,7 +194,7 @@ class WebInstanceProcessor:
             step_executed = self.graph_state.get_state(
                 step_id, StepState.EXECUTED_THIS_RUN
             )
-            
+
     def try_execute_step_event(self, step: Step, event: str):
         try:
             if hasattr(step, event):
@@ -351,7 +351,9 @@ class ProcessorStateClient:
                     output = self.running_state
                 elif req["cmd"] == ProcessorStateRequest.PROMPT_RESPONSE:
                     step_id = req.get("step_id")
-                    succeeded = self.graph_state.handle_prompt_response(step_id, req.get("response"))
+                    succeeded = self.graph_state.handle_prompt_response(
+                        step_id, req.get("response")
+                    )
                     output = {"ok": succeeded}
                 else:
                     output = {}
