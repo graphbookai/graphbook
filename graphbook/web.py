@@ -8,6 +8,7 @@ import asyncio
 import base64
 import hashlib
 import aiohttp
+import traceback
 from aiohttp import web
 from graphbook.processing.web_processor import WebInstanceProcessor
 from graphbook.viewer import ViewManager
@@ -519,8 +520,8 @@ def start_web(args):
     for p in processes:
         p.daemon = True
         p.start()
-
-    def signal_handler(*_):
+        
+    def cleanup():
         close_event.set()
 
         if img_mem:
@@ -529,6 +530,8 @@ def start_web(args):
             except FileNotFoundError:
                 pass
 
+    def signal_handler(*_):
+        cleanup()
         raise KeyboardInterrupt()
 
     signal.signal(signal.SIGTERM, signal_handler)
@@ -547,6 +550,9 @@ def start_web(args):
             pause_event,
             args.num_workers,
         )
-        await processor.start_loop()
+        try:
+            await processor.start_loop()
+        finally:
+            cleanup()
 
     asyncio.run(start())

@@ -9,6 +9,9 @@ Graphbook will attempt to look for images inside of output notes in an workflow 
 In this guide, we will properly load a source of images into our data processing pipelines, so that Graphbook can render them.
 Essentially, this is made possible with the help of the :func:`graphbook.utils.image` function.
 
+Load by File Paths
+==================
+
 .. tip::
 
     :func:`graphbook.utils.image` is a helper function that converts an image file or a PIL Image into a format that allows Graphbook to detect and render them in the web UI.
@@ -59,6 +62,23 @@ Essentially, this is made possible with the help of the :func:`graphbook.utils.i
                             yield Note({
                                 "img": utils.image(os.path.join(root, file))
                             })
+
+Load by PIL Images
+==================
+
+If you have a PIL Image object, you can similarly use :func:`graphbook.utils.image`.
+
+.. code-block:: python
+    :caption: Example with PIL Image
+
+        from PIL import Image
+        ...
+        yield Note({
+            "img": utils.image(Image.open(os.path.join(root, file)))
+        })
+
+Load without Generators
+=======================
 
 Alternatively, if you don't want to use generators (with the ``yield`` keyword), you can use ``@source(False)`` or :class:`graphbook.steps.SourceStep` to return all of the notes at once.
 This is not recommended for large datasets because it will load all of the data in one step causing a bottleneck in your workflow.

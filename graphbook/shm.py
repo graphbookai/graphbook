@@ -25,10 +25,15 @@ class SharedMemoryManager:
         self.lock = lock if lock else Lock()
         self.metadata_is_updated = event if event else Event()
         self.metadata = {"images": {}, "offset": self.metadata_size}
+        self.is_full = False
         self.update_metadata()
 
     def get_shared_args(self):
-        return {"name": self.shm.name, "lock": self.lock, "event": self.metadata_is_updated}
+        return {
+            "name": self.shm.name,
+            "lock": self.lock,
+            "event": self.metadata_is_updated,
+        }
 
     def update_metadata(self):
         metadata_json = json.dumps(self.metadata).encode()
@@ -49,9 +54,19 @@ class SharedMemoryManager:
         self.metadata = json.loads(metadata_json)
 
     def add_image(self, pil_image):
+        if self.is_full:
+            return None
+
         # Convert PIL Image to bytes
         img_buffer = BytesIO()
-        pil_image.save(img_buffer, format=pil_image.format or "PNG")
+        try:
+            if pil_image.format == "CMYK":
+                pil_image = pil_image.convert("RGB")
+            pil_image.save(img_buffer, format=pil_image.format or "PNG")
+        except Exception as e:
+            print(f"Error saving image: {e}\n{pil_image}")
+            return None
+
         img_bytes = img_buffer.getvalue()
         img_size = len(img_bytes)
 
@@ -59,7 +74,11 @@ class SharedMemoryManager:
         offset = self.metadata["offset"]
 
         if offset + img_size > self.size:
-            raise ValueError("Shared memory is full")
+            self.is_full = True
+            print(
+                "Shared memory is full. Will no longer store images for rendering. Consider increasing the size with --img_shm_size"
+            )
+            return None
 
         # Store the image
         with self.lock:
