@@ -78,7 +78,7 @@ export function BooleanWidget({ name, def, onChange, style }) {
         return <Switch size="small" defaultChecked={def} onChange={onChange} />
     }, [style, def]);
     return (
-        <Flex justify='space-between' align="center">
+        <Flex className="input-container" justify='space-between' align="center">
             <Text>{name}</Text>
             {input}
         </Flex>
