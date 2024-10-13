@@ -1,36 +1,15 @@
 .. meta::
-    :description: Learn how to create your first workflow in Graphbook.
-    :twitter:description: Learn how to create your first workflow in Graphbook.
+    :description: Follow this simple guide to get started with Graphbook. Learn how to create your first workflow, connect nodes together, and process data.
+    :twitter:description: Follow this simple guide to get started with Graphbook. Learn how to create your first workflow, connect nodes together, and process data.
 
-Create Your First Workflow
-##########################
+Hello World
+###########
 
-If you haven't already, make sure to install Graphbook by following the installation :ref:`guide<Installing>`.
-Once Graphbook is installed, execute ``graphbook`` in a directory that you want to create your workflows in.
-Also, because workflow files are serialized as **.json** files, it is also recommended to track your workflows and custom nodes in a version control system like Git.
+This guide will walk you through creating your first Graphbook workflow.
+If you have already followed :ref:`Basics`, you should be familiar with the basics of Graphbook, and we recommend that you skip this section.
 
-.. code-block:: console
-
-    $ mkdir my_graphbook_project
-    $ cd my_graphbook_project
-    $ git init
-    $ graphbook
-
-Executing ``graphbook`` should automatically create a directory called `workflow` containing two subdirectories called `custom_nodes` and `docs` like so:
-
-::
-
-    my_graphbook_project
-    └── workflow
-       ├── custom_nodes
-       └── docs
-
-All of your custom nodes should be located inside of `workflow/custom_nodes`.
-Graphbook is tracking that directory for any files ending with **.py** and will automatically detect classes that inherit from **Step** or **Resource** and functions defined and decorated with **@step** or **@resource**.
-
-
-Write Your First Graphbook Step
-===============================
+Create a Step
+=============
 
 Inside of your custom nodes directory, create a new Python file called `my_first_nodes.py`, and create the below step inside of it:
 

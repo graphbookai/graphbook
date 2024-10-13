@@ -105,7 +105,8 @@ Graphbook is completely free and open source and can be deployed anywhere. We of
 
 .. toctree::
    :caption: Docs
-   :maxdepth: 2
+   :titlesonly:
+   :maxdepth: 3
    :hidden:
 
    installing
