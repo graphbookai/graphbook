@@ -5,6 +5,10 @@
 Decorators
 ##########
 
+.. rst-class:: lead
+    
+    This section contains detailed reference documentation for working with Graphbook decorators, the recommended way.
+
 .. autodecorator:: graphbook.step
 
 .. autodecorator:: graphbook.batch

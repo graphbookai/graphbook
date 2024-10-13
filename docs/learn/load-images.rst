@@ -2,6 +2,8 @@
     :description: Learn how to load a source of images into your data processing pipelines.
     :twitter:description: Learn how to load a source of images into your data processing pipelines.
 
+.. _Load Images:
+
 Load Images
 ###########
 

@@ -19,5 +19,6 @@ Reference
     resources
     notes
     decorators
+    params
     prompts
     utils
