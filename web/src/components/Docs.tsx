@@ -6,6 +6,7 @@ import { useAPI } from "../hooks/API";
 import { useNodes } from "reactflow";
 import type { CollapseProps } from "antd/lib/collapse";
 import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw'
 const { useToken } = theme;
 const { Text } = Typography;
 
@@ -67,25 +68,56 @@ export function Docs() {
             return;
         }
 
-        const loadNodeDocs = async () => {
-            const n = nodes as any[];
-            const uniqueNodes = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.data.name));
-            const nodeMap = {};
-            n.forEach(node => { nodeMap[node.data.name] = node });
+        const loadNodeDocs = async (docs) => {
+            if (docs.length === 0) {
+                return;
+            }
 
-            const docs = await Promise.all([...uniqueNodes].map(async (nodeName) => {
-                const node = nodeMap[nodeName];
-                const doc = node.type === 'step' ? await API.getStepDocstring(nodeName) : await API.getResourceDocstring(nodeName);
+            const newDocs = await Promise.all(docs.map(async (doc) => {
+                const loadedDoc = doc.type === 'step' ? await API.getStepDocstring(doc.name) : await API.getResourceDocstring(doc.name);
                 return {
-                    name: node.data.name,
-                    content: doc?.content || '(No docstring)'
+                    ...doc,
+                    content: loadedDoc?.content || '(No docstring)'
                 };
             }));
-            setNodeDocs(docs);
+
+            setNodeDocs(pre => {
+                return pre.map(doc => {
+                    const newDoc = newDocs.find(d => d.name === doc.name);
+                    if (newDoc) {
+                        return newDoc;
+                    }
+                    return doc;
+                });
+            });
         };
 
-        loadNodeDocs();
-    }, [nodes, API]);
+        const n = nodes as any[];
+        const uniqueNodeNames = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.data.name));
+        const uniqueNodes = [...uniqueNodeNames].map(name => n.find(n => n.data.name === name));
+
+        if (nodeDocs.length !== uniqueNodes.length) {
+            const toLoad: any[] = [];
+            const docs = [...uniqueNodes].map(n => {
+                const existingDoc = nodeDocs.find(doc => doc.name === n.data.name);
+                if (existingDoc) {
+                    return existingDoc;
+                } else {
+                    const doc = {
+                        type: n.type,
+                        name: n.data.name,
+                        content: '(Loading...)',
+                    };
+                    toLoad.push(doc);
+                    return doc;
+                }
+            });
+
+            setNodeDocs(docs);
+            loadNodeDocs(toLoad);
+        }
+
+    }, [nodes, nodeDocs, API]);
 
     const containerStyle: React.CSSProperties = useMemo(() => ({
         padding: '5px 10px',
@@ -138,7 +170,7 @@ export function Docs() {
             {
                 workflowDoc &&
                 <div style={{ ...docSectionStyle, padding: '5px', marginBottom: '10px' }}>
-                    <Markdown>{workflowDoc}</Markdown>
+                    <Markdown rehypePlugins={[rehypeRaw]}>{workflowDoc}</Markdown>
                 </div>
             }
             {

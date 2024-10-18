@@ -11,7 +11,7 @@ import ReactFlow, {
 import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph.ts';
-import AddNode from './AddNode.tsx';
+import { SearchNode } from './SearchNode.tsx';
 import { WorkflowStep } from './Nodes/Node.jsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
 import { getHandle, evalDragData } from '../utils.ts';
@@ -62,14 +62,10 @@ export default function Flow({ filename }) {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
     const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
+    const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
     const [runState, _] = useRunState();
     const graphStore = useRef<GraphStore | null>(null);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
-
-    // Coalesce
-    const [isAddNodeActive, setIsAddNodeActive] = useState(false);
-    const [eventMousePos, setEventMousePos] = useState({ x: 0, y: 0 });
-    const [nodeToPos, setNodeToPos] = useState({ x: 0, y: 0 });
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
     useEffect(() => {
@@ -91,6 +87,22 @@ export default function Flow({ filename }) {
 
     }, [API, filename]);
 
+    useEffect(() => {
+        const searchListener = (e) => {
+            if (e.key === ' ' && e.ctrlKey) {
+                setSearchMenu({
+                    top: window.innerHeight / 2 - 200,
+                    left: window.innerWidth / 2
+                });
+            }
+        };
+
+        document.addEventListener('keydown', searchListener);
+        return () => {
+            document.removeEventListener('keydown', searchListener);
+        };
+    }, []);
+
     const nodeTypes = useMemo(() => ({
         step: WorkflowStep,
         resource: Resource,
@@ -104,7 +116,6 @@ export default function Flow({ filename }) {
     }, [reactFlowInstance]);
 
     const onNodesChangeCallback = useCallback((changes) => {
-        setIsAddNodeActive(false);
         if (runState !== 'stopped') {
             const newChanges = changes.filter(change => change.type !== 'remove');
             if (newChanges.length !== changes.length) {
@@ -121,7 +132,6 @@ export default function Flow({ filename }) {
     }, [runState]);
 
     const onEdgesChangeCallback = useCallback((changes) => {
-        setIsAddNodeActive(false);
         if (runState !== 'stopped') {
             const newChanges = changes.filter(change => change.type !== 'remove');
             if (newChanges.length !== changes.length) {
@@ -180,33 +190,22 @@ export default function Flow({ filename }) {
         }
     }, [nodes, edges, graphStore]);
 
-    const handleMouseClickComp = useCallback((event) => {
-        setIsAddNodeActive(false);
+    const handleMouseClickComp = useCallback(() => {
+        setSearchMenu(null);
         setNodeMenu(null);
         setPaneMenu(null);
-        if (!event) {
-            return;
-        }
-        if (event.type === 'dblclick' && !isAddNodeActive && reactFlowInstance.current) {
-            // setIsAddNodeActive(true);
-            setEventMousePos({ x: event.clientX, y: event.clientY });
-            setNodeToPos(reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
-        }
     }, []);
 
-    const handleMouseClick = useCallback((event) => {
-        if (event.type === 'click') {
-            setNodeMenu(null);
-            setPaneMenu(null);
-        }
-    }, [reactFlowInstance]);
+    const onPaneDoubleClick = useCallback((event) => {
+        const isANodeSelected = nodes.some(node => node.selected);
 
-    useEffect(() => {
-        document.addEventListener('click', handleMouseClick);
-        return () => {
-            document.removeEventListener('click', handleMouseClick);
-        };
-    }, [handleMouseClick]);
+        if (!isANodeSelected) {
+            setSearchMenu({
+                top: event.clientY,
+                left: event.clientX
+            });
+        }
+    }, [nodes]);
 
     const onDrop = useCallback((event) => {
         if (!reactFlowInstance.current || !API) {
@@ -374,7 +373,9 @@ export default function Flow({ filename }) {
             <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
                 <ReactFlow
                     key={filename}
+                    onDoubleClick={onPaneDoubleClick}
                     onPaneClick={handleMouseClickComp}
+                    onNodeClick={handleMouseClickComp}
                     onMove={handleMouseClickComp}
                     zoomOnDoubleClick={false}
                     nodes={nodes}
@@ -396,10 +397,10 @@ export default function Flow({ filename }) {
                     preventScrolling={true}
                 >
                     {notificationCtxt}
-                    <Space direction="horizontal" align="start" style={{position: 'absolute', top: '10px', right: '0px', zIndex: 9}}>
+                    <Space direction="horizontal" align="start" style={{ position: 'absolute', top: '10px', right: '0px', zIndex: 9 }}>
                         <div>
-                            <div style={{position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)'}}>
-                                <ControlRow/>
+                            <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
+                                <ControlRow />
                             </div>
                             <Docs />
                         </div>
@@ -408,9 +409,9 @@ export default function Flow({ filename }) {
                         <NodeConfig />
                     </Panel>
                     <Monitor />
-                    {nodeMenu && <NodeContextMenu {...nodeMenu} />}
+                    {nodeMenu && <NodeContextMenu close={() => setNodeMenu(null)} top={nodeMenu.top} left={nodeMenu.left} nodeId={nodeMenu.nodeId} />}
                     {paneMenu && <PaneContextMenu close={() => setPaneMenu(null)} top={paneMenu.top} left={paneMenu.left} />}
-                    {isAddNodeActive && <AddNode position={eventMousePos} setNodeTo={nodeToPos} />}
+                    {searchMenu && <SearchNode close={() => setSearchMenu(null)} top={searchMenu.top} left={searchMenu.left} />}
                     <Background id="1" variant={BackgroundVariant.Lines} gap={20} size={1} color={lineColor1} />
                     <Background id="2" variant={BackgroundVariant.Lines} gap={200} size={1} color={lineColor2} />
                 </ReactFlow>

@@ -63,6 +63,11 @@ def get_args():
         default=1024,
         help="Size of the shared memory in MB for serving PIL images. Set to 0 to disable this feature.",
     )
+    parser.add_argument(
+        "--no_sample",
+        action="store_true",
+        help="Do not create a sample workflow if the workflow directory does not exist",
+    )
 
     return parser.parse_args()
 
