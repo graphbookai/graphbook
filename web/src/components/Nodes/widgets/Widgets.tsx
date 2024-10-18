@@ -1,6 +1,6 @@
-import { Switch, Typography, theme, Flex, Button, Radio, Select as ASelect } from 'antd';
+import { Switch, Typography, theme, Flex, Button, Radio, Tooltip, Select as ASelect } from 'antd';
 import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
-import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { basicDark } from '@uiw/codemirror-theme-basic';
@@ -42,7 +42,7 @@ export function Widget({ id, type, name, value, ...props }) {
     }, []);
 
     if (type.startsWith('list')) {
-        return <ListWidget name={name} def={value} onChange={onChange} type={type} />
+        return <ListWidget name={name} def={value} onChange={onChange} type={type} {...props} />
     }
 
     if (widgets[type]) {
@@ -50,19 +50,26 @@ export function Widget({ id, type, name, value, ...props }) {
     }
 }
 
-export function NumberWidget({ name, def, onChange }) {
+const getDescStr = (required, description) => {
+    if (required) {
+        return "(required) " + description;
+    }
+    return description;
+};
+
+export function NumberWidget({ name, def, onChange, ...props }) {
     return (
-        <InputNumber onChange={onChange} label={name} value={def} />
+        <InputNumber onChange={onChange} label={name} value={def} description={props.description} required={props.required} />
     );
 }
 
-export function StringWidget({ name, def, onChange }) {
+export function StringWidget({ name, def, onChange, ...props }) {
     return (
-        <Input onChange={onChange} label={name} value={def} />
+        <Input onChange={onChange} label={name} value={def} description={props.description} required={props.required} />
     );
 }
 
-export function BooleanWidget({ name, def, onChange, style }) {
+export function BooleanWidget({ name, def, onChange, style, ...props }) {
     const input = useMemo(() => {
         if (style === "yes/no") {
             const M = {
@@ -77,9 +84,13 @@ export function BooleanWidget({ name, def, onChange, style }) {
         }
         return <Switch size="small" defaultChecked={def} onChange={onChange} />
     }, [style, def]);
+
+    const { required, description } = props;
     return (
         <Flex className="input-container" justify='space-between' align="center">
-            <Text>{name}</Text>
+            <Tooltip title={getDescStr(required, description)}>
+                <Text>{name}</Text>
+            </Tooltip>
             {input}
         </Flex>
     );
@@ -88,9 +99,18 @@ export function BooleanWidget({ name, def, onChange, style }) {
 export function FunctionWidget({ name, def, onChange }) {
     const token = useToken();
 
+    const val = useMemo(() => {
+        if (!def) {
+            return '';
+        }
+
+        return def;
+    }, [def]);
+
     return (
         <CodeMirror
-            value={def}
+            style={{ fontSize: '0.6em' }}
+            value={val}
             theme={token.theme.id == 0 ? bbedit : basicDark}
             height='100%'
             width='100%'
@@ -108,7 +128,7 @@ const listElementDefaultValues = {
     "function": "",
 };
 
-export function ListWidget({ name, def, onChange, type }) {
+export function ListWidget({ name, def, onChange, type, ...props }) {
     const { token } = useToken();
     const subType = useMemo(() => type.split('[')[1].split(']')[0], [type]);
     const pluginWidgets = usePluginWidgets();
@@ -143,9 +163,13 @@ export function ListWidget({ name, def, onChange, type }) {
         );
     }
 
+    const { required, description } = props;
+
     return (
         <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}` }}>
-            <Text style={{ margin: "2px 1px" }}>{name}</Text>
+            <Tooltip title={getDescStr(required, description)}>
+                <Text style={{ margin: "2px 1px" }}>{name}</Text>
+            </Tooltip>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {def && def.map((item, i) => {
                     return (
@@ -167,7 +191,7 @@ export function ListWidget({ name, def, onChange, type }) {
     );
 }
 
-export function DictWidget({ name, def, onChange }) {
+export function DictWidget({ name, def, onChange, ...props }) {
     const { token } = useToken();
     const value = useMemo(() => {
         if (Array.isArray(def)) {
@@ -251,21 +275,25 @@ export function DictWidget({ name, def, onChange }) {
         }));
     }, []);
 
+    const { required, description } = props;
+
     return (
         <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}`, padding: '0 1px 1px 1px' }}>
-            <Text style={{ margin: "2px 1px" }}>{name}</Text>
+            <Tooltip title={getDescStr(required, description)}>
+                <Text style={{ margin: "2px 1px" }}>{name}</Text>
+            </Tooltip>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {value && value.map((item, i) => {
                     return (
                         <Flex justify='space-between' style={{ marginTop: 1 }} key={i}>
-                            <Flex style={{margin: '0 1px'}}>
+                            <Flex style={{ margin: '0 1px' }}>
                                 <Select
-                                    style={{width: '40px'}}
+                                    style={{ width: '40px' }}
                                     value={item[0]}
                                     onChange={(value) => onTypeChange(i, value)}
                                     options={options}
                                 />
-                                <Input style={{width: '40px'}} placeholder="key" onChange={(value) => onKeyChange(i, value)} value={item[1]} />
+                                <Input style={{ width: '40px' }} placeholder="key" onChange={(value) => onKeyChange(i, value)} value={item[1]} />
                             </Flex>
                             {
                                 selectedInputs[i]
@@ -275,7 +303,7 @@ export function DictWidget({ name, def, onChange }) {
                     )
                 })}
                 <Flex justify='end'>
-                    <Button style={{marginTop: 1}} size={"small"} icon={<PlusOutlined />} onClick={onAddItem} />
+                    <Button style={{ marginTop: 1 }} size={"small"} icon={<PlusOutlined />} onClick={onAddItem} />
                 </Flex>
             </Flex>
         </Flex>
@@ -346,7 +374,7 @@ function Select({ onChange, options, value, style, multipleAllowed }: SelectProp
             open={open}
             onSelect={onSelect}
             onDeselect={onDeselect}
-            dropdownStyle={{minWidth: '90px'}}
+            dropdownStyle={{ minWidth: '90px' }}
         />
     );
 }
@@ -356,9 +384,11 @@ type InputNumberProps = {
     label?: string,
     value?: number,
     placeholder?: string,
+    description?: string,
+    required?: boolean,
 };
 
-function InputNumber({ onChange, label, value, placeholder }: InputNumberProps) {
+function InputNumber({ onChange, label, value, placeholder, description, required }: InputNumberProps) {
     const { token } = useToken();
     const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
     const [focusedStyle, setFocusedStyle] = useState(defaultFocusedStyle);
@@ -384,7 +414,9 @@ function InputNumber({ onChange, label, value, placeholder }: InputNumberProps) 
     return (
         <div style={focusedStyle} className="input-container">
             {label &&
-                <Text style={labelStyle}>{label}</Text>
+                <Tooltip title={getDescStr(required, description)}>
+                    <Text style={labelStyle}>{label}</Text>
+                </Tooltip>
             }
             <input
                 onFocus={() => onInputFocus(true)}
@@ -405,10 +437,12 @@ type InputProps = {
     label?: string,
     value?: string,
     placeholder?: string,
+    description?: string,
+    required?: boolean,
     style?: React.CSSProperties,
 };
 
-function Input({ onChange, label, value, placeholder, style }: InputProps) {
+function Input({ onChange, label, value, placeholder, style, description, required }: InputProps) {
     const { token } = useToken();
     const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
     const [focusedStyle, setFocusedStyle] = useState(defaultFocusedStyle)
@@ -436,7 +470,9 @@ function Input({ onChange, label, value, placeholder, style }: InputProps) {
     return (
         <div style={focusedStyle} className="input-container">
             {label &&
-                <Text style={labelStyle}>{label}</Text>
+                <Tooltip title={getDescStr(required, description)}>
+                    <Text style={labelStyle}>{label}</Text>
+                </Tooltip>
             }
             <input
                 onFocus={() => onInputFocus(true)}
