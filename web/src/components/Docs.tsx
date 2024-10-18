@@ -6,6 +6,7 @@ import { useAPI } from "../hooks/API";
 import { useNodes } from "reactflow";
 import type { CollapseProps } from "antd/lib/collapse";
 import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw'
 const { useToken } = theme;
 const { Text } = Typography;
 
@@ -138,7 +139,7 @@ export function Docs() {
             {
                 workflowDoc &&
                 <div style={{ ...docSectionStyle, padding: '5px', marginBottom: '10px' }}>
-                    <Markdown>{workflowDoc}</Markdown>
+                    <Markdown rehypePlugins={[rehypeRaw]}>{workflowDoc}</Markdown>
                 </div>
             }
             {

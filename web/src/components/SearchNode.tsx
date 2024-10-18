@@ -17,6 +17,17 @@ export function SearchNode({ top, left, close }) {
         if (searchRef.current) {
             searchRef.current.focus();
         }
+
+        const escapeKeyListener = (e) => {
+            if (e.key === 'Escape') {
+                close();
+            }
+        };
+
+        document.addEventListener('keydown', escapeKeyListener);
+        return () => {
+            document.removeEventListener('keydown', escapeKeyListener);
+        };
     }, [searchRef]);
 
     const onInputChange = (e) => {
@@ -126,7 +137,10 @@ function ResultList({ addStep, addResource, searchText }) {
                         cursor: 'pointer'
                     }}>
                     <span>
-                        <Text style={{color: token.colorTextTertiary}}>{item.data.category}/</Text>
+                        {
+                            item.data.category &&
+                            <Text style={{color: token.colorTextTertiary}}>{item.data.category}/</Text>
+                        }
                         <Text>{item.data.name}</Text>
                     </span>
                 </List.Item>

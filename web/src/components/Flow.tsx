@@ -87,6 +87,22 @@ export default function Flow({ filename }) {
 
     }, [API, filename]);
 
+    useEffect(() => {
+        const searchListener = (e) => {
+            if (e.key === ' ' && e.ctrlKey) {
+                setSearchMenu({
+                    top: window.innerHeight / 2 - 200,
+                    left: window.innerWidth / 2
+                });
+            }
+        };
+
+        document.addEventListener('keydown', searchListener);
+        return () => {
+            document.removeEventListener('keydown', searchListener);
+        };
+    }, []);
+
     const nodeTypes = useMemo(() => ({
         step: WorkflowStep,
         resource: Resource,
@@ -181,25 +197,15 @@ export default function Flow({ filename }) {
     }, []);
 
     const onPaneDoubleClick = useCallback((event) => {
-        setSearchMenu({
-            top: event.clientY,
-            left: event.clientX
-        })
-    }, []);
+        const isANodeSelected = nodes.some(node => node.selected);
 
-    const handleMouseClick = useCallback((event) => {
-        if (event.type === 'click') {
-            setNodeMenu(null);
-            setPaneMenu(null);
+        if (!isANodeSelected) {
+            setSearchMenu({
+                top: event.clientY,
+                left: event.clientX
+            });
         }
-    }, [reactFlowInstance]);
-
-    useEffect(() => {
-        document.addEventListener('click', handleMouseClick);
-        return () => {
-            document.removeEventListener('click', handleMouseClick);
-        };
-    }, [handleMouseClick]);
+    }, [nodes]);
 
     const onDrop = useCallback((event) => {
         if (!reactFlowInstance.current || !API) {
@@ -369,6 +375,7 @@ export default function Flow({ filename }) {
                     key={filename}
                     onDoubleClick={onPaneDoubleClick}
                     onPaneClick={handleMouseClickComp}
+                    onNodeClick={handleMouseClickComp}
                     onMove={handleMouseClickComp}
                     zoomOnDoubleClick={false}
                     nodes={nodes}
@@ -390,10 +397,10 @@ export default function Flow({ filename }) {
                     preventScrolling={true}
                 >
                     {notificationCtxt}
-                    <Space direction="horizontal" align="start" style={{position: 'absolute', top: '10px', right: '0px', zIndex: 9}}>
+                    <Space direction="horizontal" align="start" style={{ position: 'absolute', top: '10px', right: '0px', zIndex: 9 }}>
                         <div>
-                            <div style={{position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)'}}>
-                                <ControlRow/>
+                            <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
+                                <ControlRow />
                             </div>
                             <Docs />
                         </div>
@@ -402,7 +409,7 @@ export default function Flow({ filename }) {
                         <NodeConfig />
                     </Panel>
                     <Monitor />
-                    {nodeMenu && <NodeContextMenu {...nodeMenu} />}
+                    {nodeMenu && <NodeContextMenu close={() => setNodeMenu(null)} top={nodeMenu.top} left={nodeMenu.left} nodeId={nodeMenu.nodeId} />}
                     {paneMenu && <PaneContextMenu close={() => setPaneMenu(null)} top={paneMenu.top} left={paneMenu.left} />}
                     {searchMenu && <SearchNode close={() => setSearchMenu(null)} top={searchMenu.top} left={searchMenu.left} />}
                     <Background id="1" variant={BackgroundVariant.Lines} gap={20} size={1} color={lineColor1} />
