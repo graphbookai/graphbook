@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "graphbook"
-version = "0.8.1"
+version = "0.9.0"
 authors = ["Richard Franklin <rsamf@graphbook.ai>"]
 description = "An extensible ML workflow framework built for data scientists and ML engineers."
 keywords = ["ml", "workflow", "framework", "pytorch", "data science", "machine learning", "ai"]
@@ -24,12 +24,9 @@ graphbook = "graphbook.main:main"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-torch = "^2.3.1"
 aiohttp = "^3.9.4"
 pillow = "^10.3.0"
-python-magic = "^0.4.27"
 watchdog = "^4.0.0"
-torchvision = "^0.18.1"
 psutil = "^6.0.0"
 pyyaml = "^6.0.2"
 
@@ -49,3 +46,10 @@ pytest-asyncio = "^0.23.8"
 sphinx-sitemap = "^2.6.0"
 sphinxawesome-theme = "^5.2.0"
 sphinx-design = "^0.6.1"
+
+[tool.poetry.group.peer]
+optional = true
+
+[tool.poetry.group.peer.dependencies]
+torch = "^2.0.0"
+torchvision = "^0.18.1"
