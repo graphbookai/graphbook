@@ -27,7 +27,6 @@ python = "^3.10"
 aiohttp = "^3.9.4"
 pillow = "^10.3.0"
 watchdog = "^4.0.0"
-torchvision = "^0.18.1"
 psutil = "^6.0.0"
 pyyaml = "^6.0.2"
 
@@ -48,5 +47,9 @@ sphinx-sitemap = "^2.6.0"
 sphinxawesome-theme = "^5.2.0"
 sphinx-design = "^0.6.1"
 
+[tool.poetry.group.peer]
+optional = true
+
 [tool.poetry.group.peer.dependencies]
 torch = "^2.0.0"
+torchvision = "^0.18.1"
