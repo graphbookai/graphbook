@@ -300,4 +300,5 @@ export type Parameter = {
     value?: any;
     default?: any;
     description?: string;
+    required?: boolean;
 };
