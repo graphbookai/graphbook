@@ -9,7 +9,7 @@ import { useNotification } from '../hooks/Notification.ts';
 import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
 
-export function NodeContextMenu({ nodeId, top, left, ...props }) {
+export function NodeContextMenu({ nodeId, top, left, close }) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
     const [runState, runStateShouldChange] = useRunState();
@@ -327,10 +327,11 @@ export function NodeContextMenu({ nodeId, top, left, ...props }) {
         const action = getOptions(node.type)[actionIndex].action;
         action();
         updateNodeInternals(nodeId);
-    }, [node]);
+        close();
+    }, [node, close]);
 
     return (
-        <Menu onClick={menuItemOnClick} items={items} style={{ top, left, position: 'fixed', zIndex: 10 }} {...props} />
+        <Menu onClick={menuItemOnClick} items={items} style={{ top, left, position: 'fixed', zIndex: 10 }} />
     );
 }
 

@@ -8,7 +8,6 @@ import asyncio
 import base64
 import hashlib
 import aiohttp
-import traceback
 from aiohttp import web
 from graphbook.processing.web_processor import WebInstanceProcessor
 from graphbook.viewer import ViewManager
@@ -206,13 +205,17 @@ class GraphServer:
                 }
             )
             return web.json_response({"success": True})
-        
+
         @routes.post("/prompt_response/{id}")
         async def prompt_response(request: web.Request) -> web.Response:
             step_id = request.match_info.get("id")
             data = await request.json()
             response = data.get("response")
-            res = poll_conn_for(state_conn, ProcessorStateRequest.PROMPT_RESPONSE, {"step_id": step_id, "response": response})
+            res = poll_conn_for(
+                state_conn,
+                ProcessorStateRequest.PROMPT_RESPONSE,
+                {"step_id": step_id, "response": response},
+            )
             return web.json_response(res)
 
         @routes.get("/nodes")
@@ -478,6 +481,18 @@ def create_graph_server(
     server.start()
 
 
+def create_sample_workflow(workflow_dir, custom_nodes_path, docs_path):
+    import shutil
+
+    assets_dir = osp.join(osp.dirname(__file__), "sample_assets")
+    n = "SampleWorkflow.json"
+    shutil.copyfile(osp.join(assets_dir, n), osp.join(workflow_dir, n))
+    n = "SampleWorkflow.md"
+    shutil.copyfile(osp.join(assets_dir, n), osp.join(docs_path, n))
+    n = "sample_nodes.py"
+    shutil.copyfile(osp.join(assets_dir, n), osp.join(custom_nodes_path, n))
+
+
 def start_web(args):
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
@@ -490,12 +505,18 @@ def start_web(args):
     workflow_dir = args.workflow_dir
     custom_nodes_path = args.nodes_dir
     docs_path = args.docs_dir
+    should_create_sample = False
     if not osp.exists(workflow_dir):
+        should_create_sample = not args.no_sample
         os.mkdir(workflow_dir)
     if not osp.exists(custom_nodes_path):
         os.mkdir(custom_nodes_path)
     if not osp.exists(docs_path):
         os.mkdir(docs_path)
+
+    if should_create_sample:
+        create_sample_workflow(workflow_dir, custom_nodes_path, docs_path)
+
     processes = [
         mp.Process(
             target=create_graph_server,
@@ -520,7 +541,7 @@ def start_web(args):
     for p in processes:
         p.daemon = True
         p.start()
-        
+
     def cleanup():
         close_event.set()
 

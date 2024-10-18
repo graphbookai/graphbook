@@ -23,7 +23,8 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
     "reactflow": "^11.11.3",
-    "reaviz": "^15.18.3"
+    "reaviz": "^15.18.3",
+    "rehype-raw": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",
