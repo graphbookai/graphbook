@@ -1,16 +1,15 @@
 
 
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { Popover, Input, Modal, Typography, Space, Popconfirm, theme } from 'antd';
-import { LinkOutlined, DisconnectOutlined, SettingFilled } from '@ant-design/icons';
+import { Popover, Modal, Typography, Space, Popconfirm, theme } from 'antd';
+import { LinkOutlined, DisconnectOutlined, SettingFilled, QuestionCircleOutlined } from '@ant-design/icons';
 import Settings from './Settings';
-import { useSettings } from '../hooks/Settings';
 import { useAPI, useAPIMessage, useAPIReconnectTimer } from '../hooks/API';
 import { SparklineChart, LinearYAxis, LinearYAxisTickSeries, LinearXAxis, LinearXAxisTickSeries, LineSeries, TooltipArea, ChartTooltip, StackedBarChart, StackedBarSeries, Bar } from 'reaviz';
 import type { ChartShallowDataShape, ChartNestedDataShape } from 'reaviz';
 import './top-panel.css';
 
-const { Text } = Typography;
+const { Text, Link } = Typography;
 const iconStyle = { fontSize: '18px', margin: '0 5px', lineHeight: '40px', height: '100%' };
 const connectedStyle = { ...iconStyle, color: 'green' };
 const disconnectedStyle = { ...iconStyle, color: 'red' };
@@ -56,6 +55,7 @@ export default function TopPanel() {
                     </Space>
 
                     <SettingFilled style={iconStyle} onClick={() => setSettingsModal(true)} />
+                    <HelpMenu />
                     {connected ?
                         <LinkOutlined style={connectedStyle} /> :
                         <Popconfirm
@@ -313,4 +313,30 @@ function WorkerChart() {
             </div>
         </Space>
     );
+}
+
+function HelpMenu() {
+    const content = useMemo(() => (
+        <div>
+            <Text><Text strong>LMB (x2)</Text> or <Text strong>Ctrl + Space</Text> to search</Text>
+            <br />
+            <Text><Text strong>DEL</Text> to delete selected node or edge</Text>
+            <br />
+            <Text><Text strong>SHIFT + LMB</Text> to drag and select</Text>
+            <br />
+            <Text><Text strong>CTRL + LMB</Text> to select multiple</Text>
+            <br />
+            <Link href="https://docs.graphbook.ai" target="_blank">See docs</Link>
+        </div>
+    ), []);
+
+    return (
+        <Popover
+            title="Help"
+            content={content}
+        >
+            <QuestionCircleOutlined style={iconStyle} />
+        </Popover>
+    );
+
 }
