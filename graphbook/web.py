@@ -18,15 +18,6 @@ from graphbook.utils import poll_conn_for, ProcessorStateRequest
 from graphbook.shm import SharedMemoryManager
 
 
-try:
-    import magic
-except ImportError:
-    magic = None
-    print(
-        "Warn: Optional libmagic library not found. Filesystem will not be able to determine MIME types."
-    )
-
-
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
@@ -310,13 +301,7 @@ class GraphServer:
 
                 if not osp.isdir(path):
                     st["size"] = int(stat.st_size)
-                    if magic is not None:
-                        mime = magic.from_file(path, mime=True)
-                        if mime is None:
-                            mime = "application/octet-stream"
-                        else:
-                            mime = mime.replace(" [ [", "")
-                        st["mime"] = mime
+
                 return st
 
             if osp.exists(fullpath):
