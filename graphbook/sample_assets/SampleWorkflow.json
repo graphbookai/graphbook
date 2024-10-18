@@ -1,1 +1,255 @@
-{"version": "0", "type": "workflow", "nodes": [{"id": "1", "type": "step", "position": {"x": 583.4070722675033, "y": 307.30402857209594}, "data": {"name": "CalcMean", "parameters": {}, "inputs": ["in"], "outputs": ["out"], "category": "", "label": "CalcMean", "key": 31, "isCollapsed": false}, "width": 150, "height": 107, "positionAbsolute": {"x": 583.4070722675033, "y": 307.30402857209594}, "selected": false, "dragging": true}, {"id": "2", "type": "step", "position": {"x": 585.5262378436905, "y": 430.5629360957575}, "data": {"name": "CalcRunningMean", "parameters": {}, "inputs": ["in"], "outputs": ["out"], "category": "", "label": "CalcRunningMean", "key": 32, "isCollapsed": false}, "width": 150, "height": 107, "selected": false, "positionAbsolute": {"x": 585.5262378436905, "y": 430.5629360957575}, "dragging": true}, {"id": "3", "type": "step", "position": {"x": 924.5511397425128, "y": 306.8951569327104}, "data": {"name": "Split", "parameters": {"split_fn": {"type": "resource"}}, "inputs": ["in"], "outputs": ["A", "B"], "category": "Filtering", "label": "Split", "key": 2, "isCollapsed": false}, "width": 150, "height": 120, "selected": false, "positionAbsolute": {"x": 924.5511397425128, "y": 306.8951569327104}, "dragging": true}, {"id": "4", "type": "resource", "position": {"x": 753.7478523416509, "y": 360.9425229173932}, "data": {"name": "Function", "parameters": {"val": {"type": "function", "value": "def split_fn(note):\n  return note[\"mean\"] > 0"}}, "category": "Util", "label": "Function", "key": 37, "isCollapsed": true}, "width": 150, "height": 24, "selected": false, "positionAbsolute": {"x": 753.7478523416509, "y": 360.9425229173932}, "dragging": false}, {"id": "7", "type": "step", "position": {"x": 392.76540599258135, "y": 307.35784194806917}, "data": {"name": "Transform", "parameters": {"scale": {"type": "number", "default": 1, "required": true, "description": "Multiplicative factor", "value": 1}, "shift": {"type": "number", "default": 0, "required": true, "description": "Additive factor", "value": 0}}, "inputs": ["in"], "outputs": ["out"], "category": "", "label": "Transform", "key": 22, "isCollapsed": false}, "width": 154, "height": 144, "selected": false, "positionAbsolute": {"x": 392.76540599258135, "y": 307.35784194806917}, "dragging": true}, {"id": "8", "type": "step", "position": {"x": 185, "y": 307.5}, "data": {"name": "GenerateTensors", "parameters": {"num_notes": {"type": "number", "default": 1000, "required": true, "description": "Number of Notes to generate", "value": 1000}}, "inputs": [], "outputs": ["out"], "category": "", "label": "GenerateTensors", "key": 20, "isCollapsed": false}, "width": 175, "height": 127, "selected": false, "positionAbsolute": {"x": 185, "y": 307.5}, "dragging": true}], "edges": [{"source": "4", "sourceHandle": "resource", "target": "3", "targetHandle": "split_fn", "data": {}, "id": "reactflow__edge-4resource-3split_fn", "selected": false}, {"source": "1", "sourceHandle": "out", "target": "3", "targetHandle": "in", "data": {}, "id": "reactflow__edge-1out-3in", "selected": false}, {"source": "7", "sourceHandle": "out", "target": "1", "targetHandle": "in", "data": {}, "id": "reactflow__edge-7out-1in"}, {"source": "7", "sourceHandle": "out", "target": "2", "targetHandle": "in", "data": {}, "id": "reactflow__edge-7out-2in"}, {"source": "8", "sourceHandle": "out", "target": "7", "targetHandle": "in", "data": {}, "id": "reactflow__edge-8out-7in"}]}
+{
+    "version": "0",
+    "type": "workflow",
+    "nodes": [
+        {
+            "id": "1",
+            "type": "step",
+            "position": {
+                "x": 583.4070722675033,
+                "y": 307.30402857209594
+            },
+            "data": {
+                "name": "CalcMean",
+                "parameters": {},
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "CalcMean",
+                "key": 31,
+                "isCollapsed": false
+            },
+            "width": 150,
+            "height": 107,
+            "positionAbsolute": {
+                "x": 583.4070722675033,
+                "y": 307.30402857209594
+            },
+            "selected": false,
+            "dragging": true
+        },
+        {
+            "id": "2",
+            "type": "step",
+            "position": {
+                "x": 585.5262378436905,
+                "y": 430.5629360957575
+            },
+            "data": {
+                "name": "CalcRunningMean",
+                "parameters": {},
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "CalcRunningMean",
+                "key": 32,
+                "isCollapsed": false
+            },
+            "width": 150,
+            "height": 107,
+            "selected": false,
+            "positionAbsolute": {
+                "x": 585.5262378436905,
+                "y": 430.5629360957575
+            },
+            "dragging": true
+        },
+        {
+            "id": "3",
+            "type": "step",
+            "position": {
+                "x": 924.5511397425128,
+                "y": 306.8951569327104
+            },
+            "data": {
+                "name": "Split",
+                "parameters": {
+                    "split_fn": {
+                        "type": "resource"
+                    }
+                },
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "A",
+                    "B"
+                ],
+                "category": "Filtering",
+                "label": "Split",
+                "key": 2,
+                "isCollapsed": false
+            },
+            "width": 150,
+            "height": 120,
+            "selected": false,
+            "positionAbsolute": {
+                "x": 924.5511397425128,
+                "y": 306.8951569327104
+            },
+            "dragging": true
+        },
+        {
+            "id": "4",
+            "type": "resource",
+            "position": {
+                "x": 753.7478523416509,
+                "y": 360.9425229173932
+            },
+            "data": {
+                "name": "Function",
+                "parameters": {
+                    "val": {
+                        "type": "function",
+                        "value": "def split_fn(note):\n  return note[\"mean\"] > 0"
+                    }
+                },
+                "category": "Util",
+                "label": "Function",
+                "key": 37,
+                "isCollapsed": true
+            },
+            "width": 150,
+            "height": 24,
+            "selected": false,
+            "positionAbsolute": {
+                "x": 753.7478523416509,
+                "y": 360.9425229173932
+            },
+            "dragging": false
+        },
+        {
+            "id": "7",
+            "type": "step",
+            "position": {
+                "x": 392.76540599258135,
+                "y": 307.35784194806917
+            },
+            "data": {
+                "name": "Transform",
+                "parameters": {
+                    "scale": {
+                        "type": "number",
+                        "default": 1,
+                        "required": true,
+                        "description": "Multiplicative factor",
+                        "value": 1
+                    },
+                    "shift": {
+                        "type": "number",
+                        "default": 0,
+                        "required": true,
+                        "description": "Additive factor",
+                        "value": 0
+                    }
+                },
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "Transform",
+                "key": 22,
+                "isCollapsed": false
+            },
+            "width": 154,
+            "height": 144,
+            "selected": false,
+            "positionAbsolute": {
+                "x": 392.76540599258135,
+                "y": 307.35784194806917
+            },
+            "dragging": true
+        },
+        {
+            "id": "8",
+            "type": "step",
+            "position": {
+                "x": 185,
+                "y": 307.5
+            },
+            "data": {
+                "name": "GenerateTensors",
+                "parameters": {
+                    "num_notes": {
+                        "type": "number",
+                        "default": 1000,
+                        "required": true,
+                        "description": "Number of Notes to generate",
+                        "value": 20000
+                    }
+                },
+                "inputs": [],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "GenerateTensors",
+                "key": 20,
+                "isCollapsed": false
+            },
+            "width": 175,
+            "height": 127,
+            "selected": false,
+            "positionAbsolute": {
+                "x": 185,
+                "y": 307.5
+            },
+            "dragging": true
+        }
+    ],
+    "edges": [
+        {
+            "source": "4",
+            "sourceHandle": "resource",
+            "target": "3",
+            "targetHandle": "split_fn",
+            "data": {},
+            "id": "reactflow__edge-4resource-3split_fn",
+            "selected": false
+        },
+        {
+            "source": "1",
+            "sourceHandle": "out",
+            "target": "3",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-1out-3in",
+            "selected": false
+        },
+        {
+            "source": "7",
+            "sourceHandle": "out",
+            "target": "1",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-7out-1in"
+        },
+        {
+            "source": "7",
+            "sourceHandle": "out",
+            "target": "2",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-7out-2in"
+        },
+        {
+            "source": "8",
+            "sourceHandle": "out",
+            "target": "7",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-8out-7in"
+        }
+    ]
+}
