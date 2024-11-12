@@ -158,6 +158,10 @@ class GraphState:
         self._node_catalog = NodeCatalog(custom_nodes_path)
         self._updated_nodes: Dict[str, Dict[str, bool]] = {}
         self._step_states: Dict[str, Set[StepState]] = {}
+        self._step_graph = {
+            "child": {},
+            "parent": {}
+        }
 
     def update_state(self, graph: dict, graph_resources: dict):
         nodes, is_updated = self._node_catalog.get_nodes()
@@ -214,9 +218,10 @@ class GraphState:
             set_resource_value(resource_id, resource_data)
 
         # Next, create all steps
-        steps = {}
-        queues = {}
-        step_states = {}
+        steps: Dict[str, Step] = {}
+        queues: Dict[str, MultiConsumerStateDictionaryQueue] = {}
+        step_states: Dict[str, Set[StepState]] = {}
+        step_graph = {"child": {}, "parent": {}}
         logger_param_pool = {}
         for step_id, step_data in graph.items():
             step_name = step_data["name"]
@@ -240,6 +245,8 @@ class GraphState:
                 queues[step_id] = self._queues[step_id]
                 step_states[step_id] = self._step_states[step_id]
                 step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
+                step_graph["parent"][step_id] = self._step_graph["parent"][step_id]
+                step_graph["child"][step_id] = self._step_graph["child"][step_id]
                 logger_param_pool[id(self._steps[step_id])] = (step_id, step_name)
             else:
                 try:
@@ -251,12 +258,16 @@ class GraphState:
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()
                 logger_param_pool[id(step)] = (step_id, step_name)
+                step_graph["parent"][step_id] = set()
+                step_graph["child"][step_id] = set()
 
+                # Remove old consumers from parents
                 previous_obj = self._steps.get(step_id)
                 if previous_obj is not None:
-                    for parent in previous_obj.parents:
-                        if parent.id in self._queues:
-                            self._queues[parent.id].remove_consumer(id(previous_obj))
+                    parent_ids = self._step_graph["parent"][previous_obj.id]
+                    for parent_id in parent_ids:
+                        if parent_id in self._queues:
+                            self._queues[parent_id].remove_consumer(id(previous_obj))
 
         # Next, connect the steps
         for step_id, step_data in graph.items():
@@ -265,27 +276,28 @@ class GraphState:
                 node = input["node"]
                 slot = input["slot"]
                 parent_node = steps[node]
-                if parent_node not in child_node.parents:
-                    parent_node.set_child(child_node, slot)
+                step_graph["parent"][child_node.id].add(parent_node.id)
+                step_graph["child"][parent_node.id].add(child_node.id)
                 # Note: Two objects with non-overlapping lifetimes may have the same id() value.
                 # But in this case, the below child_node object is not overlapping because at
                 # this point, any previous nodes in the graph are still in self._steps
                 queues[parent_node.id].add_consumer(id(child_node), slot)
+                
+        # Remove consumers from parents that are not children
         for step_id in steps:
             parent_node = steps[step_id]
             children_ids = [
-                id(child)
-                for label_steps in parent_node.children.values()
-                for child in label_steps
+                id(steps[child_id])
+                for child_id in step_graph["child"][step_id]
             ]
-            queues[step_id].remove_except(children_ids)
+            queues[step_id].remove_all_except(children_ids)
 
         def get_parent_iterator(step_id):
-            step = steps[step_id]
             p_index = 0
+            parents = list(self._step_graph["parent"][step_id])
             while True:
-                yield step.parents[p_index]
-                p_index = (p_index + 1) % len(step.parents)
+                yield parents[p_index]
+                p_index = (p_index + 1) % len(parents)
 
         self._parent_iterators = {
             step_id: get_parent_iterator(step_id) for step_id in steps
@@ -300,6 +312,7 @@ class GraphState:
         self._queues = queues
         self._resource_values = resource_values
         self._step_states = step_states
+        self._step_graph = step_graph
 
     def create_parent_subgraph(self, step_id: str):
         new_steps = {}
@@ -311,9 +324,8 @@ class GraphState:
                 continue
 
             new_steps[step_id] = self._steps[step_id]
-            step = self._steps[step_id]
-            for input in step.parents:
-                q.append(input.id)
+            for parent_id in self._step_graph["parent"][step_id]:
+                q.append(parent_id)
         return new_steps
 
     def get_processing_steps(self, step_id: str = None):
@@ -330,9 +342,9 @@ class GraphState:
                 return
             visited.add(step_id)
             step = steps[step_id]
-            for child in step.children.values():
-                for c in child:
-                    dfs(c.id)
+            children = self._step_graph["child"][step_id]
+            for child_id in children:
+                dfs(child_id)
             ordered_steps.append(step)
 
         for step_id in steps:
@@ -374,12 +386,12 @@ class GraphState:
                 del self._resource_values[node_id], self._dict_resources[node_id]
 
     def get_input(self, step: Step) -> Note:
-        num_parents = len(step.parents)
+        num_parents = len(self._step_graph["parent"][step.id])
         i = 0
         while i < num_parents:
-            next_parent = next(self._parent_iterators[step.id])
+            next_parent_id = next(self._parent_iterators[step.id])
             try:
-                next_input = self._queues[next_parent.id].dequeue(id(step))
+                next_input = self._queues[next_parent_id].dequeue(id(step))
                 return next_input
             except StopIteration:
                 i += 1
@@ -444,7 +456,7 @@ class MultiConsumerStateDictionaryQueue:
             del self._consumer_idx[consumer_id]
             del self._consumer_subs[consumer_id]
 
-    def remove_except(self, consumer_ids: List[int]):
+    def remove_all_except(self, consumer_ids: List[int]):
         self._consumer_idx = {
             k: v for k, v in self._consumer_idx.items() if k in consumer_ids
         }

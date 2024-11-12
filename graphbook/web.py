@@ -554,6 +554,7 @@ def start_web(args):
             custom_nodes_path,
             close_event,
             pause_event,
+            args.spawn,
             args.num_workers,
         )
         try:

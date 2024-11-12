@@ -11,6 +11,7 @@ import graphbook.prompts as prompts
 import graphbook.dataloading as dataloader
 import warnings
 import traceback
+import copy
 
 warnings.simplefilter("default", DeprecationWarning)
 
@@ -26,7 +27,6 @@ class Step:
     def __init__(self, item_key=None):
         self.id = None
         self.item_key = item_key
-        self.parents = []
         self.children = {"out": []}
 
     def set_child(self, child: Step, slot_name: str = "out"):
@@ -37,22 +37,10 @@ class Step:
             child (Step): child step
             slot_name (str): slot to bind the child to
         """
-        if self not in child.parents:
-            child.parents.append(self)
         if slot_name not in self.children:
             self.children[slot_name] = []
         if child not in self.children[slot_name]:
             self.children[slot_name].append(child)
-
-    def remove_children(self):
-        """
-        Removes all children steps
-        """
-        for children in self.children.values():
-            for child in children:
-                if self in child.parents:
-                    child.parents.remove(self)
-        self.children = {}
 
     def log(self, message: str, type: str = "info"):
         """
@@ -307,8 +295,9 @@ class BatchStep(AsyncStep):
         self.num_loaded_notes = {}
         self.dumped_item_holders = NoteItemHolders()
         self.accumulated_items = [[], [], []]
-        self._c = 0
-        self._d = {}
+        self.load_fn_params = {}
+        self.dump_fn_params = {}
+        self.parallelized_load = self.load_fn != BatchStep.load_fn
 
     def in_q(self, note: Note | None):
         """
@@ -324,16 +313,21 @@ class BatchStep(AsyncStep):
         if items is None:
             raise ValueError(f"Item key {self.item_key} not found in Note.")
 
-        # Load
-        if hasattr(self, "load_fn"):
-            note_id = id(note)
-            if not is_batchable(items):
-                items = [items]
+        if not is_batchable(items):
+            items = [items]
 
-            if len(items) > 0:
-                dataloader.put_load(items, note_id, id(self))
+        if len(items) > 0:
+            # Load
+            if self.parallelized_load:
+                note_id = id(note)
+                dataloader.put_load(items, self.load_fn_params, note_id, id(self))
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
+            else:
+                acc_items, acc_notes, _ = self.accumulated_items
+                for item in items:
+                    acc_items.append(item)
+                    acc_notes.append(note)
 
     def on_clear(self):
         self.loaded_notes = {}
@@ -341,7 +335,30 @@ class BatchStep(AsyncStep):
         self.dumped_item_holders = NoteItemHolders()
         self.accumulated_items = [[], [], []]
 
+    def get_batch_sync(self, flush: bool = False) -> StepData:
+        items, notes, _ = self.accumulated_items
+        if len(items) == 0:
+            return None
+        if len(items) < self.batch_size:
+            if not flush:
+                return None
+
+        b_items, b_notes, b_completed = [], [], []
+        for _ in range(self.batch_size):
+            item = items.pop(0)
+            note = notes.pop(0)
+            b_items.append(item)
+            b_notes.append(note)
+            if len(notes) == 0 or note is not notes[0]:
+                b_completed.append(note)
+
+        batch = (b_items, b_notes, b_completed)
+        return batch
+
     def get_batch(self, flush: bool = False) -> StepData:
+        if not self.parallelized_load:
+            return self.get_batch_sync()
+
         items, notes, completed = self.accumulated_items
         next_in = dataloader.get_load(id(self))
         if next_in is not None:
@@ -412,16 +429,19 @@ class BatchStep(AsyncStep):
 
     def handle_batch(self, batch: StepData):
         loaded, notes, completed = batch
-        outputs = [l[0] for l in loaded]
-        indexes = [l[1] for l in loaded]
-
-        items = []
-        for note, index in zip(notes, indexes):
-            item = note.items[self.item_key]
-            if is_batchable(item):
-                items.append(item[index])
-            else:
-                items.append(item)
+        if self.parallelized_load:
+            outputs = [l[0] for l in loaded]
+            indexes = [l[1] for l in loaded]
+            items = []
+            for note, index in zip(notes, indexes):
+                item = note.items[self.item_key]
+                if is_batchable(item):
+                    items.append(item[index])
+                else:
+                    items.append(item)
+        else:
+            outputs = None
+            items = loaded
 
         data_dump = self.on_item_batch(outputs, items, notes)
         if data_dump is not None:
@@ -515,6 +535,7 @@ class PromptStep(AsyncStep):
     This is useful for interactive workflows where data labeling, model evaluation, or any other human input is required.
     Once the prompt is handled, the execution lifecycle of the Step will proceed, normally.
     """
+
     def __init__(self):
         super().__init__()
         self._is_awaiting_response = False
@@ -551,7 +572,7 @@ class PromptStep(AsyncStep):
         By default, it will return a boolean prompt.
         If None is returned, the prompt will be skipped on this note.
         A list of available prompts can be found in ``graphbook.prompts``.
-        
+
         Args:
             note (Note): The Note input to display to the user
         """
@@ -686,3 +707,20 @@ class SplitItemField(Step):
         note.items[self.b_key] = b_items
         if self.should_delete_original:
             del note.items[self.item_key]
+            
+class Copy(Step):
+    """
+    Copies the incoming notes to output slots A and B.
+    The original version will be forwarded to A and an indentical copy will be forwarded to B.
+    The copy is made with `copy.deepcopy()`.
+    """
+    
+    RequiresInput = True
+    Parameters = {}
+    Category = "Util"
+    Outputs = ["A", "B"]
+    def __init__(self):
+        super().__init__()
+        
+    def forward_note(self, note: Note) -> StepOutput:
+        return {"A": [note], "B": [copy.deepcopy(note)]}

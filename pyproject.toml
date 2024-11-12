@@ -23,7 +23,7 @@ repository = "https://github.com/graphbookai/graphbook"
 graphbook = "graphbook.main:main"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.9"
 aiohttp = "^3.9.4"
 pillow = "^10.3.0"
 watchdog = "^4.0.0"

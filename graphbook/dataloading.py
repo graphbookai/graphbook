@@ -1,12 +1,11 @@
 from typing import List, Dict, Tuple, Any
 import queue
-import torch
-from torch import Tensor
+from torch import set_num_threads
 import torch.multiprocessing as mp
 import traceback
 from .utils import MP_WORKER_TIMEOUT
 
-torch.set_num_threads(1)
+set_num_threads(1)
 MAX_RESULT_QUEUE_SIZE = 32
 
 
@@ -15,12 +14,12 @@ def do_load(
 ) -> Tuple[bool, Any]:
 
     try:
-        item, index, note_id = work_queue.get(False)
+        item, index, note_id, params = work_queue.get(False)
     except queue.Empty:
         return True, None
 
     try:
-        output = load_fn(item)
+        output = load_fn(item, **params)
         result = (output, index)
         to_return = (result, note_id)
     except Exception as e:
@@ -37,6 +36,29 @@ def do_load(
 
 
 def do_dump(
+    work_queue: mp.Queue, result_queue: mp.Queue, dump_fn: callable
+) -> Tuple[bool, Any]:
+    try:
+        data, note_id = work_queue.get(False)
+    except queue.Empty:
+        return True, None
+
+    to_return = note_id
+    try:
+        dump_fn(*data)
+    except Exception as e:
+        print(f"Worker Error on dumping {data}:")
+        traceback.print_exc()
+        return False, None
+
+    try:
+        result_queue.put(to_return, block=False)
+    except queue.Full:
+        return False, to_return
+    return True, None
+
+
+def do_base(
     work_queue: mp.Queue, result_queue: mp.Queue, dump_fn: callable
 ) -> Tuple[bool, Any]:
     try:
@@ -155,28 +177,89 @@ def dump_loop(
         pass
 
 
+def base_loop(
+    rank: int,
+    num_processes: int,
+    base_queues: Dict[int, mp.Queue],
+    base_result_queues: Dict[int, mp.Queue],
+    consumer_base_fn: Dict[int, callable],
+    pending_base_results: List[PendingResult],
+    close_event: mp.Event,
+    fail_event: mp.Event,
+):
+    consumer_ids = list(base_queues.keys())
+    num_queues = len(consumer_ids)
+    cycle = rank % num_queues
+
+    try:
+        while not close_event.is_set() and not fail_event.is_set():
+            pending_item = pending_base_results[rank]
+            if pending_item is not None:
+                pending_for, pending_item = pending_item
+                try:
+                    base_result_queues[pending_for].put(
+                        pending_item, block=True, timeout=MP_WORKER_TIMEOUT
+                    )
+                    pending_base_results[rank] = None
+                except queue.Full:
+                    pass
+                except KeyError:
+                    pass
+            else:
+                consumer_id = consumer_ids[cycle]
+                succeeded, pending_item = do_base(
+                    base_queues[consumer_id],
+                    base_result_queues[consumer_id],
+                    consumer_base_fn[consumer_id],
+                )
+                if not succeeded:
+                    if pending_item is None:
+                        fail_event.set()
+                        return
+                    else:
+                        pending_base_results[rank] = (consumer_id, pending_item)
+                cycle = (cycle + 1) % num_queues
+    except KeyboardInterrupt:
+        print(f"Exiting {rank}")
+        pass
+
+
 class Dataloader:
-    def __init__(self, num_workers: int = 1):
+    def __init__(self, num_workers: int = 1, spawn_method: bool = False):
         self.num_workers = num_workers
-        self.manager = mp.Manager()
+        self.context = mp
+        if spawn_method:
+            print(
+                "Using spawn method is not recommended because it is more error prone. Try to avoid it as much as possible."
+            )
+            self.context = mp.get_context("spawn")
+        self.manager = self.context.Manager()
         self._load_queues: Dict[int, mp.Queue] = self.manager.dict()
         self._dump_queues: Dict[int, mp.Queue] = self.manager.dict()
+        self._base_queues: Dict[int, mp.Queue] = self.manager.dict()
         self._load_result_queues: Dict[int, mp.Queue] = self.manager.dict()
         self._dump_result_queues: Dict[int, mp.Queue] = self.manager.dict()
+        self._base_result_queues: Dict[int, mp.Queue] = self.manager.dict()
         self._consumer_load_fn = {}
         self._consumer_dump_fn = {}
+        self._consumer_base_fn = {}
         self._pending_load_results: List[PendingResult] = self.manager.list(
             [None for _ in range(num_workers)]
         )
         self._pending_dump_results: List[PendingResult] = self.manager.list(
             [None for _ in range(num_workers)]
         )
+        self._pending_base_results: List[PendingResult] = self.manager.list(
+            [None for _ in range(num_workers)]
+        )
+
         self._workers: List[mp.Process] = []
         self._loaders: List[mp.Process] = []
         self._dumpers: List[mp.Process] = []
+        self._baseers: List[mp.Process] = []
         self._worker_queue_cycle = 0
-        self._close_event: mp.Event = mp.Event()
-        self._fail_event: mp.Event = mp.Event()
+        self._close_event: mp.Event = self.context.Event()
+        self._fail_event: mp.Event = self.context.Event()
 
     def _start_workers(self):
         if len(self._workers) > 0:
@@ -184,7 +267,7 @@ class Dataloader:
         self._fail_event.clear()
         self._close_event.clear()
         for i in range(self.num_workers):
-            load_process = mp.Process(
+            load_process = self.context.Process(
                 target=load_loop,
                 args=(
                     i,
@@ -199,7 +282,7 @@ class Dataloader:
             )
             load_process.daemon = True
             load_process.start()
-            dump_process = mp.Process(
+            dump_process = self.context.Process(
                 target=dump_loop,
                 args=(
                     i,
@@ -214,8 +297,25 @@ class Dataloader:
             )
             dump_process.daemon = True
             dump_process.start()
+            # base_process = self.context.Process(
+            #     target=base_loop,
+            #     args=(
+            #         i,
+            #         self.num_workers,
+            #         self._base_queues,
+            #         self._base_result_queues,
+            #         self._consumer_base_fn,
+            #         self._pending_base_results,
+            #         self._close_event,
+            #         self._fail_event,
+            #     ),
+            # )
+            # base_process.daemon = True
+            # base_process.start()
             self._loaders.append(load_process)
             self._dumpers.append(dump_process)
+            # self._baseers.append(base_process)
+            # self._workers.extend([load_process, dump_process, base_process])
             self._workers.extend([load_process, dump_process])
 
     def start(
@@ -292,9 +392,6 @@ class Dataloader:
         return sz
 
     def clear(self, consumer_id: int | None = None):
-        # There's a weird issue where queue.empty() evaluates to True even though there are still items in the queue.
-        # So we instead close the queue because workers should be killed by now and will need to be restarted
-        # with new queues from the graph.
         def clear_queue(q: mp.Queue):
             while not q.empty():
                 try:
@@ -319,9 +416,11 @@ class Dataloader:
             self._dump_result_queues = {}
             self._consumer_load_fn = {}
             self._consumer_dump_fn = {}
+            self._consumer_base_fn = {}
             for i in range(self.num_workers):
                 self._pending_load_results[i] = None
                 self._pending_dump_results[i] = None
+                self._pending_base_results[i] = None
         else:
             if consumer_id in self._load_queues:
                 clear_queue(self._load_queues[consumer_id])
@@ -335,10 +434,16 @@ class Dataloader:
                 del self._consumer_load_fn[consumer_id]
             if consumer_id in self._consumer_dump_fn:
                 del self._consumer_dump_fn[consumer_id]
+            # if consumer_id in self._consumer_base_fn:
+            #     del self._consumer_base_fn[consumer_id]
 
-    def put_load(self, items: list, note_id: int, consumer_id: int):
+    def put_load(
+        self, items: list, load_fn_params: dict, note_id: int, consumer_id: int
+    ):
         for i, item in enumerate(items):
-            self._load_queues[consumer_id].put((item, i, note_id), block=False)
+            self._load_queues[consumer_id].put(
+                (item, i, note_id, load_fn_params), block=False
+            )
 
     def get_load(self, consumer_id):
         if consumer_id not in self._load_result_queues:
@@ -351,11 +456,6 @@ class Dataloader:
             if result is None:
                 return None, note_id
             out, index = result
-            # https://pytorch.org/docs/stable/multiprocessing.html#sharing-cuda-tensors
-            if isinstance(out, Tensor):
-                out_clone = out.clone()
-                del out
-                out = out_clone
             return (out, index), note_id
         except queue.Empty:
             return None
@@ -395,9 +495,9 @@ def setup_global_dl(dataloader: Dataloader):
     workers = dataloader
 
 
-def put_load(items: list, note_id: int, consumer_id: int):
+def put_load(items: list, load_fn_params: dict, note_id: int, consumer_id: int):
     global workers
-    workers.put_load(items, note_id, consumer_id)
+    workers.put_load(items, load_fn_params, note_id, consumer_id)
 
 
 def get_load(consumer_id):
