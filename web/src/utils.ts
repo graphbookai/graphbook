@@ -96,6 +96,9 @@ export const evalDragData = async (reactFlowInstance: ReactFlowInstance, API: Se
                 position: dropPosition,
                 ...data.node
             };
+            Object.values<any>(node.data.parameters).forEach((p) => {
+                p.value = p.default;
+            });
             setNodes(Graph.addNode(node, nodes));
         } else if (data.text) {
             const id = uniqueIdFrom(nodes);
