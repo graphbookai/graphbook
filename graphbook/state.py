@@ -255,8 +255,6 @@ class GraphState:
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()
                 logger_param_pool[id(step)] = (step_id, step_name)
-                step_graph["parent"][step_id] = set()
-                step_graph["child"][step_id] = set()
 
                 # Remove old consumers from parents
                 previous_obj = self._steps.get(step_id)
@@ -265,6 +263,8 @@ class GraphState:
                     for parent_id in parent_ids:
                         if parent_id in self._queues:
                             self._queues[parent_id].remove_consumer(id(previous_obj))
+            step_graph["parent"][step_id] = set()
+            step_graph["child"][step_id] = set()
 
         # Next, connect the steps
         for step_id, step_data in graph.items():

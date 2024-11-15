@@ -97,7 +97,9 @@ export const evalDragData = async (reactFlowInstance: ReactFlowInstance, API: Se
                 ...data.node
             };
             Object.values<any>(node.data.parameters).forEach((p) => {
-                p.value = p.default;
+                if (p.default !== undefined) {
+                    p.value = p.default;
+                }
             });
             setNodes(Graph.addNode(node, nodes));
         } else if (data.text) {

@@ -30,18 +30,21 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
             name: 'Duplicate',
             disabled: () => runState !== 'stopped',
             action: () => {
-                const { addNodes } = reactFlowInstance;
+                const { setNodes } = reactFlowInstance;
                 const position = {
                     x: node.position.x + 50,
                     y: node.position.y + 50,
                 };
 
-                addNodes({
-                    ...node,
-                    selected: false,
-                    dragging: false,
-                    id: `${node.id}-copy`,
-                    position,
+                setNodes(nodes => {
+                    const copy = { ...node } as any;
+                    delete copy.id;
+                    return Graph.addNode({
+                        ...copy,
+                        selected: false,
+                        dragging: false,
+                        position
+                    }, nodes);
                 });
             }
         },
