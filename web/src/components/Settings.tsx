@@ -50,6 +50,10 @@ export default function Settings() {
         setClientSetting('quickviewImageHeight', value);
     }, []);
 
+    const disableTooltips = useCallback((event) => {
+        setClientSetting('disableTooltips', event.target.checked);
+    }, []);
+
 
     return (
         <div style={{ height: '60vh', overflow: 'auto' }}>
@@ -62,6 +66,7 @@ export default function Settings() {
                     uncheckedText="Light"
                     onChange={(checked) => { setClientSetting('theme', checked ? "Dark" : "Light") }}
                 />
+                <Checkbox onChange={disableTooltips} checked={clientSettings.disableTooltips}>Disable Tooltips <Text type="secondary">(improves UI performance)</Text></Checkbox>
                 <SettingsEntryInput name="Graph Server Host" value={clientSettings.graphServerHost} addonBefore="http://" onApply={setGraphServerHost} />
 
                 <Title level={4}>Media Server Settings</Title>

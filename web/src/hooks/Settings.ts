@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 const MONITOR_DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
 let settings = {
     theme: "Light",
+    disableTooltips: false,
     graphServerHost: "localhost:8005",
     mediaServerHost: "localhost:8006",
     useExternalMediaServer: false,
