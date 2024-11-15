@@ -125,7 +125,7 @@ class NodeCatalog:
                         if issubclass(obj, Resource):
                             self.nodes["resources"][name] = obj
                             updated_nodes["resources"][name] = True
-                
+
                 for name, cls in get_steps().items():
                     self.nodes["steps"][name] = cls
                     updated_nodes["steps"][name] = True
@@ -158,10 +158,7 @@ class GraphState:
         self._node_catalog = NodeCatalog(custom_nodes_path)
         self._updated_nodes: Dict[str, Dict[str, bool]] = {}
         self._step_states: Dict[str, Set[StepState]] = {}
-        self._step_graph = {
-            "child": {},
-            "parent": {}
-        }
+        self._step_graph = {"child": {}, "parent": {}}
 
     def update_state(self, graph: dict, graph_resources: dict):
         nodes, is_updated = self._node_catalog.get_nodes()
@@ -282,13 +279,12 @@ class GraphState:
                 # But in this case, the below child_node object is not overlapping because at
                 # this point, any previous nodes in the graph are still in self._steps
                 queues[parent_node.id].add_consumer(id(child_node), slot)
-                
+
         # Remove consumers from parents that are not children
         for step_id in steps:
             parent_node = steps[step_id]
             children_ids = [
-                id(steps[child_id])
-                for child_id in step_graph["child"][step_id]
+                id(steps[child_id]) for child_id in step_graph["child"][step_id]
             ]
             queues[step_id].remove_all_except(children_ids)
 
@@ -414,7 +410,7 @@ class GraphState:
         note = internal_list[index]
         entry.update(data=note.items)
         return entry
-    
+
     def handle_prompt_response(self, step_id: str, response: dict) -> bool:
         step = self._steps.get(step_id)
         if not isinstance(step, PromptStep):
