@@ -40,6 +40,7 @@ class WebInstanceProcessor:
         custom_nodes_path: str,
         close_event: mp.Event,
         pause_event: mp.Event,
+        spawn_method: bool,
         num_workers: int = 1,
     ):
         self.cmd_queue = cmd_queue
@@ -53,7 +54,7 @@ class WebInstanceProcessor:
         self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
         self.steps = {}
-        self.dataloader = Dataloader(self.num_workers)
+        self.dataloader = Dataloader(self.num_workers, spawn_method)
         setup_global_dl(self.dataloader)
         self.state_client = ProcessorStateClient(
             server_request_conn,

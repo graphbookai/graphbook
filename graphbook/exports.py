@@ -9,6 +9,7 @@ default_exported_steps = {
     "Split": steps.Split,
     "SplitNotesByItems": steps.SplitNotesByItems,
     "SplitItemField": steps.SplitItemField,
+    "Copy": steps.Copy,
     "DumpJSONL": steps.DumpJSONL,
     "LoadJSONL": steps.LoadJSONL,
 }

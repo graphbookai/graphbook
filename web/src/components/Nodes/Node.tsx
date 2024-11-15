@@ -1,6 +1,6 @@
 import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space, Tooltip } from 'antd';
+import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space } from 'antd';
 import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
 import { Widget, isWidgetType } from './widgets/Widgets';
 import { Graph } from '../../graph';
@@ -13,6 +13,7 @@ import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
 import { Prompt } from './widgets/Prompts';
+import { RemovableTooltip } from '../Tooltip';
 import ReactJson from '@microlink/react-json-view';
 import type { LogEntry, Parameter, ImageRef } from '../../utils';
 
@@ -38,6 +39,7 @@ export function WorkflowStep({ id, data, selected }) {
     const notification = useNotification();
     const API = useAPI();
     const filename = useFilename();
+    const [settings, _] = useSettings();
 
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
@@ -132,9 +134,9 @@ export function WorkflowStep({ id, data, selected }) {
                                                 position={Position.Left}
                                                 id={parameterName}
                                             />
-                                            <Tooltip title={tooltip}>
+                                            <RemovableTooltip title={tooltip}>
                                                 <span className="label">{parameterName}</span>
-                                            </Tooltip>
+                                            </RemovableTooltip>
                                         </div>
                                     );
                                 }

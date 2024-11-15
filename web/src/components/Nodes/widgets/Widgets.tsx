@@ -1,4 +1,4 @@
-import { Switch, Typography, theme, Flex, Button, Radio, Tooltip, Select as ASelect } from 'antd';
+import { Switch, Typography, theme, Flex, Button, Radio, Select as ASelect } from 'antd';
 import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
 import React, { useCallback, useState, useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
@@ -8,6 +8,7 @@ import { bbedit } from '@uiw/codemirror-theme-bbedit';
 import { Graph } from '../../../graph';
 import { useReactFlow } from 'reactflow';
 import { usePluginWidgets } from '../../../hooks/Plugins';
+import { RemovableTooltip } from '../../Tooltip';
 const { Text } = Typography;
 const { useToken } = theme;
 
@@ -88,9 +89,9 @@ export function BooleanWidget({ name, def, onChange, style, ...props }) {
     const { required, description } = props;
     return (
         <Flex className="input-container" justify='space-between' align="center">
-            <Tooltip title={getDescStr(required, description)}>
+            <RemovableTooltip title={getDescStr(required, description)}>
                 <Text>{name}</Text>
-            </Tooltip>
+            </RemovableTooltip>
             {input}
         </Flex>
     );
@@ -167,9 +168,9 @@ export function ListWidget({ name, def, onChange, type, ...props }) {
 
     return (
         <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}` }}>
-            <Tooltip title={getDescStr(required, description)}>
+            <RemovableTooltip title={getDescStr(required, description)}>
                 <Text style={{ margin: "2px 1px" }}>{name}</Text>
-            </Tooltip>
+            </RemovableTooltip>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {def && def.map((item, i) => {
                     return (
@@ -279,9 +280,9 @@ export function DictWidget({ name, def, onChange, ...props }) {
 
     return (
         <Flex className="input-container" style={{ border: `1px solid ${token.colorBorder}`, padding: '0 1px 1px 1px' }}>
-            <Tooltip title={getDescStr(required, description)}>
+            <RemovableTooltip title={getDescStr(required, description)}>
                 <Text style={{ margin: "2px 1px" }}>{name}</Text>
-            </Tooltip>
+            </RemovableTooltip>
             <Flex vertical style={{ marginLeft: '4px' }}>
                 {value && value.map((item, i) => {
                     return (
@@ -414,9 +415,9 @@ function InputNumber({ onChange, label, value, placeholder, description, require
     return (
         <div style={focusedStyle} className="input-container">
             {label &&
-                <Tooltip title={getDescStr(required, description)}>
+                <RemovableTooltip title={getDescStr(required, description)}>
                     <Text style={labelStyle}>{label}</Text>
-                </Tooltip>
+                </RemovableTooltip>
             }
             <input
                 onFocus={() => onInputFocus(true)}
@@ -470,9 +471,9 @@ function Input({ onChange, label, value, placeholder, style, description, requir
     return (
         <div style={focusedStyle} className="input-container">
             {label &&
-                <Tooltip title={getDescStr(required, description)}>
+                <RemovableTooltip title={getDescStr(required, description)}>
                     <Text style={labelStyle}>{label}</Text>
-                </Tooltip>
+                </RemovableTooltip>
             }
             <input
                 onFocus={() => onInputFocus(true)}

@@ -68,6 +68,11 @@ def get_args():
         action="store_true",
         help="Do not create a sample workflow if the workflow directory does not exist",
     )
+    parser.add_argument(
+        "--spawn",
+        action="store_true",
+        help="Use the spawn start method for multiprocessing",
+    )
 
     return parser.parse_args()
 

@@ -33,7 +33,7 @@ ENV PATH=$PATH:/root/.local/bin
 # Setup app
 WORKDIR /app
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-root --no-directory --with peer
+RUN poetry install --no-directory --with peer
 COPY . .
 RUN make web
 

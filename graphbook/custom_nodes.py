@@ -20,6 +20,7 @@ from graphbook.steps import (
     Split,
     SplitNotesByItems,
     SplitItemField,
+    Copy,
 )
 from graphbook.resources import Resource, NumberResource, FunctionResource, ListResource, DictResource
 
@@ -33,6 +34,7 @@ BUILT_IN_STEPS = [
     Split,
     SplitNotesByItems,
     SplitItemField,
+    Copy,
 ]
 BUILT_IN_RESOURCES = [Resource, NumberResource, FunctionResource, ListResource, DictResource]
 
