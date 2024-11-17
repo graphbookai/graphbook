@@ -3,6 +3,13 @@ name: Docker Build Debug
 on:
   push:
     branches: ["docker-build-debug"]
+    paths:
+      - Dockerfile
+      - 'graphbook/**'
+      - pyproject.toml
+      - poetry.lock
+      - README.md
+      - Makefile
 
 jobs:
   docker-debug:
