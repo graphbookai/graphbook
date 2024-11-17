@@ -3,6 +3,9 @@ name: Docker Build
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+        - 'docs/**'
+        - 'tests/**'
 
 jobs:
   docker:
