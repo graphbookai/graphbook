@@ -39,7 +39,7 @@ ENV \
   POETRY_VIRTUALENVS_CREATE=false \
   POETRY_VERSION=1.8.4
 WORKDIR /app
-COPY pyproject.toml poetry.lock ./
+COPY pyproject.toml poetry.lock README.md .
 RUN poetry install --no-directory --no-interaction --no-ansi --with peer
 COPY . .
 RUN make web

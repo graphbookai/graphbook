@@ -23,4 +23,6 @@ jobs:
         with:
           push: true
           tags: rsamf/graphbook:debug
+          cache-from: type=registry,ref=rsamf/graphbook:debug
+          cache-to: type=inline
 

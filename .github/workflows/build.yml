@@ -23,3 +23,5 @@ jobs:
         with:
           push: true
           tags: rsamf/graphbook:latest
+          cache-from: type=registry,ref=rsamf/graphbook:latest
+          cache-to: type=inline
