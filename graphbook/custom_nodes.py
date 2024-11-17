@@ -9,8 +9,8 @@ import os
 import os.path as osp
 import inspect
 import traceback
-from graphbook.decorators import get_steps, get_resources
-from graphbook.steps import (
+from .decorators import get_steps, get_resources
+from .steps import (
     Step,
     BatchStep,
     PromptStep,
@@ -22,7 +22,7 @@ from graphbook.steps import (
     SplitItemField,
     Copy,
 )
-from graphbook.resources import Resource, NumberResource, FunctionResource, ListResource, DictResource
+from .resources import Resource, NumberResource, FunctionResource, ListResource, DictResource
 
 BUILT_IN_STEPS = [
     Step,

@@ -9,13 +9,13 @@ import base64
 import hashlib
 import aiohttp
 from aiohttp import web
-from graphbook.processing.web_processor import WebInstanceProcessor
-from graphbook.viewer import ViewManager
-from graphbook.exports import NodeHub
-from graphbook.state import UIState
-from graphbook.media import create_media_server
-from graphbook.utils import poll_conn_for, ProcessorStateRequest
-from graphbook.shm import SharedMemoryManager
+from .processing.web_processor import WebInstanceProcessor
+from .viewer import ViewManager
+from .exports import NodeHub
+from .state import UIState
+from .media import create_media_server
+from .utils import poll_conn_for, ProcessorStateRequest
+from .shm import SharedMemoryManager
 
 
 @web.middleware

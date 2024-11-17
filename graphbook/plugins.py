@@ -2,7 +2,7 @@ import importlib
 import inspect
 from .steps import Step
 from .resources import Resource
-import graphbook.config as config
+from . import config
 
 exported_steps = {}
 exported_resources = {}
