@@ -37,11 +37,13 @@ ENV \
   PIP_DEFAULT_TIMEOUT=60 \
   POETRY_NO_INTERACTION=1 \
   POETRY_VIRTUALENVS_CREATE=false \
-  POETRY_VERSION=1.8.4
+  POETRY_VERSION=1.8.4 \
+  POETRY_CACHE_DIR=/tmp/poetry_cache
 WORKDIR /app
 COPY pyproject.toml poetry.lock README.md .
-RUN poetry install --no-root --no-directory --no-interaction --no-ansi --with peer
+RUN poetry install --no-root --no-directory --no-interaction --no-ansi --with peer && rm -rf $POETRY_CACHE_DIR
 COPY . .
+RUN poetry install
 RUN make web
 
 EXPOSE 8005 8006
