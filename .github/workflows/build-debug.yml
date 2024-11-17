@@ -1,0 +1,26 @@
+name: Docker Build Debug
+
+on:
+  push:
+    branches: ["docker-build-debug"]
+
+jobs:
+  docker-debug:
+    runs-on:
+      group: larger-runners
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: rsamf/graphbook:debug
+

@@ -31,9 +31,16 @@ RUN curl -sSL https://install.python-poetry.org | python
 ENV PATH=$PATH:/root/.local/bin
 
 # Setup app
+ENV \
+  PIP_NO_CACHE_DIR=off \
+  PIP_DISABLE_PIP_VERSION_CHECK=on \
+  PIP_DEFAULT_TIMEOUT=60 \
+  POETRY_NO_INTERACTION=1 \
+  POETRY_VIRTUALENVS_CREATE=false \
+  POETRY_VERSION=1.8.4
 WORKDIR /app
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-directory --with peer
+RUN poetry install --no-directory --no-interaction --no-ansi --with peer
 COPY . .
 RUN make web
 
