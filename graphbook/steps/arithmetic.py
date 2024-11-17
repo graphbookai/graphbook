@@ -1,4 +1,4 @@
-from graphbook.steps.base import StepData, StepOutput, Note, BatchStep
+from .steps.base import StepData, StepOutput, Note, BatchStep
 from typing import List
 
 

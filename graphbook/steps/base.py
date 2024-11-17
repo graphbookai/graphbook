@@ -1,14 +1,12 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple, Generator, Any
-from graphbook import Note
-from graphbook.utils import (
+from ..utils import (
     transform_function_string,
     convert_dict_values_to_list,
     is_batchable,
 )
-from graphbook.logger import log, prompt
-import graphbook.prompts as prompts
-import graphbook.dataloading as dataloader
+from ..logger import log, prompt
+from .. import Note, prompts, dataloading as dataloader
 import warnings
 import traceback
 import copy
