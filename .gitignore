@@ -1,6 +1,7 @@
 # Python
 .venv
 __pycache__
+.python-version
 
 # Docs
 docs/_build
