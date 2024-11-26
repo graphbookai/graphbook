@@ -479,6 +479,10 @@ def create_sample_workflow(workflow_dir, custom_nodes_path, docs_path):
 
 
 def start_web(args):
+    # The start method on some systems like Mac default to spawn
+    if not args.spawn and mp.get_start_method() == "spawn":
+        mp.set_start_method("fork", force=True)
+
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()
