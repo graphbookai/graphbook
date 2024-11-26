@@ -12,7 +12,7 @@ import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Graph } from '../graph.ts';
 import { SearchNode } from './SearchNode.tsx';
-import { WorkflowStep } from './Nodes/Node.jsx';
+import { Step } from './Nodes/Step.tsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
 import { getHandle, evalDragData } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
@@ -104,7 +104,7 @@ export default function Flow({ filename }) {
     }, []);
 
     const nodeTypes = useMemo(() => ({
-        step: WorkflowStep,
+        step: Step,
         resource: Resource,
         group: Group,
         export: Export,

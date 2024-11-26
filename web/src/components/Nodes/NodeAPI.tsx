@@ -7,13 +7,13 @@ import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
-import { recordCountBadgeStyle, nodeBorderStyle, inputHandleStyle, outputHandleStyle } from '../../styles';
+import { nodeBorderStyle } from '../../styles';
 import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
 import { Prompt } from './widgets/Prompts';
-import { RemovableTooltip } from '../Tooltip';
+import { InputHandle, OutputHandle } from './Handle';
 import ReactJson from '@microlink/react-json-view';
 import type { LogEntry, Parameter, ImageRef } from '../../utils';
 
@@ -24,8 +24,8 @@ type QuickViewEntry = {
     [key: string]: any;
 };
 
-export function WorkflowStep({ id, data, selected }) {
-    const { name, parameters, inputs, outputs } = data;
+export function Node({ id, name, requiresInput, parameters, outputs, selected, isCollapsed, tabs }) {
+    // const { name, parameters, inputs, outputs } = data;
     const [quickViewData, setQuickViewData] = useState<QuickViewEntry>({});
     const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [recordCount, setRecordCount] = useState({});
@@ -39,7 +39,6 @@ export function WorkflowStep({ id, data, selected }) {
     const notification = useNotification();
     const API = useAPI();
     const filename = useFilename();
-    const [settings, _] = useSettings();
 
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
@@ -99,7 +98,6 @@ export function WorkflowStep({ id, data, selected }) {
     }, [nodes, edges, API, notification, filename]);
 
     const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
-    const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
 
     return (
         <div style={borderStyle}>
@@ -108,17 +106,17 @@ export function WorkflowStep({ id, data, selected }) {
                     <div>{name}</div>
                     <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
                 </Flex>
+                <Tabs
+                    items={[{
+                        key: '0',
+                        label: 'Params'
+                    }]}
+                    onTabClick={(d)=>console.log(d)} />
                 <div className="handles">
                     <div className="inputs">
                         {
-                            inputs.map((input, i) => {
-                                return (
-                                    <div key={i} className="input">
-                                        <Handle style={inputHandleStyle()} type="target" position={Position.Left} id="in" />
-                                        <span className="label">{input}</span>
-                                    </div>
-                                );
-                            })
+                            requiresInput &&
+                            <InputHandle id="in" name="in" />
                         }
                         {
                             Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
@@ -126,18 +124,7 @@ export function WorkflowStep({ id, data, selected }) {
                                     const { required, description } = parameter;
                                     const tooltip = required ? `(required) ${description}` : description;
                                     return (
-                                        <div key={i} className="input">
-                                            <Handle
-                                                className="parameter"
-                                                style={inputHandleStyle()}
-                                                type="target"
-                                                position={Position.Left}
-                                                id={parameterName}
-                                            />
-                                            <RemovableTooltip title={tooltip}>
-                                                <span className="label">{parameterName}</span>
-                                            </RemovableTooltip>
-                                        </div>
+                                        <InputHandle key={parameterName} id={parameterName} name={parameterName} isResource={true} tooltip={tooltip} />
                                     );
                                 }
                             })
@@ -145,21 +132,13 @@ export function WorkflowStep({ id, data, selected }) {
                     </div>
                     <div className='outputs'>
                         {
-                            outputs.map((output, i) => {
-                                return (
-                                    <div key={i} className="output">
-                                        <Badge size="small" styles={{ indicator: badgeIndicatorStyle }} count={recordCount[output] || 0} overflowCount={Infinity} />
-                                        <span className="label">{output}</span>
-                                        <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={output} />
-                                    </div>
-                                );
-                            })
+                            outputs.map(output => <OutputHandle key={output} id={output} name={output} count={recordCount[output]} />)
                         }
                     </div>
                 </div>
                 <div className='widgets'>
                     {
-                        !data.isCollapsed &&
+                        !isCollapsed &&
                         Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                             if (isWidgetType(parameter.type)) {
                                 return (
@@ -175,7 +154,7 @@ export function WorkflowStep({ id, data, selected }) {
                 <div className="widgets">
                     <Prompt nodeId={id} />
                 </div>
-                {!data.isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
+                {!isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
             </Card>
         </div>
     );
