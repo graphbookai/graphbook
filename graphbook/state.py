@@ -1,17 +1,17 @@
 from __future__ import annotations
 from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
-from graphbook.note import Note
-from graphbook.steps import Step, PromptStep, StepOutput as Outputs
-from graphbook.resources import Resource
-from graphbook.decorators import get_steps, get_resources
-from graphbook.viewer import ViewManagerInterface
-from graphbook.plugins import setup_plugins
-from graphbook.logger import setup_logging_nodes
-from graphbook.utils import transform_json_log
+from .note import Note
+from .steps import Step, PromptStep, StepOutput as Outputs
+from .resources import Resource
+from .decorators import get_steps, get_resources
+from .viewer import ViewManagerInterface
+from .plugins import setup_plugins
+from .logger import setup_logging_nodes
+from .utils import transform_json_log
+from . import exports
 import multiprocessing as mp
 import importlib, importlib.util, inspect
-import graphbook.exports as exports
 import sys, os
 import os.path as osp
 import json
@@ -371,8 +371,8 @@ class GraphState:
             if node_id in self._queues:
                 self._queues[node_id].clear()
                 step = self._steps[node_id]
-                for p in step.parents:
-                    self._queues[p.id].reset_consumer_idx(id(step))
+                for parent_id in self._step_graph["parent"][node_id]:
+                    self._queues[parent_id].reset_consumer_idx(id(step))
                 self._step_states[node_id] = set()
                 self.view_manager.handle_queue_size(
                     node_id, self._queues[node_id].dict_sizes()

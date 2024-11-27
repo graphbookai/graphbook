@@ -2,9 +2,8 @@ from typing import Literal
 import multiprocessing as mp
 from typing import Dict, Tuple, Any
 import inspect
-from graphbook.note import Note
-from graphbook.viewer import ViewManagerInterface
-from graphbook.utils import transform_json_log
+from .viewer import ViewManagerInterface
+from .utils import transform_json_log
 
 logging_nodes = None
 view_manager = None
