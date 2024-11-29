@@ -20,7 +20,7 @@ export interface OutputHandleProps extends InputHandleProps {
 export function InputHandle({ id, name, isResource, tooltip }: InputHandleProps) {
     return (
         <div className="input">
-            <Handle style={{...inputHandleStyle(), opacity: '0%'}} type="target" position={Position.Left} id={id} className={isResource ? 'parameter' : ''}/>
+            <Handle style={inputHandleStyle()} type="target" position={Position.Left} id={id} className={isResource ? 'parameter' : ''}/>
             <RemovableTooltip title={tooltip}>
                 <Text style={{alignSelf: 'left'}} className="label">{name}</Text>
             </RemovableTooltip>

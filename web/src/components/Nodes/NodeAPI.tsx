@@ -24,12 +24,9 @@ type QuickViewEntry = {
     [key: string]: any;
 };
 
-export function Node({ id, name, requiresInput, parameters, outputs, selected, isCollapsed, tabs }) {
+export function Node({ id, name, requiresInput, parameters, outputs, selected, errored, isCollapsed, tabs }) {
     // const { name, parameters, inputs, outputs } = data;
-    const [quickViewData, setQuickViewData] = useState<QuickViewEntry>({});
-    const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [recordCount, setRecordCount] = useState({});
-    const [errored, setErrored] = useState(false);
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
     const nodes = useNodes();
@@ -39,27 +36,16 @@ export function Node({ id, name, requiresInput, parameters, outputs, selected, i
     const notification = useNotification();
     const API = useAPI();
     const filename = useFilename();
+    const [tabShown, setTabShown] = useState(-1);
+    const tabList = useMemo(() => 
+        [{
+            key: 'Params',
+            label: 'Params'
+        }, ...tabs.map((tab, i) => ({...tab, key: tab.label, children: undefined}))], [tabs]);
 
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
     });
-    useAPINodeMessage('view', id, filename, (msg) => {
-        setQuickViewData(msg);
-    });
-    useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
-        setLogsData(prev => getMergedLogs(prev, newEntries));
-    }, [setLogsData]));
-
-    useEffect(() => {
-        for (const log of logsData) {
-            if (log.type === 'error') {
-                setErrored(true);
-                return;
-            }
-        }
-
-        setErrored(false);
-    }, [logsData]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
         const parentId = getNode(id)?.parentId;
@@ -98,6 +84,15 @@ export function Node({ id, name, requiresInput, parameters, outputs, selected, i
     }, [nodes, edges, API, notification, filename]);
 
     const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
+    const onTabClick = useCallback((key) => {
+        const tabIndex = tabs.findIndex(tab => key === tab.label);
+        if (tabIndex === -1) {
+            setTabShown(-1);
+            return;
+        }
+
+        setTabShown(tabIndex);
+    }, [tabs]);
 
     return (
         <div style={borderStyle}>
@@ -106,161 +101,76 @@ export function Node({ id, name, requiresInput, parameters, outputs, selected, i
                     <div>{name}</div>
                     <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
                 </Flex>
-                <Tabs
-                    items={[{
-                        key: '0',
-                        label: 'Params'
-                    }]}
-                    onTabClick={(d)=>console.log(d)} />
-                <div className="handles">
-                    <div className="inputs">
+                <Tabs items={tabList} onTabClick={onTabClick} />
+                <div style={{position: 'relative'}}>
+                    <div className="handles">
+                        <div className="inputs">
+                            {
+                                requiresInput &&
+                                <InputHandle id="in" name="in" />
+                            }
+                            {
+                                Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
+                                    if (!isWidgetType(parameter.type)) {
+                                        const { required, description } = parameter;
+                                        const tooltip = required ? `(required) ${description}` : description;
+                                        return (
+                                            <InputHandle key={parameterName} id={parameterName} name={parameterName} isResource={true} tooltip={tooltip} />
+                                        );
+                                    }
+                                })
+                            }
+                        </div>
+                        <div className='outputs'>
+                            {
+                                outputs.map(output => <OutputHandle key={output} id={output} name={output} count={recordCount[output]} />)
+                            }
+                        </div>
+                    </div>
+                    <div className='widgets'>
                         {
-                            requiresInput &&
-                            <InputHandle id="in" name="in" />
-                        }
-                        {
+                            !isCollapsed &&
                             Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
-                                if (!isWidgetType(parameter.type)) {
-                                    const { required, description } = parameter;
-                                    const tooltip = required ? `(required) ${description}` : description;
+                                if (isWidgetType(parameter.type)) {
                                     return (
-                                        <InputHandle key={parameterName} id={parameterName} name={parameterName} isResource={true} tooltip={tooltip} />
+                                        <div style={{ marginBottom: '2px' }} key={i} className="parameter">
+                                            <Widget {...parameter} id={id} type={parameter.type} name={parameterName} value={parameter.value} />
+                                        </div>
                                     );
                                 }
-                            })
+                                return null;
+                            }).filter(x => x)
                         }
                     </div>
-                    <div className='outputs'>
-                        {
-                            outputs.map(output => <OutputHandle key={output} id={output} name={output} count={recordCount[output]} />)
-                        }
+                    <div className="widgets">
+                        <Prompt nodeId={id} />
                     </div>
+                    <ContentOverlay>
+                        { tabs[tabShown]?.children }
+                    </ContentOverlay>
                 </div>
-                <div className='widgets'>
-                    {
-                        !isCollapsed &&
-                        Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
-                            if (isWidgetType(parameter.type)) {
-                                return (
-                                    <div style={{ marginBottom: '2px' }} key={i} className="parameter">
-                                        <Widget {...parameter} id={id} type={parameter.type} name={parameterName} value={parameter.value} />
-                                    </div>
-                                );
-                            }
-                            return null;
-                        }).filter(x => x)
-                    }
-                </div>
-                <div className="widgets">
-                    <Prompt nodeId={id} />
-                </div>
-                {!isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />}
+
+                {/* {!isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />} */}
             </Card>
         </div>
     );
 }
 
-function Monitor({ quickViewData, logsData }) {
-    return (
-        <Collapse className='quickview' defaultActiveKey={[]} bordered={false} expandIcon={({ header }) => {
-            const h = header as String;
-            if (h.startsWith('Quickview')) {
-                return <SearchOutlined />;
-            }
-            if (h.startsWith('Logs')) {
-                return <FileTextOutlined />;
-            }
-            return null;
-        }}>
-            <Panel header="Quickview" key="1">
-                {
-                    quickViewData ?
-                        <QuickviewCollapse data={quickViewData} /> :
-                        '(No outputs yet)'
-                }
-            </Panel>
-            <Panel header={"Logs" + (logsData.length > 0 ? ` (${logsData.length})` : '')} key="2">
-                {
-                    logsData.length == 0 ?
-                        <p className='content'>(No logs yet) </p> :
-                        (
-                            <div style={{ maxHeight: '200px', overflow: 'auto' }}>
-                                {
-                                    logsData.map((log, i) => {
-                                        const { msg } = log;
-                                        return (
-                                            <p style={{ fontFamily: 'monospace' }} key={i}>
-                                                {JSON.stringify(msg)}
-                                            </p>
-                                        );
-                                    })
-                                }
+function ContentOverlay({ children }) {
+    if (!children) {
+        return null;
+    }
 
-                            </div>
-                        )
-                }
-            </Panel>
-        </Collapse>
+    return (
+        <div style={{width: '200px', height: '120px'}}>
+            <div style={{background: 'white', top:0,  width: '100%', height: '100%', position: 'absolute', zIndex: 5, overflow: 'auto'}}>
+                { children }
+            </div>
+        </div>
+
     );
 }
 
-function QuickviewCollapse({ data }) {
-    const [settings, _] = useSettings();
-    const globalTheme = theme.useToken().theme;
-
-    const tabItems = useCallback((noteData) => {
-        let data: any = [];
-        if (settings.quickviewShowNotes) {
-            data.push({
-                key: '0',
-                label: 'Note',
-                icon: <CodeOutlined />,
-                children: (
-                    <ReactJson
-                        style={{ maxHeight: '200px', overflow: 'auto', fontSize: '0.6em' }}
-                        theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
-                        name={false}
-                        displayDataTypes={false}
-                        indentWidth={2}
-                        src={noteData}
-                    />
-                ),
-            });
-        }
-        if (settings.quickviewShowImages) {
-            data.push({
-                key: '1',
-                label: 'Images',
-                icon: <FileImageOutlined />,
-                children: (
-                    <EntryImages
-                        style={{ maxHeight: '200px', overflow: 'auto' }}
-                        entry={noteData}
-                    />
-                ),
-            });
-        }
-        return data;
-    }, [settings]);
-
-    return (
-        <Collapse className='quickview' defaultActiveKey={[]} bordered={false}>
-            {
-                Object.entries<QuickViewEntry>(data).map(([key, value], i) => {
-                    return (
-                        <Panel className='content nowheel' header={key} key={i} style={{ overflow: 'auto' }}>
-                            <Tabs
-                                tabBarStyle={{ fontSize: '2px' }}
-                                defaultActiveKey="0"
-                                items={tabItems(value)}
-                            />
-                        </Panel>
-                    );
-                })
-            }
-        </Collapse>
-    );
-}
 
 function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProperties | undefined }) {
     const [settings, _] = useSettings();

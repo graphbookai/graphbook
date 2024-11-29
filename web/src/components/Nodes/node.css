@@ -30,6 +30,7 @@ textarea.code {
     max-width: 400px;
     cursor: crosshair;
     overflow: hidden;
+    padding: 2px;
 }
 
 .workflow-node.collapsed {
@@ -43,7 +44,6 @@ textarea.code {
 
 .workflow-node .widgets .input-container {
     border-radius: 4px;
-    padding: 0 2px;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -117,7 +117,6 @@ textarea.code {
 
 .workflow-node .title {
     font-size: .8em;
-    margin: 2px 5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -222,7 +221,6 @@ textarea.code {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    margin: 0 2px;
 }
 
 .workflow-node .handles .inputs {
@@ -327,43 +325,17 @@ textarea.code {
     justify-content: space-between;
 }
 
-.workflow-node .quickview {
-    font-size: .6rem;
-}
-
-.workflow-node .quickview .content {
-    white-space: pre-wrap;
-    margin: 0;
-}
-
-
-.workflow-node .quickview .ant-collapse-header {
-    display: flex;
-    align-items: center;
-    padding: 5px;
-}
-
-.workflow-node .quickview .ant-collapse-header .ant-collapse-expand-icon {
-    padding-right: 5px;
-}
-
-.workflow-node .quickview .ant-collapse-content-box {
-    padding: 5px;
-}
-
-.workflow-node .quickview .ant-descriptions-item-label,.ant-descriptions-item-content {
-    padding: 5px !important;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-}
-
-.workflow-node .quickview .ant-tabs .ant-tabs-tab {
-    font-size: .6rem;
-}
-
 .react-flow__node.react-flow__node-group:has(.collapsed) {
     width: auto !important;
     height: auto !important;
+}
+
+.workflow-node .ant-tabs .ant-tabs-tab {
+    font-size: 8px;
+    padding: 2px;
+    margin: 0 4px 0 0;
+}
+
+.workflow-node .ant-tabs .ant-tabs-nav {
+    margin: 0 0 2px 0;
 }
