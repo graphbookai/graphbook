@@ -38,10 +38,6 @@ textarea.code {
     max-width: 150px;
 }
 
-.workflow-node .widgets {
-    margin: 5px 5px;
-}
-
 .workflow-node .widgets .input-container {
     border-radius: 4px;
     display: flex;

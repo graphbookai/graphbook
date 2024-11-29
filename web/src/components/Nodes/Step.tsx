@@ -1,24 +1,13 @@
-import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
-import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space, Typography } from 'antd';
-import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
-import { Widget, isWidgetType } from './widgets/Widgets';
-import { Graph } from '../../graph';
-import { useRunState } from '../../hooks/RunState';
-import { useAPI, useAPINodeMessage } from '../../hooks/API';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { Flex, Image, theme, Typography } from 'antd';
+import { useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
-import { nodeBorderStyle } from '../../styles';
 import { getMergedLogs, getMediaPath } from '../../utils';
-import { useNotification } from '../../hooks/Notification';
 import { useSettings } from '../../hooks/Settings';
-import { SerializationErrorMessages } from '../Errors';
-import { Prompt } from './widgets/Prompts';
-import { InputHandle, OutputHandle } from './Handle';
 import ReactJson from '@microlink/react-json-view';
-import type { LogEntry, Parameter, ImageRef } from '../../utils';
-import { Node } from './NodeAPI';
+import type { LogEntry, ImageRef } from '../../utils';
+import { Node, EmptyTab } from './NodeAPI';
 
-const { Panel } = Collapse;
 const { useToken } = theme;
 const { Text } = Typography;
 
@@ -28,15 +17,12 @@ type QuickViewEntry = {
 
 export function Step({ id, data, selected }) {
     const { name, parameters, inputs, outputs, isCollapsed } = data;
-    const [settings, _] = useSettings();
-    const requiresInput = inputs.length > 0;
     const [quickViewData, setQuickViewData] = useState<QuickViewEntry>({});
     const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [errored, setErrored] = useState<boolean>(false);
     const filename = useFilename();
 
     useAPINodeMessage('view', id, filename, (msg) => {
-        // console.log(msg);
         setQuickViewData(msg);
     });
 
@@ -45,7 +31,6 @@ export function Step({ id, data, selected }) {
     }, [setLogsData]));
 
     const tabs = useMemo(() => {
-        console.log(quickViewData)
         return [{
             label: 'Data',
             children: <DataView data={quickViewData} /> // <CodeOutlined />
@@ -53,17 +38,10 @@ export function Step({ id, data, selected }) {
             label: 'Images',
             children: <ImagesView data={quickViewData} />
         }, {
-            label: 'Logs',
+            label: logsData.length === 0 ? 'Logs' : `Logs (${logsData.length})`,
             children: <LogsView data={logsData} />
         }]
     }, [quickViewData, logsData]);
-
-    // icon: <FileImageOutlined />,
-    // children: (
-    //     <EntryImages
-    //         style={{ maxHeight: '200px', overflow: 'auto' }}
-    //         entry={noteData}
-    //     />
 
     useEffect(() => {
         for (const log of logsData) {
@@ -80,15 +58,15 @@ export function Step({ id, data, selected }) {
         <Node
             id={id}
             name={name}
-            requiresInput={requiresInput}
+            inputs={inputs}
             parameters={parameters}
-            outputs={outputs}
+            outputs={outputs.map(o => ({id: o, label: o}))}
             selected={selected}
             errored={errored}
             isCollapsed={isCollapsed}
             tabs={tabs}
         />
-    )
+    );
 }
 
 function DataView({ data }) {
@@ -96,117 +74,108 @@ function DataView({ data }) {
     const values = Object.entries<QuickViewEntry>(data).sort((a, b) => a[0].localeCompare(b[0]))
 
     return (
-        <div>
+        <Flex vertical>
             {
                 Object.keys(data).length === 0 ?
-                'No data' :
-                values.map(([key, value], i) => {
+                <EmptyTab /> :
+                values.map(([key, value]) => {
                     return (
-                        <div>
+                        <Flex key={key} vertical>
                             <Text style={{fontSize: '.6em', fontWeight: 'bold'}}>{key}</Text>
                             <ReactJson
-                                style={{ maxHeight: '200px', overflow: 'auto', fontSize: '0.6em' }}
+                                style={{ fontSize: '0.6em' }}
                                 theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
                                 name={false}
                                 displayDataTypes={false}
                                 indentWidth={2}
                                 src={value}
                             />
-                        </div>
-                    );
-                })
-            }
-        </div>
-    );
-}
-
-function LogsView({ data }) {
-    return (
-        <div>
-            {
-                data.length === 0 ?
-                'No logs yet' :
-                (
-                    <div style={{ maxHeight: '200px', overflow: 'auto' }}>
-                        {
-                            data.map((log, i) => {
-                                const { msg } = log;
-                                return (
-                                    <p style={{ fontFamily: 'monospace' }} key={i}>
-                                        {JSON.stringify(msg)}
-                                    </p>
-                                );
-                            })
-                        }
-                    </div>
-                )
-            }
-        </div>
-    );
-}
-
-function ImagesView({ data }) {
-    const values = Object.entries<QuickViewEntry>(data).sort((a, b) => a[0].localeCompare(b[0]));
-
-    return (
-        <div>
-            {
-                Object.keys(data).length === 0 ?
-                'No images' :
-                values.map(([key, value], i) => (
-                    <div>
-                        <Text style={{fontSize: '.6em', fontWeight: 'bold'}}>{key}</Text>
-                        <ImagesEntry key={key} data={value} />
-                    </div>
-                ))
-            }
-        </div>
-    ); 
-}
-
-function ImagesEntry({ data }) {
-    const values = Object.entries<QuickViewEntry>(data).sort((a, b) => a[0].localeCompare(b[0]));
-    const [settings, _] = useSettings();
-
-    const imageEntries = useMemo(() => {
-        let entries: { [key: string]: ImageRef[] } = {};
-        values.forEach(([key, item]) => {
-            console.log(item);
-            let imageItems: any = [];
-            if (Array.isArray(item)) {
-                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image');
-            } else {
-                if (item.type?.slice(0, 5) === 'image') {
-                    imageItems.push(item);
-                }
-            }
-            if (imageItems.length > 0) {
-                entries[key] = imageItems;
-            }
-        });
-        return entries;
-    }, [values]);
-
-    return (
-        <Flex>
-            {
-                Object.keys(imageEntries).length === 0 ?
-                'No images' :
-                Object.entries<ImageRef[]>(imageEntries).map(([key, images]) => {
-                    return (
-                        <Space key={key} direction="vertical" align='center'>
-                            <Text style={{fontSize: '.6em'}}>{key}</Text>
-                            <Flex vertical>
-                                {
-                                    images.map((image, i) => (
-                                        <Image key={i} src={getMediaPath(settings, image)} height={settings.quickviewImageHeight} />
-                                    ))
-                                }
-                            </Flex>
-                        </Space>
+                        </Flex>
                     );
                 })
             }
         </Flex>
     );
+}
+
+function LogsView({ data }) {
+    const { token } = useToken();
+    const bottomRef = useRef<HTMLDivElement>(null);
+    const shouldScrollToBottom = true;
+
+    useEffect(() => {
+        if (shouldScrollToBottom) {
+            bottomRef.current?.scrollIntoView({block: "nearest", inline: "nearest", behavior: 'instant' });
+        }
+    }, [shouldScrollToBottom, data]);
+
+    const bg = useCallback((i) => {
+        return i % 2 === 0 ? token.colorBgBase : token.colorBgLayout;
+    }, [token]);
+
+    return (
+        data.length === 0 ?
+        <EmptyTab description='No logs'/> :
+        <Flex vertical>
+            {
+                data.map((log, i) => {
+                    const { msg } = log;
+                    const style: React.CSSProperties = {
+                        backgroundColor: bg(i),
+                        margin: '1px 0',
+                        fontSize: '.6em',
+                        lineHeight: 1,
+                        borderLeft: `2px solid ${token.colorBorder}`,
+                        padding: '1px 0 1px 4px'
+                    };
+                    return (
+                        <Text key={i} style={style}>{msg}</Text>
+                    );
+                })
+            }
+            <div ref={bottomRef} />
+        </Flex>  
+    );
+}
+
+function ImagesView({ data }) {
+    const values = Object.entries<QuickViewEntry>(data).sort((a, b) => a[0].localeCompare(b[0]));
+    const [settings, _] = useSettings();
+
+    const imageEntries = useMemo(() => {
+        let entries: { [key: string]: ImageRef[] } = {};
+        values.forEach(([outputKey, note]) => {
+            Object.entries(note).forEach(([key, item]) => {
+                let imageItems: any = [];
+                if (Array.isArray(item)) {
+                    imageItems = item.filter(item => item.type?.slice(0, 5) === 'image');
+                } else {
+                    if (item.type?.slice(0, 5) === 'image') {
+                        imageItems.push(item);
+                    }
+                }
+                if (imageItems.length > 0) {
+                    entries[`${outputKey}/${key}`] = imageItems;
+                }
+            })
+        });
+        return entries;
+    }, [values]);
+
+    return (
+        Object.keys(imageEntries).length === 0 ?
+        <EmptyTab description='No images'/> :
+        Object.entries(imageEntries).map(([key, value]) => (
+            <Flex vertical key={key}>
+                <Text style={{fontSize: '.6em', fontWeight: 'bold'}}>{key}</Text>
+                <Flex>
+                    {
+                        value.map((image, i) => (
+                            <Image key={i} src={getMediaPath(settings, image)} height={settings.quickviewImageHeight} />
+                        ))
+                    }
+                </Flex>
+            </Flex>
+        ))
+    ); 
 }

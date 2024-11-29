@@ -11,15 +11,21 @@ export interface InputHandleProps {
     name: string;
     isResource?: boolean;
     tooltip?: string;
+    collapsed?: boolean;
 }
 
 export interface OutputHandleProps extends InputHandleProps {
     count: number;
 }
 
-export function InputHandle({ id, name, isResource, tooltip }: InputHandleProps) {
+export function InputHandle({ id, name, isResource, tooltip, collapsed }: InputHandleProps) {
+    const collapsedStyle = {
+        position: 'absolute',
+        zIndex: -1,
+    } as React.CSSProperties;
+
     return (
-        <div className="input">
+        <div style={collapsed ? collapsedStyle : {}} className="input">
             <Handle style={inputHandleStyle()} type="target" position={Position.Left} id={id} className={isResource ? 'parameter' : ''}/>
             <RemovableTooltip title={tooltip}>
                 <Text style={{alignSelf: 'left'}} className="label">{name}</Text>
@@ -28,12 +34,16 @@ export function InputHandle({ id, name, isResource, tooltip }: InputHandleProps)
     );
 }
 
-export function OutputHandle({ id, name, isResource, count }: OutputHandleProps) {
+export function OutputHandle({ id, name, isResource, count, collapsed }: OutputHandleProps) {
     const { token } = useToken();
     const badgeIndicatorStyle = useMemo(() => recordCountBadgeStyle(token), [token]);
+    const collapsedStyle = {
+        position: 'absolute',
+        zIndex: -1,
+    } as React.CSSProperties;
 
     return (
-        <div className="output">
+        <div style={collapsed ? collapsedStyle : {}} className="output">
             <Badge size="small" styles={{indicator: badgeIndicatorStyle}} count={count || 0} overflowCount={Infinity} />
             <Text style={{alignSelf: 'right'}} className="label">{name}</Text>
             <Handle style={outputHandleStyle()} type="source" position={Position.Right} id={id} className={isResource ? 'parameter' : ''}/>

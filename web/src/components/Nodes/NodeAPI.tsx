@@ -1,6 +1,6 @@
 import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space } from 'antd';
+import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space, Empty } from 'antd';
 import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
 import { Widget, isWidgetType } from './widgets/Widgets';
 import { Graph } from '../../graph';
@@ -24,8 +24,27 @@ type QuickViewEntry = {
     [key: string]: any;
 };
 
-export function Node({ id, name, requiresInput, parameters, outputs, selected, errored, isCollapsed, tabs }) {
-    // const { name, parameters, inputs, outputs } = data;
+type Pin = {
+    id: string;
+    label: string;
+    isResource?: boolean;
+}
+
+export type NodeProps = {
+    id: string;
+    style?: React.CSSProperties,
+    name: string;
+    inputs: Pin[];
+    parameters: any;
+    outputs: Pin[];
+    selected: boolean;
+    errored: boolean;
+    isCollapsed: boolean;
+    tabs?: any;
+    isRunnable?: boolean;
+}
+
+export function Node({ id, style, name, inputs, parameters, outputs, selected, errored, isCollapsed, tabs, ...props }: NodeProps) {
     const [recordCount, setRecordCount] = useState({});
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
@@ -37,11 +56,13 @@ export function Node({ id, name, requiresInput, parameters, outputs, selected, e
     const API = useAPI();
     const filename = useFilename();
     const [tabShown, setTabShown] = useState(-1);
+    const isRunnable = props.isRunnable === undefined ? true : false;
+    tabs = tabs || [];
     const tabList = useMemo(() => 
         [{
             key: 'Params',
             label: 'Params'
-        }, ...tabs.map((tab, i) => ({...tab, key: tab.label, children: undefined}))], [tabs]);
+        }, ...tabs.map(tab => ({...tab, key: tab.label, children: undefined}))], [tabs]);
 
     useAPINodeMessage('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
@@ -96,64 +117,111 @@ export function Node({ id, name, requiresInput, parameters, outputs, selected, e
 
     return (
         <div style={borderStyle}>
-            <Card className="workflow-node">
+            <Card className="workflow-node" style={style}>
                 <Flex gap="small" justify='space-between' className='title'>
                     <div>{name}</div>
-                    <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
+                    {
+                        isRunnable && 
+                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
+                    }
                 </Flex>
-                <Tabs items={tabList} onTabClick={onTabClick} />
+                { 
+                    !isCollapsed && tabs.length > 0 &&
+                    <Tabs items={tabList} defaultActiveKey={tabs[tabShown]?.label || 'Params'} onTabClick={onTabClick} />
+                }
                 <div style={{position: 'relative'}}>
-                    <div className="handles">
-                        <div className="inputs">
-                            {
-                                requiresInput &&
-                                <InputHandle id="in" name="in" />
-                            }
-                            {
-                                Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
-                                    if (!isWidgetType(parameter.type)) {
-                                        const { required, description } = parameter;
-                                        const tooltip = required ? `(required) ${description}` : description;
-                                        return (
-                                            <InputHandle key={parameterName} id={parameterName} name={parameterName} isResource={true} tooltip={tooltip} />
-                                        );
-                                    }
-                                })
-                            }
-                        </div>
-                        <div className='outputs'>
-                            {
-                                outputs.map(output => <OutputHandle key={output} id={output} name={output} count={recordCount[output]} />)
-                            }
-                        </div>
-                    </div>
-                    <div className='widgets'>
-                        {
-                            !isCollapsed &&
-                            Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
-                                if (isWidgetType(parameter.type)) {
-                                    return (
-                                        <div style={{ marginBottom: '2px' }} key={i} className="parameter">
-                                            <Widget {...parameter} id={id} type={parameter.type} name={parameterName} value={parameter.value} />
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            }).filter(x => x)
-                        }
-                    </div>
-                    <div className="widgets">
-                        <Prompt nodeId={id} />
-                    </div>
+                    <ContentDefault
+                        id={id}
+                        inputs={inputs}
+                        parameters={parameters}
+                        outputs={outputs}
+                        isCollapsed={isCollapsed}
+                        recordCount={recordCount}
+                        shown={tabShown === -1}
+                    />
                     <ContentOverlay>
-                        { tabs[tabShown]?.children }
+                        { !isCollapsed && tabs[tabShown]?.children }
                     </ContentOverlay>
                 </div>
-
-                {/* {!isCollapsed && <Monitor quickViewData={quickViewData} logsData={logsData} />} */}
             </Card>
         </div>
     );
+}
+
+export type EmptyTabProps = {
+    description?: string;
+};
+
+export function EmptyTab({ description }: EmptyTabProps) {
+    return (
+        <Empty
+            style={{ fontSize: 8 }}
+            imageStyle={{ height: 40 }}
+            description={description}
+        />
+    );
+}
+
+function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCount, shown }) {
+    const collapsed = useMemo(() => !shown || isCollapsed, [shown, isCollapsed]);
+    return (
+        <div>
+            <div className="handles">
+                <div className="inputs">
+                    {
+                        inputs.length > 0 &&
+                        <InputHandle collapsed={collapsed} id="in" name="in" />
+                    }
+                    {
+                        Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
+                            if (!isWidgetType(parameter.type)) {
+                                const { required, description } = parameter;
+                                const tooltip = required ? `(required) ${description}` : description;
+                                return (
+                                    <InputHandle collapsed={collapsed} key={parameterName} id={parameterName} name={parameterName} isResource={true} tooltip={tooltip} />
+                                );
+                            }
+                        })
+                    }
+                </div>
+                <div className='outputs'>
+                    {
+                        outputs.map(output => (
+                            <OutputHandle
+                                key={output.id}
+                                collapsed={collapsed}
+                                id={output.id}
+                                name={output.label}
+                                count={recordCount[output.id]}
+                                isResource={output.isResource}
+                            />
+                        ))
+                    }
+                </div>
+            </div>
+            {
+                shown &&
+                <div className='widgets'>
+                    {
+                        !isCollapsed &&
+                        Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
+                            if (isWidgetType(parameter.type)) {
+                                return (
+                                    <div style={{ marginBottom: '2px' }} key={i} className="parameter">
+                                        <Widget {...parameter} id={id} type={parameter.type} name={parameterName} value={parameter.value} />
+                                    </div>
+                                );
+                            }
+                            return null;
+                        }).filter(x => x)
+                    }
+                </div>
+            }
+            {/* <div className="widgets">
+                <Prompt nodeId={id} />
+            </div> */}
+        </div>
+    )
 }
 
 function ContentOverlay({ children }) {
@@ -161,57 +229,18 @@ function ContentOverlay({ children }) {
         return null;
     }
 
+    const overlayStyle = {
+        background: 'white',
+        width: '100%',
+        maxWidth: '200px',
+        maxHeight: '200px',
+        zIndex: 5,
+        overflow: 'auto'
+    };
+
     return (
-        <div style={{width: '200px', height: '120px'}}>
-            <div style={{background: 'white', top:0,  width: '100%', height: '100%', position: 'absolute', zIndex: 5, overflow: 'auto'}}>
-                { children }
-            </div>
+        <div style={overlayStyle}>
+            { children }
         </div>
-
-    );
-}
-
-
-function EntryImages({ entry, style }: { entry: QuickViewEntry, style: CSSProperties | undefined }) {
-    const [settings, _] = useSettings();
-
-    const imageEntries = useMemo(() => {
-        let entries: { [key: string]: ImageRef[] } = {};
-        Object.entries<QuickViewEntry>(entry).forEach(([key, item]) => {
-            let imageItems: any = [];
-            if (Array.isArray(item)) {
-                imageItems = item.filter(item => item.type?.slice(0, 5) === 'image');
-            } else {
-                if (item.type?.slice(0, 5) === 'image') {
-                    imageItems.push(item);
-                }
-            }
-            if (imageItems.length > 0) {
-                entries[key] = imageItems;
-            }
-        });
-        return entries;
-    }, [entry]);
-
-    return (
-        <Flex style={style}>
-            {
-                Object.entries<ImageRef[]>(imageEntries).map(([key, images]) => {
-                    return (
-                        <Space key={key} direction="vertical" align='center'>
-                            <div>{key}</div>
-                            <Flex vertical>
-                                {
-                                    images.map((image, i) => (
-                                        <Image key={i} src={getMediaPath(settings, image)} height={settings.quickviewImageHeight} />
-                                    ))
-                                }
-                            </Flex>
-                        </Space>
-
-                    );
-                })
-            }
-        </Flex>
     );
 }
