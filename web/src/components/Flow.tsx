@@ -6,11 +6,12 @@ import ReactFlow, {
     useEdgesState,
     addEdge,
     useNodes,
-    useEdges
+    useEdges,
+    useReactFlow
 } from 'reactflow';
 import { Button, Flex, Space, theme } from 'antd';
-import { ClearOutlined, CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
-import { Graph } from '../graph.ts';
+import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined } from '@ant-design/icons';
+import { Graph, layoutDAG } from '../graph.ts';
 import { SearchNode } from './SearchNode.tsx';
 import { Step } from './Nodes/Step.tsx';
 import { Group, groupIfPossible } from './Nodes/Group.tsx';
@@ -426,6 +427,7 @@ function ControlRow() {
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();
+    const { setNodes } = useReactFlow();
     const notification = useNotification();
     const filename = useFilename();
 
@@ -463,15 +465,21 @@ function ControlRow() {
         API.clearAll();
     }, [API]);
 
+    const layout = useCallback(() => {
+        const newNodes = layoutDAG(nodes, edges);
+        setNodes(newNodes);
+    }, [nodes, edges, setNodes]);
+
     return (
         <div className="control-row">
             <Flex gap="small">
-                <Button type="default" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} /> {/* Clear */}
+                <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={runState !== 'stopped' || !API} />
+                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} />
                 {
                     runState !== 'stopped' ? (
-                        <Button type="default" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
+                        <Button type="default" title="Pause" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
-                        <Button type="default" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />
+                        <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />
                     )
                 }
             </Flex>
