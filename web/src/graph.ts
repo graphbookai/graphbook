@@ -757,7 +757,7 @@ export function layoutDAG(
             currentY = 0;
             for (const node of nodes) {
                 node.x = currentX;
-                node.y = currentY + node.height / 2;
+                node.y = currentY;
                 currentY += node.height + verticalSpacing;
             }
             currentX += layerWidth + horizontalSpacing;

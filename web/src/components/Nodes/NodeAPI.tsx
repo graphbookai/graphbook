@@ -1,6 +1,6 @@
 import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space, Empty } from 'antd';
+import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space, Empty, Typography } from 'antd';
 import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
 import { Widget, isWidgetType } from './widgets/Widgets';
 import { Graph } from '../../graph';
@@ -8,21 +8,14 @@ import { useRunState } from '../../hooks/RunState';
 import { useAPI, useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { nodeBorderStyle } from '../../styles';
-import { getMergedLogs, getMediaPath } from '../../utils';
 import { useNotification } from '../../hooks/Notification';
-import { useSettings } from '../../hooks/Settings';
 import { SerializationErrorMessages } from '../Errors';
 import { Prompt } from './widgets/Prompts';
 import { InputHandle, OutputHandle } from './Handle';
-import ReactJson from '@microlink/react-json-view';
-import type { LogEntry, Parameter, ImageRef } from '../../utils';
+import type { Parameter } from '../../utils';
 
-const { Panel } = Collapse;
+const { Text } = Typography;
 const { useToken } = theme;
-
-type QuickViewEntry = {
-    [key: string]: any;
-};
 
 type Pin = {
     id: string;
@@ -33,9 +26,9 @@ type Pin = {
 export type NodeProps = {
     id: string;
     style?: React.CSSProperties,
-    name: string;
+    name?: string;
     inputs: Pin[];
-    parameters: any;
+    parameters?: any;
     outputs: Pin[];
     selected: boolean;
     errored: boolean;
@@ -119,7 +112,10 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
         <div style={borderStyle}>
             <Card className="workflow-node" style={style}>
                 <Flex gap="small" justify='space-between' className='title'>
-                    <div>{name}</div>
+                    {
+                        name &&
+                        <div>{name}</div>
+                    }
                     {
                         isRunnable && 
                         <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
@@ -160,25 +156,50 @@ export function EmptyTab({ description }: EmptyTabProps) {
             description={description}
         />
     );
-}
+} 
 
 function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCount, shown }) {
     const collapsed = useMemo(() => !shown || isCollapsed, [shown, isCollapsed]);
+    const [inputEntries, outputEntries] = useMemo(() => {
+        const fn = (data) => {
+            return data.map(d => {
+                if (typeof(d) === 'string') {
+                    return { id: d, label: d };
+                }
+                return d;
+            });
+        };
+        return [fn(inputs), fn(outputs)];
+    }, [inputs, outputs]);
     return (
         <div>
             <div className="handles">
                 <div className="inputs">
                     {
-                        inputs.length > 0 &&
-                        <InputHandle collapsed={collapsed} id="in" name="in" />
+                        inputEntries.map(input => (
+                            <InputHandle
+                                key={input.id}
+                                collapsed={collapsed}
+                                id={input.id}
+                                name={input.label} 
+                            />
+                        ))
                     }
                     {
+                        parameters &&
                         Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                             if (!isWidgetType(parameter.type)) {
                                 const { required, description } = parameter;
                                 const tooltip = required ? `(required) ${description}` : description;
                                 return (
-                                    <InputHandle collapsed={collapsed} key={parameterName} id={parameterName} name={parameterName} isResource={true} tooltip={tooltip} />
+                                    <InputHandle
+                                        key={parameterName}
+                                        id={parameterName}
+                                        collapsed={collapsed}
+                                        name={parameterName}
+                                        isResource={true}
+                                        tooltip={tooltip}
+                                    />
                                 );
                             }
                         })
@@ -186,7 +207,7 @@ function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCo
                 </div>
                 <div className='outputs'>
                     {
-                        outputs.map(output => (
+                        outputEntries.map(output => (
                             <OutputHandle
                                 key={output.id}
                                 collapsed={collapsed}
@@ -203,6 +224,7 @@ function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCo
                 shown &&
                 <div className='widgets'>
                     {
+                        parameters &&
                         !isCollapsed &&
                         Object.entries<Parameter>(parameters).map(([parameterName, parameter], i) => {
                             if (isWidgetType(parameter.type)) {
