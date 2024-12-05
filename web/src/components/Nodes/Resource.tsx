@@ -1,5 +1,5 @@
 import React from 'react';
-import { Node } from './NodeAPI';
+import { Node } from './Node';
 
 export function Resource({ id, data, selected }) {
     const { name, parameters, isCollapsed } = data;

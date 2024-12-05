@@ -473,7 +473,7 @@ function ControlRow() {
     return (
         <div className="control-row">
             <Flex gap="small">
-                <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={runState !== 'stopped' || !API} />
+                <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
                 <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} />
                 {
                     runState !== 'stopped' ? (

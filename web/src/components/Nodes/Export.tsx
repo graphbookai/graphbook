@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { Card, Input } from 'antd';
 import { useReactFlow } from 'reactflow';
 import { Graph } from '../../graph';
-import { Node } from './NodeAPI';
+import { Node } from './Node';
 
 export function Export({ id, data, selected }) {
     const outputs = useMemo(() => {
@@ -38,8 +38,6 @@ export function Export({ id, data, selected }) {
         const newNodes = Graph.editNodeData(id, { label: value, isEditing: false }, getNodes());
         setNodes(newNodes);
     }, [id, value]);
-
-    console.log(inputs, outputs);
 
     if (isEditing) {
         return (

@@ -160,7 +160,6 @@ textarea.code {
     line-height: .8;
 }
 
-
 .workflow-node button.ant-btn>span {
     font-size: .6em;
 }
@@ -328,10 +327,24 @@ textarea.code {
 
 .workflow-node .ant-tabs .ant-tabs-tab {
     font-size: 8px;
-    padding: 2px;
+    padding: 0;
     margin: 0 4px 0 0;
 }
 
 .workflow-node .ant-tabs .ant-tabs-nav {
     margin: 0 0 2px 0;
+}
+
+.workflow-node .ant-tabs .ant-tabs-nav .ant-tabs-tab-btn {
+    white-space: nowrap;
+    display: block;
+}
+
+.workflow-node .ant-tabs .ant-tabs-nav .ant-tabs-tab-btn span {
+    display: inline-block;
+}
+
+.workflow-node .ant-tabs .ant-tabs-nav .ant-tabs-tab-btn span.ant-tabs-tab-icon {
+    margin: 0 2px 0 0;
+    vertical-align: top;
 }

@@ -34,7 +34,7 @@ const dataToPrompt = (data: PromptData): Prompt => ({
     type: data.type
 });
 
-export function usePrompt(nodeId: string, callback?: Function | null): [Prompt | null, Function] {
+export function usePrompt(nodeId: string, callback?: (p: Prompt) => void | null): Function {
     const filename = useFilename();
     const [_, setPrompt] = useState<Prompt | null>(null);
 
@@ -68,10 +68,5 @@ export function usePrompt(nodeId: string, callback?: Function | null): [Prompt |
 
     useAPINodeMessage("prompt", nodeId, filename, onPrompt);
 
-    const promptData = globalPrompts[nodeId];
-    if (!promptData) {
-        return [null, setSubmitted];
-    }
-
-    return [dataToPrompt(promptData), setSubmitted];
+    return setSubmitted;
 }

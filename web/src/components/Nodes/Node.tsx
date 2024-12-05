@@ -1,34 +1,34 @@
-import React, { CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
-import { Handle, Position, useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Collapse, Badge, Flex, Button, Image, Tabs, theme, Space, Empty, Typography } from 'antd';
-import { SearchOutlined, FileTextOutlined, CaretRightOutlined, FileImageOutlined, CodeOutlined } from '@ant-design/icons';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
+import { Card, Flex, Button, Tabs, theme, Empty } from 'antd';
+import { ControlOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget, isWidgetType } from './widgets/Widgets';
 import { Graph } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
-import { useAPI, useAPINodeMessage } from '../../hooks/API';
+import { useAPI } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { nodeBorderStyle } from '../../styles';
 import { useNotification } from '../../hooks/Notification';
 import { SerializationErrorMessages } from '../Errors';
-import { Prompt } from './widgets/Prompts';
 import { InputHandle, OutputHandle } from './Handle';
 import type { Parameter } from '../../utils';
+import { useSettings } from '../../hooks/Settings';
 
-const { Text } = Typography;
 const { useToken } = theme;
 
-type Pin = {
+export type Pin = {
     id: string;
     label: string;
     isResource?: boolean;
+    recordCount?: number;
 }
 
 export type NodeProps = {
     id: string;
     style?: React.CSSProperties,
     name?: string;
+    parameters?: { [key: string]: Parameter };
     inputs: Pin[];
-    parameters?: any;
     outputs: Pin[];
     selected: boolean;
     errored: boolean;
@@ -38,7 +38,6 @@ export type NodeProps = {
 }
 
 export function Node({ id, style, name, inputs, parameters, outputs, selected, errored, isCollapsed, tabs, ...props }: NodeProps) {
-    const [recordCount, setRecordCount] = useState({});
     const [parentSelected, setParentSelected] = useState(false);
     const [runState, runStateShouldChange] = useRunState();
     const nodes = useNodes();
@@ -50,16 +49,27 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
     const filename = useFilename();
     const [tabShown, setTabShown] = useState(-1);
     const isRunnable = props.isRunnable === undefined ? true : false;
+    const [settings, _] = useSettings();
     tabs = tabs || [];
-    const tabList = useMemo(() => 
-        [{
+    const tabList = useMemo(() => {
+        const data = [{
             key: 'Params',
-            label: 'Params'
-        }, ...tabs.map(tab => ({...tab, key: tab.label, children: undefined}))], [tabs]);
-
-    useAPINodeMessage('stats', id, filename, (msg) => {
-        setRecordCount(msg.queue_size || {});
-    });
+            label: 'Params',
+            icon: <ControlOutlined />,
+        }, ...tabs.map(tab => ({
+            key: tab.label,
+            label: tab.label,
+            icon: tab.icon,
+            children: undefined
+        }))];
+        const showIcon = settings.nodeTabsDisplay === "ICONS" || settings.nodeTabsDisplay === "BOTH";
+        const showLabel = settings.nodeTabsDisplay === "NAMES" || settings.nodeTabsDisplay === "BOTH";
+        return data.map(d => ({
+            ...d,
+            icon: showIcon ? d.icon : undefined,
+            label: showLabel ? d.label : undefined,
+        }));
+    }, [tabs, settings]);
 
     const onSelectionChange = useCallback(({ nodes }) => {
         const parentId = getNode(id)?.parentId;
@@ -117,26 +127,25 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
                         <div>{name}</div>
                     }
                     {
-                        isRunnable && 
+                        isRunnable &&
                         <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
                     }
                 </Flex>
-                { 
+                {
                     !isCollapsed && tabs.length > 0 &&
                     <Tabs items={tabList} defaultActiveKey={tabs[tabShown]?.label || 'Params'} onTabClick={onTabClick} />
                 }
-                <div style={{position: 'relative'}}>
+                <div style={{ position: 'relative' }}>
                     <ContentDefault
                         id={id}
                         inputs={inputs}
                         parameters={parameters}
                         outputs={outputs}
                         isCollapsed={isCollapsed}
-                        recordCount={recordCount}
                         shown={tabShown === -1}
                     />
                     <ContentOverlay>
-                        { !isCollapsed && tabs[tabShown]?.children }
+                        {!isCollapsed && tabs[tabShown]?.children}
                     </ContentOverlay>
                 </div>
             </Card>
@@ -156,14 +165,14 @@ export function EmptyTab({ description }: EmptyTabProps) {
             description={description}
         />
     );
-} 
+}
 
-function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCount, shown }) {
+function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, shown }) {
     const collapsed = useMemo(() => !shown || isCollapsed, [shown, isCollapsed]);
     const [inputEntries, outputEntries] = useMemo(() => {
         const fn = (data) => {
             return data.map(d => {
-                if (typeof(d) === 'string') {
+                if (typeof (d) === 'string') {
                     return { id: d, label: d };
                 }
                 return d;
@@ -181,7 +190,7 @@ function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCo
                                 key={input.id}
                                 collapsed={collapsed}
                                 id={input.id}
-                                name={input.label} 
+                                name={input.label}
                             />
                         ))
                     }
@@ -213,7 +222,7 @@ function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCo
                                 collapsed={collapsed}
                                 id={output.id}
                                 name={output.label}
-                                count={recordCount[output.id]}
+                                count={output.recordCount}
                                 isResource={output.isResource}
                             />
                         ))
@@ -239,9 +248,6 @@ function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, recordCo
                     }
                 </div>
             }
-            {/* <div className="widgets">
-                <Prompt nodeId={id} />
-            </div> */}
         </div>
     )
 }
@@ -254,15 +260,15 @@ function ContentOverlay({ children }) {
     const overlayStyle = {
         background: 'white',
         width: '100%',
-        maxWidth: '200px',
-        maxHeight: '200px',
+        maxWidth: '400px',
+        maxHeight: '400px',
         zIndex: 5,
         overflow: 'auto'
     };
 
     return (
         <div style={overlayStyle}>
-            { children }
+            {children}
         </div>
     );
 }
