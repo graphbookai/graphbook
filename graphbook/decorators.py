@@ -1,8 +1,7 @@
-import graphbook.steps as steps
-import graphbook.resources as resources
+from . import steps, resources
 from typing import List, Dict
 import abc
-from graphbook.utils import transform_function_string
+from .utils import transform_function_string
 
 
 class NodeClassFactory:

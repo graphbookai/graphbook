@@ -55,6 +55,7 @@ const handleStyle = {
     borderRadius: '50%',
     left: 0,
     right: 0,
+    zIndex: 1,
 };
 
 export const inputHandleStyle = () => {

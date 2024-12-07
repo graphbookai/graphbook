@@ -1,4 +1,4 @@
-from graphbook.steps import (
+from ..steps import (
     Step,
     SourceStep,
     GeneratorSourceStep,
@@ -6,12 +6,12 @@ from graphbook.steps import (
     BatchStep,
     StepOutput,
 )
-from graphbook.dataloading import Dataloader, setup_global_dl
-from graphbook.utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
-from graphbook.state import GraphState, StepState, NodeInstantiationError
-from graphbook.viewer import ViewManagerInterface
-from graphbook.logger import log
-from graphbook.shm import SharedMemoryManager
+from ..dataloading import Dataloader, setup_global_dl
+from ..utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
+from ..state import GraphState, StepState, NodeInstantiationError
+from ..viewer import ViewManagerInterface
+from ..logger import log
+from ..shm import SharedMemoryManager
 from ..note import Note
 from typing import List
 import queue

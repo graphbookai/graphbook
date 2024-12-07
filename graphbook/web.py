@@ -9,13 +9,13 @@ import base64
 import hashlib
 import aiohttp
 from aiohttp import web
-from graphbook.processing.web_processor import WebInstanceProcessor
-from graphbook.viewer import ViewManager
-from graphbook.exports import NodeHub
-from graphbook.state import UIState
-from graphbook.media import create_media_server
-from graphbook.utils import poll_conn_for, ProcessorStateRequest
-from graphbook.shm import SharedMemoryManager
+from .processing.web_processor import WebInstanceProcessor
+from .viewer import ViewManager
+from .exports import NodeHub
+from .state import UIState
+from .media import create_media_server
+from .utils import poll_conn_for, ProcessorStateRequest
+from .shm import SharedMemoryManager
 
 
 @web.middleware
@@ -358,8 +358,8 @@ class GraphServer:
             if osp.exists(fullpath):
                 with open(fullpath, "r") as f:
                     current_hash = hashlib.md5(f.read().encode()).hexdigest()
-                    print(current_hash, hash_key)
                     if current_hash != hash_key:
+                        print("Couldn't save file due to hash mismatch")
                         return web.json_response(
                             {"reason": "Hash mismatch."}, status=409
                         )
@@ -479,6 +479,10 @@ def create_sample_workflow(workflow_dir, custom_nodes_path, docs_path):
 
 
 def start_web(args):
+    # The start method on some systems like Mac default to spawn
+    if not args.spawn and mp.get_start_method() == "spawn":
+        mp.set_start_method("fork", force=True)
+
     cmd_queue = mp.Queue()
     parent_conn, child_conn = mp.Pipe()
     view_manager_queue = mp.Queue()

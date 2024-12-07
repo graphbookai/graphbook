@@ -34,7 +34,7 @@
   </p>
 
   <p align="center">
-    The ML workflow framework
+    The Framework for AI-driven Data Pipelines
     <br>
     <a href="https://github.com/graphbookai/graphbook/issues/new?template=bug_report.md&labels=bug">Report bug</a>
     ·
@@ -51,7 +51,7 @@
 </p>
 
 ## Overview
-Graphbook is a framework for building efficient, visual DAG-structured ML workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching for PyTorch tensors, and it features a web-based UI to assemble, monitor, and execute data processing workflows. It can be used to prepare training data for custom ML models, experiment with custom trained or off-the-shelf models, and to build ML-based ETL applications. Custom nodes can be built in Python, and Graphbook will behave like a framework and call lifecycle methods on those nodes.
+Graphbook is a framework for building efficient, interactive DAG-structured AI data pipelines or workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching for PyTorch tensors, and it features a web-based UI to assemble, monitor, and execute data processing workflows. It can be used to prepare training data for custom ML models, experiment with custom trained or off-the-shelf models, and to build ML-based ETL applications. Custom nodes can be built in Python, and Graphbook will behave like a framework and call lifecycle methods on those nodes.
 
 <p align="center">
   <a href="https://graphbook.ai">
@@ -114,7 +114,7 @@ The following operating systems are supported in order of most to least recommen
 1. Visit http://localhost:8005
 
 ### Recommended Plugins
-* [Huggingface](https://github.com/graphbookai/graphbook-huggingface)
+* [Graphbook Hugging Face](https://github.com/graphbookai/graphbook-huggingface)
 
 Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
 

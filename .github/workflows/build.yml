@@ -3,6 +3,9 @@ name: Docker Build
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+        - 'docs/**'
+        - 'tests/**'
 
 jobs:
   docker:
@@ -23,3 +26,5 @@ jobs:
         with:
           push: true
           tags: rsamf/graphbook:latest
+          cache-from: type=registry,ref=rsamf/graphbook:latest
+          cache-to: type=inline

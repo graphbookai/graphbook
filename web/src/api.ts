@@ -132,22 +132,15 @@ export class ServerAPI {
         }
     }
 
-    private async put(path, data): Promise<any> {
-        try {
-            const response = await fetch(`http://${this.host}/${path}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            });
-            if (response.ok) {
-                return await response.json();
-            }
-        } catch (e) {
-            console.error(e);
-            return null;
-        }
+    private async put(path, data): Promise<Response> {
+        const response = await fetch(`http://${this.host}/${path}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        return response;
     }
 
     private async get(path): Promise<any> {

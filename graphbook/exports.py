@@ -1,8 +1,6 @@
-import graphbook.steps as steps
-import graphbook.resources as resources
-import graphbook.custom_nodes as custom_nodes
-from graphbook.doc2md import convert_to_md
-from graphbook.plugins import setup_plugins
+from . import steps, resources, custom_nodes
+from .doc2md import convert_to_md
+from .plugins import setup_plugins
 from aiohttp import web
 
 default_exported_steps = {
