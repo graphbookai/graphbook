@@ -9,7 +9,6 @@ import ReactJson from "@microlink/react-json-view";
 import { getMergedLogs, getMediaPath } from "../utils";
 import { useFilename } from "../hooks/Filename";
 import { useSettings } from "../hooks/Settings";
-import type { ImageRef } from "../utils";
 import type { Node } from "reactflow";
 import type { TableProps, StatisticProps, MenuProps } from "antd";
 

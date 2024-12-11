@@ -9,9 +9,8 @@ let settings = {
     useExternalMediaServer: false,
     monitorDataColumns: MONITOR_DATA_COLUMNS,
     monitorLogsShouldScrollToBottom: true,
-    quickviewShowNotes: true,
-    quickviewShowImages: true,
     quickviewImageHeight: 100,
+    nodeTabsDisplay: "BOTH",
 };
 
 const storedSettings = localStorage.getItem('settings');

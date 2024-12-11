@@ -1,10 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Switch, Input, Typography, Flex, theme, Button, Space, Checkbox, Slider } from 'antd';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Switch, Input, Typography, Flex, Button, Space, Checkbox, Slider, Radio } from 'antd';
 import { API } from '../api';
 import { useSettings } from '../hooks/Settings';
 import React from 'react';
 
 const { Text, Title } = Typography;
+const NODE_TABS_OPTIONS = {
+    "ICONS": "Icons Only",
+    "NAMES": "Names Only",
+    "BOTH": "Both"
+};
 
 export default function Settings() {
     const [mediaSettings, setMediaSettings] = useState({ root_path: '' });
@@ -37,15 +42,6 @@ export default function Settings() {
         setClientSetting('mediaServerHost', value);
     }, []);
 
-    const setShowNotes = useCallback((event) => {
-        setClientSetting('quickviewShowNotes', event.target.checked);
-    }, []);
-
-    const setShowImages = useCallback((event) => {
-        setClientSetting('quickviewShowImages', event.target.checked);
-    }, []);
-
-
     const setImageHeight = useCallback((value) => {
         setClientSetting('quickviewImageHeight', value);
     }, []);
@@ -54,10 +50,13 @@ export default function Settings() {
         setClientSetting('disableTooltips', event.target.checked);
     }, []);
 
+    const setNodeTabsDisplay = useCallback((value) => {
+        setClientSetting('nodeTabsDisplay', value);
+    }, []);
 
     return (
         <div style={{ height: '60vh', overflow: 'auto' }}>
-            <Space direction='vertical'>
+            <Space direction='vertical' style={{ width: '100%' }}>
                 <Title level={4}>Client Settings</Title>
                 <SettingsEntrySwitch
                     name="Theme"
@@ -65,6 +64,12 @@ export default function Settings() {
                     checkedText="Dark"
                     uncheckedText="Light"
                     onChange={(checked) => { setClientSetting('theme', checked ? "Dark" : "Light") }}
+                />
+                <SettingsEntryRadioGroup
+                    name="Node Tabs Display"
+                    options={NODE_TABS_OPTIONS}
+                    value={clientSettings.nodeTabsDisplay}
+                    onChange={setNodeTabsDisplay}
                 />
                 <Checkbox onChange={disableTooltips} checked={clientSettings.disableTooltips}>Disable Tooltips <Text type="secondary">(improves UI performance)</Text></Checkbox>
                 <SettingsEntryInput name="Graph Server Host" value={clientSettings.graphServerHost} addonBefore="http://" onApply={setGraphServerHost} />
@@ -75,11 +80,10 @@ export default function Settings() {
                 <SettingsEntryInput name="Media Root Path" value={mediaSettings.root_path} onChange={(value) => setMediaVar('root_path', value)} disabled={!clientSettings.useExternalMediaServer} />
 
                 <Title level={4}>Quickview Settings</Title>
-                <Checkbox onChange={setShowNotes} checked={clientSettings.quickviewShowNotes}>Show Notes</Checkbox>
-                <Checkbox onChange={setShowImages} checked={clientSettings.quickviewShowImages}>Show Images</Checkbox>
                 <Flex vertical>
                     <Text>Image Height</Text>
                     <Slider
+                        style={{ maxWidth: '50%', marginLeft: 10 }}
                         min={50}
                         max={200}
                         defaultValue={100}
@@ -130,6 +134,30 @@ function SettingsEntrySwitch({ name, checked, checkedText, uncheckedText, onChan
                     onChange={onChange}
                 />
             </Flex>
+        </Flex>
+    );
+}
+
+function SettingsEntryRadioGroup({ name, options, value, onChange }) {
+    const groupOptions = useMemo(() => Object.entries<string>(options).map(([key, value]) => ({
+        label: value,
+        value: key
+    })), [options]);
+
+    const onValueChange = useCallback((e) => {
+        onChange(e.target.value);
+    }, [onChange]);
+
+    return (
+        <Flex vertical>
+            <Text>{name}</Text>
+            <Radio.Group
+                block
+                optionType="button"
+                options={groupOptions}
+                value={value}
+                onChange={onValueChange}
+            />
         </Flex>
     );
 }

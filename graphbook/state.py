@@ -371,8 +371,8 @@ class GraphState:
             if node_id in self._queues:
                 self._queues[node_id].clear()
                 step = self._steps[node_id]
-                for p in step.parents:
-                    self._queues[p.id].reset_consumer_idx(id(step))
+                for parent_id in self._step_graph["parent"][node_id]:
+                    self._queues[parent_id].reset_consumer_idx(id(step))
                 self._step_states[node_id] = set()
                 self.view_manager.handle_queue_size(
                     node_id, self._queues[node_id].dict_sizes()
