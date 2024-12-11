@@ -1,10 +1,9 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Typography, Flex, Button } from 'antd';
 import { usePluginWidgets } from '../../../hooks/Plugins';
 import { NotePreview } from './NotePreview';
 import { ListWidget, getWidgetLookup } from './Widgets';
 import { useAPI } from '../../../hooks/API';
-import { usePrompt } from '../../../hooks/Prompts';
 import type { Prompt } from '../../../hooks/Prompts';
 import { parseDictWidgetValue } from '../../../utils';
 
@@ -25,16 +24,14 @@ function WidgetPrompt({ type, options, value, onChange }) {
     }
 }
 
-export function Prompt({ nodeId }: { nodeId: string }) {
+export function Prompt({ nodeId, prompt, setSubmitted }) {
     const API = useAPI();
     const [value, setValue] = useState<any>(null);
     const [loading, setLoading] = useState(false);
 
-    const onPromptChange = useCallback((prompt) => {
+    useEffect(() => {
         setValue(prompt?.def);
-    }, []);
-
-    const [prompt, setSubmitted] = usePrompt(nodeId, onPromptChange);
+    }, [prompt])
 
     const onChange = useCallback((value) => {
         setValue(value);
@@ -48,6 +45,7 @@ export function Prompt({ nodeId }: { nodeId: string }) {
                 if (prompt?.type === 'dict') {
                     answer = parseDictWidgetValue(answer);
                 }
+                console.log(answer);
                 await API.respondToPrompt(nodeId, answer);
             } catch (e) {
                 console.error(e);
@@ -56,10 +54,6 @@ export function Prompt({ nodeId }: { nodeId: string }) {
             setSubmitted();
         }
     }, [value, API, nodeId]);
-
-    if (!prompt || prompt.type === null) {
-        return null;
-    }
 
     return (
         <Flex className="prompt" vertical>

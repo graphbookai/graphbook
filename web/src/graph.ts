@@ -633,3 +633,155 @@ export class DAG {
         });
     }
 }
+
+interface LayoutNode {
+    id: string;
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+    layer?: number;
+}
+
+interface LayoutEdge {
+    from: string;
+    to: string;
+}
+
+export function layoutDAG(
+    inputNodes: Node[],
+    inputEdges: Edge[],
+    defaultNodeWidth = 100,
+    defaultNodeHeight = 100,
+    horizontalSpacing = 50,
+    verticalSpacing = 50,
+    centerX = 400,
+    centerY = 200,
+): Node[] {
+    const nodes = new Map(inputNodes.map(node => [node.id, {
+        id: node.id,
+        width: node.width || defaultNodeWidth,
+        height: node.height || defaultNodeHeight,
+        x: node.position.x,
+        y: node.position.y,
+    }]));
+    const edges = inputEdges.map(edge => ({
+        from: edge.source,
+        to: edge.target
+    }));
+    const nodeLayerMap = new Map<string, number>();
+    const layerNodes = new Map<number, LayoutNode[]>();
+
+    function assignLayers(): void {
+        const incomingEdges = new Map<string, number>();
+        const outgoingEdges = new Map<string, LayoutEdge[]>();
+
+        for (const edge of edges) {
+            incomingEdges.set(edge.to, (incomingEdges.get(edge.to) || 0) + 1);
+            if (!outgoingEdges.has(edge.from)) {
+                outgoingEdges.set(edge.from, []);
+            }
+            outgoingEdges.get(edge.from)!.push(edge);
+        }
+
+        const roots = Array.from(nodes.keys())
+            .filter(id => !incomingEdges.has(id));
+
+        const queue: string[] = [...roots];
+        let currentLayer = 0;
+
+        while (queue.length > 0) {
+            const layerSize = queue.length;
+            if (!layerNodes.has(currentLayer)) {
+                layerNodes.set(currentLayer, []);
+            }
+
+            for (let i = 0; i < layerSize; i++) {
+                const nodeId = queue.shift()!;
+                const node = nodes.get(nodeId)!;
+
+                nodeLayerMap.set(nodeId, currentLayer);
+                layerNodes.get(currentLayer)!.push(node);
+
+                const children = outgoingEdges.get(nodeId) || [];
+                for (const edge of children) {
+                    incomingEdges.set(edge.to, incomingEdges.get(edge.to)! - 1);
+                    if (incomingEdges.get(edge.to) === 0) {
+                        queue.push(edge.to);
+                    }
+                }
+            }
+
+            currentLayer++;
+        }
+    }
+
+    function minimizeCrossings(): void {
+        for (let layer = 1; layer < layerNodes.size; layer++) {
+            const currentLayerNodes = layerNodes.get(layer)!;
+            const prevLayerNodes = layerNodes.get(layer - 1)!;
+
+            const nodeOrder = new Map<string, number>();
+
+            for (const node of currentLayerNodes) {
+                const connectedPrevNodes = edges
+                    .filter(e => e.to === node.id)
+                    .map(e => e.from)
+                    .map(id => prevLayerNodes.findIndex(n => n.id === id))
+                    .filter(idx => idx !== -1);
+
+                const barycenter = connectedPrevNodes.length > 0
+                    ? connectedPrevNodes.reduce((a, b) => a + b, 0) / connectedPrevNodes.length
+                    : currentLayerNodes.indexOf(node);
+
+                nodeOrder.set(node.id, barycenter);
+            }
+
+            currentLayerNodes.sort((a, b) =>
+                (nodeOrder.get(a.id) || 0) - (nodeOrder.get(b.id) || 0)
+            );
+        }
+    }
+
+    function assignCoordinates(): void {
+        let currentX = 0;
+        let currentY = 0;
+        let totalHeight = 0;
+        const layerWidths: number[] = [];
+
+        for (let layer = 0; layer < layerNodes.size; layer++) {
+            const nodes = layerNodes.get(layer)!;
+            const layerWidth = Math.max(...nodes.map(n => n.width));
+            layerWidths[layer] = layerWidth;
+
+            currentY = 0;
+            for (const node of nodes) {
+                node.x = currentX;
+                node.y = currentY;
+                currentY += node.height + verticalSpacing;
+            }
+            currentX += layerWidth + horizontalSpacing;
+            totalHeight = Math.max(totalHeight, currentY - verticalSpacing);
+        }
+
+        // Center nodes
+        const totalWidth = currentX - horizontalSpacing;
+        const offsetFromCenterY = centerY - (totalHeight / 2);
+        const offsetFromCenterX = centerX - (totalWidth / 2);
+        for (const [_, layer] of layerNodes) {
+            for (const node of layer) {
+                node.y += offsetFromCenterY;
+                node.x += offsetFromCenterX;
+            }
+        }
+    }
+
+    assignLayers();
+    minimizeCrossings();
+    assignCoordinates();
+
+    return inputNodes.map(node => ({
+        ...node,
+        position: { x: nodes.get(node.id)?.x || 0, y: nodes.get(node.id)?.y || 0 }
+    }));
+}

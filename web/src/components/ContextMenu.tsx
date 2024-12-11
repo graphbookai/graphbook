@@ -127,6 +127,8 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
 
     const RESOURCE_OPTIONS = useMemo(() => !node ? [] : [ ...NODE_OPTIONS ], [NODE_OPTIONS]);
 
+    const SUBFLOW_OPTIONS = useMemo(() => !node ? [] : [ ...NODE_OPTIONS ], [NODE_OPTIONS]);
+
     const GROUP_OPTIONS = useMemo(() => {
         if (!node || !API) {
             return [];
@@ -298,6 +300,9 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
         }
         if (nodeType === 'export') {
             return EXPORT_OPTIONS;
+        }
+        if (nodeType === 'subflow') {
+            return SUBFLOW_OPTIONS;
         }
         if (nodeType === 'step') {
             return STEP_OPTIONS;

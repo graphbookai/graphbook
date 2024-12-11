@@ -68,8 +68,8 @@ function View() {
     const mainView = useMemo(() => {
         if (workflowFile) {
             return (
-                <div style={{ width: '100%', height: '100%' }}>
-                    {/* {codeEditorView} Disabled: 0.4 */}
+                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    {codeEditorView}
                     <Flow filename={workflowFile} />
                 </div>
             );

@@ -358,8 +358,8 @@ class GraphServer:
             if osp.exists(fullpath):
                 with open(fullpath, "r") as f:
                     current_hash = hashlib.md5(f.read().encode()).hexdigest()
-                    print(current_hash, hash_key)
                     if current_hash != hash_key:
+                        print("Couldn't save file due to hash mismatch")
                         return web.json_response(
                             {"reason": "Hash mismatch."}, status=409
                         )
