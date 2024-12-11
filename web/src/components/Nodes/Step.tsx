@@ -67,7 +67,7 @@ export function Step({ id, data, selected }) {
         if (isPromptNode) {
             t.push({
                 label: 'Prompts',
-                children: <PromptView nodeId={id} prompt={prompt} setSubmitted={setSubmitted}/>,
+                children: <PromptView nodeId={id} prompt={prompt} setSubmitted={setSubmitted} />,
                 icon: <Click />
             });
         }
@@ -144,6 +144,13 @@ function LogsView({ data }) {
         return i % 2 === 0 ? token.colorBgBase : token.colorBgLayout;
     }, [token]);
 
+    const textOf = useCallback((t) => {
+        if (typeof t === 'string') {
+            return t;
+        }
+        return JSON.stringify(t);
+    }, []);
+
     return (
         data.length === 0 ?
             <EmptyTab description='No logs' /> :
@@ -160,7 +167,7 @@ function LogsView({ data }) {
                             padding: '1px 0 1px 4px'
                         };
                         return (
-                            <Text key={i} style={style}>{msg}</Text>
+                            <Text key={i} style={style}>{textOf(msg)}</Text>
                         );
                     })
                 }
