@@ -294,31 +294,49 @@ function StatsView({ data }) {
 
 function LogsView({ data, shouldScrollToBottom }) {
     const bottomRef = useRef<HTMLDivElement>(null);
+    const { token } = theme.useToken();
+
 
     useEffect(() => {
         if (shouldScrollToBottom) {
-            bottomRef.current?.scrollIntoView({ behavior: 'instant' });
+            bottomRef.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: 'instant' });
         }
     }, [data, shouldScrollToBottom]);
 
+    const bg = useCallback((i) => {
+        return i % 2 === 0 ? token.colorBgBase : token.colorBgLayout;
+    }, [token]);
+
+    const textOf = useCallback((t) => {
+        if (typeof t === 'string') {
+            return t;
+        }
+        return JSON.stringify(t);
+    }, []);
+
     return (
-        data &&
-        (
+        !data || data.length === 0 ?
+            <Empty description="No logs" /> :
             <Flex vertical style={{ maxHeight: '410px', overflow: 'auto' }}>
                 {
                     data.map((log, i) => {
                         const { msg } = log;
+                        const style: React.CSSProperties = {
+                            backgroundColor: bg(i),
+                            margin: '1px 0',
+                            fontSize: '.8em',
+                            lineHeight: 1,
+                            borderLeft: `2px solid ${token.colorBorder}`,
+                            padding: '1px 0 1px 4px'
+                        };
                         return (
-                            <Text style={{ fontFamily: 'monospace' }} key={i}>
-                                {msg}
-                            </Text>
+                            <Text key={i} style={style}>{textOf(msg)}</Text>
                         );
                     })
                 }
                 <div ref={bottomRef} />
             </Flex>
-        )
-    )
+    );
 }
 
 type NotesViewType = 'default' | 'image';
