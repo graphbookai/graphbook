@@ -326,12 +326,12 @@ export class ServerAPI {
      * Image/Media API
      */
     public getImagePath(imageName: string) {
-        return `http://${this.mediaHost}/${imageName}`;
+        return `${this.protocol}//${this.mediaHost}/${imageName}`;
     }
 
     private async mediaServerPut(path, data) {
         try {
-            const response = await fetch(`http://${this.mediaHost}/${path}`, {
+            const response = await fetch(`${this.protocol}//${this.mediaHost}/${path}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
