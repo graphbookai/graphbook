@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 
 const MONITOR_DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
+const defaultPort = window.location.port === '' ? '' : `:${window.location.port}`;
 let settings = {
     theme: "Light",
     disableTooltips: false,
-    graphServerHost: "localhost:8005",
-    mediaServerHost: "localhost:8006",
+    graphServerHost: `${window.location.hostname}${defaultPort}`,
+    mediaServerHost: `${window.location.hostname}:8006`,
     useExternalMediaServer: false,
     monitorDataColumns: MONITOR_DATA_COLUMNS,
     monitorLogsShouldScrollToBottom: true,

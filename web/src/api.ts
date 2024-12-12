@@ -9,11 +9,15 @@ export class ServerAPI {
     private websocket: WebSocket | null;
     private listeners: Set<[string, EventListenerOrEventListenerObject]>
     private reconnectListeners: Set<Function>;
+    private protocol: string;
+    private wsProtocol: string;
 
     constructor() {
         this.nodes = {};
         this.listeners = new Set();
         this.reconnectListeners = new Set();
+        this.protocol = window.location.protocol;
+        this.wsProtocol = this.protocol === 'https:' ? 'wss:' : 'ws:';
     }
 
     public connect(host: string, mediaHost: string) {
@@ -33,7 +37,7 @@ export class ServerAPI {
     private connectWebSocket() {
         const connect = () => {
             try {
-                this.websocket = new WebSocket(`ws://${this.host}/ws`);
+                this.websocket = new WebSocket(`${this.wsProtocol}//${this.host}/ws`);
             } catch (e) {
                 console.error(e);
                 return;
@@ -116,7 +120,7 @@ export class ServerAPI {
 
     private async post(path, data): Promise<any> {
         try {
-            const response = await fetch(`http://${this.host}/${path}`, {
+            const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -133,19 +137,24 @@ export class ServerAPI {
     }
 
     private async put(path, data): Promise<Response> {
-        const response = await fetch(`http://${this.host}/${path}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-        return response;
+        try {
+            const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            return response;
+        } catch (e) {
+            console.error(`PUT request error: ${e}`);
+            throw e;
+        }
     }
 
     private async get(path): Promise<any> {
         try {
-            const response = await fetch(`http://${this.host}/${path}`);
+            const response = await fetch(`${this.protocol}//${this.host}/${path}`);
             if (response.ok) {
                 return await response.json();
             }
@@ -157,7 +166,7 @@ export class ServerAPI {
 
     private async delete(path): Promise<any> {
         try {
-            const response = await fetch(`http://${this.host}/${path}`, {
+            const response = await fetch(`${this.host}/${path}`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json'

@@ -133,3 +133,4 @@ You can use any other virtual environment solution, but it is highly adviced to 
 1. `cd web`
 1. `deno install`
 1. `deno run dev`
+1. In your browser, navigate to localhost:5173, and in the settings, change your **Graph Server Host** to `localhost:8005`.

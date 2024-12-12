@@ -416,6 +416,9 @@ class GraphServer:
         loop.run_in_executor(None, self.view_manager.start)
         await asyncio.Event().wait()
 
+    async def on_shutdown(self):
+        self.view_manager.close_all()
+
     def start(self):
         self.app.router.add_routes(self.routes)
 
@@ -426,6 +429,8 @@ class GraphServer:
 
         if self.web_dir is not None:
             self.app.router.add_routes([web.static("/", self.web_dir)])
+
+        self.app.on_shutdown.append(self.on_shutdown)
 
         print(f"Starting graph server at {self.host}:{self.port}")
         self.node_hub.start()
