@@ -1,6 +1,5 @@
 from . import steps, resources, custom_nodes
 from .doc2md import convert_to_md
-from .plugins import setup_plugins
 from aiohttp import web
 
 default_exported_steps = {
@@ -22,19 +21,17 @@ default_exported_resources = {
 
 
 class NodeHub:
-    def __init__(self, path):
+    def __init__(self, path, plugins):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources
         self.custom_node_importer = custom_nodes.CustomNodeImporter(
             path, self.handle_step, self.handle_resource
         )
-        self.plugins = setup_plugins()
-        steps, resources, web = self.plugins
-        for plugin in steps:
-            self.exported_steps.update(steps[plugin])
-        for plugin in resources:
-            self.exported_resources.update(resources[plugin])
-        self.web_plugins = web
+        plugin_steps, plugin_resources = plugins
+        for plugin in plugin_steps:
+            self.exported_steps.update(plugin_steps[plugin])
+        for plugin in plugin_resources:
+            self.exported_resources.update(plugin_resources[plugin])
 
     def start(self):
         self.custom_node_importer.start_observer()
@@ -58,9 +55,6 @@ class NodeHub:
 
     def get_all(self):
         return {"steps": self.get_steps(), "resources": self.get_resources()}
-    
-    def get_web_plugins(self):
-        return self.web_plugins
 
     def get_step_docstring(self, name):
         if name in self.exported_steps:

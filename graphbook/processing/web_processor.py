@@ -40,7 +40,7 @@ class WebInstanceProcessor:
         custom_nodes_path: str,
         close_event: mp.Event,
         pause_event: mp.Event,
-        spawn_method: bool,
+        spawn: bool,
         num_workers: int = 1,
     ):
         self.cmd_queue = cmd_queue
@@ -54,7 +54,7 @@ class WebInstanceProcessor:
         self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
         self.steps = {}
-        self.dataloader = Dataloader(self.num_workers, spawn_method)
+        self.dataloader = Dataloader(self.num_workers, spawn)
         setup_global_dl(self.dataloader)
         self.state_client = ProcessorStateClient(
             server_request_conn,
@@ -64,6 +64,8 @@ class WebInstanceProcessor:
         )
         self.is_running = False
         self.filename = None
+        self.p = mp.Process(target=self.start_loop, daemon=True)
+        self.p.start()
 
     def handle_images(self, outputs: StepOutput):
         if self.img_mem is None:
@@ -294,8 +296,8 @@ class WebInstanceProcessor:
         elif work["cmd"] == "step":
             self.step(work["step_id"])
 
-    async def start_loop(self):
-        loop = asyncio.get_running_loop()
+    def start_loop(self):
+        loop = asyncio.new_event_loop()
         loop.run_in_executor(None, self.state_client.start)
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
@@ -314,6 +316,11 @@ class WebInstanceProcessor:
                 break
             except queue.Empty:
                 pass
+
+    def close(self):
+        self.state_client.close()
+        self.cleanup()
+        self.p.terminate()
 
 
 class ProcessorStateClient:

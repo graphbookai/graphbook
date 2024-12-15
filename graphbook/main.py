@@ -73,6 +73,11 @@ def get_args():
         action="store_true",
         help="Use the spawn start method for multiprocessing",
     )
+    parser.add_argument(
+        "--isolate-users",
+        action="store_true",
+        help="Isolate each user in their own execution environment. Does NOT prevent users from accessing each other's files.",
+    )
 
     return parser.parse_args()
 

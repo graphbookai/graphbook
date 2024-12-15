@@ -11,6 +11,7 @@ export class ServerAPI {
     private reconnectListeners: Set<Function>;
     private protocol: string;
     private wsProtocol: string;
+    private sid: string;
 
     constructor() {
         this.nodes = {};
@@ -18,6 +19,15 @@ export class ServerAPI {
         this.reconnectListeners = new Set();
         this.protocol = window.location.protocol;
         this.wsProtocol = this.protocol === 'https:' ? 'wss:' : 'ws:';
+        this.addWSMessageListener(this.sidSetter.bind(this));
+    }
+
+    private sidSetter(res) {
+        const msg = JSON.parse(res.data);
+        if (msg.type === "sid") {
+            this.sid = msg.data;
+            console.log(`SID: ${this.sid}`);
+        }
     }
 
     public connect(host: string, mediaHost: string) {
@@ -123,7 +133,8 @@ export class ServerAPI {
             const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'sid': this.sid,
                 },
                 body: JSON.stringify(data)
             });
@@ -141,7 +152,8 @@ export class ServerAPI {
             const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'sid': this.sid,
                 },
                 body: JSON.stringify(data)
             });
@@ -154,7 +166,13 @@ export class ServerAPI {
 
     private async get(path): Promise<any> {
         try {
-            const response = await fetch(`${this.protocol}//${this.host}/${path}`);
+            const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'sid': this.sid,
+                }
+            });
             if (response.ok) {
                 return await response.json();
             }
@@ -352,7 +370,7 @@ export class ServerAPI {
     }
 
     public async getMediaServerVars(): Promise<any> {
-        return this.mediaServerPut('set', { });
+        return this.mediaServerPut('set', {});
     }
 
     /**

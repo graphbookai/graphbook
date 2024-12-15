@@ -40,9 +40,8 @@ class DataViewer(Viewer):
     so that the data can be displayed in the web interface.
     """
 
-    def __init__(self, deque_max_size=5):
+    def __init__(self):
         super().__init__("view")
-        self.deque_max_size = deque_max_size
         self.last_outputs: Dict[str, dict] = {}
         self.filename = None
 
@@ -254,8 +253,9 @@ class ViewManager:
         self.close_event = close_event
         self.curr_task = None
 
-    def add_client(self, ws: WebSocketResponse) -> str:
-        sid = uuid.uuid4().hex
+    def add_client(self, ws: WebSocketResponse, sid: str = None) -> str:
+        if sid is None:
+            sid = uuid.uuid4().hex
         client = Client(ws, self.viewers)
         self.clients[sid] = client
         client.start()

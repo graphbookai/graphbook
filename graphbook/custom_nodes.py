@@ -22,7 +22,13 @@ from .steps import (
     SplitItemField,
     Copy,
 )
-from .resources import Resource, NumberResource, FunctionResource, ListResource, DictResource
+from .resources import (
+    Resource,
+    NumberResource,
+    FunctionResource,
+    ListResource,
+    DictResource,
+)
 
 BUILT_IN_STEPS = [
     Step,
@@ -36,7 +42,13 @@ BUILT_IN_STEPS = [
     SplitItemField,
     Copy,
 ]
-BUILT_IN_RESOURCES = [Resource, NumberResource, FunctionResource, ListResource, DictResource]
+BUILT_IN_RESOURCES = [
+    Resource,
+    NumberResource,
+    FunctionResource,
+    ListResource,
+    DictResource,
+]
 
 
 class CustomModuleEventHandler(FileSystemEventHandler):
@@ -65,7 +77,7 @@ class CustomModuleEventHandler(FileSystemEventHandler):
             return
         self.handle_new_file_sync(event.dest_path)
 
-    async def handle_new_file(self, filename: str):
+    def handle_new_file(self, filename: str):
         filename = osp.abspath(filename)
         assert filename.startswith(
             self.root_path
@@ -98,15 +110,15 @@ class CustomModuleEventHandler(FileSystemEventHandler):
             return
 
         module = sys.modules[module_name]
-        await self.handler(filename, module)
+        self.handler(filename, module)
 
     def handle_new_file_sync(self, filename: str):
         asyncio.run(self.handle_new_file(filename))
 
-    async def init_custom_nodes(self):
+    def init_custom_nodes(self):
         for root, dirs, files in os.walk(self.root_path):
             for file in files:
-                await self.handle_new_file(osp.join(root, file))
+                self.handle_new_file(osp.join(root, file))
 
     def init_custom_nodes_sync(self):
         asyncio.run(self.init_custom_nodes())
@@ -121,12 +133,12 @@ class CustomNodeImporter:
         sys.path.append(path)
         self.observer = Observer()
         self.event_handler = CustomModuleEventHandler(path, self.on_module)
-        self.event_handler.init_custom_nodes_sync()
+        self.event_handler.init_custom_nodes()
 
     def set_websocket(self, websocket):
         self.websocket = websocket
 
-    async def on_module(self, filename, mod):
+    def on_module(self, filename, mod):
         for name, obj in inspect.getmembers(mod):
             if inspect.isclass(obj):
                 if issubclass(obj, Step) and not obj in BUILT_IN_STEPS:
@@ -141,7 +153,7 @@ class CustomNodeImporter:
 
         if self.websocket is not None and not self.websocket.closed:
             print("Sending node updated")
-            await self.websocket.send_json({"type": "node_updated"})
+            self.websocket.send_json({"type": "node_updated"})
 
     def start_observer(self):
         self.observer.schedule(self.event_handler, self.path, recursive=True)

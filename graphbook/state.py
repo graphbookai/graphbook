@@ -1,5 +1,4 @@
 from __future__ import annotations
-from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from .note import Note
 from .steps import Step, PromptStep, StepOutput as Outputs
@@ -13,8 +12,6 @@ from . import exports
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import sys, os
-import os.path as osp
-import json
 import hashlib
 from enum import Enum
 
@@ -25,32 +22,6 @@ class NodeInstantiationError(Exception):
         super().__init__(message)
         self.node_id = node_id
         self.node_name = node_name
-
-
-class UIState:
-    def __init__(self, root_path: str, websocket: WebSocketResponse):
-        self.root_path = root_path
-        self.ws = websocket
-        self.nodes = {}
-        self.edges = {}
-
-    def cmd(self, req: dict):
-        if req["cmd"] == "put_graph":
-            filename = req["filename"]
-            nodes = req["nodes"]
-            edges = req["edges"]
-            self.put_graph(filename, nodes, edges)
-
-    def put_graph(self, filename: str, nodes: list, edges: list):
-        full_path = osp.join(self.root_path, filename)
-        with open(full_path, "w") as f:
-            serialized = {
-                "version": "0",
-                "type": "workflow",
-                "nodes": nodes,
-                "edges": edges,
-            }
-            json.dump(serialized, f)
 
 
 class NodeCatalog:

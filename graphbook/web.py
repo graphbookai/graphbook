@@ -3,19 +3,17 @@ import os.path as osp
 import re
 import signal
 import multiprocessing as mp
-import multiprocessing.connection as mpc
 import asyncio
 import base64
 import hashlib
 import aiohttp
 from aiohttp import web
-from .processing.web_processor import WebInstanceProcessor
-from .viewer import ViewManager
-from .exports import NodeHub
-from .state import UIState
 from .media import create_media_server
-from .utils import poll_conn_for, ProcessorStateRequest
+from .utils import ProcessorStateRequest
 from .shm import SharedMemoryManager
+from .clients import ClientPool
+from .plugins import setup_plugins
+import json
 
 
 @web.middleware
@@ -38,15 +36,12 @@ async def cors_middleware(request: web.Request, handler):
 class GraphServer:
     def __init__(
         self,
-        processor_queue: mp.Queue,
-        state_conn: mpc.Connection,
-        processor_pause_event: mp.Event,
-        view_manager_queue: mp.Queue,
+        web_processor_args: dict,
         img_mem_args: dict,
+        setup_paths: dict,
+        isolate_users: bool,
+        no_sample: bool,
         close_event: mp.Event,
-        root_path: str,
-        custom_nodes_path: str,
-        docs_path: str,
         web_dir: str | None = None,
         host="0.0.0.0",
         port=8005,
@@ -57,18 +52,25 @@ class GraphServer:
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = osp.join(osp.dirname(__file__), "web")
-        self.node_hub = NodeHub(custom_nodes_path)
-        self.ui_state = None
         routes = web.RouteTableDef()
         self.routes = routes
-        self.view_manager = ViewManager(view_manager_queue, close_event, state_conn)
         self.img_mem = SharedMemoryManager(**img_mem_args) if img_mem_args else None
-        abs_root_path = osp.abspath(root_path)
         middlewares = [cors_middleware]
         max_upload_size = 100  # MB
         max_upload_size = round(max_upload_size * 1024 * 1024)
         self.app = web.Application(
             client_max_size=max_upload_size, middlewares=middlewares
+        )
+        self.plugins = setup_plugins()
+        self.plugin_steps, self.plugin_resources, self.web_plugins = self.plugins
+        node_plugins = (self.plugin_steps, self.plugin_resources)
+        self.client_pool = ClientPool(
+            web_processor_args,
+            setup_paths,
+            node_plugins,
+            isolate_users,
+            no_sample,
+            close_event,
         )
 
         if not osp.isdir(self.web_dir):
@@ -78,16 +80,28 @@ class GraphServer:
             self.web_dir = None
 
         @routes.get("/ws")
-        async def websocket_handler(request):
+        async def websocket_handler(request: web.Request, *_) -> web.WebSocketResponse:
             if self.close_event.is_set():
                 raise web.HTTPServiceUnavailable()
+
             ws = web.WebSocketResponse()
             await ws.prepare(request)
-            self.ui_state = UIState(root_path, ws)
+            sid = self.client_pool.add_client(ws)
 
-            self.node_hub.set_websocket(ws)  # Set the WebSocket in NodeHub
+            def put_graph(req: dict):
+                full_path = osp.join(self.client_pool.get_root_path(sid), filename)
+                filename = req["filename"]
+                nodes = req["nodes"]
+                edges = req["edges"]
+                with open(full_path, "w") as f:
+                    serialized = {
+                        "version": "0",
+                        "type": "workflow",
+                        "nodes": nodes,
+                        "edges": edges,
+                    }
+                    json.dump(serialized, f)
 
-            sid = self.view_manager.add_client(ws)
             try:
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
@@ -95,12 +109,12 @@ class GraphServer:
                             await ws.close()
                         else:
                             req = msg.json()  # Unhandled
-                            if req["api"] == "graph":
-                                self.ui_state.cmd(req)
+                            if req["api"] == "graph" and req["cmd"] == "put_graph":
+                                put_graph(req)
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         print("ws connection closed with exception %s" % ws.exception())
             finally:
-                await self.view_manager.remove_client(sid)
+                await self.client_pool.remove_client(sid)
 
             return ws
 
@@ -129,101 +143,113 @@ class GraphServer:
                 return web.Response(body=img, content_type="image/png")
 
         @routes.post("/run")
-        async def run_all(request: web.Request) -> web.Response:
+        async def run_all(request: web.Request, sid) -> web.Response:
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
-            processor_queue.put(
+            self.client_pool.exec(
+                sid,
                 {
                     "cmd": "run_all",
                     "graph": graph,
                     "resources": resources,
                     "filename": filename,
-                }
+                },
             )
             return web.json_response({"success": True})
 
         @routes.post("/run/{id}")
         async def run(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             step_id = request.match_info.get("id")
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
-            processor_queue.put(
+            self.client_pool.exec(
+                sid,
                 {
                     "cmd": "run",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,
                     "filename": filename,
-                }
+                },
             )
             return web.json_response({"success": True})
 
         @routes.post("/step/{id}")
         async def step(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             step_id = request.match_info.get("id")
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
-            processor_queue.put(
+            self.client_pool.exec(
+                sid,
                 {
                     "cmd": "step",
                     "graph": graph,
                     "resources": resources,
                     "step_id": step_id,
                     "filename": filename,
-                }
+                },
             )
             return web.json_response({"success": True})
 
         @routes.post("/pause")
         async def pause(request: web.Request) -> web.Response:
-            processor_pause_event.set()
+            sid = request.headers.get("sid")
+            self.client_pool.exec(sid, {"cmd": "pause"})
             return web.json_response({"success": True})
 
         @routes.post("/clear")
         @routes.post("/clear/{id}")
         async def clear(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             node_id = request.match_info.get("id")
-            processor_queue.put(
-                {
-                    "cmd": "clear",
-                    "node_id": node_id,
-                }
-            )
+            self.client_pool.exec(sid, {"cmd": "clear", "node_id": node_id})
             return web.json_response({"success": True})
 
         @routes.post("/prompt_response/{id}")
         async def prompt_response(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             step_id = request.match_info.get("id")
             data = await request.json()
             response = data.get("response")
-            res = poll_conn_for(
-                state_conn,
+            res = self.client_pool.poll(
+                sid,
                 ProcessorStateRequest.PROMPT_RESPONSE,
-                {"step_id": step_id, "response": response},
+                {
+                    "step_id": step_id,
+                    "response": response,
+                },
             )
             return web.json_response(res)
 
         @routes.get("/nodes")
         async def get_nodes(request: web.Request) -> web.Response:
-            return web.json_response(self.node_hub.get_exported_nodes())
+            sid = request.headers.get("sid")
+            nodes = self.client_pool.nodes(sid)
+            return web.json_response(nodes)
 
         @routes.get("/state/{step_id}/{pin_id}/{index}")
         async def get_output_note(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
-            res = poll_conn_for(
-                state_conn,
+            res = self.client_pool.poll(
+                sid,
                 ProcessorStateRequest.GET_OUTPUT_NOTE,
-                {"step_id": step_id, "pin_id": pin_id, "index": index},
+                {
+                    "step_id": step_id,
+                    "pin_id": pin_id,
+                    "index": index,
+                },
             )
-
             if (
                 res
                 and res.get("step_id") == step_id
@@ -236,12 +262,29 @@ class GraphServer:
 
         @routes.get("/state")
         async def get_run_state(request: web.Request) -> web.Response:
-            res = poll_conn_for(state_conn, ProcessorStateRequest.GET_RUNNING_STATE)
+            sid = request.headers.get("sid")
+            res = self.client_pool.poll(sid, ProcessorStateRequest.GET_RUNNING_STATE)
             return web.json_response(res)
 
+        @routes.get("/step_docstring/{name}")
+        async def get_step_docstring(request: web.Request):
+            sid = request.headers.get("sid")
+            name = request.match_info.get("name")
+            docstring = self.client_pool.step_doc(sid, name)
+            return web.json_response({"content": docstring})
+
+        @routes.get("/resource_docstring/{name}")
+        async def get_resource_docstring(request: web.Request):
+            sid = request.headers.get("sid")
+            name = request.match_info.get("name")
+            docstring = self.client_pool.resource_doc(sid, name)
+            return web.json_response({"content": docstring})
+
         @routes.get(r"/docs/{path:.+}")
-        async def get_docs(request: web.Request):
+        async def get_docs(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             path = request.match_info.get("path")
+            docs_path = self.client_pool.get_docs_path(sid)
             fullpath = osp.join(docs_path, path)
 
             if osp.exists(fullpath):
@@ -254,26 +297,18 @@ class GraphServer:
                     {"reason": "/%s: No such file or directory." % fullpath}, status=404
                 )
 
-        @routes.get("/step_docstring/{name}")
-        async def get_step_docstring(request: web.Request):
-            name = request.match_info.get("name")
-            docstring = self.node_hub.get_step_docstring(name)
-            return web.json_response({"content": docstring})
-
-        @routes.get("/resource_docstring/{name}")
-        async def get_resource_docstring(request: web.Request):
-            name = request.match_info.get("name")
-            docstring = self.node_hub.get_resource_docstring(name)
-            return web.json_response({"content": docstring})
-
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
-        async def get(request: web.Request):
+        async def get(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
+            print(sid)
             path = request.match_info.get("path", "")
-            fullpath = osp.join(abs_root_path, path)
+            client_path = self.client_pool.get_root_path(sid)
+            print(client_path)
+            fullpath = osp.join(client_path, path)  # client_path
             assert fullpath.startswith(
-                abs_root_path
-            ), f"{fullpath} must be within {abs_root_path}"
+                client_path
+            ), f"{fullpath} must be within {client_path}"
 
             def handle_fs_tree(p: str, fn: callable) -> dict:
                 if osp.isdir(p):
@@ -334,12 +369,14 @@ class GraphServer:
 
         @routes.put("/fs")
         @routes.put(r"/fs/{path:.+}")
-        async def put(request: web.Request):
+        async def put(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             path = request.match_info.get("path")
-            fullpath = osp.join(root_path, path)
+            client_path = self.client_pool.get_root_path(sid)
+            fullpath = osp.join(client_path, path)
             data = await request.json()
             if request.query.get("mv"):
-                topath = osp.join(root_path, request.query.get("mv"))
+                topath = osp.join(client_path, request.query.get("mv"))
                 os.rename(fullpath, topath)
                 return web.json_response({}, status=200)
 
@@ -369,12 +406,14 @@ class GraphServer:
                 return web.json_response({}, status=201)
 
         @routes.delete("/fs/{path:.+}")
-        async def delete(request):
+        async def delete(request: web.Request) -> web.Response:
+            sid = request.headers.get("sid")
             path = request.match_info.get("path")
-            fullpath = osp.join(root_path, path)
+            client_path = self.client_pool.get_root_path(sid)
+            fullpath = osp.join(client_path, path)
             assert fullpath.startswith(
-                root_path
-            ), f"{fullpath} must be within {root_path}"
+                client_path
+            ), f"{fullpath} must be within {client_path}"
 
             if osp.exists(fullpath):
                 if osp.isdir(fullpath):
@@ -395,14 +434,14 @@ class GraphServer:
                 )
 
         @routes.get("/plugins")
-        async def get_plugins(request):
-            plugin_list = list(self.node_hub.get_web_plugins().keys())
+        async def get_plugins(request: web.Request) -> web.Response:
+            plugin_list = list(self.web_plugins.keys())
             return web.json_response(plugin_list)
 
         @routes.get("/plugins/{name}")
-        async def get_plugin(request):
+        async def get_plugin(request: web.Request) -> web.Response:
             plugin_name = request.match_info.get("name")
-            plugin_location = self.node_hub.get_web_plugins().get(plugin_name)
+            plugin_location = self.web_plugins.get(plugin_name)
             if plugin_location is None:
                 raise web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
             return web.FileResponse(plugin_location)
@@ -412,20 +451,16 @@ class GraphServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
-        loop = asyncio.get_running_loop()
-        loop.run_in_executor(None, self.view_manager.start)
         await asyncio.Event().wait()
 
     async def on_shutdown(self):
-        self.view_manager.close_all()
+        self.client_pool.close_all()
 
     def start(self):
         self.app.router.add_routes(self.routes)
-
-        web_plugins = self.node_hub.get_web_plugins()
-        if web_plugins:
+        if self.web_plugins:
             print("Loaded web plugins:")
-            print(web_plugins)
+            print(self.web_plugins)
 
         if self.web_dir is not None:
             self.app.router.add_routes([web.static("/", self.web_dir)])
@@ -433,37 +468,27 @@ class GraphServer:
         self.app.on_shutdown.append(self.on_shutdown)
 
         print(f"Starting graph server at {self.host}:{self.port}")
-        self.node_hub.start()
         try:
             asyncio.run(self._async_start())
         except KeyboardInterrupt:
-            self.node_hub.stop()
             print("Exiting graph server")
 
 
 def create_graph_server(
     args,
-    cmd_queue,
-    state_conn,
-    processor_pause_event,
-    view_manager_queue,
-    close_event,
+    web_processor_args,
     img_mem_args,
-    root_path,
-    custom_nodes_path,
-    docs_path,
+    setup_paths,
+    close_event,
     web_dir,
 ):
     server = GraphServer(
-        cmd_queue,
-        state_conn,
-        processor_pause_event,
-        view_manager_queue,
+        web_processor_args,
         img_mem_args,
+        setup_paths,
+        args.isolate_users,
+        args.no_sample,
         close_event,
-        root_path=root_path,
-        custom_nodes_path=custom_nodes_path,
-        docs_path=docs_path,
         web_dir=web_dir,
         host=args.host,
         port=args.port,
@@ -471,68 +496,32 @@ def create_graph_server(
     server.start()
 
 
-def create_sample_workflow(workflow_dir, custom_nodes_path, docs_path):
-    import shutil
-
-    assets_dir = osp.join(osp.dirname(__file__), "sample_assets")
-    n = "SampleWorkflow.json"
-    shutil.copyfile(osp.join(assets_dir, n), osp.join(workflow_dir, n))
-    n = "SampleWorkflow.md"
-    shutil.copyfile(osp.join(assets_dir, n), osp.join(docs_path, n))
-    n = "sample_nodes.py"
-    shutil.copyfile(osp.join(assets_dir, n), osp.join(custom_nodes_path, n))
-
-
 def start_web(args):
     # The start method on some systems like Mac default to spawn
     if not args.spawn and mp.get_start_method() == "spawn":
         mp.set_start_method("fork", force=True)
 
-    cmd_queue = mp.Queue()
-    parent_conn, child_conn = mp.Pipe()
-    view_manager_queue = mp.Queue()
     img_mem = (
         SharedMemoryManager(size=args.img_shm_size) if args.img_shm_size > 0 else None
     )
     close_event = mp.Event()
-    pause_event = mp.Event()
-    workflow_dir = args.workflow_dir
-    custom_nodes_path = args.nodes_dir
-    docs_path = args.docs_dir
-    should_create_sample = False
-    if not osp.exists(workflow_dir):
-        should_create_sample = not args.no_sample
-        os.mkdir(workflow_dir)
-    if not osp.exists(custom_nodes_path):
-        os.mkdir(custom_nodes_path)
-    if not osp.exists(docs_path):
-        os.mkdir(docs_path)
+    setup_paths = dict(
+        workflow_dir=args.workflow_dir,
+        custom_nodes_path=args.nodes_dir,
+        docs_path=args.docs_dir,
+    )
 
-    if should_create_sample:
-        create_sample_workflow(workflow_dir, custom_nodes_path, docs_path)
+    web_processor_args = dict(
+        img_mem=img_mem,
+        continue_on_failure=args.continue_on_failure,
+        copy_outputs=args.copy_outputs,
+        close_event=close_event,
+        spawn=args.spawn,
+        num_workers=args.num_workers,
+    )
 
-    processes = [
-        mp.Process(
-            target=create_graph_server,
-            args=(
-                args,
-                cmd_queue,
-                child_conn,
-                pause_event,
-                view_manager_queue,
-                close_event,
-                img_mem.get_shared_args() if img_mem else {},
-                workflow_dir,
-                custom_nodes_path,
-                docs_path,
-                args.web_dir,
-            ),
-        ),
-    ]
     if args.start_media_server:
-        processes.append(mp.Process(target=create_media_server, args=(args,)))
-
-    for p in processes:
+        p = mp.Process(target=create_media_server, args=(args,))
         p.daemon = True
         p.start()
 
@@ -552,23 +541,11 @@ def start_web(args):
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    async def start():
-        processor = WebInstanceProcessor(
-            cmd_queue,
-            parent_conn,
-            view_manager_queue,
-            img_mem,
-            args.continue_on_failure,
-            args.copy_outputs,
-            custom_nodes_path,
-            close_event,
-            pause_event,
-            args.spawn,
-            args.num_workers,
-        )
-        try:
-            await processor.start_loop()
-        finally:
-            cleanup()
-
-    asyncio.run(start())
+    create_graph_server(
+        args,
+        web_processor_args,
+        img_mem.get_shared_args() if img_mem else {},
+        setup_paths,
+        close_event,
+        args.web_dir,
+    )
