@@ -32,20 +32,15 @@ class WebInstanceProcessor:
     def __init__(
         self,
         cmd_queue: mp.Queue,
-        server_request_conn: mpc.Connection,
         view_manager_queue: mp.Queue,
         img_mem: SharedMemoryManager | None,
         continue_on_failure: bool,
         copy_outputs: bool,
         custom_nodes_path: str,
-        close_event: mp.Event,
-        pause_event: mp.Event,
         spawn: bool,
         num_workers: int = 1,
     ):
         self.cmd_queue = cmd_queue
-        self.close_event = close_event
-        self.pause_event = pause_event
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.img_mem = img_mem
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
@@ -56,9 +51,12 @@ class WebInstanceProcessor:
         self.steps = {}
         self.dataloader = Dataloader(self.num_workers, spawn)
         setup_global_dl(self.dataloader)
+        self.server_request_conn, client_request_conn = mpc.Pipe()
+        self.close_event = mp.Event()
+        self.pause_event = mp.Event()
         self.state_client = ProcessorStateClient(
-            server_request_conn,
-            close_event,
+            client_request_conn,
+            self.close_event,
             self.graph_state,
             self.dataloader,
         )
@@ -284,7 +282,7 @@ class WebInstanceProcessor:
             traceback.print_exc()
         return False
 
-    def exec(self, work: dict):
+    def _exec(self, work: dict):
         self.set_is_running(True, work["filename"])
         if not self.try_update_state(work):
             return
@@ -305,7 +303,7 @@ class WebInstanceProcessor:
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
                 if work["cmd"] in exec_cmds:
-                    self.exec(work)
+                    self._exec(work)
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
@@ -318,9 +316,17 @@ class WebInstanceProcessor:
                 pass
 
     def close(self):
+        self.close_event.set()
         self.state_client.close()
         self.cleanup()
-        self.p.terminate()
+        
+    def exec(self, work: dict):
+        self.cmd_queue.put(work)
+
+    def poll_client(
+        self, req: ProcessorStateRequest, body: dict = None
+    ) -> dict:
+        return poll_conn_for(self.server_request_conn, req, body)
 
 
 class ProcessorStateClient:

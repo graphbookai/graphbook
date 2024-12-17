@@ -41,6 +41,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         const files = await API.listFiles();
+        console.log(files);
         if (!files) {
             return;
         }

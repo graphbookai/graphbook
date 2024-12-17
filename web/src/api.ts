@@ -8,15 +8,17 @@ export class ServerAPI {
     private nodes: any;
     private websocket: WebSocket | null;
     private listeners: Set<[string, EventListenerOrEventListenerObject]>
-    private reconnectListeners: Set<Function>;
+    private reconnectTimerListeners: Set<Function>;
+    private onConnectStateListeners: Set<Function>;
     private protocol: string;
     private wsProtocol: string;
-    private sid: string;
+    private sid?: string;
 
     constructor() {
         this.nodes = {};
         this.listeners = new Set();
-        this.reconnectListeners = new Set();
+        this.reconnectTimerListeners = new Set();
+        this.onConnectStateListeners = new Set();
         this.protocol = window.location.protocol;
         this.wsProtocol = this.protocol === 'https:' ? 'wss:' : 'ws:';
         this.addWSMessageListener(this.sidSetter.bind(this));
@@ -25,8 +27,17 @@ export class ServerAPI {
     private sidSetter(res) {
         const msg = JSON.parse(res.data);
         if (msg.type === "sid") {
+            if (this.sid) {
+                console.error("Unexpected request from server to change SID when it has already been set.");
+                return;
+            }
             this.sid = msg.data;
             console.log(`SID: ${this.sid}`);
+
+            this.refreshNodeCatalogue();
+            for (const callback of this.onConnectStateListeners) {
+                callback(true);
+            }
         }
     }
 
@@ -42,7 +53,37 @@ export class ServerAPI {
             this.websocket.close();
             this.websocket = null;
         }
+        this.sid = undefined;
+        for (const callback of this.onConnectStateListeners) {
+            callback(false);
+        }
     }
+
+    public onConnectStateChange(callback: Function): Function {
+        this.onConnectStateListeners.add(callback);
+
+        return () => {
+            this.onConnectStateListeners.delete(callback);
+        };
+    }
+
+    public onReconnectTimerChange(callback: Function): Function {
+        this.reconnectTimerListeners.add(callback);
+
+        return () => {
+            this.reconnectTimerListeners.delete(callback);
+        };
+    }
+
+
+    public addReconnectTimerListener(callback: Function) {
+        this.reconnectTimerListeners.add(callback);
+    }
+
+    public removeReconnectTimerListener(callback: Function) {
+        this.reconnectTimerListeners.delete(callback);
+    }
+
 
     private connectWebSocket() {
         const connect = () => {
@@ -57,10 +98,10 @@ export class ServerAPI {
             }
             this.websocket.onopen = () => {
                 console.log("Connected to server.");
-                this.refreshNodeCatalogue();
             };
             this.websocket.onclose = () => {
                 this.retryWebSocketConnection();
+                this.disconnect()
             };
         };
         if (this.websocket) {
@@ -89,7 +130,7 @@ export class ServerAPI {
                 } else {
                     reconnectSecond(i - 1);
                 }
-                for (const callback of this.reconnectListeners) {
+                for (const callback of this.reconnectTimerListeners) {
                     callback(i);
                 }
             }, 1000);
@@ -128,7 +169,11 @@ export class ServerAPI {
         this.nodes = nodesRes;
     }
 
-    private async post(path, data): Promise<any> {
+    private async post(path, data): Promise<Response> {
+        if (!this.sid) {
+            throw Error("Cannot make request without SID.");
+        }
+
         try {
             const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'POST',
@@ -138,16 +183,18 @@ export class ServerAPI {
                 },
                 body: JSON.stringify(data)
             });
-            if (response.ok) {
-                return await response.json();
-            }
+            return response;
         } catch (e) {
-            console.error(e);
-            return null;
+            console.error(`POST request error: ${e}`);
+            throw e;
         }
     }
 
     private async put(path, data): Promise<Response> {
+        if (!this.sid) {
+            throw Error("Cannot make request without SID.");
+        }
+
         try {
             const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'PUT',
@@ -165,6 +212,10 @@ export class ServerAPI {
     }
 
     private async get(path): Promise<any> {
+        if (!this.sid) {
+            throw Error("Cannot make request without SID.");
+        }
+
         try {
             const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'GET',
@@ -177,8 +228,8 @@ export class ServerAPI {
                 return await response.json();
             }
         } catch (e) {
-            console.error(e);
-            return null;
+            console.error(`POST request error: ${e}`);
+            throw e;
         }
     }
 
@@ -219,14 +270,6 @@ export class ServerAPI {
 
     public removeWSMessageListener(callback: EventListenerOrEventListenerObject) {
         this.removeWsEventListener('message', callback);
-    }
-
-    public addReconnectListener(callback: Function) {
-        this.reconnectListeners.add(callback);
-    }
-
-    public removeReconnectListener(callback: Function) {
-        this.reconnectListeners.delete(callback);
     }
 
     /**

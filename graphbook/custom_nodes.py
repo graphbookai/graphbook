@@ -61,12 +61,12 @@ class CustomModuleEventHandler(FileSystemEventHandler):
     def on_created(self, event):
         if event.is_directory:
             return
-        self.handle_new_file_sync(event.src_path)
+        self.handle_new_file(event.src_path)
 
     def on_modified(self, event):
         if event.is_directory:
             return
-        self.handle_new_file_sync(event.src_path)
+        self.handle_new_file(event.src_path)
 
     def on_deleted(self, event):
         if event.is_directory:
@@ -75,7 +75,7 @@ class CustomModuleEventHandler(FileSystemEventHandler):
     def on_moved(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
-        self.handle_new_file_sync(event.dest_path)
+        self.handle_new_file(event.dest_path)
 
     def handle_new_file(self, filename: str):
         filename = osp.abspath(filename)
@@ -112,17 +112,10 @@ class CustomModuleEventHandler(FileSystemEventHandler):
         module = sys.modules[module_name]
         self.handler(filename, module)
 
-    def handle_new_file_sync(self, filename: str):
-        asyncio.run(self.handle_new_file(filename))
-
     def init_custom_nodes(self):
         for root, dirs, files in os.walk(self.root_path):
             for file in files:
                 self.handle_new_file(osp.join(root, file))
-
-    def init_custom_nodes_sync(self):
-        asyncio.run(self.init_custom_nodes())
-
 
 class CustomNodeImporter:
     def __init__(self, path, step_handler, resource_handler):

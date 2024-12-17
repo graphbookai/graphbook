@@ -150,9 +150,9 @@ class SystemUtilViewer(Viewer):
     Tracks system utilization: CPU util, CPU memory, GPU util, GPU memory
     """
 
-    def __init__(self, processor_state_conn: mpc.Connection):
+    def __init__(self, processor_state_conn: mpc.Connection = None):
         super().__init__("system_util")
-        self.processor_state_conn = processor_state_conn
+        # self.processor_state_conn = processor_state_conn
 
     def get_cpu_usage(self):
         return psutil.cpu_percent()
@@ -165,9 +165,15 @@ class SystemUtilViewer(Viewer):
         return gpus
 
     def get_next(self):
-        sizes = poll_conn_for(
-            self.processor_state_conn, ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
-        )
+        # sizes = poll_conn_for(
+        #     self.processor_state_conn, ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
+        # )
+        sizes = {
+            "load": [],
+            "dump": [],
+            "load_result": [],
+            "dump_result": [],
+        }
         return {
             "cpu": self.get_cpu_usage(),
             "mem": self.get_mem_usage(),
@@ -226,7 +232,6 @@ class Client:
     async def close(self):
         if self.curr_task is not None:
             self.curr_task.cancel()
-        await self.ws.close()
 
 
 class ViewManager:
@@ -234,7 +239,7 @@ class ViewManager:
         self,
         work_queue: mp.Queue,
         close_event: mp.Event,
-        processor_state_conn: mpc.Connection,
+        processor_state_conn: mpc.Connection=None,
     ):
         self.data_viewer = DataViewer()
         self.node_stats_viewer = NodeStatsViewer()
@@ -251,7 +256,6 @@ class ViewManager:
         self.clients: Dict[str, Client] = {}
         self.work_queue = work_queue
         self.close_event = close_event
-        self.curr_task = None
 
     def add_client(self, ws: WebSocketResponse, sid: str = None) -> str:
         if sid is None:
@@ -345,12 +349,6 @@ class ViewManager:
 
     def start(self):
         self._loop()
-
-    async def close(self):
-        if self.curr_task is not None:
-            self.curr_task.cancel()
-        await asyncio.gather(*[client.close() for client in self.clients.values()])
-
 
 class ViewManagerInterface:
     def __init__(self, view_manager_queue: mp.Queue):

@@ -8,10 +8,11 @@ import base64
 import hashlib
 import aiohttp
 from aiohttp import web
+from pathlib import Path
 from .media import create_media_server
 from .utils import ProcessorStateRequest
 from .shm import SharedMemoryManager
-from .clients import ClientPool
+from .clients import ClientPool, Client
 from .plugins import setup_plugins
 import json
 
@@ -28,7 +29,7 @@ async def cors_middleware(request: web.Request, handler):
 
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "POST, GET, DELETE, PUT, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, sid"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
@@ -82,17 +83,23 @@ class GraphServer:
         @routes.get("/ws")
         async def websocket_handler(request: web.Request, *_) -> web.WebSocketResponse:
             if self.close_event.is_set():
+                print("Server is shutting down. Rejecting new client.")
                 raise web.HTTPServiceUnavailable()
 
             ws = web.WebSocketResponse()
-            await ws.prepare(request)
+            try:
+                await ws.prepare(request)
+            except Exception as e:
+                print(f"Error preparing websocket: {e}")
+                return ws
             sid = self.client_pool.add_client(ws)
 
             def put_graph(req: dict):
-                full_path = osp.join(self.client_pool.get_root_path(sid), filename)
                 filename = req["filename"]
                 nodes = req["nodes"]
                 edges = req["edges"]
+                full_path = osp.join(self.client_pool.get_root_path(sid), filename)
+                print(f"Saving graph to {full_path}")
                 with open(full_path, "w") as f:
                     serialized = {
                         "version": "0",
@@ -106,7 +113,7 @@ class GraphServer:
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         if msg.data == "close":
-                            await ws.close()
+                            await self.client_pool.remove_client(sid)
                         else:
                             req = msg.json()  # Unhandled
                             if req["api"] == "graph" and req["cmd"] == "put_graph":
@@ -114,6 +121,7 @@ class GraphServer:
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         print("ws connection closed with exception %s" % ws.exception())
             finally:
+                print(f"Disconnecting {sid}")
                 await self.client_pool.remove_client(sid)
 
             return ws
@@ -143,13 +151,13 @@ class GraphServer:
                 return web.Response(body=img, content_type="image/png")
 
         @routes.post("/run")
-        async def run_all(request: web.Request, sid) -> web.Response:
+        async def run_all(request: web.Request) -> web.Response:
+            client = get_client(request)
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
-            self.client_pool.exec(
-                sid,
+            client.exec(
                 {
                     "cmd": "run_all",
                     "graph": graph,
@@ -263,7 +271,7 @@ class GraphServer:
         @routes.get("/state")
         async def get_run_state(request: web.Request) -> web.Response:
             sid = request.headers.get("sid")
-            res = self.client_pool.poll(sid, ProcessorStateRequest.GET_RUNNING_STATE)
+            res = self.client_pool.poll(sid, ProcessorStateRequest.GET_RUNNING_STATE, {})
             return web.json_response(res)
 
         @routes.get("/step_docstring/{name}")
@@ -282,9 +290,9 @@ class GraphServer:
 
         @routes.get(r"/docs/{path:.+}")
         async def get_docs(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
-            path = request.match_info.get("path")
-            docs_path = self.client_pool.get_docs_path(sid)
+            client = get_client(request)
+            path = request.match_info.get("path", "")
+            docs_path = client.get_docs_path()
             fullpath = osp.join(docs_path, path)
 
             if osp.exists(fullpath):
@@ -300,12 +308,10 @@ class GraphServer:
         @routes.get("/fs")
         @routes.get(r"/fs/{path:.+}")
         async def get(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
-            print(sid)
+            client = get_client(request)
             path = request.match_info.get("path", "")
-            client_path = self.client_pool.get_root_path(sid)
-            print(client_path)
-            fullpath = osp.join(client_path, path)  # client_path
+            client_path = client.get_root_path()
+            fullpath = osp.join(client_path, path)
             assert fullpath.startswith(
                 client_path
             ), f"{fullpath} must be within {client_path}"
@@ -322,13 +328,13 @@ class GraphServer:
 
             def get_stat(path):
                 stat = os.stat(path)
-                rel_path = osp.relpath(path, abs_root_path)
+                rel_path = osp.relpath(path, fullpath)
                 st = {
                     "title": osp.basename(rel_path),
                     "path": rel_path,
-                    "path_from_cwd": osp.join(root_path, rel_path),
-                    "dirname": osp.dirname(rel_path),
-                    "from_root": osp.basename(abs_root_path),
+                    "path_from_cwd": osp.join(fullpath, rel_path),
+                    "dirname": str(Path(rel_path).parent),
+                    "from_root": Path(fullpath).name,
                     "access_time": int(stat.st_atime),
                     "modification_time": int(stat.st_mtime),
                     "change_time": int(stat.st_ctime),
@@ -370,9 +376,9 @@ class GraphServer:
         @routes.put("/fs")
         @routes.put(r"/fs/{path:.+}")
         async def put(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
-            path = request.match_info.get("path")
-            client_path = self.client_pool.get_root_path(sid)
+            client = get_client(request)
+            path = request.match_info.get("path", "")
+            client_path = client.get_root_path()
             fullpath = osp.join(client_path, path)
             data = await request.json()
             if request.query.get("mv"):
@@ -445,6 +451,15 @@ class GraphServer:
             if plugin_location is None:
                 raise web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
             return web.FileResponse(plugin_location)
+        
+        def get_client(request: web.Request) -> Client:
+            sid = request.headers.get("sid")
+            if sid is None:
+                raise web.HTTPUnauthorized()
+            client = self.client_pool.get(sid)
+            if client is None:
+                raise web.HTTPUnauthorized()
+            return client
 
     async def _async_start(self):
         runner = web.AppRunner(self.app)
@@ -455,6 +470,7 @@ class GraphServer:
 
     async def on_shutdown(self):
         self.client_pool.close_all()
+        print("Shutting down graph server")
 
     def start(self):
         self.app.router.add_routes(self.routes)
@@ -515,7 +531,6 @@ def start_web(args):
         img_mem=img_mem,
         continue_on_failure=args.continue_on_failure,
         copy_outputs=args.copy_outputs,
-        close_event=close_event,
         spawn=args.spawn,
         num_workers=args.num_workers,
     )

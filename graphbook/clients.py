@@ -10,6 +10,7 @@ import os.path as osp
 import multiprocessing as mp
 import os
 import asyncio
+import shutil
 
 
 class Client:
@@ -19,16 +20,24 @@ class Client:
         processor: WebInstanceProcessor,
         node_hub: NodeHub,
         view_manager: ViewManager,
-        root_path: str,
+        setup_paths: dict,
     ):
         self.ws = ws
         self.processor = processor
         self.node_hub = node_hub
         self.view_manager = view_manager
-        self.root_path = root_path
+        self.root_path = setup_paths["workflow_dir"]
+        self.docs_path = setup_paths["docs_path"]
+        self.custom_nodes_path = setup_paths["custom_nodes_path"]
 
     def get_root_path(self):
         return self.root_path
+    
+    def get_docs_path(self):
+        return self.docs_path
+    
+    def get_custom_nodes_path(self):
+        return self.custom_nodes_path
 
     def nodes(self):
         return self.node_hub.get_exported_nodes()
@@ -38,19 +47,20 @@ class Client:
 
     def resource_doc(self, name):
         return self.node_hub.get_resource_docstring(name)
+    
+    def exec(self, req: dict):
+        self.processor.exec(req)
 
-    def poll(self, cmd: ProcessorStateRequest, data: dict):
-        res = poll_conn_for(
-            self.conn,
+    def poll(self, cmd: ProcessorStateRequest, data: dict = None):
+        res = self.processor.poll_client(
             cmd,
             data,
         )
         return res
 
-    def close(self):
-        asyncio.create_task(self.ws.close())
+    async def close(self):
+        await self.ws.close()
         self.processor.close()
-        self.view_manager.close()
         self.node_hub.stop()
 
 
@@ -80,21 +90,19 @@ class ClientPool:
     def _create_resources(self, web_processor_args: dict, setup_paths: dict):
         proc_queue = mp.Queue()
         view_queue = mp.Queue()
-        parent_conn, child_conn = mp.Pipe()
-        pause_event = mp.Event()
         processor_args = {
             **web_processor_args,
+            "custom_nodes_path": setup_paths["custom_nodes_path"],
             "cmd_queue": proc_queue,
-            "server_request_conn": child_conn,
             "view_manager_queue": view_queue,
-            "pause_event": pause_event,
         }
         processor = WebInstanceProcessor(**processor_args)
         node_hub = NodeHub(setup_paths["custom_nodes_path"], self.plugins)
-        view_manager = ViewManager(view_queue, self.close_event, parent_conn)
-        loop = asyncio.get_running_loop()
+        view_manager = ViewManager(view_queue, self.close_event)
+        loop = asyncio.new_event_loop()
         loop.run_in_executor(None, view_manager.start)
         self._create_dirs(**setup_paths, no_sample=self.no_sample)
+        node_hub.start()
         return {
             "processor": processor,
             "node_hub": node_hub,
@@ -127,10 +135,10 @@ class ClientPool:
 
     def add_client(self, ws: WebSocketResponse) -> str:
         sid = uuid.uuid4().hex
+        setup_paths = { **self.setup_paths }
         if not self.shared_execution:
             root_path = tempfile.mkdtemp()
             self.tmpdirs[sid] = root_path
-            setup_paths = {**self.setup_paths}
             for key in setup_paths:
                 setup_paths[key] = osp.join(root_path, setup_paths[key])
             web_processor_args = {
@@ -141,11 +149,12 @@ class ClientPool:
         else:
             resources = self.shared_resources
 
-        resources["node_hub"].set_websocket(ws)  # Set the WebSocket in NodeHub
+        resources["node_hub"].set_websocket(ws)
         resources["view_manager"].add_client(ws, sid)
-        client = Client(ws, **resources, root_path=setup_paths["workflow_dir"])
+        client = Client(ws, **resources, setup_paths=setup_paths)
         self.clients[sid] = client
         asyncio.create_task(ws.send_json({"type": "sid", "data": sid}))
+        print(f"{sid}: {client.get_root_path()}")
         return sid
 
     async def remove_client(self, sid: str):
@@ -153,37 +162,51 @@ class ClientPool:
             await self.clients[sid].close()
             del self.clients[sid]
         if sid in self.tmpdirs:
-            os.rmdir(self.tmpdirs[sid])
+            shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
 
-    def close_all(self):
+    async def close_all(self):
         for sid in self.clients:
-            self.clients[sid].close()
+            await self.clients[sid].close()
         for sid in self.tmpdirs:
             os.rmdir(self.tmpdirs[sid])
         self.clients = {}
         self.tmpdirs = {}
+        
+    def get(self, sid: str) -> Client | None:
+        return self.clients.get(sid, None)
 
     def get_root_path(self, sid: str):
         if sid in self.clients:
             return self.clients[sid].get_root_path()
+        return None
+        
+    def get_docs_path(self, sid: str):
+        if sid in self.clients:
+            return self.clients[sid].get_docs_path()
+        return None
 
     def nodes(self, sid: str) -> dict:
         if sid in self.clients:
             return self.clients[sid].nodes()
+        return None
 
     def step_doc(self, sid: str, name: str):
         if sid in self.clients:
             return self.clients[sid].step_doc(name)
+        return None
 
     def resource_doc(self, sid: str, name: str):
         if sid in self.clients:
             return self.clients[sid].resource_doc(name)
+        return None
 
     def exec(self, sid: str, data: dict):
         if sid in self.clients:
             self.clients[sid].exec(data)
+        return None
 
     def poll(self, sid: str, cmd: ProcessorStateRequest, data: dict):
         if sid in self.clients:
             self.clients[sid].poll(cmd, data)
+        return None
