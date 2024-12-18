@@ -1,10 +1,11 @@
 from typing import Dict
 import uuid
 from aiohttp.web import WebSocketResponse
-from .processing.web_processor import WebInstanceProcessor, poll_conn_for
+from .processing.web_processor import WebInstanceProcessor
 from .utils import ProcessorStateRequest
-from .exports import NodeHub
+from .nodes import NodeHub
 from .viewer import ViewManager
+from .dataloading import Dataloader
 import tempfile
 import os.path as osp
 import multiprocessing as mp
@@ -12,16 +13,20 @@ import os
 import asyncio
 import shutil
 
+DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 class Client:
     def __init__(
         self,
+        sid: str,
         ws: WebSocketResponse,
         processor: WebInstanceProcessor,
         node_hub: NodeHub,
         view_manager: ViewManager,
         setup_paths: dict,
+        options: dict = DEFAULT_CLIENT_OPTIONS,
     ):
+        self.sid = sid
         self.ws = ws
         self.processor = processor
         self.node_hub = node_hub
@@ -29,6 +34,8 @@ class Client:
         self.root_path = setup_paths["workflow_dir"]
         self.docs_path = setup_paths["docs_path"]
         self.custom_nodes_path = setup_paths["custom_nodes_path"]
+        self.options = options
+        self.curr_task = None
 
     def get_root_path(self):
         return self.root_path
@@ -57,8 +64,22 @@ class Client:
             data,
         )
         return res
+    
+    async def _loop(self):
+        while True:
+            await asyncio.sleep(self.options["SEND_EVERY"])
+            current_view_data = self.view_manager.get_current_view_data()
+            current_states = self.view_manager.get_current_states()
+            all_data = [*current_view_data, *current_states]
+            await asyncio.gather(*[self.ws.send_json(data) for data in all_data])
+
+    def start(self):
+        loop = asyncio.get_event_loop()
+        self.curr_task = loop.create_task(self._loop())
 
     async def close(self):
+        if self.curr_task is not None:
+            self.curr_task.cancel()
         await self.ws.close()
         self.processor.close()
         self.node_hub.stop()
@@ -90,18 +111,20 @@ class ClientPool:
     def _create_resources(self, web_processor_args: dict, setup_paths: dict):
         proc_queue = mp.Queue()
         view_queue = mp.Queue()
+        dataloader = Dataloader(1, False)
         processor_args = {
             **web_processor_args,
+            "dataloader": dataloader,
             "custom_nodes_path": setup_paths["custom_nodes_path"],
             "cmd_queue": proc_queue,
             "view_manager_queue": view_queue,
         }
-        processor = WebInstanceProcessor(**processor_args)
-        node_hub = NodeHub(setup_paths["custom_nodes_path"], self.plugins)
-        view_manager = ViewManager(view_queue, self.close_event)
-        loop = asyncio.new_event_loop()
-        loop.run_in_executor(None, view_manager.start)
         self._create_dirs(**setup_paths, no_sample=self.no_sample)
+        processor = WebInstanceProcessor(**processor_args)
+        view_manager = ViewManager(view_queue, self.close_event, processor)
+        node_hub = NodeHub(setup_paths["custom_nodes_path"], self.plugins, view_manager)
+        processor.start()
+        view_manager.start()
         node_hub.start()
         return {
             "processor": processor,
@@ -133,7 +156,7 @@ class ClientPool:
         if should_create_sample:
             create_sample_workflow()
 
-    def add_client(self, ws: WebSocketResponse) -> str:
+    def add_client(self, ws: WebSocketResponse) -> Client:
         sid = uuid.uuid4().hex
         setup_paths = { **self.setup_paths }
         if not self.shared_execution:
@@ -149,23 +172,23 @@ class ClientPool:
         else:
             resources = self.shared_resources
 
-        resources["node_hub"].set_websocket(ws)
-        resources["view_manager"].add_client(ws, sid)
-        client = Client(ws, **resources, setup_paths=setup_paths)
+        client = Client(sid, ws, **resources, setup_paths=setup_paths)
+        client.start()
         self.clients[sid] = client
         asyncio.create_task(ws.send_json({"type": "sid", "data": sid}))
         print(f"{sid}: {client.get_root_path()}")
-        return sid
+        return client
 
-    async def remove_client(self, sid: str):
+    async def remove_client(self, client: Client):
+        sid = client.sid
         if sid in self.clients:
-            await self.clients[sid].close()
+            await client.close()
             del self.clients[sid]
         if sid in self.tmpdirs:
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
 
-    async def close_all(self):
+    async def remove_all(self):
         for sid in self.clients:
             await self.clients[sid].close()
         for sid in self.tmpdirs:
@@ -175,38 +198,3 @@ class ClientPool:
         
     def get(self, sid: str) -> Client | None:
         return self.clients.get(sid, None)
-
-    def get_root_path(self, sid: str):
-        if sid in self.clients:
-            return self.clients[sid].get_root_path()
-        return None
-        
-    def get_docs_path(self, sid: str):
-        if sid in self.clients:
-            return self.clients[sid].get_docs_path()
-        return None
-
-    def nodes(self, sid: str) -> dict:
-        if sid in self.clients:
-            return self.clients[sid].nodes()
-        return None
-
-    def step_doc(self, sid: str, name: str):
-        if sid in self.clients:
-            return self.clients[sid].step_doc(name)
-        return None
-
-    def resource_doc(self, sid: str, name: str):
-        if sid in self.clients:
-            return self.clients[sid].resource_doc(name)
-        return None
-
-    def exec(self, sid: str, data: dict):
-        if sid in self.clients:
-            self.clients[sid].exec(data)
-        return None
-
-    def poll(self, sid: str, cmd: ProcessorStateRequest, data: dict):
-        if sid in self.clients:
-            self.clients[sid].poll(cmd, data)
-        return None

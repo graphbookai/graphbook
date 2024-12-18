@@ -21,6 +21,7 @@ ProcessorStateRequest = Enum(
         "GET_WORKER_QUEUE_SIZES",
         "GET_RUNNING_STATE",
         "PROMPT_RESPONSE",
+        "PAUSE",
     ],
 )
 

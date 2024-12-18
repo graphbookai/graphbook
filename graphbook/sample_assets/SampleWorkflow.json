@@ -6,8 +6,8 @@
             "id": "1",
             "type": "step",
             "position": {
-                "x": 583.4070722675033,
-                "y": 307.30402857209594
+                "x": 430.5,
+                "y": 122
             },
             "data": {
                 "name": "CalcMean",
@@ -20,24 +20,15 @@
                 ],
                 "category": "",
                 "label": "CalcMean",
-                "key": 31,
                 "isCollapsed": false
-            },
-            "width": 150,
-            "height": 107,
-            "positionAbsolute": {
-                "x": 583.4070722675033,
-                "y": 307.30402857209594
-            },
-            "selected": false,
-            "dragging": true
+            }
         },
         {
             "id": "2",
             "type": "step",
             "position": {
-                "x": 585.5262378436905,
-                "y": 430.5629360957575
+                "x": 430.5,
+                "y": 227
             },
             "data": {
                 "name": "CalcRunningMean",
@@ -50,24 +41,15 @@
                 ],
                 "category": "",
                 "label": "CalcRunningMean",
-                "key": 32,
                 "isCollapsed": false
-            },
-            "width": 150,
-            "height": 107,
-            "selected": false,
-            "positionAbsolute": {
-                "x": 585.5262378436905,
-                "y": 430.5629360957575
-            },
-            "dragging": true
+            }
         },
         {
             "id": "3",
             "type": "step",
             "position": {
-                "x": 924.5511397425128,
-                "y": 306.8951569327104
+                "x": 634.5,
+                "y": 122
             },
             "data": {
                 "name": "Split",
@@ -85,24 +67,15 @@
                 ],
                 "category": "Filtering",
                 "label": "Split",
-                "key": 2,
                 "isCollapsed": false
-            },
-            "width": 150,
-            "height": 120,
-            "selected": false,
-            "positionAbsolute": {
-                "x": 924.5511397425128,
-                "y": 306.8951569327104
-            },
-            "dragging": true
+            }
         },
         {
             "id": "4",
             "type": "resource",
             "position": {
-                "x": 753.7478523416509,
-                "y": 360.9425229173932
+                "x": 15.5,
+                "y": 122
             },
             "data": {
                 "name": "Function",
@@ -114,24 +87,15 @@
                 },
                 "category": "Util",
                 "label": "Function",
-                "key": 37,
                 "isCollapsed": true
-            },
-            "width": 150,
-            "height": 24,
-            "selected": false,
-            "positionAbsolute": {
-                "x": 753.7478523416509,
-                "y": 360.9425229173932
-            },
-            "dragging": false
+            }
         },
         {
             "id": "7",
             "type": "step",
             "position": {
-                "x": 392.76540599258135,
-                "y": 307.35784194806917
+                "x": 272.5,
+                "y": 79
             },
             "data": {
                 "name": "Transform",
@@ -159,24 +123,15 @@
                 ],
                 "category": "",
                 "label": "Transform",
-                "key": 22,
                 "isCollapsed": false
-            },
-            "width": 154,
-            "height": 144,
-            "selected": false,
-            "positionAbsolute": {
-                "x": 392.76540599258135,
-                "y": 307.35784194806917
-            },
-            "dragging": true
+            }
         },
         {
             "id": "8",
             "type": "step",
             "position": {
-                "x": 185,
-                "y": 307.5
+                "x": 15.5,
+                "y": 196
             },
             "data": {
                 "name": "GenerateTensors",
@@ -195,17 +150,8 @@
                 ],
                 "category": "",
                 "label": "GenerateTensors",
-                "key": 20,
                 "isCollapsed": false
-            },
-            "width": 175,
-            "height": 127,
-            "selected": false,
-            "positionAbsolute": {
-                "x": 185,
-                "y": 307.5
-            },
-            "dragging": true
+            }
         }
     ],
     "edges": [

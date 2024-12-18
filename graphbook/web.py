@@ -92,13 +92,13 @@ class GraphServer:
             except Exception as e:
                 print(f"Error preparing websocket: {e}")
                 return ws
-            sid = self.client_pool.add_client(ws)
+            client = self.client_pool.add_client(ws)
 
             def put_graph(req: dict):
                 filename = req["filename"]
                 nodes = req["nodes"]
                 edges = req["edges"]
-                full_path = osp.join(self.client_pool.get_root_path(sid), filename)
+                full_path = osp.join(client.get_root_path(), filename)
                 print(f"Saving graph to {full_path}")
                 with open(full_path, "w") as f:
                     serialized = {
@@ -113,7 +113,7 @@ class GraphServer:
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         if msg.data == "close":
-                            await self.client_pool.remove_client(sid)
+                            await self.client_pool.remove_client(client)
                         else:
                             req = msg.json()  # Unhandled
                             if req["api"] == "graph" and req["cmd"] == "put_graph":
@@ -121,8 +121,7 @@ class GraphServer:
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         print("ws connection closed with exception %s" % ws.exception())
             finally:
-                print(f"Disconnecting {sid}")
-                await self.client_pool.remove_client(sid)
+                await self.client_pool.remove_client(client)
 
             return ws
 
@@ -169,14 +168,13 @@ class GraphServer:
 
         @routes.post("/run/{id}")
         async def run(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
+            client = get_client(request)
             step_id = request.match_info.get("id")
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
-            self.client_pool.exec(
-                sid,
+            client.exec(
                 {
                     "cmd": "run",
                     "graph": graph,
@@ -189,14 +187,13 @@ class GraphServer:
 
         @routes.post("/step/{id}")
         async def step(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
+            client = get_client(request)
             step_id = request.match_info.get("id")
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
-            self.client_pool.exec(
-                sid,
+            client.exec(
                 {
                     "cmd": "step",
                     "graph": graph,
@@ -209,26 +206,25 @@ class GraphServer:
 
         @routes.post("/pause")
         async def pause(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
-            self.client_pool.exec(sid, {"cmd": "pause"})
+            client = get_client(request)
+            client.poll(ProcessorStateRequest.PAUSE)
             return web.json_response({"success": True})
 
         @routes.post("/clear")
         @routes.post("/clear/{id}")
         async def clear(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
+            client = get_client(request)
             node_id = request.match_info.get("id")
-            self.client_pool.exec(sid, {"cmd": "clear", "node_id": node_id})
+            client.exec({"cmd": "clear", "node_id": node_id})
             return web.json_response({"success": True})
 
         @routes.post("/prompt_response/{id}")
         async def prompt_response(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
+            client = get_client(request)
             step_id = request.match_info.get("id")
             data = await request.json()
             response = data.get("response")
-            res = self.client_pool.poll(
-                sid,
+            res = client.poll(
                 ProcessorStateRequest.PROMPT_RESPONSE,
                 {
                     "step_id": step_id,
@@ -239,18 +235,17 @@ class GraphServer:
 
         @routes.get("/nodes")
         async def get_nodes(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
-            nodes = self.client_pool.nodes(sid)
+            client = get_client(request)
+            nodes = client.nodes()
             return web.json_response(nodes)
 
         @routes.get("/state/{step_id}/{pin_id}/{index}")
         async def get_output_note(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
+            client = get_client(request)
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
-            res = self.client_pool.poll(
-                sid,
+            res = client.poll(
                 ProcessorStateRequest.GET_OUTPUT_NOTE,
                 {
                     "step_id": step_id,
@@ -270,22 +265,22 @@ class GraphServer:
 
         @routes.get("/state")
         async def get_run_state(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
-            res = self.client_pool.poll(sid, ProcessorStateRequest.GET_RUNNING_STATE, {})
+            client = get_client(request)
+            res = client.poll(ProcessorStateRequest.GET_RUNNING_STATE)
             return web.json_response(res)
 
         @routes.get("/step_docstring/{name}")
         async def get_step_docstring(request: web.Request):
-            sid = request.headers.get("sid")
+            client = get_client(request)
             name = request.match_info.get("name")
-            docstring = self.client_pool.step_doc(sid, name)
+            docstring = client.step_doc(name)
             return web.json_response({"content": docstring})
 
         @routes.get("/resource_docstring/{name}")
         async def get_resource_docstring(request: web.Request):
-            sid = request.headers.get("sid")
+            client = get_client(request)
             name = request.match_info.get("name")
-            docstring = self.client_pool.resource_doc(sid, name)
+            docstring = client.resource_doc(name)
             return web.json_response({"content": docstring})
 
         @routes.get(r"/docs/{path:.+}")
@@ -413,9 +408,9 @@ class GraphServer:
 
         @routes.delete("/fs/{path:.+}")
         async def delete(request: web.Request) -> web.Response:
-            sid = request.headers.get("sid")
+            client = get_client(request)
             path = request.match_info.get("path")
-            client_path = self.client_pool.get_root_path(sid)
+            client_path = client.get_root_path()
             fullpath = osp.join(client_path, path)
             assert fullpath.startswith(
                 client_path
@@ -469,7 +464,7 @@ class GraphServer:
         await asyncio.Event().wait()
 
     async def on_shutdown(self):
-        self.client_pool.close_all()
+        self.client_pool.remove_all()
         print("Shutting down graph server")
 
     def start(self):

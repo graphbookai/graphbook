@@ -8,7 +8,7 @@ from .viewer import ViewManagerInterface
 from .plugins import setup_plugins
 from .logger import setup_logging_nodes
 from .utils import transform_json_log
-from . import exports
+from . import nodes
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import sys, os
@@ -29,8 +29,8 @@ class NodeCatalog:
         sys.path.append(custom_nodes_path)
         self.custom_nodes_path = custom_nodes_path
         self.nodes = {"steps": {}, "resources": {}}
-        self.nodes["steps"] |= exports.default_exported_steps
-        self.nodes["resources"] |= exports.default_exported_resources
+        self.nodes["steps"] |= nodes.default_exported_steps
+        self.nodes["resources"] |= nodes.default_exported_resources
         self.plugins = setup_plugins()
         steps, resources, _ = self.plugins
         for plugin in steps:

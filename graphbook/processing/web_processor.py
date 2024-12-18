@@ -17,6 +17,7 @@ from typing import List
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
+import threading as th
 import traceback
 import asyncio
 import time
@@ -57,13 +58,13 @@ class WebInstanceProcessor:
         self.state_client = ProcessorStateClient(
             client_request_conn,
             self.close_event,
+            self.pause_event,
             self.graph_state,
             self.dataloader,
         )
         self.is_running = False
         self.filename = None
-        self.p = mp.Process(target=self.start_loop, daemon=True)
-        self.p.start()
+        self.thread = th.Thread(target=self.start_loop, daemon=True)
 
     def handle_images(self, outputs: StepOutput):
         if self.img_mem is None:
@@ -252,7 +253,7 @@ class WebInstanceProcessor:
         if filename is not None:
             self.filename = filename
         run_state = {"is_running": is_running, "filename": self.filename}
-        self.view_manager.handle_run_state(run_state)
+        self.view_manager.set_state("run_state", run_state)
         self.state_client.set_running_state(run_state)
 
     def cleanup(self):
@@ -314,6 +315,9 @@ class WebInstanceProcessor:
                 break
             except queue.Empty:
                 pass
+            
+    def start(self):
+        self.thread.start()
 
     def close(self):
         self.close_event.set()
@@ -326,7 +330,15 @@ class WebInstanceProcessor:
     def poll_client(
         self, req: ProcessorStateRequest, body: dict = None
     ) -> dict:
-        return poll_conn_for(self.server_request_conn, req, body)
+        req_data = {"cmd": req}
+        if body:
+            req_data.update(body)
+        self.server_request_conn.send(req_data)
+        if self.server_request_conn.poll(timeout=MP_WORKER_TIMEOUT):
+            res = self.server_request_conn.recv()
+            if res.get("res") == req:
+                return res.get("data")
+        return {}
 
 
 class ProcessorStateClient:
@@ -334,11 +346,13 @@ class ProcessorStateClient:
         self,
         server_request_conn: mpc.Connection,
         close_event: mp.Event,
+        pause_event: mp.Event,
         graph_state: GraphState,
         dataloader: Dataloader,
     ):
         self.server_request_conn = server_request_conn
         self.close_event = close_event
+        self.pause_event = pause_event
         self.curr_task = None
         self.graph_state = graph_state
         self.dataloader = dataloader
@@ -369,6 +383,9 @@ class ProcessorStateClient:
                         step_id, req.get("response")
                     )
                     output = {"ok": succeeded}
+                elif req["cmd"] == ProcessorStateRequest.PAUSE:
+                    self.pause_event.set()
+                    output = {}
                 else:
                     output = {}
                 entry = {"res": req["cmd"], "data": output}
@@ -383,17 +400,3 @@ class ProcessorStateClient:
 
     def set_running_state(self, state: dict):
         self.running_state = state
-
-
-def poll_conn_for(
-    conn: mpc.Connection, req: ProcessorStateRequest, body: dict = None
-) -> dict:
-    req_data = {"cmd": req}
-    if body:
-        req_data.update(body)
-    conn.send(req_data)
-    if conn.poll(timeout=MP_WORKER_TIMEOUT):
-        res = conn.recv()
-        if res.get("res") == req:
-            return res.get("data")
-    return {}

@@ -99,6 +99,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         if (filename.slice(-3) == '.py') {
+            console.log("Attempting to open", filename)
             onBeginEdit({ name: filename });
         } else if (filename.slice(-5) == '.json') {
             setWorkflow(filename);

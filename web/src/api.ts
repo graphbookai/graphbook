@@ -101,7 +101,10 @@ export class ServerAPI {
             };
             this.websocket.onclose = () => {
                 this.retryWebSocketConnection();
-                this.disconnect()
+                this.sid = undefined;
+                for (const callback of this.onConnectStateListeners) {
+                    callback(false);
+                }
             };
         };
         if (this.websocket) {
