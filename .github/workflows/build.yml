@@ -7,15 +7,23 @@ on:
     tags:
       - "v*"
 
-env:
-  DOCKER_TAG_LATEST: rsamf/graphbook:latest
-  DOCKER_TAG: rsamf/graphbook:${{ github.ref_name }}
-
 jobs:
   base:
     runs-on:
       group: larger-runners
     steps:
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            rsamf/graphbook
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -30,9 +38,8 @@ jobs:
         with:
           push: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags') }}
           file: ./docker/Dockerfile
-          tags: |
-            $DOCKER_TAG_LATEST
-            $DOCKER_TAG
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=$DOCKER_TAG_LATEST
           cache-to: type=inline
 
@@ -41,6 +48,21 @@ jobs:
     runs-on:
       group: larger-runners
     steps:
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            lastest=false
+            suffix=-space
+          images: |
+            rsamf/graphbook
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
  
@@ -55,6 +77,7 @@ jobs:
         with:
           push: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags') }}
           file: ./docker/Dockerfile.hfspace
-          tags: ${DOCKER_TAG}-space
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${DOCKER_TAG}-space
           cache-to: type=inline
