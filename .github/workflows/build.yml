@@ -19,7 +19,6 @@ jobs:
           images: |
             rsamf/graphbook
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=sha
@@ -40,7 +39,7 @@ jobs:
           file: ./docker/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=$DOCKER_TAG_LATEST
+          cache-from: type=registry,ref=rsamf/graphbook:latest
           cache-to: type=inline
 
   hfspace:
@@ -53,12 +52,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           flavor: |
-            lastest=false
             suffix=-space
           images: |
             rsamf/graphbook
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=sha
@@ -79,5 +76,5 @@ jobs:
           file: ./docker/Dockerfile.hfspace
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${DOCKER_TAG}-space
+          cache-from: type=registry,ref=rsamf/graphbook:latest-space
           cache-to: type=inline
