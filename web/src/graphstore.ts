@@ -56,6 +56,12 @@ export class GraphStore {
         const storedNodes = nodes.map(node => {
             const storedNode = { ...node, data: { ...node.data } };
             delete storedNode.data.properties;
+            delete storedNode.data.key;
+            delete storedNode.selected;
+            delete storedNode.dragging;
+            delete storedNode.positionAbsolute;
+            delete storedNode.width;
+            delete storedNode.height;
             return storedNode;
         });
         const storedEdges = edges.map(edge => {
@@ -79,8 +85,8 @@ export class GraphStore {
 
         for (let i = 0; i < prev.nodes.length; i++) {
             // If node's data is updated
-            const prevData = { ...prev.nodes[i].data, properties: undefined };
-            const nextData = { ...next.nodes[i].data, properties: undefined };
+            const prevData = JSON.stringify({ ...prev.nodes[i].data, properties: undefined });
+            const nextData = JSON.stringify({ ...next.nodes[i].data, properties: undefined });
             if (prevData !== nextData) {
                 return true;
             }

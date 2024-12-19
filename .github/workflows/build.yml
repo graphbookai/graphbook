@@ -2,16 +2,26 @@ name: Docker Build
 
 on:
   push:
-    branches: ["main"]
-    paths-ignore:
-        - 'docs/**'
-        - 'tests/**'
+    tags:
+      - "v*"
+  pull_request:
 
 jobs:
-  docker:
+  base:
     runs-on:
       group: larger-runners
     steps:
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            rsamf/graphbook
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -24,7 +34,46 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          push: true
-          tags: rsamf/graphbook:latest
+          push: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags') }}
+          file: ./docker/Dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=rsamf/graphbook:latest
+          cache-to: type=inline
+
+  hfspace:
+    needs: base        
+    runs-on:
+      group: larger-runners
+    steps:
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            suffix=-space
+          images: |
+            rsamf/graphbook
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+ 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+ 
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags') }}
+          file: ./docker/Dockerfile.hfspace
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=rsamf/graphbook:latest-space
           cache-to: type=inline

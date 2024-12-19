@@ -47,20 +47,12 @@ export const getMediaPath = (settings: any, item: ImageRef): string => {
         return '';
     }
 
+    const protocol = window.location.protocol;
     if (!settings.useExternalMediaServer) {
-        let graphHost = settings.graphServerHost;
-        if (!graphHost.startsWith('http')) {
-            graphHost = 'http://' + graphHost;
-        }
-        return `${graphHost}/media${query}`;
+        return `${protocol}//${settings.graphServerHost}/media${query}`;
     }
 
-    let mediaHost = settings.mediaServerHost;
-    if (!mediaHost.startsWith('http')) {
-        mediaHost = 'http://' + query;
-    }
-
-    return mediaHost + query;
+    return `${protocol}//${settings.mediaServerHost}${query}`;
 }
 
 export const uniqueIdFrom = (obj: any): string => {

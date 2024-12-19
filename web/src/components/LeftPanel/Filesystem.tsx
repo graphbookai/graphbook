@@ -41,11 +41,12 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         const files = await API.listFiles();
+        console.log(files);
         if (!files) {
             return;
         }
 
-        const filesRoot = files.from_root.toUpperCase();
+        const filesRoot = files.title.toUpperCase();
         const setKey = (data) => {
             data.forEach((item) => {
                 item.key = item.path;
@@ -98,6 +99,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         if (filename.slice(-3) == '.py') {
+            console.log("Attempting to open", filename)
             onBeginEdit({ name: filename });
         } else if (filename.slice(-5) == '.json') {
             setWorkflow(filename);

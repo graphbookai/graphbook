@@ -6,8 +6,13 @@ let globalAPI: ServerAPI | null = null;
 let localSetters: Function[] = [];
 let initialized = false;
 
-const initialize = () => setGlobalAPI(API);
-const disable = () => setGlobalAPI(null);
+const onConnectStateChange = (isConnected: boolean) => {
+    if (!isConnected) {
+        setGlobalAPI(null);
+    } else {
+        setGlobalAPI(API);
+    }
+};
 
 function setGlobalAPI(api: ServerAPI | null) {
     globalAPI = api;
@@ -20,21 +25,22 @@ export function useAPI() {
     const [_, setAPI] = useState<ServerAPI | null>(globalAPI);
 
     useEffect(() => {
+        if (!initialized) {
+            initialized = true;
+            const discard = API.onConnectStateChange(onConnectStateChange);
+
+            return () => {
+                discard();
+                initialized = false
+            };
+        }
+    }, []);
+
+    useEffect(() => {
         localSetters.push(setAPI);
 
-        if (!initialized) {
-            API.addWsEventListener('open', initialize);
-            API.addWsEventListener('close', disable);
-            initialized = true;
-        }
         return () => {
             localSetters = localSetters.filter((setter) => setter !== setAPI);
-
-            if (localSetters.length === 0) {
-                API.removeWsEventListener('open', initialize);
-                API.removeWsEventListener('close', disable);
-                initialized = false;
-            }
         }
     }, []);
 
@@ -94,19 +100,23 @@ export function useAPIReconnectTimer() {
     };
 
     useEffect(() => {
-        localReconnectListeners.push(reconnectTime);
+        if (!reconnectInitialized) {
 
-        if(!reconnectInitialized) {
-            API.addReconnectListener(onTimerChanged);
+            const discard = API.onReconnectTimerChange(onTimerChanged);
             reconnectInitialized = true;
+
+            return () => {
+                discard();
+                reconnectInitialized = false;
+            };
         }
+    });
+
+    useEffect(() => {
+        localReconnectListeners.push(reconnectTime);
 
         return () => {
             localReconnectListeners = localReconnectListeners.filter((listener) => listener !== reconnectTime);
-            if(localReconnectListeners.length === 0) {
-                API.removeReconnectListener(onTimerChanged);
-                reconnectInitialized = false;
-            }
         }
     }, []);
 

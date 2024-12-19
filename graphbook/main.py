@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import argparse
-import os.path as osp
+from pathlib import Path
 from graphbook.web import start_web
 from graphbook import config
 
@@ -8,7 +8,7 @@ DESCRIPTION = """
 Graphbook | ML Workflow Framework
 """
 
-workflow_dir = "./workflow"
+workflow_dir = "workflow"
 nodes_dir = "custom_nodes"
 docs_dir = "docs"
 
@@ -48,13 +48,13 @@ def get_args():
     parser.add_argument(
         "--nodes_dir",
         type=str,
-        default=osp.join(workflow_dir, nodes_dir),
+        default=str(Path(workflow_dir).joinpath(nodes_dir)),
         help="Path to the custom nodes directory",
     )
     parser.add_argument(
         "--docs_dir",
         type=str,
-        default=osp.join(workflow_dir, docs_dir),
+        default=str(Path(workflow_dir).joinpath(docs_dir)),
         help="Path to the docs directory",
     )
     parser.add_argument(
@@ -73,6 +73,11 @@ def get_args():
         action="store_true",
         help="Use the spawn start method for multiprocessing",
     )
+    parser.add_argument(
+        "--isolate-users",
+        action="store_true",
+        help="Isolate each user in their own execution environment. Does NOT prevent users from accessing each other's files.",
+    )
 
     return parser.parse_args()
 
@@ -80,8 +85,9 @@ def get_args():
 def resolve_paths(args):
     if args.root_dir:
         args.workflow_dir = args.root_dir
-        args.nodes_dir = osp.join(args.root_dir, nodes_dir)
-        args.docs_dir = osp.join(args.root_dir, docs_dir)
+        args.nodes_dir = str(Path(args.root_dir).joinpath(nodes_dir))
+        args.docs_dir = str(Path(args.root_dir).joinpath(docs_dir))
+        print(args.nodes_dir)
     return args
 
 
