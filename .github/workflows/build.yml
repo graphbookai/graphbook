@@ -2,6 +2,8 @@ name: Docker Build
 
 on:
   push:
+    branches:
+      - "**"
     tags:
       - "v*"
 
@@ -26,9 +28,11 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          push: true
+          push: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags') }}
           file: ./docker/Dockerfile
-          tags: $DOCKER_TAG_LATEST, $DOCKER_TAG
+          tags: |
+            $DOCKER_TAG_LATEST
+            $DOCKER_TAG
           cache-from: type=registry,ref=$DOCKER_TAG_LATEST
           cache-to: type=inline
 
@@ -49,7 +53,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          push: true
+          push: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags') }}
           file: ./docker/Dockerfile.hfspace
           tags: ${DOCKER_TAG}-space
           cache-from: type=registry,ref=${DOCKER_TAG}-space
