@@ -46,7 +46,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
 
-        const filesRoot = files.from_root.toUpperCase();
+        const filesRoot = files.title.toUpperCase();
         const setKey = (data) => {
             data.forEach((item) => {
                 item.key = item.path;

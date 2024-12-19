@@ -1,15 +1,14 @@
 from typing import Tuple
 from . import steps, resources
 from .doc2md import convert_to_md
-from aiohttp import web
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+from pathlib import Path
 import importlib
 import importlib.util
 import hashlib
 import sys
 import os
-import os.path as osp
 import inspect
 import traceback
 from .decorators import get_steps, get_resources
@@ -55,7 +54,9 @@ default_exported_resources = {
 
 
 class NodeHub:
-    def __init__(self, path: str, plugins: Tuple[dict, dict], view_manager: ViewManager):
+    def __init__(
+        self, path: Path, plugins: Tuple[dict, dict], view_manager: ViewManager
+    ):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources
         self.view_manager = view_manager
@@ -73,16 +74,16 @@ class NodeHub:
 
     def stop(self):
         self.custom_node_importer.stop_observer()
-        
+
     def handle_module(self, filename, module):
         self.view_manager.set_state("node_updated")
 
-    def handle_step(self, filename, name, step):
-        print(f"{filename}: {name} (step)")
+    def handle_step(self, filename: Path, name: str, step: steps.Step):
+        print(f"{filename.name}: {name} (step)")
         self.exported_steps[name] = step
 
-    def handle_resource(self, filename, name, resource):
-        print(f"{filename}: {name} (resource)")
+    def handle_resource(self, filename: Path, name: str, resource: resources.Resource):
+        print(f"{filename.name}: {name} (resource)")
         self.exported_resources[name] = resource
 
     def get_steps(self):
@@ -154,9 +155,9 @@ class NodeHub:
 
 
 class CustomModuleEventHandler(FileSystemEventHandler):
-    def __init__(self, root_path, handler):
+    def __init__(self, root_path: Path, handler: callable):
         super().__init__()
-        self.root_path = osp.abspath(root_path)
+        self.root_path = Path(root_path).absolute()
         self.handler = handler
         self.ha = {}
 
@@ -180,71 +181,70 @@ class CustomModuleEventHandler(FileSystemEventHandler):
         self.handle_new_file(event.dest_path)
 
     def handle_new_file(self, filename: str):
-        filename = osp.abspath(filename)
-        assert filename.startswith(
-            self.root_path
-        ), f"Received extraneous file {filename} during tracking of {self.root_path}"
-        if not filename.endswith(".py"):
+        filepath = Path(filename)
+        if not filepath.suffix == ".py":
             return
 
-        with open(filename, "r") as f:
-            contents = f.read()
-
+        contents = filepath.read_text()
         hash_code = hashlib.md5(contents.encode()).hexdigest()
         og_hash_code = self.ha.get(filename, None)
         if hash_code == og_hash_code:
             return
 
         self.ha[filename] = hash_code
-        filename = filename[len(self.root_path) + 1 :]
-        components = filename[: filename.index(".py")].split("/")
-        module_name = ".".join(components)
-
         try:
-            if og_hash_code is None:
-                importlib.import_module(module_name)
-            else:
-                module = importlib.import_module(module_name)
-                importlib.reload(module)
-        except Exception as e:
-            print(f"Error loading {module_name}:")
+            module_spec = importlib.util.spec_from_file_location(
+                "transient_module", filepath
+            )
+            module = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(module)
+        except Exception:
+            print(f"Error loading {filename}:")
             traceback.print_exc()
             return
 
-        module = sys.modules[module_name]
-        self.handler(filename, module)
+        self.handler(filepath, module)
 
     def init_custom_nodes(self):
         for root, dirs, files in os.walk(self.root_path):
             for file in files:
-                self.handle_new_file(osp.join(root, file))
+                self.handle_new_file(Path(root).joinpath(file))
+
 
 class CustomNodeImporter:
-    def __init__(self, path, step_handler, resource_handler, module_handler):
+    def __init__(
+        self,
+        path: Path,
+        step_handler: callable,
+        resource_handler: callable,
+        module_handler: callable,
+    ):
         self.websocket = None
         self.path = path
         self.step_handler = step_handler
         self.resource_handler = resource_handler
         self.module_handler = module_handler
-        sys.path.append(path)
         self.observer = Observer()
         self.event_handler = CustomModuleEventHandler(path, self.on_module)
         self.event_handler.init_custom_nodes()
 
-    def on_module(self, filename, mod):
+    def on_module(self, filename: Path, mod):
         for name, obj in inspect.getmembers(mod):
             if inspect.isclass(obj):
                 if issubclass(obj, steps.Step) and not obj in BUILT_IN_STEPS:
                     self.step_handler(filename, name, obj)
-                if issubclass(obj, resources.Resource) and not obj in BUILT_IN_RESOURCES:
+                if (
+                    issubclass(obj, resources.Resource)
+                    and not obj in BUILT_IN_RESOURCES
+                ):
                     self.resource_handler(filename, name, obj)
 
         for name, cls in get_steps().items():
             self.step_handler(filename, name, cls)
         for name, cls in get_resources().items():
             self.resource_handler(filename, name, cls)
-            
-        self.module_handler(filename, mod)            
+
+        self.module_handler(filename, mod)
 
     def start_observer(self):
         self.observer.schedule(self.event_handler, self.path, recursive=True)

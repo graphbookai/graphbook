@@ -94,8 +94,8 @@
             "id": "7",
             "type": "step",
             "position": {
-                "x": 272.5,
-                "y": 79
+                "x": 233.5,
+                "y": 105
             },
             "data": {
                 "name": "Transform",

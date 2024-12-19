@@ -14,6 +14,7 @@ import importlib, importlib.util, inspect
 import sys, os
 import hashlib
 from enum import Enum
+from pathlib import Path
 
 
 class NodeInstantiationError(Exception):
@@ -25,8 +26,7 @@ class NodeInstantiationError(Exception):
 
 
 class NodeCatalog:
-    def __init__(self, custom_nodes_path: str):
-        sys.path.append(custom_nodes_path)
+    def __init__(self, custom_nodes_path: Path):
         self.custom_nodes_path = custom_nodes_path
         self.nodes = {"steps": {}, "resources": {}}
         self.nodes["steps"] |= nodes.default_exported_steps
@@ -71,7 +71,7 @@ class NodeCatalog:
             "steps": {k: False for k in self.nodes["steps"]},
             "resources": {k: False for k in self.nodes["resources"]},
         }
-        for root, dirs, files in os.walk(self.custom_nodes_path):
+        for root, dirs, files in os.walk(str(self.custom_nodes_path)):
             for file in files:
                 if not file.endswith(".py"):
                     continue
@@ -82,11 +82,8 @@ class NodeCatalog:
                 while module_name.startswith("."):
                     module_name = module_name[1:]
                 # import
-                if module_name in sys.modules:
-                    mod = sys.modules[module_name]
-                    mod = importlib.reload(mod)
-                else:
-                    mod = importlib.import_module(module_name)
+                mod = self._get_module(os.path.join(root, file))
+
                 # get node classes
                 for name, obj in inspect.getmembers(mod):
                     if inspect.isclass(obj):
@@ -115,9 +112,7 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue):
-        sys.path.append(custom_nodes_path)
-        self.custom_nodes_path = custom_nodes_path
+    def __init__(self, custom_nodes_path: Path, view_manager_queue: mp.Queue):
         self.view_manager_queue = view_manager_queue
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self._dict_graph = {}
@@ -175,6 +170,12 @@ class GraphState:
                     del curr_resource, self._dict_resources[resource_id]
                 try:
                     resource = resource_hub[resource_name](**p)
+                except KeyError:
+                    raise NodeInstantiationError(
+                        f"No resource node with name {resource_name} found",
+                        resource_id,
+                        resource_name,
+                    )
                 except Exception as e:
                     raise NodeInstantiationError(str(e), resource_id, resource_name)
                 resource_values[resource_id] = resource.value()
@@ -220,6 +221,10 @@ class GraphState:
                 try:
                     step = step_hub[step_name](**step_input)
                     step.id = step_id
+                except KeyError:
+                    raise NodeInstantiationError(
+                        f"No step node with name {step_name} found", step_id, step_name
+                    )
                 except Exception as e:
                     raise NodeInstantiationError(str(e), step_id, step_name)
                 steps[step_id] = step

@@ -14,6 +14,7 @@ from ..logger import log
 from ..shm import SharedMemoryManager
 from ..note import Note
 from typing import List
+from pathlib import Path
 import queue
 import multiprocessing as mp
 import multiprocessing.connection as mpc
@@ -32,22 +33,20 @@ step_output_err_res = (
 class WebInstanceProcessor:
     def __init__(
         self,
-        cmd_queue: mp.Queue,
         view_manager_queue: mp.Queue,
         img_mem: SharedMemoryManager | None,
         continue_on_failure: bool,
         copy_outputs: bool,
-        custom_nodes_path: str,
+        custom_nodes_path: Path,
         spawn: bool,
         num_workers: int = 1,
     ):
-        self.cmd_queue = cmd_queue
+        self.cmd_queue = mp.Queue()
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.img_mem = img_mem
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
-        self.custom_nodes_path = custom_nodes_path
         self.num_workers = num_workers
         self.steps = {}
         self.dataloader = Dataloader(self.num_workers, spawn)

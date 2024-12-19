@@ -5,15 +5,16 @@ from .processing.web_processor import WebInstanceProcessor
 from .utils import ProcessorStateRequest
 from .nodes import NodeHub
 from .viewer import ViewManager
-from .dataloading import Dataloader
 import tempfile
 import os.path as osp
+from pathlib import Path
 import multiprocessing as mp
 import os
 import asyncio
 import shutil
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
+
 
 class Client:
     def __init__(
@@ -31,19 +32,19 @@ class Client:
         self.processor = processor
         self.node_hub = node_hub
         self.view_manager = view_manager
-        self.root_path = setup_paths["workflow_dir"]
-        self.docs_path = setup_paths["docs_path"]
-        self.custom_nodes_path = setup_paths["custom_nodes_path"]
+        self.root_path = Path(setup_paths["workflow_dir"])
+        self.docs_path = Path(setup_paths["docs_path"])
+        self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
         self.options = options
         self.curr_task = None
 
-    def get_root_path(self):
+    def get_root_path(self) -> Path:
         return self.root_path
-    
-    def get_docs_path(self):
+
+    def get_docs_path(self) -> Path:
         return self.docs_path
-    
-    def get_custom_nodes_path(self):
+
+    def get_custom_nodes_path(self) -> Path:
         return self.custom_nodes_path
 
     def nodes(self):
@@ -54,7 +55,7 @@ class Client:
 
     def resource_doc(self, name):
         return self.node_hub.get_resource_docstring(name)
-    
+
     def exec(self, req: dict):
         self.processor.exec(req)
 
@@ -64,7 +65,7 @@ class Client:
             data,
         )
         return res
-    
+
     async def _loop(self):
         while True:
             await asyncio.sleep(self.options["SEND_EVERY"])
@@ -109,14 +110,10 @@ class ClientPool:
             )
 
     def _create_resources(self, web_processor_args: dict, setup_paths: dict):
-        proc_queue = mp.Queue()
         view_queue = mp.Queue()
-        dataloader = Dataloader(1, False)
         processor_args = {
             **web_processor_args,
-            "dataloader": dataloader,
             "custom_nodes_path": setup_paths["custom_nodes_path"],
-            "cmd_queue": proc_queue,
             "view_manager_queue": view_queue,
         }
         self._create_dirs(**setup_paths, no_sample=self.no_sample)
@@ -132,17 +129,20 @@ class ClientPool:
             "view_manager": view_manager,
         }
 
-    def _create_dirs(self, workflow_dir, custom_nodes_path, docs_path, no_sample: bool):
+    def _create_dirs(
+        self, workflow_dir: str, custom_nodes_path: str, docs_path: str, no_sample: bool
+    ):
         def create_sample_workflow():
             import shutil
 
-            assets_dir = osp.join(osp.dirname(__file__), "sample_assets")
+            project_path = Path(__file__).parent
+            assets_dir = project_path.joinpath("sample_assets")
             n = "SampleWorkflow.json"
-            shutil.copyfile(osp.join(assets_dir, n), osp.join(workflow_dir, n))
+            shutil.copyfile(assets_dir.joinpath(n), Path(workflow_dir).joinpath(n))
             n = "SampleWorkflow.md"
-            shutil.copyfile(osp.join(assets_dir, n), osp.join(docs_path, n))
+            shutil.copyfile(assets_dir.joinpath(n), Path(docs_path).joinpath(n))
             n = "sample_nodes.py"
-            shutil.copyfile(osp.join(assets_dir, n), osp.join(custom_nodes_path, n))
+            shutil.copyfile(assets_dir.joinpath(n), Path(custom_nodes_path).joinpath(n))
 
         should_create_sample = False
         if not osp.exists(workflow_dir):
@@ -158,12 +158,13 @@ class ClientPool:
 
     def add_client(self, ws: WebSocketResponse) -> Client:
         sid = uuid.uuid4().hex
-        setup_paths = { **self.setup_paths }
+        setup_paths = {**self.setup_paths}
         if not self.shared_execution:
-            root_path = tempfile.mkdtemp()
+            root_path = Path(tempfile.mkdtemp())
             self.tmpdirs[sid] = root_path
-            for key in setup_paths:
-                setup_paths[key] = osp.join(root_path, setup_paths[key])
+            setup_paths = {
+                key: root_path.joinpath(path) for key, path in setup_paths.items()
+            }
             web_processor_args = {
                 **self.web_processor_args,
                 "custom_nodes_path": setup_paths["custom_nodes_path"],
@@ -195,6 +196,6 @@ class ClientPool:
             os.rmdir(self.tmpdirs[sid])
         self.clients = {}
         self.tmpdirs = {}
-        
+
     def get(self, sid: str) -> Client | None:
         return self.clients.get(sid, None)

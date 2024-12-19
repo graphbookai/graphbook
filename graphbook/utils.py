@@ -30,7 +30,7 @@ def is_batchable(obj: Any) -> bool:
     return isinstance(obj, list) or isinstance(obj, Tensor)
 
 
-def transform_function_string(func_str):
+def transform_function_string(func_str: str):
     """
     This function is used to convert a string to a function
     by interpreting the string as a python-typed function

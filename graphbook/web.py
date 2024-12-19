@@ -1,5 +1,4 @@
 import os
-import os.path as osp
 import re
 import signal
 import multiprocessing as mp
@@ -29,7 +28,9 @@ async def cors_middleware(request: web.Request, handler):
 
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "POST, GET, DELETE, PUT, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, sid"
+    response.headers["Access-Control-Allow-Headers"] = (
+        "Content-Type, Authorization, sid"
+    )
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
@@ -52,7 +53,7 @@ class GraphServer:
         self.close_event = close_event
         self.web_dir = web_dir
         if self.web_dir is None:
-            self.web_dir = osp.join(osp.dirname(__file__), "web")
+            self.web_dir = Path(__file__).parent.joinpath("web")
         routes = web.RouteTableDef()
         self.routes = routes
         self.img_mem = SharedMemoryManager(**img_mem_args) if img_mem_args else None
@@ -74,7 +75,7 @@ class GraphServer:
             close_event,
         )
 
-        if not osp.isdir(self.web_dir):
+        if not self.web_dir.is_dir():
             print(
                 f"Couldn't find web files inside {self.web_dir}. Will not serve web files."
             )
@@ -98,7 +99,7 @@ class GraphServer:
                 filename = req["filename"]
                 nodes = req["nodes"]
                 edges = req["edges"]
-                full_path = osp.join(client.get_root_path(), filename)
+                full_path = client.get_root_path().joinpath(filename)
                 print(f"Saving graph to {full_path}")
                 with open(full_path, "w") as f:
                     serialized = {
@@ -129,15 +130,15 @@ class GraphServer:
         async def get(request: web.Request) -> web.Response:
             if self.web_dir is None:
                 raise web.HTTPNotFound(body="No web files found.")
-            return web.FileResponse(osp.join(self.web_dir, "index.html"))
+            return web.FileResponse(self.web_dir.joinpath("index.html"))
 
         @routes.get("/media")
         async def get_media(request: web.Request) -> web.Response:
-            path = request.query.get("path", None)
+            path = Path(request.query.get("path", None))
             shm_id = request.query.get("shm_id", None)
 
             if path is not None:
-                if not osp.exists(path):
+                if not path.exists():
                     raise web.HTTPNotFound()
                 return web.FileResponse(path)
 
@@ -288,9 +289,9 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path", "")
             docs_path = client.get_docs_path()
-            fullpath = osp.join(docs_path, path)
+            fullpath = docs_path.joinpath(path)
 
-            if osp.exists(fullpath):
+            if fullpath.exists():
                 with open(fullpath, "r") as f:
                     file_contents = f.read()
                     d = {"content": file_contents}
@@ -306,49 +307,48 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path", "")
             client_path = client.get_root_path()
-            fullpath = osp.join(client_path, path)
-            assert fullpath.startswith(
-                client_path
+            fullpath = client_path.joinpath(path)
+            assert str(fullpath).startswith(
+                str(client_path)
             ), f"{fullpath} must be within {client_path}"
 
-            def handle_fs_tree(p: str, fn: callable) -> dict:
-                if osp.isdir(p):
+            def handle_fs_tree(p: Path, fn: callable) -> dict:
+                if Path.is_dir(p):
                     p_data = fn(p)
                     p_data["children"] = [
-                        handle_fs_tree(osp.join(p, f), fn) for f in os.listdir(p)
+                        handle_fs_tree(f, fn) for f in Path.iterdir(p)
                     ]
                     return p_data
                 else:
                     return fn(p)
 
-            def get_stat(path):
-                stat = os.stat(path)
-                rel_path = osp.relpath(path, fullpath)
+            def get_stat(path: Path) -> dict:
+                stat = path.stat()
+                rel_path = path.relative_to(fullpath)
                 st = {
-                    "title": osp.basename(rel_path),
-                    "path": rel_path,
-                    "path_from_cwd": osp.join(fullpath, rel_path),
+                    "title": path.name,
+                    "path": str(rel_path),
+                    "path_from_cwd": str(fullpath.joinpath(rel_path)),
                     "dirname": str(Path(rel_path).parent),
-                    "from_root": Path(fullpath).name,
                     "access_time": int(stat.st_atime),
                     "modification_time": int(stat.st_mtime),
                     "change_time": int(stat.st_ctime),
                 }
 
-                if not osp.isdir(path):
+                if not path.is_dir():
                     st["size"] = int(stat.st_size)
 
                 return st
 
-            if osp.exists(fullpath):
+            if fullpath.exists():
                 if request.query.get("stat", False):
                     stats = handle_fs_tree(fullpath, get_stat)
                     res = web.json_response(stats)
                     res.headers["Content-Type"] = "application/json; charset=utf-8"
                     return res
 
-                if osp.isdir(fullpath):
-                    res = web.json_response(os.listdir(fullpath))
+                if fullpath.is_dir():
+                    res = web.json_response(list(fullpath.iterdir()))
                     res.headers["Content-Type"] = "application/json; charset=utf-8"
                     return res
                 else:
@@ -374,10 +374,10 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path", "")
             client_path = client.get_root_path()
-            fullpath = osp.join(client_path, path)
+            fullpath = client_path.joinpath(path)
             data = await request.json()
             if request.query.get("mv"):
-                topath = osp.join(client_path, request.query.get("mv"))
+                topath = client_path.joinpath(request.query.get("mv"))
                 os.rename(fullpath, topath)
                 return web.json_response({}, status=200)
 
@@ -393,7 +393,7 @@ class GraphServer:
             if encoding == "base64":
                 file_contents = base64.b64decode(file_contents)
 
-            if osp.exists(fullpath):
+            if fullpath.exists():
                 with open(fullpath, "r") as f:
                     current_hash = hashlib.md5(f.read().encode()).hexdigest()
                     if current_hash != hash_key:
@@ -411,27 +411,27 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path")
             client_path = client.get_root_path()
-            fullpath = osp.join(client_path, path)
-            assert fullpath.startswith(
+            fullpath = client_path.joinpath(path)
+            assert str(fullpath).startswith(
                 client_path
             ), f"{fullpath} must be within {client_path}"
 
-            if osp.exists(fullpath):
-                if osp.isdir(fullpath):
-                    if os.listdir(fullpath) == []:
-                        os.rmdir(fullpath)
+            if fullpath.exists():
+                if fullpath.is_dir():
+                    try:
+                        fullpath.rmdir(fullpath)
                         return web.json_response({"success": True}, status=204)
-                    else:
+                    except Exception as e:
                         return web.json_response(
-                            {"reason": "/%s: Directory is not empty." % path},
-                            status=403,
+                            {"reason": f"Error deleting directory {fullpath}: {e}"},
+                            status=400,
                         )
                 else:
-                    os.remove(fullpath)
+                    fullpath.unlink(True)
                     return web.json_response({"success": True}, status=204)
             else:
                 return web.json_response(
-                    {"reason": "/%s: No such file or directory." % path}, status=404
+                    {"reason": f"No such file or directory {fullpath}."}, status=404
                 )
 
         @routes.get("/plugins")
@@ -446,7 +446,7 @@ class GraphServer:
             if plugin_location is None:
                 raise web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
             return web.FileResponse(plugin_location)
-        
+
         def get_client(request: web.Request) -> Client:
             sid = request.headers.get("sid")
             if sid is None:
