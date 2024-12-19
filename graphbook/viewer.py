@@ -1,14 +1,13 @@
-from typing import Dict, List
-from aiohttp.web import WebSocketResponse
-import uuid
+from typing import Dict, List, Any
 import asyncio
 import time
 import multiprocessing as mp
-import multiprocessing.connection as mpc
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, ProcessorStateRequest, poll_conn_for
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util
+# from .processing.web_processor import WebInstanceProcessor
+from .utils import ProcessorStateRequest
 
 
 class Viewer:
@@ -40,9 +39,8 @@ class DataViewer(Viewer):
     so that the data can be displayed in the web interface.
     """
 
-    def __init__(self, deque_max_size=5):
+    def __init__(self):
         super().__init__("view")
-        self.deque_max_size = deque_max_size
         self.last_outputs: Dict[str, dict] = {}
         self.filename = None
 
@@ -151,9 +149,9 @@ class SystemUtilViewer(Viewer):
     Tracks system utilization: CPU util, CPU memory, GPU util, GPU memory
     """
 
-    def __init__(self, processor_state_conn: mpc.Connection):
+    def __init__(self, processor):
         super().__init__("system_util")
-        self.processor_state_conn = processor_state_conn
+        self.processor = processor
 
     def get_cpu_usage(self):
         return psutil.cpu_percent()
@@ -166,8 +164,8 @@ class SystemUtilViewer(Viewer):
         return gpus
 
     def get_next(self):
-        sizes = poll_conn_for(
-            self.processor_state_conn, ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
+        sizes = self.processor.poll_client(
+            ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
         )
         return {
             "cpu": self.get_cpu_usage(),
@@ -194,53 +192,17 @@ class PromptViewer(Viewer):
         return self.prompts
 
 
-DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
-
-
-class Client:
-    def __init__(
-        self,
-        ws: WebSocketResponse,
-        producers: List[DataViewer],
-        options: dict = DEFAULT_CLIENT_OPTIONS,
-    ):
-        self.ws = ws
-        self.producers = producers
-        self.options = options
-        self.curr_task = None
-
-    async def _loop(self):
-        while True:
-            await asyncio.sleep(self.options["SEND_EVERY"])
-            sends = []
-            for producer in self.producers:
-                next_entry = producer.get_next()
-                if next_entry is not None:
-                    entry = {"type": producer.get_event_name(), "data": next_entry}
-                    sends.append(self.ws.send_json(entry))
-            await asyncio.gather(*sends)
-
-    def start(self):
-        loop = asyncio.get_event_loop()
-        self.curr_task = loop.create_task(self._loop())
-
-    async def close(self):
-        if self.curr_task is not None:
-            self.curr_task.cancel()
-        await self.ws.close()
-
-
 class ViewManager:
     def __init__(
         self,
         work_queue: mp.Queue,
         close_event: mp.Event,
-        processor_state_conn: mpc.Connection,
+        processor,
     ):
         self.data_viewer = DataViewer()
         self.node_stats_viewer = NodeStatsViewer()
         self.logs_viewer = NodeLogsViewer()
-        self.system_util_viewer = SystemUtilViewer(processor_state_conn)
+        self.system_util_viewer = SystemUtilViewer(processor)
         self.prompt_viewer = PromptViewer()
         self.viewers: List[Viewer] = [
             self.data_viewer,
@@ -249,27 +211,12 @@ class ViewManager:
             self.system_util_viewer,
             self.prompt_viewer,
         ]
-        self.clients: Dict[str, Client] = {}
+        self.states: Dict[str, Any] = {}
         self.work_queue = work_queue
         self.close_event = close_event
-        self.curr_task = None
-
-    def add_client(self, ws: WebSocketResponse) -> str:
-        sid = uuid.uuid4().hex
-        client = Client(ws, self.viewers)
-        self.clients[sid] = client
-        client.start()
-        return sid
-
-    async def remove_client(self, sid: str):
-        if sid in self.clients:
-            await self.clients[sid].close()
-            del self.clients[sid]
-
-    def close_all(self):
-        for sid in self.clients:
-            self.clients[sid].close()
-        self.clients = {}
+        
+    def get_viewers(self):
+        return self.viewers
 
     def handle_outputs(self, node_id: str, outputs: dict):
         if len(outputs) == 0:
@@ -300,22 +247,32 @@ class ViewManager:
     def handle_end(self):
         for viewer in self.viewers:
             viewer.handle_end()
-
-    def send_to_clients(self, type: str, data: dict):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        sends = []
-        for client in self.clients.values():
-            entry = {"type": type, "data": data}
-            sends.append(client.ws.send_json(entry))
-        loop.run_until_complete(asyncio.gather(*sends))
-        loop.close()
-
-    def handle_run_state(self, is_running: bool, filename: str):
-        self.data_viewer.set_filename(filename)
-        self.send_to_clients(
-            "run_state", {"is_running": is_running, "filename": filename}
-        )
+    
+    def set_state(self, type: str, data: Any = None):
+        """
+        Set state data for a specific type
+        """
+        self.states[type] = data
+    
+    def get_current_states(self):
+        """
+        Retrieve all current state data
+        """
+        states = [{"type": key, "data": self.states[key]} for key in self.states]
+        self.states.clear()
+        return states
+    
+    def get_current_view_data(self):
+        """
+        Get the current data from all viewer classes
+        """
+        view_data = []
+        for viewer in self.viewers:
+            next_entry = viewer.get_next()
+            if next_entry is not None:
+                entry = {"type": viewer.get_event_name(), "data": next_entry}
+                view_data.append(entry)
+        return view_data
 
     def _loop(self):
         while not self.close_event.is_set():
@@ -333,24 +290,19 @@ class ViewManager:
                     self.handle_end()
                 elif work["cmd"] == "handle_log":
                     self.handle_log(work["node_id"], work["log"], work["type"])
-                elif work["cmd"] == "handle_run_state":
-                    self.handle_run_state(work["is_running"], work["filename"])
                 elif work["cmd"] == "handle_clear":
                     self.handle_clear(work["node_id"])
                 elif work["cmd"] == "handle_prompt":
                     self.handle_prompt(work["node_id"], work["prompt"])
+                elif work["cmd"] == "set_state":
+                    self.set_state(work["type"], work["data"])
 
             except queue.Empty:
                 pass
 
     def start(self):
-        self._loop()
-
-    async def close(self):
-        if self.curr_task is not None:
-            self.curr_task.cancel()
-        await asyncio.gather(*[client.close() for client in self.clients.values()])
-
+        loop = asyncio.new_event_loop()
+        loop.run_in_executor(None, self._loop)
 
 class ViewManagerInterface:
     def __init__(self, view_manager_queue: mp.Queue):
@@ -384,13 +336,15 @@ class ViewManagerInterface:
     def handle_end(self):
         self.view_manager_queue.put({"cmd": "handle_end"})
 
-    def handle_run_state(self, run_state: dict):
-        self.view_manager_queue.put({"cmd": "handle_run_state"} | run_state)
-
     def handle_clear(self, node_id: str | None):
         self.view_manager_queue.put({"cmd": "handle_clear", "node_id": node_id})
 
     def handle_prompt(self, node_id: str, prompt: dict):
         self.view_manager_queue.put(
             {"cmd": "handle_prompt", "node_id": node_id, "prompt": prompt}
+        )
+        
+    def set_state(self, type: str, data: Any):
+        self.view_manager_queue.put(
+            {"cmd": "set_state", "type": type, "data": data}
         )

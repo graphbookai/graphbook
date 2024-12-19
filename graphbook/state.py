@@ -1,5 +1,4 @@
 from __future__ import annotations
-from aiohttp.web import WebSocketResponse
 from typing import Dict, Tuple, List, Iterator, Set
 from .note import Note
 from .steps import Step, PromptStep, StepOutput as Outputs
@@ -9,14 +8,13 @@ from .viewer import ViewManagerInterface
 from .plugins import setup_plugins
 from .logger import setup_logging_nodes
 from .utils import transform_json_log
-from . import exports
+from . import nodes
 import multiprocessing as mp
 import importlib, importlib.util, inspect
 import sys, os
-import os.path as osp
-import json
 import hashlib
 from enum import Enum
+from pathlib import Path
 
 
 class NodeInstantiationError(Exception):
@@ -27,39 +25,12 @@ class NodeInstantiationError(Exception):
         self.node_name = node_name
 
 
-class UIState:
-    def __init__(self, root_path: str, websocket: WebSocketResponse):
-        self.root_path = root_path
-        self.ws = websocket
-        self.nodes = {}
-        self.edges = {}
-
-    def cmd(self, req: dict):
-        if req["cmd"] == "put_graph":
-            filename = req["filename"]
-            nodes = req["nodes"]
-            edges = req["edges"]
-            self.put_graph(filename, nodes, edges)
-
-    def put_graph(self, filename: str, nodes: list, edges: list):
-        full_path = osp.join(self.root_path, filename)
-        with open(full_path, "w") as f:
-            serialized = {
-                "version": "0",
-                "type": "workflow",
-                "nodes": nodes,
-                "edges": edges,
-            }
-            json.dump(serialized, f)
-
-
 class NodeCatalog:
-    def __init__(self, custom_nodes_path: str):
-        sys.path.append(custom_nodes_path)
+    def __init__(self, custom_nodes_path: Path):
         self.custom_nodes_path = custom_nodes_path
         self.nodes = {"steps": {}, "resources": {}}
-        self.nodes["steps"] |= exports.default_exported_steps
-        self.nodes["resources"] |= exports.default_exported_resources
+        self.nodes["steps"] |= nodes.default_exported_steps
+        self.nodes["resources"] |= nodes.default_exported_resources
         self.plugins = setup_plugins()
         steps, resources, _ = self.plugins
         for plugin in steps:
@@ -100,7 +71,7 @@ class NodeCatalog:
             "steps": {k: False for k in self.nodes["steps"]},
             "resources": {k: False for k in self.nodes["resources"]},
         }
-        for root, dirs, files in os.walk(self.custom_nodes_path):
+        for root, dirs, files in os.walk(str(self.custom_nodes_path)):
             for file in files:
                 if not file.endswith(".py"):
                     continue
@@ -111,11 +82,8 @@ class NodeCatalog:
                 while module_name.startswith("."):
                     module_name = module_name[1:]
                 # import
-                if module_name in sys.modules:
-                    mod = sys.modules[module_name]
-                    mod = importlib.reload(mod)
-                else:
-                    mod = importlib.import_module(module_name)
+                mod = self._get_module(os.path.join(root, file))
+
                 # get node classes
                 for name, obj in inspect.getmembers(mod):
                     if inspect.isclass(obj):
@@ -144,9 +112,7 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(self, custom_nodes_path: str, view_manager_queue: mp.Queue):
-        sys.path.append(custom_nodes_path)
-        self.custom_nodes_path = custom_nodes_path
+    def __init__(self, custom_nodes_path: Path, view_manager_queue: mp.Queue):
         self.view_manager_queue = view_manager_queue
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self._dict_graph = {}
@@ -204,6 +170,12 @@ class GraphState:
                     del curr_resource, self._dict_resources[resource_id]
                 try:
                     resource = resource_hub[resource_name](**p)
+                except KeyError:
+                    raise NodeInstantiationError(
+                        f"No resource node with name {resource_name} found",
+                        resource_id,
+                        resource_name,
+                    )
                 except Exception as e:
                     raise NodeInstantiationError(str(e), resource_id, resource_name)
                 resource_values[resource_id] = resource.value()
@@ -249,6 +221,10 @@ class GraphState:
                 try:
                     step = step_hub[step_name](**step_input)
                     step.id = step_id
+                except KeyError:
+                    raise NodeInstantiationError(
+                        f"No step node with name {step_name} found", step_id, step_name
+                    )
                 except Exception as e:
                     raise NodeInstantiationError(str(e), step_id, step_name)
                 steps[step_id] = step
