@@ -54,6 +54,8 @@ class GraphServer:
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = Path(__file__).parent.joinpath("web")
+        else:
+            self.web_dir = Path(self.web_dir)
         routes = web.RouteTableDef()
         self.routes = routes
         self.img_mem = SharedMemoryManager(**img_mem_args) if img_mem_args else None
@@ -93,14 +95,14 @@ class GraphServer:
             except Exception as e:
                 print(f"Error preparing websocket: {e}")
                 return ws
-            client = self.client_pool.add_client(ws)
+            client = await self.client_pool.add_client(ws)
+            print("Added client")
 
             def put_graph(req: dict):
                 filename = req["filename"]
                 nodes = req["nodes"]
                 edges = req["edges"]
                 full_path = client.get_root_path().joinpath(filename)
-                print(f"Saving graph to {full_path}")
                 with open(full_path, "w") as f:
                     serialized = {
                         "version": "0",
@@ -115,6 +117,7 @@ class GraphServer:
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         if msg.data == "close":
                             await self.client_pool.remove_client(client)
+                            print("Removed client (0)")
                         else:
                             req = msg.json()  # Unhandled
                             if req["api"] == "graph" and req["cmd"] == "put_graph":
@@ -123,6 +126,7 @@ class GraphServer:
                         print("ws connection closed with exception %s" % ws.exception())
             finally:
                 await self.client_pool.remove_client(client)
+                print("Removed client")
 
             return ws
 
@@ -208,7 +212,7 @@ class GraphServer:
         @routes.post("/pause")
         async def pause(request: web.Request) -> web.Response:
             client = get_client(request)
-            client.poll(ProcessorStateRequest.PAUSE)
+            client.get_processor().pause()
             return web.json_response({"success": True})
 
         @routes.post("/clear")
@@ -225,14 +229,8 @@ class GraphServer:
             step_id = request.match_info.get("id")
             data = await request.json()
             response = data.get("response")
-            res = client.poll(
-                ProcessorStateRequest.PROMPT_RESPONSE,
-                {
-                    "step_id": step_id,
-                    "response": response,
-                },
-            )
-            return web.json_response(res)
+            res = client.get_processor().handle_prompt_response(step_id, response)
+            return web.json_response({"ok": res})
 
         @routes.get("/nodes")
         async def get_nodes(request: web.Request) -> web.Response:
@@ -246,14 +244,7 @@ class GraphServer:
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
-            res = client.poll(
-                ProcessorStateRequest.GET_OUTPUT_NOTE,
-                {
-                    "step_id": step_id,
-                    "pin_id": pin_id,
-                    "index": index,
-                },
-            )
+            res = client.get_processor().get_output_note(step_id, pin_id, index)
             if (
                 res
                 and res.get("step_id") == step_id
@@ -267,7 +258,7 @@ class GraphServer:
         @routes.get("/state")
         async def get_run_state(request: web.Request) -> web.Response:
             client = get_client(request)
-            res = client.poll(ProcessorStateRequest.GET_RUNNING_STATE)
+            res = client.get_processor().get_running_state()
             return web.json_response(res)
 
         @routes.get("/step_docstring/{name}")

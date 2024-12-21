@@ -283,7 +283,8 @@ StepData = Tuple[List[Any], List[Note], List[Note]]
 
 class BatchStep(AsyncStep):
     """
-    A Step used for batch processing. This step will consume Pytorch tensor batches loaded by the worker pool by default.
+    A Step used for batch and parallel processing using custom function definitions.
+    Override the `load_fn` and `dump_fn` methods with your custom logic to load and dump data, respectively.
     """
 
     def __init__(self, batch_size, item_key):

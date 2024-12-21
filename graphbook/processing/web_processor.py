@@ -54,13 +54,13 @@ class WebInstanceProcessor:
         self.server_request_conn, client_request_conn = mpc.Pipe()
         self.close_event = mp.Event()
         self.pause_event = mp.Event()
-        self.state_client = ProcessorStateClient(
-            client_request_conn,
-            self.close_event,
-            self.pause_event,
-            self.graph_state,
-            self.dataloader,
-        )
+        # self.state_client = ProcessorStateClient(
+        #     client_request_conn,
+        #     self.close_event,
+        #     self.pause_event,
+        #     self.graph_state,
+        #     self.dataloader,
+        # )
         self.is_running = False
         self.filename = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
@@ -253,7 +253,7 @@ class WebInstanceProcessor:
             self.filename = filename
         run_state = {"is_running": is_running, "filename": self.filename}
         self.view_manager.set_state("run_state", run_state)
-        self.state_client.set_running_state(run_state)
+        # self.state_client.set_running_state(run_state)
 
     def cleanup(self):
         self.dataloader.shutdown()
@@ -295,8 +295,8 @@ class WebInstanceProcessor:
             self.step(work["step_id"])
 
     def start_loop(self):
-        loop = asyncio.new_event_loop()
-        loop.run_in_executor(None, self.state_client.start)
+        # loop = asyncio.new_event_loop()
+        # loop.run_in_executor(None, self.state_client.start)
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
@@ -314,30 +314,48 @@ class WebInstanceProcessor:
                 break
             except queue.Empty:
                 pass
-            
+
     def start(self):
         self.thread.start()
 
     def close(self):
         self.close_event.set()
-        self.state_client.close()
+        # self.state_client.close()
         self.cleanup()
-        
+
     def exec(self, work: dict):
         self.cmd_queue.put(work)
 
-    def poll_client(
-        self, req: ProcessorStateRequest, body: dict = None
-    ) -> dict:
+    def get_worker_queue_sizes(self):
+        return self.dataloader.get_all_sizes()
+
+    def get_output_note(self, step_id: str, pin_id: str, index: int) -> Note | None:
+        output = self.graph_state.get_output_note(step_id, pin_id, index)
+        return transform_json_log(output)
+
+    def get_running_state(self):
+        return self.is_running
+
+    def handle_prompt_response(self, step_id: str, response: str) -> bool:
+        return self.graph_state.handle_prompt_response(step_id, response)
+
+    def pause(self):
+        self.pause_event.set()
+
+    async def poll_client(self, req: ProcessorStateRequest, body: dict = None) -> dict:
+        def task():
+            if self.server_request_conn.poll(timeout=MP_WORKER_TIMEOUT):
+                res = self.server_request_conn.recv()
+                if res.get("res") == req:
+                    return res.get("data")
+            return {}
+
         req_data = {"cmd": req}
         if body:
             req_data.update(body)
         self.server_request_conn.send(req_data)
-        if self.server_request_conn.poll(timeout=MP_WORKER_TIMEOUT):
-            res = self.server_request_conn.recv()
-            if res.get("res") == req:
-                return res.get("data")
-        return {}
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, task)
 
 
 class ProcessorStateClient:

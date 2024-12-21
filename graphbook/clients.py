@@ -37,6 +37,7 @@ class Client:
         self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
         self.options = options
         self.curr_task = None
+        self.close_event = asyncio.Event()
 
     def get_root_path(self) -> Path:
         return self.root_path
@@ -58,16 +59,19 @@ class Client:
 
     def exec(self, req: dict):
         self.processor.exec(req)
+        
+    def get_processor(self) -> WebInstanceProcessor:
+        return self.processor
 
-    def poll(self, cmd: ProcessorStateRequest, data: dict = None):
-        res = self.processor.poll_client(
-            cmd,
-            data,
-        )
-        return res
+    # async def poll(self, cmd: ProcessorStateRequest, data: dict = None):
+    #     res = await self.processor.poll_client(
+    #         cmd,
+    #         data,
+    #     )
+    #     return res
 
     async def _loop(self):
-        while True:
+        while not self.close_event.is_set():
             await asyncio.sleep(self.options["SEND_EVERY"])
             current_view_data = self.view_manager.get_current_view_data()
             current_states = self.view_manager.get_current_states()
@@ -79,6 +83,7 @@ class Client:
         self.curr_task = loop.create_task(self._loop())
 
     async def close(self):
+        self.close_event.set()
         if self.curr_task is not None:
             self.curr_task.cancel()
         await self.ws.close()
@@ -156,7 +161,7 @@ class ClientPool:
         if should_create_sample:
             create_sample_workflow()
 
-    def add_client(self, ws: WebSocketResponse) -> Client:
+    async def add_client(self, ws: WebSocketResponse) -> Client:
         sid = uuid.uuid4().hex
         setup_paths = {**self.setup_paths}
         if not self.shared_execution:
@@ -176,7 +181,7 @@ class ClientPool:
         client = Client(sid, ws, **resources, setup_paths=setup_paths)
         client.start()
         self.clients[sid] = client
-        asyncio.create_task(ws.send_json({"type": "sid", "data": sid}))
+        await ws.send_json({"type": "sid", "data": sid})
         print(f"{sid}: {client.get_root_path()}")
         return client
 

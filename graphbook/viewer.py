@@ -6,8 +6,6 @@ import queue
 import copy
 import psutil
 from .utils import MP_WORKER_TIMEOUT, get_gpu_util
-# from .processing.web_processor import WebInstanceProcessor
-from .utils import ProcessorStateRequest
 
 
 class Viewer:
@@ -164,9 +162,7 @@ class SystemUtilViewer(Viewer):
         return gpus
 
     def get_next(self):
-        sizes = self.processor.poll_client(
-            ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
-        )
+        sizes = self.processor.get_worker_queue_sizes()
         return {
             "cpu": self.get_cpu_usage(),
             "mem": self.get_mem_usage(),
@@ -254,7 +250,7 @@ class ViewManager:
         """
         self.states[type] = data
     
-    def get_current_states(self):
+    def get_current_states(self): # TODO: Needs to emit to all current viewer clients
         """
         Retrieve all current state data
         """

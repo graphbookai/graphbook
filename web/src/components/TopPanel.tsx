@@ -240,6 +240,9 @@ function WorkerChart() {
         setData(prev => {
             const queueSizes = data.worker_queue_sizes;
             if (queueSizes) {
+                if (!queueSizes.dump || !queueSizes.load || !queueSizes.dump_result || !queueSizes.load_result) {
+                    return prev;
+                }
                 const enqueuedSize =
                     queueSizes.dump.reduce((acc, val) => acc + val, 0) +
                     queueSizes.load.reduce((acc, val) => acc + val, 0);
