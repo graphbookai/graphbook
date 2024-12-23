@@ -192,7 +192,6 @@ class ViewManager:
     def __init__(
         self,
         work_queue: mp.Queue,
-        close_event: mp.Event,
         processor,
     ):
         self.data_viewer = DataViewer()
@@ -209,7 +208,7 @@ class ViewManager:
         ]
         self.states: Dict[str, Any] = {}
         self.work_queue = work_queue
-        self.close_event = close_event
+        self.close_event = mp.Event()
 
     def get_viewers(self):
         return self.viewers
@@ -292,13 +291,15 @@ class ViewManager:
                     self.handle_prompt(work["node_id"], work["prompt"])
                 elif work["cmd"] == "set_state":
                     self.set_state(work["type"], work["data"])
-
             except queue.Empty:
                 pass
 
     def start(self):
         loop = asyncio.new_event_loop()
         loop.run_in_executor(None, self._loop)
+        
+    def stop(self):
+        self.close_event.set()
 
 
 class ViewManagerInterface:

@@ -21,6 +21,7 @@ import threading as th
 import traceback
 import time
 import copy
+import os
 from PIL import Image
 
 step_output_err_res = (
@@ -38,6 +39,7 @@ class WebInstanceProcessor:
         custom_nodes_path: Path,
         spawn: bool,
         num_workers: int = 1,
+        cwd: Path | None = None,
     ):
         self.cmd_queue = mp.Queue()
         self.view_manager = ViewManagerInterface(view_manager_queue)
@@ -46,9 +48,8 @@ class WebInstanceProcessor:
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
-        self.steps = {}
         self.dataloader = Dataloader(self.num_workers, spawn)
-        setup_global_dl(self.dataloader)
+        self.cwd = cwd
         self.close_event = mp.Event()
         self.pause_event = mp.Event()
         self.is_running = False
@@ -287,6 +288,9 @@ class WebInstanceProcessor:
 
     def start_loop(self):
         ExecutionContext.update(view_manager=self.view_manager)
+        setup_global_dl(self.dataloader)
+        if self.cwd is not None:
+            os.chdir(self.cwd)
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
@@ -299,19 +303,21 @@ class WebInstanceProcessor:
                     self.view_manager.handle_clear(work.get("node_id"))
                     step = self.graph_state.get_step(work.get("node_id"))
                     self.dataloader.clear(id(step) if step != None else None)
+            except queue.Empty:
+                pass
             except KeyboardInterrupt:
                 self.cleanup()
                 break
-            except queue.Empty:
-                pass
+            except Exception as e:
+                self.cleanup()
+                break
 
     def start(self):
         self.thread.start()
 
-    def close(self):
+    def stop(self):
         self.close_event.set()
         self.cleanup()
-        self.thread.join()
 
     def exec(self, work: dict):
         self.cmd_queue.put(work)

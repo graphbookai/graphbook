@@ -102,9 +102,11 @@ class ClientPool:
             "custom_nodes_path": setup_paths["custom_nodes_path"],
             "view_manager_queue": view_queue,
         }
+        if not self.shared_execution:
+            processor_args["cwd"] = setup_paths["workflow_dir"].parent
         self._create_dirs(**setup_paths, no_sample=self.no_sample)
         processor = WebInstanceProcessor(**processor_args)
-        view_manager = ViewManager(view_queue, self.close_event, processor)
+        view_manager = ViewManager(view_queue, processor)
         node_hub = NodeHub(setup_paths["custom_nodes_path"], self.plugins, view_manager)
         processor.start()
         view_manager.start()
@@ -174,8 +176,9 @@ class ClientPool:
             await client.close()
             del self.clients[sid]
             if not self.shared_execution:
-                client.get_processor().close()
+                client.get_processor().stop()
                 client.get_node_hub().stop()
+                client.get_view_manager().stop()
         if sid in self.tmpdirs:
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
