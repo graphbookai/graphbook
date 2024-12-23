@@ -6,12 +6,11 @@ from .resources import Resource
 from .decorators import get_steps, get_resources
 from .viewer import ViewManagerInterface
 from .plugins import setup_plugins
-from .logger import setup_logging_nodes
 from .utils import transform_json_log
 from . import nodes
 import multiprocessing as mp
 import importlib, importlib.util, inspect
-import sys, os
+import os
 import hashlib
 from enum import Enum
 from pathlib import Path
@@ -191,7 +190,6 @@ class GraphState:
         queues: Dict[str, MultiConsumerStateDictionaryQueue] = {}
         step_states: Dict[str, Set[StepState]] = {}
         step_graph = {"child": {}, "parent": {}}
-        logger_param_pool = {}
         for step_id, step_data in graph.items():
             step_name = step_data["name"]
             step_input = {}
@@ -216,7 +214,6 @@ class GraphState:
                 step_states[step_id].discard(StepState.EXECUTED_THIS_RUN)
                 step_graph["parent"][step_id] = self._step_graph["parent"][step_id]
                 step_graph["child"][step_id] = self._step_graph["child"][step_id]
-                logger_param_pool[id(self._steps[step_id])] = (step_id, step_name)
             else:
                 try:
                     step = step_hub[step_name](**step_input)
@@ -230,7 +227,6 @@ class GraphState:
                 steps[step_id] = step
                 queues[step_id] = MultiConsumerStateDictionaryQueue()
                 step_states[step_id] = set()
-                logger_param_pool[id(step)] = (step_id, step_name)
 
                 # Remove old consumers from parents
                 previous_obj = self._steps.get(step_id)
@@ -274,8 +270,6 @@ class GraphState:
         self._parent_iterators = {
             step_id: get_parent_iterator(step_id) for step_id in steps
         }
-
-        setup_logging_nodes(logger_param_pool, self.view_manager_queue)
 
         # Update current graph and resource state
         self._dict_graph = graph

@@ -9,7 +9,8 @@ from .base import (
     Split,
     SplitNotesByItems,
     SplitItemField,
-    Copy
+    Copy,
+    log,
 )
 from .io import LoadJSONL, DumpJSONL
 
@@ -27,4 +28,5 @@ __all__ = [
     "Copy",
     "LoadJSONL",
     "DumpJSONL",
+    "log",
 ]

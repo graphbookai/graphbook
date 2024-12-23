@@ -9,7 +9,6 @@ import aiohttp
 from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
-from .utils import ProcessorStateRequest
 from .shm import SharedMemoryManager
 from .clients import ClientPool, Client
 from .plugins import setup_plugins
@@ -96,7 +95,6 @@ class GraphServer:
                 print(f"Error preparing websocket: {e}")
                 return ws
             client = await self.client_pool.add_client(ws)
-            print("Added client")
 
             def put_graph(req: dict):
                 filename = req["filename"]
@@ -117,16 +115,14 @@ class GraphServer:
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         if msg.data == "close":
                             await self.client_pool.remove_client(client)
-                            print("Removed client (0)")
                         else:
-                            req = msg.json()  # Unhandled
+                            req = msg.json()
                             if req["api"] == "graph" and req["cmd"] == "put_graph":
                                 put_graph(req)
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         print("ws connection closed with exception %s" % ws.exception())
             finally:
                 await self.client_pool.remove_client(client)
-                print("Removed client")
 
             return ws
 
@@ -452,11 +448,8 @@ class GraphServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
+        await self.client_pool.start()
         await asyncio.Event().wait()
-
-    async def on_shutdown(self):
-        self.client_pool.remove_all()
-        print("Shutting down graph server")
 
     def start(self):
         self.app.router.add_routes(self.routes)
@@ -467,13 +460,14 @@ class GraphServer:
         if self.web_dir is not None:
             self.app.router.add_routes([web.static("/", self.web_dir)])
 
-        self.app.on_shutdown.append(self.on_shutdown)
-
         print(f"Starting graph server at {self.host}:{self.port}")
         try:
             asyncio.run(self._async_start())
         except KeyboardInterrupt:
             print("Exiting graph server")
+        finally:
+            self.close_event.set()
+            asyncio.run(self.client_pool.stop())
 
 
 def create_graph_server(

@@ -210,7 +210,7 @@ class ViewManager:
         self.states: Dict[str, Any] = {}
         self.work_queue = work_queue
         self.close_event = close_event
-        
+
     def get_viewers(self):
         return self.viewers
 
@@ -243,21 +243,21 @@ class ViewManager:
     def handle_end(self):
         for viewer in self.viewers:
             viewer.handle_end()
-    
+
     def set_state(self, type: str, data: Any = None):
         """
         Set state data for a specific type
         """
         self.states[type] = data
-    
-    def get_current_states(self): # TODO: Needs to emit to all current viewer clients
+
+    def get_current_states(self):
         """
         Retrieve all current state data
         """
         states = [{"type": key, "data": self.states[key]} for key in self.states]
         self.states.clear()
         return states
-    
+
     def get_current_view_data(self):
         """
         Get the current data from all viewer classes
@@ -300,6 +300,7 @@ class ViewManager:
         loop = asyncio.new_event_loop()
         loop.run_in_executor(None, self._loop)
 
+
 class ViewManagerInterface:
     def __init__(self, view_manager_queue: mp.Queue):
         self.view_manager_queue = view_manager_queue
@@ -339,8 +340,6 @@ class ViewManagerInterface:
         self.view_manager_queue.put(
             {"cmd": "handle_prompt", "node_id": node_id, "prompt": prompt}
         )
-        
+
     def set_state(self, type: str, data: Any):
-        self.view_manager_queue.put(
-            {"cmd": "set_state", "type": type, "data": data}
-        )
+        self.view_manager_queue.put({"cmd": "set_state", "type": type, "data": data})
