@@ -5,24 +5,23 @@ from ..steps import (
     AsyncStep,
     BatchStep,
     StepOutput,
+    log,
 )
 from ..dataloading import Dataloader, setup_global_dl
-from ..utils import MP_WORKER_TIMEOUT, ProcessorStateRequest, transform_json_log
+from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from ..state import GraphState, StepState, NodeInstantiationError
 from ..viewer import ViewManagerInterface
-from ..logger import log
 from ..shm import SharedMemoryManager
 from ..note import Note
 from typing import List
 from pathlib import Path
 import queue
 import multiprocessing as mp
-import multiprocessing.connection as mpc
 import threading as th
 import traceback
-import asyncio
 import time
 import copy
+import os
 from PIL import Image
 
 step_output_err_res = (
@@ -40,6 +39,7 @@ class WebInstanceProcessor:
         custom_nodes_path: Path,
         spawn: bool,
         num_workers: int = 1,
+        cwd: Path | None = None,
     ):
         self.cmd_queue = mp.Queue()
         self.view_manager = ViewManagerInterface(view_manager_queue)
@@ -48,19 +48,10 @@ class WebInstanceProcessor:
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
-        self.steps = {}
         self.dataloader = Dataloader(self.num_workers, spawn)
-        setup_global_dl(self.dataloader)
-        self.server_request_conn, client_request_conn = mpc.Pipe()
+        self.cwd = cwd
         self.close_event = mp.Event()
         self.pause_event = mp.Event()
-        self.state_client = ProcessorStateClient(
-            client_request_conn,
-            self.close_event,
-            self.pause_event,
-            self.graph_state,
-            self.dataloader,
-        )
         self.is_running = False
         self.filename = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
@@ -94,6 +85,8 @@ class WebInstanceProcessor:
     def exec_step(
         self, step: Step, input: Note | None = None, flush: bool = False
     ) -> StepOutput | None:
+        ExecutionContext.update(node_id=step.id)
+        ExecutionContext.update(node_name=step.__class__.__name__)
         outputs = {}
         step_fn = step if not flush else step.all
         start_time = time.time()
@@ -107,7 +100,7 @@ class WebInstanceProcessor:
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            log(f"{type(e).__name__}: {str(e)}", "error", id(step))
+            log(f"{type(e).__name__}: {str(e)}", "error")
             traceback.print_exc()
             return None
 
@@ -117,7 +110,6 @@ class WebInstanceProcessor:
                     log(
                         f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value.",
                         "error",
-                        id(step),
                     )
                     return None
                 outputs = {step.Outputs[0]: outputs}
@@ -132,7 +124,6 @@ class WebInstanceProcessor:
                 log(
                     f"{step_output_err_res} List values did not all contain Notes.",
                     "error",
-                    id(step),
                 )
                 return None
             self.handle_images(outputs)
@@ -197,12 +188,14 @@ class WebInstanceProcessor:
             )
 
     def try_execute_step_event(self, step: Step, event: str):
+        ExecutionContext.update(node_id=step.id)
+        ExecutionContext.update(node_name=step.__class__.__name__)
         try:
             if hasattr(step, event):
                 getattr(step, event)()
                 return True
         except Exception as e:
-            log(f"{type(e).__name__}: {str(e)}", "error", id(step))
+            log(f"{type(e).__name__}: {str(e)}", "error")
             traceback.print_exc()
         return False
 
@@ -253,7 +246,6 @@ class WebInstanceProcessor:
             self.filename = filename
         run_state = {"is_running": is_running, "filename": self.filename}
         self.view_manager.set_state("run_state", run_state)
-        self.state_client.set_running_state(run_state)
 
     def cleanup(self):
         self.dataloader.shutdown()
@@ -295,8 +287,10 @@ class WebInstanceProcessor:
             self.step(work["step_id"])
 
     def start_loop(self):
-        loop = asyncio.new_event_loop()
-        loop.run_in_executor(None, self.state_client.start)
+        ExecutionContext.update(view_manager=self.view_manager)
+        setup_global_dl(self.dataloader)
+        if self.cwd is not None:
+            os.chdir(self.cwd)
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
@@ -309,93 +303,37 @@ class WebInstanceProcessor:
                     self.view_manager.handle_clear(work.get("node_id"))
                     step = self.graph_state.get_step(work.get("node_id"))
                     self.dataloader.clear(id(step) if step != None else None)
+            except queue.Empty:
+                pass
             except KeyboardInterrupt:
                 self.cleanup()
                 break
-            except queue.Empty:
-                pass
-            
+            except Exception as e:
+                self.cleanup()
+                break
+
     def start(self):
         self.thread.start()
 
-    def close(self):
+    def stop(self):
         self.close_event.set()
-        self.state_client.close()
         self.cleanup()
-        
+
     def exec(self, work: dict):
         self.cmd_queue.put(work)
 
-    def poll_client(
-        self, req: ProcessorStateRequest, body: dict = None
-    ) -> dict:
-        req_data = {"cmd": req}
-        if body:
-            req_data.update(body)
-        self.server_request_conn.send(req_data)
-        if self.server_request_conn.poll(timeout=MP_WORKER_TIMEOUT):
-            res = self.server_request_conn.recv()
-            if res.get("res") == req:
-                return res.get("data")
-        return {}
+    def get_worker_queue_sizes(self):
+        return self.dataloader.get_all_sizes()
 
+    def get_output_note(self, step_id: str, pin_id: str, index: int) -> Note | None:
+        output = self.graph_state.get_output_note(step_id, pin_id, index)
+        return transform_json_log(output)
 
-class ProcessorStateClient:
-    def __init__(
-        self,
-        server_request_conn: mpc.Connection,
-        close_event: mp.Event,
-        pause_event: mp.Event,
-        graph_state: GraphState,
-        dataloader: Dataloader,
-    ):
-        self.server_request_conn = server_request_conn
-        self.close_event = close_event
-        self.pause_event = pause_event
-        self.curr_task = None
-        self.graph_state = graph_state
-        self.dataloader = dataloader
-        self.running_state = {}
+    def get_running_state(self):
+        return self.is_running
 
-    def _loop(self):
-        while not self.close_event.is_set():
-            if self.server_request_conn.poll(timeout=MP_WORKER_TIMEOUT):
-                req = self.server_request_conn.recv()
-                if req["cmd"] == ProcessorStateRequest.GET_OUTPUT_NOTE:
-                    step_id = req.get("step_id")
-                    pin_id = req.get("pin_id")
-                    index = req.get("index")
-                    if step_id is None or pin_id is None or index is None:
-                        output = {}
-                    else:
-                        output = self.graph_state.get_output_note(
-                            step_id, pin_id, index
-                        )
-                        output = transform_json_log(output)
-                elif req["cmd"] == ProcessorStateRequest.GET_WORKER_QUEUE_SIZES:
-                    output = self.dataloader.get_all_sizes()
-                elif req["cmd"] == ProcessorStateRequest.GET_RUNNING_STATE:
-                    output = self.running_state
-                elif req["cmd"] == ProcessorStateRequest.PROMPT_RESPONSE:
-                    step_id = req.get("step_id")
-                    succeeded = self.graph_state.handle_prompt_response(
-                        step_id, req.get("response")
-                    )
-                    output = {"ok": succeeded}
-                elif req["cmd"] == ProcessorStateRequest.PAUSE:
-                    self.pause_event.set()
-                    output = {}
-                else:
-                    output = {}
-                entry = {"res": req["cmd"], "data": output}
-                self.server_request_conn.send(entry)
+    def handle_prompt_response(self, step_id: str, response: str) -> bool:
+        return self.graph_state.handle_prompt_response(step_id, response)
 
-    def start(self):
-        self._loop()
-
-    def close(self):
-        if self.curr_task is not None:
-            self.curr_task.cancel()
-
-    def set_running_state(self, state: dict):
-        self.running_state = state
+    def pause(self):
+        self.pause_event.set()

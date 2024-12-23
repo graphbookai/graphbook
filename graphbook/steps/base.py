@@ -1,11 +1,13 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator, Any
+from typing import List, Dict, Tuple, Generator, Any, Literal
 from ..utils import (
     transform_function_string,
     convert_dict_values_to_list,
     is_batchable,
+    transform_json_log,
 )
-from ..logger import log, prompt
+from ..utils import ExecutionContext
+from ..viewer import ViewManagerInterface
 from .. import Note, prompts, dataloading as dataloader
 import warnings
 import traceback
@@ -15,6 +17,51 @@ warnings.simplefilter("default", DeprecationWarning)
 
 StepOutput = Dict[str, List[Note]]
 """A dict mapping of output slot to Note list. Every Step outputs a StepOutput."""
+
+
+LogType = Literal["info", "error", "json", "image"]
+text_log_types = ["info", "error"]
+
+
+def log(msg: Any, type: LogType = "info"):
+    node_id: str = ExecutionContext.get("node_id")
+    node_name: str = ExecutionContext.get("node_name")
+    view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
+    if node_id is None or node_name is None:
+        raise ValueError("Can't find node info. Only initialized steps can log.")
+
+    if view_manager is None:
+        raise ValueError(
+            "View manager not initialized in context. Is this being called in a running graph?"
+        )
+
+    if type in text_log_types:
+        if type == "error":
+            msg = f"[ERR] {msg}"
+        print(f"[{node_id} {node_name}] {msg}")
+    elif type == "json":
+        msg = transform_json_log(msg)
+    elif type == "image":
+        pass  # TODO
+    else:
+        raise ValueError(f"Unknown log type {type}")
+    view_manager.handle_log(node_id, msg, type)
+
+
+def prompt(prompt: dict):
+    node_id: str = ExecutionContext.get("node_id")
+    view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
+    if node_id is None:
+        raise ValueError(
+            f"Can't find node id in {caller}. Only initialized steps can log."
+        )
+
+    if view_manager is None:
+        raise ValueError(
+            "View manager not initialized in context. Is this being called in a running graph?"
+        )
+
+    view_manager.handle_prompt(node_id, prompt)
 
 
 class Step:
@@ -283,7 +330,8 @@ StepData = Tuple[List[Any], List[Note], List[Note]]
 
 class BatchStep(AsyncStep):
     """
-    A Step used for batch processing. This step will consume Pytorch tensor batches loaded by the worker pool by default.
+    A Step used for batch and parallel processing using custom function definitions.
+    Override the `load_fn` and `dump_fn` methods with your custom logic to load and dump data, respectively.
     """
 
     def __init__(self, batch_size, item_key):
@@ -705,20 +753,22 @@ class SplitItemField(Step):
         note.items[self.b_key] = b_items
         if self.should_delete_original:
             del note.items[self.item_key]
-            
+
+
 class Copy(Step):
     """
     Copies the incoming notes to output slots A and B.
     The original version will be forwarded to A and an indentical copy will be forwarded to B.
     The copy is made with `copy.deepcopy()`.
     """
-    
+
     RequiresInput = True
     Parameters = {}
     Category = "Util"
     Outputs = ["A", "B"]
+
     def __init__(self):
         super().__init__()
-        
+
     def forward_note(self, note: Note) -> StepOutput:
         return {"A": [note], "B": [copy.deepcopy(note)]}

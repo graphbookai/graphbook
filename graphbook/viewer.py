@@ -6,8 +6,6 @@ import queue
 import copy
 import psutil
 from .utils import MP_WORKER_TIMEOUT, get_gpu_util
-# from .processing.web_processor import WebInstanceProcessor
-from .utils import ProcessorStateRequest
 
 
 class Viewer:
@@ -164,9 +162,7 @@ class SystemUtilViewer(Viewer):
         return gpus
 
     def get_next(self):
-        sizes = self.processor.poll_client(
-            ProcessorStateRequest.GET_WORKER_QUEUE_SIZES
-        )
+        sizes = self.processor.get_worker_queue_sizes()
         return {
             "cpu": self.get_cpu_usage(),
             "mem": self.get_mem_usage(),
@@ -196,7 +192,6 @@ class ViewManager:
     def __init__(
         self,
         work_queue: mp.Queue,
-        close_event: mp.Event,
         processor,
     ):
         self.data_viewer = DataViewer()
@@ -213,8 +208,8 @@ class ViewManager:
         ]
         self.states: Dict[str, Any] = {}
         self.work_queue = work_queue
-        self.close_event = close_event
-        
+        self.close_event = mp.Event()
+
     def get_viewers(self):
         return self.viewers
 
@@ -247,13 +242,13 @@ class ViewManager:
     def handle_end(self):
         for viewer in self.viewers:
             viewer.handle_end()
-    
+
     def set_state(self, type: str, data: Any = None):
         """
         Set state data for a specific type
         """
         self.states[type] = data
-    
+
     def get_current_states(self):
         """
         Retrieve all current state data
@@ -261,7 +256,7 @@ class ViewManager:
         states = [{"type": key, "data": self.states[key]} for key in self.states]
         self.states.clear()
         return states
-    
+
     def get_current_view_data(self):
         """
         Get the current data from all viewer classes
@@ -296,13 +291,16 @@ class ViewManager:
                     self.handle_prompt(work["node_id"], work["prompt"])
                 elif work["cmd"] == "set_state":
                     self.set_state(work["type"], work["data"])
-
             except queue.Empty:
                 pass
 
     def start(self):
         loop = asyncio.new_event_loop()
         loop.run_in_executor(None, self._loop)
+        
+    def stop(self):
+        self.close_event.set()
+
 
 class ViewManagerInterface:
     def __init__(self, view_manager_queue: mp.Queue):
@@ -343,8 +341,6 @@ class ViewManagerInterface:
         self.view_manager_queue.put(
             {"cmd": "handle_prompt", "node_id": node_id, "prompt": prompt}
         )
-        
+
     def set_state(self, type: str, data: Any):
-        self.view_manager_queue.put(
-            {"cmd": "set_state", "type": type, "data": data}
-        )
+        self.view_manager_queue.put({"cmd": "set_state", "type": type, "data": data})

@@ -24,6 +24,7 @@ graphbook = "graphbook.main:main"
 
 [tool.poetry.dependencies]
 python = "^3.9"
+torch = "^2.0.0"
 aiohttp = "^3.9.4"
 pillow = "^10.3.0"
 watchdog = "^4.0.0"
@@ -51,5 +52,4 @@ sphinx-design = "^0.6.1"
 optional = true
 
 [tool.poetry.group.peer.dependencies]
-torch = "^2.0.0"
 torchvision = "^0.18.1"

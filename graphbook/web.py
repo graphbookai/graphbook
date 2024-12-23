@@ -9,7 +9,6 @@ import aiohttp
 from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
-from .utils import ProcessorStateRequest
 from .shm import SharedMemoryManager
 from .clients import ClientPool, Client
 from .plugins import setup_plugins
@@ -54,6 +53,8 @@ class GraphServer:
         self.web_dir = web_dir
         if self.web_dir is None:
             self.web_dir = Path(__file__).parent.joinpath("web")
+        else:
+            self.web_dir = Path(self.web_dir)
         routes = web.RouteTableDef()
         self.routes = routes
         self.img_mem = SharedMemoryManager(**img_mem_args) if img_mem_args else None
@@ -93,14 +94,13 @@ class GraphServer:
             except Exception as e:
                 print(f"Error preparing websocket: {e}")
                 return ws
-            client = self.client_pool.add_client(ws)
+            client = await self.client_pool.add_client(ws)
 
             def put_graph(req: dict):
                 filename = req["filename"]
                 nodes = req["nodes"]
                 edges = req["edges"]
                 full_path = client.get_root_path().joinpath(filename)
-                print(f"Saving graph to {full_path}")
                 with open(full_path, "w") as f:
                     serialized = {
                         "version": "0",
@@ -116,7 +116,7 @@ class GraphServer:
                         if msg.data == "close":
                             await self.client_pool.remove_client(client)
                         else:
-                            req = msg.json()  # Unhandled
+                            req = msg.json()
                             if req["api"] == "graph" and req["cmd"] == "put_graph":
                                 put_graph(req)
                     elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -208,7 +208,7 @@ class GraphServer:
         @routes.post("/pause")
         async def pause(request: web.Request) -> web.Response:
             client = get_client(request)
-            client.poll(ProcessorStateRequest.PAUSE)
+            client.get_processor().pause()
             return web.json_response({"success": True})
 
         @routes.post("/clear")
@@ -225,14 +225,8 @@ class GraphServer:
             step_id = request.match_info.get("id")
             data = await request.json()
             response = data.get("response")
-            res = client.poll(
-                ProcessorStateRequest.PROMPT_RESPONSE,
-                {
-                    "step_id": step_id,
-                    "response": response,
-                },
-            )
-            return web.json_response(res)
+            res = client.get_processor().handle_prompt_response(step_id, response)
+            return web.json_response({"ok": res})
 
         @routes.get("/nodes")
         async def get_nodes(request: web.Request) -> web.Response:
@@ -246,14 +240,7 @@ class GraphServer:
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
-            res = client.poll(
-                ProcessorStateRequest.GET_OUTPUT_NOTE,
-                {
-                    "step_id": step_id,
-                    "pin_id": pin_id,
-                    "index": index,
-                },
-            )
+            res = client.get_processor().get_output_note(step_id, pin_id, index)
             if (
                 res
                 and res.get("step_id") == step_id
@@ -267,7 +254,7 @@ class GraphServer:
         @routes.get("/state")
         async def get_run_state(request: web.Request) -> web.Response:
             client = get_client(request)
-            res = client.poll(ProcessorStateRequest.GET_RUNNING_STATE)
+            res = client.get_processor().get_running_state()
             return web.json_response(res)
 
         @routes.get("/step_docstring/{name}")
@@ -461,11 +448,8 @@ class GraphServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
+        await self.client_pool.start()
         await asyncio.Event().wait()
-
-    async def on_shutdown(self):
-        self.client_pool.remove_all()
-        print("Shutting down graph server")
 
     def start(self):
         self.app.router.add_routes(self.routes)
@@ -476,13 +460,14 @@ class GraphServer:
         if self.web_dir is not None:
             self.app.router.add_routes([web.static("/", self.web_dir)])
 
-        self.app.on_shutdown.append(self.on_shutdown)
-
         print(f"Starting graph server at {self.host}:{self.port}")
         try:
             asyncio.run(self._async_start())
         except KeyboardInterrupt:
             print("Exiting graph server")
+        finally:
+            self.close_event.set()
+            asyncio.run(self.client_pool.stop())
 
 
 def create_graph_server(
