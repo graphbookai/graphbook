@@ -134,10 +134,11 @@ class GraphServer:
 
         @routes.get("/media")
         async def get_media(request: web.Request) -> web.Response:
-            path = Path(request.query.get("path", None))
+            path = request.query.get("path", None)
             shm_id = request.query.get("shm_id", None)
 
             if path is not None:
+                path = Path(path)
                 if not path.exists():
                     raise web.HTTPNotFound()
                 return web.FileResponse(path)

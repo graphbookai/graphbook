@@ -60,6 +60,13 @@ Graphbook is a framework for building efficient, interactive DAG-structured AI d
   <div align="center">Build, run, monitor!</div>
 </p>
 
+### Applications
+* Clean and curate custom large scale datasets
+* Demo ML apps on Huggingface Spaces
+* Build and deliver customizable no-code or hybrid low-code ML apps and services
+* Quickly experiment with different ML models and adjust hyperparameters
+* Maximize GPU utilization and parallelize IO during inference and training
+
 ## Status
 Graphbook is in a very early stage of development, so expect minor bugs and rapid design changes through the coming releases. If you would like to [report a bug](https://github.com/graphbookai/graphbook/issues/new?template=bug_report.md&labels=bug) or [request a feature](https://github.com/graphbookai/graphbook/issues/new?template=feature_request.md&labels=enhancement), please feel free to do so. We aim to make Graphbook serve our users in the best way possible.
 
@@ -78,8 +85,10 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 - Node grouping and subflows
 - Autosaving and shareable serialized workflow files
 - Registers node code changes without needing a restart
-- Monitorable CPU and GPU resource usage
+- Monitorable system CPU and GPU resource usage
+- Monitorable worker queue sizes for optimal worker scaling
 - Human-in-the-loop prompting for interactivity and manual control during DAG execution
+- Can switch to threaded processing per client session for demoing apps to multiple simulataneous users
 - (BETA) Third Party Plugins *
 
 \* We plan on adding documentation for the community to build plugins, but for now, an example can be seen at
