@@ -1,0 +1,5 @@
+FROM rsamf/graphbook:latest
+
+RUN chown -R 1000:1000 .
+
+CMD ["python", "-m", "graphbook.main", "--isolate_users", "--no_sample"] 

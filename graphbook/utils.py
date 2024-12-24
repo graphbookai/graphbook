@@ -1,12 +1,11 @@
 from __future__ import annotations
-from enum import Enum
-from typing import Any
+from typing import Any, Dict
 import importlib
 import shutil
 import subprocess
 import os
 import platform
-import multiprocessing.connection as mpc
+import threading
 from torch import Tensor
 from numpy import ndarray
 from PIL import Image
@@ -14,22 +13,12 @@ from .note import Note
 
 
 MP_WORKER_TIMEOUT = 5.0
-ProcessorStateRequest = Enum(
-    "ProcessorStateRequest",
-    [
-        "GET_OUTPUT_NOTE",
-        "GET_WORKER_QUEUE_SIZES",
-        "GET_RUNNING_STATE",
-        "PROMPT_RESPONSE",
-    ],
-)
-
 
 def is_batchable(obj: Any) -> bool:
     return isinstance(obj, list) or isinstance(obj, Tensor)
 
 
-def transform_function_string(func_str):
+def transform_function_string(func_str: str):
     """
     This function is used to convert a string to a function
     by interpreting the string as a python-typed function
@@ -51,20 +40,6 @@ def transform_function_string(func_str):
 
     # Return the function from the module
     return getattr(module, func_name)
-
-
-def poll_conn_for(
-    conn: mpc.Connection, req: ProcessorStateRequest, body: dict = None
-) -> dict:
-    req_data = {"cmd": req}
-    if body:
-        req_data.update(body)
-    conn.send(req_data)
-    if conn.poll(timeout=MP_WORKER_TIMEOUT):
-        res = conn.recv()
-        if res.get("res") == req:
-            return res.get("data")
-    return None
 
 
 def get_gpu_util():
@@ -195,3 +170,22 @@ def image(path_or_pil: str | Image.Image) -> dict:
     """
     assert isinstance(path_or_pil, str) or isinstance(path_or_pil, Image.Image)
     return {"type": "image", "value": path_or_pil}
+
+class ExecutionContext:
+    _storage = threading.local()
+
+    @classmethod
+    def get_context(cls) -> Dict[str, Any]:
+        if not hasattr(cls._storage, "context"):
+            cls._storage.context = {}
+        return cls._storage.context
+
+    @classmethod
+    def update(cls, **kwargs):
+        context = cls.get_context()
+        context.update(kwargs)
+
+    @classmethod
+    def get(cls, key: str, default: Any = None) -> Any:
+        return cls.get_context().get(key, default)
+

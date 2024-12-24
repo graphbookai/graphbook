@@ -1,7 +1,7 @@
 {
   "name": "graphbook-web",
   "private": true,
-  "version": "0.9.3",
+  "version": "0.10.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,7 +16,7 @@
     "@uiw/codemirror-theme-basic": "^4.21.25",
     "@uiw/codemirror-theme-bbedit": "^4.21.25",
     "@uiw/react-codemirror": "^4.21.25",
-    "antd": "^5.15.4",
+    "antd": "^5.21.0",
     "codemirror": "^6.0.1",
     "js-md5": "^0.8.3",
     "re-resizable": "^6.9.17",

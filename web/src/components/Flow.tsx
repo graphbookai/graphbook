@@ -305,21 +305,19 @@ export default function Flow({ filename }) {
         }
 
         const searchNodes = (catalogue, name, category) => {
-            if (!category) {
+            const categories = category === '' ? [] : category.split('/');
+            let collection = catalogue;
+            for (let i = 0; i < categories.length; i++) {
+                collection = collection?.children?.[categories[i]];
+            }
+            if (!collection) {
                 return null;
             }
-            const categories = category.split('/');
-            let c = catalogue[categories[0]];
-            for (let i = 1; i < categories.length; i++) {
-                c = c?.children[categories[i]];
-            }
-            if (!c) {
-                return null;
-            }
-            return c.children?.[name];
+            return collection[name];
         };
 
         const updatedNodes = await API.getNodes();
+        console.log(updatedNodes.steps);
 
         setNodes(nodes => {
             const mergedNodes = nodes.map(node => {

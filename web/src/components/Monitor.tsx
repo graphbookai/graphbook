@@ -1,6 +1,36 @@
 import React, { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import { Button, Flex, Badge, Typography, Space, Table, Empty, theme, Statistic, Checkbox, Tooltip, Dropdown, InputNumber, Card, Image } from "antd";
-import { UpOutlined, VerticalAlignBottomOutlined, CloseOutlined, PlusOutlined, LeftOutlined, RightOutlined, QuestionOutlined } from "@ant-design/icons";
+import {
+    Button,
+    Flex,
+    Badge,
+    Typography,
+    Space,
+    Table,
+    Empty,
+    theme,
+    Statistic,
+    Checkbox,
+    Tooltip,
+    Dropdown,
+    InputNumber,
+    Card,
+    Image
+} from "antd";
+import {
+    UpOutlined,
+    VerticalAlignBottomOutlined,
+    CloseOutlined,
+    PlusOutlined,
+    LeftOutlined,
+    RightOutlined,
+    QuestionOutlined,
+    DownloadOutlined,
+    SwapOutlined,
+    RotateLeftOutlined,
+    RotateRightOutlined,
+    ZoomOutOutlined,
+    ZoomInOutlined
+} from "@ant-design/icons";
 import { Resizable } from 're-resizable';
 import { getGlobalRunningFile, useRunState } from "../hooks/RunState";
 import { useAPIMessage, useAPI } from "../hooks/API";
@@ -347,6 +377,7 @@ type NotesViewProps = {
 };
 function NotesView({ stepId, numNotes, type }: NotesViewProps) {
     const [currentIndex, setCurrentIndex] = useState({});
+    const [currentImagePreview, setCurrentImagePreview] = useState('');
     const [notes, setNotes] = useState({});
     const API = useAPI();
     const usingToken = theme.useToken();
@@ -387,7 +418,6 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
         }
         index = Math.max(0, Math.min(index, numNotes[key] - 1));
         const res = await API.getState(stepId, key, index);
-        console.log(res);
         setNotes((prev) => {
             return {
                 ...prev,
@@ -401,6 +431,24 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
             };
         });
     }, [numNotes, API]);
+
+    const onDownloadImage = useCallback(() => {
+        const url = currentImagePreview;
+        fetch(url)
+            .then((response) => response.blob())
+            .then((blob) => {
+                const blobUrl = URL.createObjectURL(new Blob([blob]));
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                const { type } = blob;
+                const filename = Date.now() + '.' + type.split('/')[1];
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                URL.revokeObjectURL(blobUrl);
+                link.remove();
+            });
+    }, [currentImagePreview]);
 
     const noteViews = useMemo(() => {
         const views = {};
@@ -456,7 +504,45 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                                         <Flex key={key} align="center" style={{ border: `1px solid ${token.colorBorder}`, padding: '5px', borderRadius: '5px' }}>
                                             <Text ellipsis={true} style={{ flex: 1 }} >{key}</Text>
                                             <div style={{ flex: 5, flexDirection: "row", overflowX: 'scroll', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                                                <Image.PreviewGroup>
+                                                <Image.PreviewGroup
+                                                    preview={{
+                                                        onVisibleChange: (isVisible, __, index) => {
+                                                            if (isVisible) {
+                                                                setCurrentImagePreview(getMediaPath(settings, images[index]));
+                                                            }
+                                                        },
+                                                        onChange: (index) => {
+                                                            setCurrentImagePreview(getMediaPath(settings, images[index]));
+                                                        },
+                                                        toolbarRender: (
+                                                            _,
+                                                            {
+                                                                transform: { scale },
+                                                                actions: {
+                                                                    onActive,
+                                                                    onFlipY,
+                                                                    onFlipX,
+                                                                    onRotateLeft,
+                                                                    onRotateRight,
+                                                                    onZoomOut,
+                                                                    onZoomIn,
+                                                                }
+                                                            }
+                                                        ) => (
+                                                            <Space className="toolbar-wrapper">
+                                                                <LeftOutlined onClick={() => onActive?.(-1)} />
+                                                                <RightOutlined onClick={() => onActive?.(1)} />
+                                                                <DownloadOutlined onClick={onDownloadImage} />
+                                                                <SwapOutlined rotate={90} onClick={onFlipY} />
+                                                                <SwapOutlined onClick={onFlipX} />
+                                                                <RotateLeftOutlined onClick={onRotateLeft} />
+                                                                <RotateRightOutlined onClick={onRotateRight} />
+                                                                <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+                                                                <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+                                                            </Space>
+                                                        )
+                                                    }}
+                                                >
                                                     {
                                                         images.map((image, i) => {
                                                             return (
@@ -476,7 +562,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
             }
         });
         return views;
-    }, [notes, globalTheme]);
+    }, [notes, globalTheme, currentImagePreview, settings]);
 
     const noteCardStyle: React.CSSProperties = useMemo(() => {
         return {

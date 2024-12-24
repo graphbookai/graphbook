@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Flex, Image, theme, Typography } from 'antd';
+import { Flex, Image, theme, Typography, Space } from 'antd';
 import { useAPINodeMessage } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { getMergedLogs, getMediaPath } from '../../utils';
@@ -8,7 +8,18 @@ import { usePrompt, Prompt } from '../../hooks/Prompts';
 import ReactJson from '@microlink/react-json-view';
 import type { LogEntry, ImageRef } from '../../utils';
 import { Node, EmptyTab } from './Node';
-import Icon, { PictureOutlined, FileTextOutlined } from '@ant-design/icons';
+import Icon, {
+    PictureOutlined,
+    FileTextOutlined,
+    LeftOutlined,
+    RightOutlined,
+    DownloadOutlined,
+    SwapOutlined,
+    RotateLeftOutlined,
+    RotateRightOutlined,
+    ZoomOutOutlined,
+    ZoomInOutlined
+} from '@ant-design/icons';
 import { Prompt as PromptWidget } from './widgets/Prompts';
 
 const { useToken } = theme;
@@ -179,6 +190,7 @@ function LogsView({ data }) {
 function ImagesView({ data }) {
     const values = Object.entries<QuickViewEntry>(data).sort((a, b) => a[0].localeCompare(b[0]));
     const [settings, _] = useSettings();
+    const [currentImagePreview, setCurrentImagePreview] = useState('');
 
     const imageEntries = useMemo(() => {
         let entries: { [key: string]: ImageRef[] } = {};
@@ -200,6 +212,24 @@ function ImagesView({ data }) {
         return entries;
     }, [values]);
 
+    const onDownloadImage = useCallback(() => {
+        const url = currentImagePreview;
+        fetch(url)
+            .then((response) => response.blob())
+            .then((blob) => {
+                const blobUrl = URL.createObjectURL(new Blob([blob]));
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                const { type } = blob;
+                const filename = Date.now() + '.' + type.split('/')[1];
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                URL.revokeObjectURL(blobUrl);
+                link.remove();
+            });
+    }, [currentImagePreview]);
+
     return (
         Object.keys(imageEntries).length === 0 ?
             <EmptyTab description='No images' /> :
@@ -209,7 +239,45 @@ function ImagesView({ data }) {
                     <Flex>
                         {
                             value.map((image, i) => (
-                                <Image key={i} src={getMediaPath(settings, image)} height={settings.quickviewImageHeight} />
+                                <Image 
+                                    key={i}
+                                    src={getMediaPath(settings, image)}
+                                    height={settings.quickviewImageHeight}
+                                    preview={{
+                                        onVisibleChange: (isVisible) => {
+                                            if (isVisible) {
+                                                setCurrentImagePreview(getMediaPath(settings, image));
+                                            }
+                                        },
+                                        toolbarRender: (
+                                            _,
+                                            {
+                                                transform: { scale },
+                                                actions: {
+                                                    onActive,
+                                                    onFlipY,
+                                                    onFlipX,
+                                                    onRotateLeft,
+                                                    onRotateRight,
+                                                    onZoomOut,
+                                                    onZoomIn,
+                                                }
+                                            }
+                                        ) => (
+                                            <Space size={12} className="toolbar-wrapper">
+                                                <LeftOutlined onClick={() => onActive?.(-1)} />
+                                                <RightOutlined onClick={() => onActive?.(1)} />
+                                                <DownloadOutlined onClick={onDownloadImage} />
+                                                <SwapOutlined rotate={90} onClick={onFlipY} />
+                                                <SwapOutlined onClick={onFlipX} />
+                                                <RotateLeftOutlined onClick={onRotateLeft} />
+                                                <RotateRightOutlined onClick={onRotateRight} />
+                                                <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+                                                <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+                                            </Space>
+                                        )
+                                    }}
+                                />
                             ))
                         }
                     </Flex>

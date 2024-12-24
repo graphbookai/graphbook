@@ -1,6 +1,7 @@
 import asyncio
 from aiohttp import web
 import os.path as osp
+from pathlib import Path
 
 
 @web.middleware
@@ -46,8 +47,8 @@ class MediaServer:
         @routes.get(r"/{path:.*}")
         async def handle(request: web.Request) -> web.Response:
             path = request.match_info["path"]
-            full_path = osp.join(self.root_path, path)
-            if not osp.exists(full_path):
+            full_path = Path(self.root_path).joinpath(path)
+            if not full_path.exists():
                 return web.HTTPNotFound()
             return web.FileResponse(full_path)
 
