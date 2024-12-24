@@ -102,8 +102,6 @@ class ClientPool:
             "custom_nodes_path": setup_paths["custom_nodes_path"],
             "view_manager_queue": view_queue,
         }
-        if not self.shared_execution:
-            processor_args["cwd"] = setup_paths["workflow_dir"].parent
         self._create_dirs(**setup_paths, no_sample=self.no_sample)
         processor = WebInstanceProcessor(**processor_args)
         view_manager = ViewManager(view_queue, processor)
@@ -131,6 +129,11 @@ class ClientPool:
             shutil.copyfile(assets_dir.joinpath(n), Path(docs_path).joinpath(n))
             n = "sample_nodes.py"
             shutil.copyfile(assets_dir.joinpath(n), Path(custom_nodes_path).joinpath(n))
+
+        if not self.shared_execution and no_sample:
+            if osp.exists("./workflow"):
+                shutil.copytree("./workflow", workflow_dir)
+                return
 
         should_create_sample = False
         if not osp.exists(workflow_dir):
@@ -189,8 +192,9 @@ class ClientPool:
         if self.curr_task:
             self.curr_task.cancel()
         if self.shared_execution:
-            self.shared_resources["processor"].close()
+            self.shared_resources["processor"].stop()
             self.shared_resources["node_hub"].stop()
+            self.shared_resources["view_manager"].stop()
 
     async def _loop(self):
         def get_view_data(view_manager: ViewManager) -> List[dict]:

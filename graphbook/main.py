@@ -74,7 +74,7 @@ def get_args():
         help="Use the spawn start method for multiprocessing",
     )
     parser.add_argument(
-        "--isolate-users",
+        "--isolate_users",
         action="store_true",
         help="Isolate each user in their own execution environment. Does NOT prevent users from accessing each other's files.",
     )
@@ -87,7 +87,6 @@ def resolve_paths(args):
         args.workflow_dir = args.root_dir
         args.nodes_dir = str(Path(args.root_dir).joinpath(nodes_dir))
         args.docs_dir = str(Path(args.root_dir).joinpath(docs_dir))
-        print(args.nodes_dir)
     return args
 
 

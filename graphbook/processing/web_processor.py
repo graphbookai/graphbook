@@ -21,7 +21,6 @@ import threading as th
 import traceback
 import time
 import copy
-import os
 from PIL import Image
 
 step_output_err_res = (
@@ -39,7 +38,6 @@ class WebInstanceProcessor:
         custom_nodes_path: Path,
         spawn: bool,
         num_workers: int = 1,
-        cwd: Path | None = None,
     ):
         self.cmd_queue = mp.Queue()
         self.view_manager = ViewManagerInterface(view_manager_queue)
@@ -49,7 +47,6 @@ class WebInstanceProcessor:
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
         self.dataloader = Dataloader(self.num_workers, spawn)
-        self.cwd = cwd
         self.close_event = mp.Event()
         self.pause_event = mp.Event()
         self.is_running = False
@@ -289,8 +286,6 @@ class WebInstanceProcessor:
     def start_loop(self):
         ExecutionContext.update(view_manager=self.view_manager)
         setup_global_dl(self.dataloader)
-        if self.cwd is not None:
-            os.chdir(self.cwd)
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
