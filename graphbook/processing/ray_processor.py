@@ -1,3 +1,226 @@
+from typing import Dict, List, Iterator, Optional, Tuple, Any, TYPE_CHECKING
+
+import asyncio
+import logging
+import time
+from collections import defaultdict
+from dataclasses import dataclass
+from ray import ObjectRef
+from ray.dag import DAGNode, DAGInputData
+
+import ray
+from ray.exceptions import RayTaskError, RayError
+
+from ray.workflow.common import (
+    WorkflowRef,
+    WorkflowExecutionMetadata,
+    WorkflowStatus,
+    TaskID,
+)
+from ray.workflow.exceptions import WorkflowCancellationError, WorkflowExecutionError
+from ray.workflow.task_executor import get_task_executor, _BakedWorkflowInputs
+from ray.workflow.workflow_state import (
+    WorkflowExecutionState,
+    TaskExecutionMetadata,
+    Task,
+)
+from graphbook.processing.node import GraphbookNode
+
+if TYPE_CHECKING:
+    from graphbook.processing.ray_api import GraphbookTaskContext
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class GraphbookRef:
+    """This class represents a reference of a workflow output.
+
+    A reference means the workflow has already been executed,
+    and we have both the workflow task ID and the object ref to it
+    living outputs.
+
+    This could be used when you want to return a running workflow
+    from a workflow task. For example, the remaining workflows
+    returned by 'workflow.wait' contains a static ref to these
+    pending workflows.
+    """
+
+    # The ID of the task that produces the output of the workflow.
+    task_id: TaskID
+    # The ObjectRef of the output. If it is "None", then the output has been
+    # saved in the storage, and we need to check the workflow management actor
+    # for the object ref.
+    ref: Optional[ObjectRef] = None
+
+    @classmethod
+    def from_output(cls, task_id: str, output: Any):
+        """Create static ref from given output."""
+        if not isinstance(output, cls):
+            if not isinstance(output, ray.ObjectRef):
+                output = ray.put(output)
+            output = cls(task_id=task_id, ref=output)
+        return output
+
+    def __hash__(self):
+        return hash(self.task_id)
+
+class GraphbookExecutor:
+    def __init__(
+        self,
+        taskID: TaskID = None,
+    ):
+        """The core logic of executing a workflow.
+
+        This class is responsible for:
+
+        - Dependency resolving.
+        - Task scheduling.
+        - Reference counting.
+        - Garbage collection.
+        - Continuation handling and scheduling.
+        - Error handling.
+        - Responding callbacks.
+
+        It borrows some design of event loop in asyncio,
+        e.g., 'run_until_complete'.
+
+        Args:
+            state: The initial state of the workflow.
+        """
+        self._taskID = taskID
+        self._completion_queue = asyncio.Queue()
+        self._task_done_callbacks: Dict[TaskID, List[asyncio.Future]] = defaultdict(
+            list
+        )
+
+    def is_running(self) -> bool:
+        """The state is running, if there are tasks to be run or running tasks."""
+        return True
+
+
+    def run_until_complete(self, dag: DAGNode, dag_input: DAGInputData, context: "GraphbookTaskContext"):
+        """Drive the state util it completes.
+
+        Args:
+            job_id: The Ray JobID for logging properly.
+            context: The context of workflow execution.
+
+        # TODO(suquark): move job_id inside context
+        """
+        workflow_id = context.workflow_id
+        logger.info(f"Workflow job [id={workflow_id}] started.")
+        return ray.get(dag.execute(dag_input))
+        
+
+    def cancel(self) -> None:
+        """Cancel the running workflow."""
+        for fut, workflow_ref in self._state.running_frontier.items():
+            fut.cancel()
+            try:
+                ray.cancel(workflow_ref.ref, force=True)
+            except Exception:
+                pass
+
+    def _poll_queued_tasks(self) -> List[TaskID]:
+        tasks = []
+        while True:
+            task_id = self._state.pop_frontier_to_run()
+            if task_id is None:
+                break
+            tasks.append(task_id)
+        return tasks
+
+    def _submit_ray_task(self, task_id: TaskID, job_id: str) -> None:
+        """Submit a workflow task as a Ray task."""
+        baked_inputs = _BakedWorkflowInputs(
+            args=state.task_input_args[task_id],
+            workflow_refs=[
+                state.get_input(d) for d in state.upstream_dependencies[task_id]
+            ],
+        )
+        task = state.tasks[task_id]
+        executor = get_task_executor(task.options)
+        metadata_ref, output_ref = executor(
+            task.func_body,
+            state.task_context[task_id],
+            job_id,
+            task_id,
+            baked_inputs,
+            task.options,
+        )
+        # The input workflow is not a reference to an executed workflow.
+        future = asyncio.wrap_future(metadata_ref.future())
+        future.add_done_callback(self._completion_queue.put_nowait)
+
+        state.insert_running_frontier(future, WorkflowRef(task_id, ref=output_ref))
+        state.task_execution_metadata[task_id] = TaskExecutionMetadata(
+            submit_time=time.time()
+        )
+
+    def _post_process_submit_task(
+        self, task_id: TaskID
+    ) -> None:
+       pass
+
+    # def _garbage_collect(self) -> None:
+    #     """Garbage collect the output refs of tasks.
+
+    #     Currently, this is done after task submission, because when a task
+    #     starts, we no longer needs its inputs (i.e. outputs from other tasks).
+
+    #     # TODO(suquark): We may need to improve garbage collection
+    #     #  when taking more fault tolerant cases into consideration.
+    #     """
+    #     state = self._state
+    #     while state.free_outputs:
+    #         # garbage collect all free outputs immediately
+    #         gc_task_id = state.free_outputs.pop()
+    #         assert state.get_input(gc_task_id) is not None
+    #         state.output_map.pop(gc_task_id, None)
+
+    async def _poll_ready_tasks(self) -> List[asyncio.Future]:
+        cq = self._completion_queue
+        ready_futures = []
+        rf = await cq.get()
+        ready_futures.append(rf)
+        # get all remaining futures in the queue
+        while not cq.empty():
+            ready_futures.append(cq.get_nowait())
+        return ready_futures
+
+    def get_task_output_async(self, task_id: Optional[TaskID]) -> asyncio.Future:
+        """Get the output of a task asynchronously.
+
+        Args:
+            task_id: The ID of task the callback associates with.
+
+        Returns:
+            A callback in the form of a future that associates with the task.
+        """
+        state = self._state
+        if self._task_done_callbacks[task_id]:
+            return self._task_done_callbacks[task_id][0]
+
+        fut = asyncio.Future()
+        task_id = state.continuation_root.get(task_id, task_id)
+        output = state.get_input(task_id)
+        if output is not None:
+            fut.set_result(output)
+        elif task_id in state.done_tasks:
+            fut.set_exception(
+                ValueError(
+                    f"Task '{task_id}' is done but neither in memory or in storage "
+                    "could we find its output. It could because its in memory "
+                    "output has been garbage collected and the task did not"
+                    "checkpoint its output."
+                )
+            )
+        else:
+            self._task_done_callbacks[task_id].append(fut)
+        return fut
+
+
 from ..steps import (
     Step,
     SourceStep,
@@ -7,11 +230,9 @@ from ..steps import (
     StepOutput,
     log,
 )
-from ..dataloading import Dataloader, setup_global_dl
 from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from .state import GraphState, StepState, NodeInstantiationError
 from ..viewer import ViewManagerInterface
-from ..shm import SharedMemoryManager
 from ..note import Note
 from typing import List
 from pathlib import Path
@@ -21,63 +242,32 @@ import threading as th
 import traceback
 import time
 import copy
-from PIL import Image
 
 step_output_err_res = (
     "Step output must be a dictionary, and dict values must be lists of notes."
 )
 
 
-class WebInstanceProcessor:
+class RayProcessor:
     def __init__(
         self,
         view_manager_queue: mp.Queue,
-        img_mem: SharedMemoryManager | None,
         continue_on_failure: bool,
         copy_outputs: bool,
         custom_nodes_path: Path,
-        spawn: bool,
         num_workers: int = 1,
     ):
         self.cmd_queue = mp.Queue()
         self.view_manager = ViewManagerInterface(view_manager_queue)
-        self.img_mem = img_mem
         self.graph_state = GraphState(custom_nodes_path, view_manager_queue)
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
-        self.dataloader = Dataloader(self.num_workers, spawn)
         self.close_event = mp.Event()
         self.pause_event = mp.Event()
         self.is_running = False
         self.filename = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
-
-    def handle_images(self, outputs: StepOutput):
-        if self.img_mem is None:
-            return
-
-        def try_add_image(item):
-            if isinstance(item, dict):
-                if item.get("shm_id") is not None:
-                    return
-                if item.get("type") == "image" and isinstance(
-                    item.get("value"), Image.Image
-                ):
-                    shm_id = self.img_mem.add_image(item["value"])
-                    item["shm_id"] = shm_id
-            elif isinstance(item, list):
-                for val in item:
-                    try_add_image(val)
-
-        for output in outputs.values():
-            for note in output:
-                for item in note.items.values():
-                    if isinstance(item, list):
-                        for i in item:
-                            try_add_image(i)
-                    else:
-                        try_add_image(item)
 
     def exec_step(
         self, step: Step, input: Note | None = None, flush: bool = False
@@ -123,7 +313,6 @@ class WebInstanceProcessor:
                     "error",
                 )
                 return None
-            self.handle_images(outputs)
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
@@ -177,7 +366,6 @@ class WebInstanceProcessor:
             and not step_executed
             and not self.pause_event.is_set()
             and not self.close_event.is_set()
-            and not self.dataloader.is_failed()
         ):
             is_active = self.handle_steps(steps)
             step_executed = self.graph_state.get_state(
@@ -211,12 +399,10 @@ class WebInstanceProcessor:
                 dag_is_active
                 and not self.pause_event.is_set()
                 and not self.close_event.is_set()
-                and not self.dataloader.is_failed()
             ):
                 dag_is_active = self.handle_steps(steps)
         finally:
             self.view_manager.handle_end()
-            self.dataloader.stop()
             for step in steps:
                 self.try_execute_step_event(step, "on_end")
 
@@ -233,7 +419,6 @@ class WebInstanceProcessor:
             self.step_until_received_output(steps, step_id)
         finally:
             self.view_manager.handle_end()
-            self.dataloader.stop()
             for step in steps:
                 self.try_execute_step_event(step, "on_end")
 
@@ -243,20 +428,6 @@ class WebInstanceProcessor:
             self.filename = filename
         run_state = {"is_running": is_running, "filename": self.filename}
         self.view_manager.set_state("run_state", run_state)
-
-    def cleanup(self):
-        self.dataloader.shutdown()
-
-    def setup_dataloader(self, steps: List[Step]):
-        dataloader_consumers = [step for step in steps if isinstance(step, BatchStep)]
-        consumer_ids = [id(c) for c in dataloader_consumers]
-        consumer_load_fn = [
-            c.load_fn if hasattr(c, "load_fn") else None for c in dataloader_consumers
-        ]
-        consumer_dump_fn = [
-            c.dump_fn if hasattr(c, "dump_fn") else None for c in dataloader_consumers
-        ]
-        self.dataloader.start(consumer_ids, consumer_load_fn, consumer_dump_fn)
 
     def try_update_state(self, local_graph: dict) -> bool:
         try:
@@ -285,7 +456,6 @@ class WebInstanceProcessor:
 
     def start_loop(self):
         ExecutionContext.update(view_manager=self.view_manager)
-        setup_global_dl(self.dataloader)
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
@@ -297,14 +467,11 @@ class WebInstanceProcessor:
                     self.graph_state.clear_outputs(work.get("node_id"))
                     self.view_manager.handle_clear(work.get("node_id"))
                     step = self.graph_state.get_step(work.get("node_id"))
-                    self.dataloader.clear(id(step) if step != None else None)
             except queue.Empty:
                 pass
             except KeyboardInterrupt:
-                self.cleanup()
                 break
             except Exception as e:
-                self.cleanup()
                 break
 
     def start(self):
@@ -312,13 +479,9 @@ class WebInstanceProcessor:
 
     def stop(self):
         self.close_event.set()
-        self.cleanup()
 
     def exec(self, work: dict):
         self.cmd_queue.put(work)
-
-    def get_worker_queue_sizes(self):
-        return self.dataloader.get_all_sizes()
 
     def get_output_note(self, step_id: str, pin_id: str, index: int) -> Note | None:
         output = self.graph_state.get_output_note(step_id, pin_id, index)

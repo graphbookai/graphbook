@@ -445,34 +445,37 @@ class GraphServer:
             return client
 
     async def _async_start(self):
-        runner = web.AppRunner(self.app)
-        await runner.setup()
-        site = web.TCPSite(runner, self.host, self.port)
-        await site.start()
-        await self.client_pool.start()
-        await asyncio.Event().wait()
-
-    def start(self):
-        self.app.router.add_routes(self.routes)
-        if self.web_plugins:
-            print("Loaded web plugins:")
-            print(self.web_plugins)
-
-        if self.web_dir is not None:
-            self.app.router.add_routes([web.static("/", self.web_dir)])
-
-        print(f"Starting graph server at {self.host}:{self.port}")
         try:
-            asyncio.run(self._async_start())
+            self.app.router.add_routes(self.routes)
+            if self.web_plugins:
+                print("Loaded web plugins:")
+                print(self.web_plugins)
+
+            if self.web_dir is not None:
+                self.app.router.add_routes([web.static("/", self.web_dir)])
+
+            runner = web.AppRunner(self.app)
+            await runner.setup()
+            site = web.TCPSite(runner, self.host, self.port)
+            await site.start()
+            await self.client_pool.start()
+            print(f"Started graph server at {self.host}:{self.port}")
+            await asyncio.Event().wait()
         except KeyboardInterrupt:
+            self.close_event.set()
             print("Exiting graph server")
         finally:
             self.close_event.set()
-            asyncio.run(self.client_pool.stop())
+            await self.client_pool.stop()
+
+    def start(self):
+        asyncio.run(self._async_start())
 
 
 def create_graph_server(
-    args,
+    isolate_users,
+    no_sample,
+    host, port,
     web_processor_args,
     img_mem_args,
     setup_paths,
@@ -483,12 +486,12 @@ def create_graph_server(
         web_processor_args,
         img_mem_args,
         setup_paths,
-        args.isolate_users,
-        args.no_sample,
+        isolate_users,
+        no_sample,
         close_event,
         web_dir=web_dir,
-        host=args.host,
-        port=args.port,
+        host=host,
+        port=port,
     )
     server.start()
 
@@ -538,10 +541,47 @@ def start_web(args):
     signal.signal(signal.SIGINT, signal_handler)
 
     create_graph_server(
-        args,
+        args.isolate_users,
+        args.no_sample,
+        args.host,
+        args.port,
         web_processor_args,
         img_mem.get_shared_args() if img_mem else {},
         setup_paths,
         close_event,
         args.web_dir,
     )
+
+def async_start(
+    isolate_users,
+    no_sample,
+    host, port,
+):
+    import threading
+    close_event = mp.Event()
+
+    setup_paths = dict(
+        workflow_dir="./workflow",
+        custom_nodes_path="./workflow/custom_nodes",
+        docs_path="./workflow/docs",
+    )
+    web_processor_args = dict(
+        img_mem=None,
+        continue_on_failure=False,
+        copy_outputs=False,
+        spawn=False,
+        num_workers=1,
+    )
+    server = GraphServer(
+        web_processor_args,
+        None,
+        setup_paths,
+        isolate_users,
+        no_sample,
+        close_event,
+        host=host,
+        port=port,
+    )
+    
+    threading.Thread(target=server.start, daemon=True).start()
+    

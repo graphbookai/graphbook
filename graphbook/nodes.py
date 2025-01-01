@@ -70,10 +70,12 @@ class NodeHub:
             self.exported_resources.update(plugin_resources[plugin])
 
     def start(self):
-        self.custom_node_importer.start_observer()
+        # self.custom_node_importer.start_observer()
+        pass
 
     def stop(self):
-        self.custom_node_importer.stop_observer()
+        # self.custom_node_importer.stop_observer()
+        pass
 
     def handle_module(self, filename, module):
         self.view_manager.set_state("node_updated")
@@ -226,7 +228,7 @@ class CustomNodeImporter:
         self.module_handler = module_handler
         self.observer = Observer()
         self.event_handler = CustomModuleEventHandler(path, self.on_module)
-        self.event_handler.init_custom_nodes()
+        # self.event_handler.init_custom_nodes()
 
     def on_module(self, filename: Path, mod):
         for name, obj in inspect.getmembers(mod):
