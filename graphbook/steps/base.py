@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator, Any, Literal
+from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING
 from ..utils import (
     transform_function_string,
     convert_dict_values_to_list,
@@ -8,10 +8,13 @@ from ..utils import (
 )
 from ..utils import ExecutionContext
 from ..viewer import ViewManagerInterface
-from .. import Note, prompts, dataloading as dataloader
+from .. import Note, prompts
 import warnings
 import traceback
 import copy
+
+if TYPE_CHECKING:
+    from ..dataloading import Dataloader
 
 warnings.simplefilter("default", DeprecationWarning)
 
@@ -366,6 +369,7 @@ class BatchStep(AsyncStep):
             # Load
             if self.parallelized_load:
                 note_id = id(note)
+                dataloader: Dataloader = ExecutionContext.get("dataloader")
                 dataloader.put_load(items, self.load_fn_params, note_id, id(self))
                 self.loaded_notes[note_id] = note
                 self.num_loaded_notes[note_id] = len(items)
@@ -406,6 +410,7 @@ class BatchStep(AsyncStep):
             return self.get_batch_sync()
 
         items, notes, completed = self.accumulated_items
+        dataloader: Dataloader = ExecutionContext.get("dataloader")
         next_in = dataloader.get_load(id(self))
         if next_in is not None:
             item, note_id = next_in
@@ -453,6 +458,7 @@ class BatchStep(AsyncStep):
             output (Any): The output data to dump
         """
         self.dumped_item_holders.handle_note(note)
+        dataloader: Dataloader = ExecutionContext.get("dataloader")
         dataloader.put_dump(output, id(note), id(self))
 
     @staticmethod
@@ -513,6 +519,7 @@ class BatchStep(AsyncStep):
             self.dumped_item_holders.set_completed(note)
 
     def handle_completed_notes(self):
+        dataloader: Dataloader = ExecutionContext.get("dataloader")
         note_id = dataloader.get_dump(id(self))
         if note_id is not None:
             self.dumped_item_holders.handle_item(note_id)
