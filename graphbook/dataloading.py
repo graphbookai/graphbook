@@ -387,31 +387,3 @@ class Dataloader:
 
     def clear_failed(self):
         self._fail_event.clear()
-
-
-workers = None
-
-
-def setup_global_dl(dataloader: Dataloader):
-    global workers
-    workers = dataloader
-
-
-def put_load(items: list, load_fn_params: dict, note_id: int, consumer_id: int):
-    global workers
-    workers.put_load(items, load_fn_params, note_id, consumer_id)
-
-
-def get_load(consumer_id):
-    global workers
-    return workers.get_load(consumer_id)
-
-
-def put_dump(data: Any, note_id: int, consumer_id: int):
-    global workers
-    workers.put_dump(data, note_id, consumer_id)
-
-
-def get_dump(consumer_id):
-    global workers
-    return workers.get_dump(consumer_id)
