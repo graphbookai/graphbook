@@ -41,7 +41,6 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             return;
         }
         const files = await API.listFiles();
-        console.log(files);
         if (!files) {
             return;
         }
@@ -58,7 +57,18 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         setKey(files.children);
         setFiles(files.children);
         setFilesRoot(filesRoot);
-    }, [API]);
+
+        if (!selectedWorkflow) {
+            const anyJson = files.children.find((item) => {
+                const filename = item.path;
+                return filename.slice(-5) === '.json';
+            });
+            if (anyJson) {
+                setWorkflow(anyJson.path);
+                setSelectedWorkflow(anyJson.path);
+            }
+        }
+    }, [API, selectedWorkflow]);
 
     useEffect(() => {
         getFiles();
@@ -287,7 +297,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
             <Flex vertical className="filesystem">
                 <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
                 <Flex justify="space-between">
-                    <Text ellipsis style={{fontWeight: 'bold'}}>{filesRoot}</Text>
+                    <Text ellipsis style={{ fontWeight: 'bold' }}>{filesRoot}</Text>
                     <div style={{ display: 'flex', flexDirection: 'row' }}>
                         <Button className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
                         <Button className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />

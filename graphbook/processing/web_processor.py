@@ -7,7 +7,7 @@ from ..steps import (
     StepOutput,
     log,
 )
-from ..dataloading import Dataloader, setup_global_dl
+from ..dataloading import Dataloader
 from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from .state import GraphState, StepState, NodeInstantiationError
 from ..viewer import ViewManagerInterface
@@ -284,8 +284,9 @@ class WebInstanceProcessor:
             self.step(work["step_id"])
 
     def start_loop(self):
-        ExecutionContext.update(view_manager=self.view_manager)
-        setup_global_dl(self.dataloader)
+        ExecutionContext.update(
+            view_manager=self.view_manager, dataloader=self.dataloader
+        )
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             self.set_is_running(False)
