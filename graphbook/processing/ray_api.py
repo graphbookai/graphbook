@@ -1,17 +1,15 @@
 import ray
 import time, uuid
 from ray.dag import DAGNode, DAGInputData
-from typing import Any, Dict, Optional, Generator, Union, Callable, TypeVar, List
+from typing import Any, Dict, Optional, Generator, Union, Callable, TypeVar, List, TYPE_CHECKING
 from contextlib import contextmanager
 from dataclasses import dataclass
-from graphbook.processing.ray_processor import GraphbookExecutor
+from graphbook.processing.ray_processor import RayStepHandler
+from graphbook.steps import Step, SourceStep
+from graphbook.utils import ExecutionContext
 import graphbook.web
-from graphbook.processing.ray_processor import RayProcessor
 import multiprocessing as mp
 import ray.dag.class_node as class_node
-import os
-
-import inspect
 import ray.actor
 
 from ray.workflow.common import (
@@ -20,9 +18,13 @@ from ray.workflow.common import (
 
 import logging
 
+if TYPE_CHECKING:
+    from graphbook.clients import ClientPool, Client
+
 logger = logging.getLogger(__name__)
-global graphbook_context
 T = TypeVar("T")
+
+step_handler = None
 
 
 def _ensure_graphbook_initialized() -> None:
@@ -84,6 +86,11 @@ def init(
         # ray.init(storage=workflow_dir.as_uri())
         ray.init()
         graphbook.web.async_start(False, False, "0.0.0.0", 8005)
+        print(graphbook.web.server)
+        global step_handler
+        client_pool = graphbook.web.server.client_pool
+        
+        step_handler = RayStepHandler.remote()
 
 
 def run_async(
@@ -137,47 +144,6 @@ def run(
     metadata: Optional[Dict[str, Any]] = None,
     **kwargs,
 ) -> Any:
-    """Run a workflow.
-
-    If the workflow with the given id already exists, it will be resumed.
-
-    Examples:
-        .. testcode::
-
-            import ray
-            from ray import workflow
-
-            @ray.remote
-            def book_flight(origin: str, dest: str):
-               return f"Flight: {origin}->{dest}"
-
-            @ray.remote
-            def book_hotel(location: str):
-               return f"Hotel: {location}"
-
-            @ray.remote
-            def finalize_trip(bookings: List[Any]):
-               return ' | '.join(ray.get(bookings))
-
-            flight1 = book_flight.bind("OAK", "SAN")
-            flight2 = book_flight.bind("SAN", "OAK")
-            hotel = book_hotel.bind("SAN")
-            trip = finalize_trip.bind([flight1, flight2, hotel])
-            print(workflow.run(trip))
-
-        .. testoutput::
-
-            Flight: OAK->SAN | Flight: SAN->OAK | Hotel: SAN
-
-    Args:
-        workflow_id: A unique identifier that can be used to resume the
-            workflow. If not specified, a random id will be generated.
-        metadata: The metadata to add to the workflow. It has to be able
-            to serialize to json.
-
-    Returns:
-        The running result.
-    """
     return ray.get(
         run_async(dag, *args, workflow_id=workflow_id, metadata=metadata, **kwargs)
     )
@@ -197,8 +163,6 @@ class GraphbookTaskContext:
     task_id: str = ""
     # The context of catching exceptions.
     catch_exceptions: bool = False
-    view_manger_queue = mp.Queue()
-    processor: RayProcessor = RayProcessor(view_manger_queue, False, False, None)
 
 
 _context: Optional[GraphbookTaskContext] = None
@@ -220,148 +184,23 @@ def graphbook_task_context(context) -> Generator[None, None, None]:
         _context = original_context
 
 
-# @ray.remote(num_cpus=0)
 def execute(
     dag: DAGNode, dag_input: DAGInputData, context: GraphbookTaskContext
 ) -> None:
-    # executor = WorkflowExecutor(state)
-    # try:
-    #     await executor.run_until_complete(job_id, context, wf_store)
-    #     return await self.get_output(workflow_id, executor.output_task_id)
-    # finally:
-    #     pass
-    """Execute a submitted workflow.
+    """Execute a Graphbook DAG.
 
     Args:
-        job_id: The ID of the job for logging.
+        dag: A leaf node of the DAG.
         context: The execution context.
     Returns:
         An object ref that represent the result.
     """
-    executor = GraphbookExecutor()
+    workflow_id = context.workflow_id
+    logger.info(f"Workflow job [id={workflow_id}] started.")
     try:
-        return executor.run_until_complete(dag, dag_input, context)
+        return ray.get(dag.execute())
     finally:
         pass
-        # self._workflow_executors.pop(workflow_id)
-        # self._running_workflows.remove(workflow_id)
-        # self._executed_workflows.add(workflow_id)
-        # if not self._workflow_queue.empty():
-        #     # schedule another workflow from the pending queue
-        #     next_workflow_id = self._workflow_queue.get_nowait()
-        #     self._running_workflows.add(next_workflow_id)
-        #     fut = self._queued_workflows.pop(next_workflow_id)
-        #     fut.set_result(None)
-
-
-class GraphbookClassMethodNode(class_node.ClassMethodNode):
-    def __init__(self, bind_key):
-        self.bind_key = bind_key
-        self.outputs = {}
-
-    def _execute_impl(self, *args, **kwargs):
-        print("Executing...")
-
-        if self.is_class_method_call:
-            method_body = getattr(self._parent_class_node, self._method_name)
-
-            # @ray.remote # Cannot wrap this remote function with another remote function
-            # So, this unwrapping needs to happen in the remote function
-            # However, doing it in the remote function can cause it to be called multiple times.
-            # So, we need to cache the result of the unwrapping.
-
-            # def local_impl(*args, **kwargs):
-            #     output = method_body(*args, **kwargs)
-            #     for key, value in output.items():
-            #         self.outputs[key] = value
-
-            # Execute with bound args.
-            # return local_impl.options(**self._bound_options).remote(
-            #     *self._bound_args,
-            #     **self._bound_kwargs,
-            # )
-            
-            # Execute with bound args.
-            return method_body.options(**self._bound_options).remote(
-                *self._bound_args,
-                **self._bound_kwargs,
-            )
-        else:
-            assert self._class_method_output is not None
-            return self._bound_args[0][self._class_method_output.output_idx]
-
-    def _copy_impl(
-        self,
-        new_args: List[Any],
-        new_kwargs: Dict[str, Any],
-        new_options: Dict[str, Any],
-        new_other_args_to_resolve: Dict[str, Any],
-    ):
-        class_method_node = super()._copy_impl(
-            new_args, new_kwargs, new_options, new_other_args_to_resolve
-        )
-        gb_class_method_node = GraphbookClassMethodNode(self.bind_key)
-        gb_class_method_node.__dict__.update(class_method_node.__dict__)
-        return gb_class_method_node
-
-    def apply_recursive(self, fn: "Callable[[DAGNode], T]") -> T:
-        """Apply callable on each node in this DAG in a bottom-up tree walk.
-
-        Args:
-            fn: Callable that will be applied once to each node in the
-                DAG. It will be applied recursively bottom-up, so nodes can
-                assume the fn has been applied to their args already.
-
-        Returns:
-            Return type of the fn after application to the tree.
-        """
-
-        if not type(fn).__name__ == "_CachingFn":
-
-            class _CachingFn:
-                def __init__(self, fn):
-                    self.cache = {}
-                    self.fn = fn
-                    self.fn.cache = self.cache
-                    self.input_node_uuid = None
-
-                def __call__(self, node: "GraphbookClassMethodNode"):
-                    from ray.dag.input_node import InputNode
-
-                    if node._stable_uuid not in self.cache:
-                        fn_out = self.fn(node)
-                        print("fn_out", fn_out)
-                        self.cache[node._stable_uuid] = fn_out
-                    if isinstance(node, InputNode):
-                        if not self.input_node_uuid:
-                            self.input_node_uuid = node._stable_uuid
-                        elif self.input_node_uuid != node._stable_uuid:
-                            raise AssertionError(
-                                "Each DAG should only have one unique InputNode."
-                            )
-                    return self.cache[node._stable_uuid]
-
-            fn = _CachingFn(fn)
-        else:
-            if self._stable_uuid in fn.cache:
-                # self.outputs[]
-                return fn.cache[self._stable_uuid]
-
-        return fn(
-            self._apply_and_replace_all_child_nodes(
-                lambda node: node.apply_recursive(fn)
-            )
-        )
-
-    def execute(self, *args, **kwargs):
-        def executor(node):
-            return node._execute_impl(*args, **kwargs)
-
-        result = self.apply_recursive(executor)
-        print("result", result)
-        self.cache_from_last_execute = executor.cache
-        print("cache", self.cache_from_last_execute)
-        return result
 
 
 class GraphbookActorClass:
@@ -369,30 +208,37 @@ class GraphbookActorClass:
         self._actor = actor
 
     def remote(self, *args, **kwargs):
-        """Create an actor.
-
-        Args:
-            args: These arguments are forwarded directly to the actor
-                constructor.
-            kwargs: These arguments are forwarded directly to the actor
-                constructor.
-
-        Returns:
-            A handle to the newly created actor.
-        """
+        step_id = ray.get(step_handler.init_step.remote())
 
         actor_handle: ray.actor.ActorHandle = self._actor._remote(
             args=args, kwargs=kwargs, **self._actor._default_options
         )
+        ray.get(actor_handle.set_context.remote(node_id=step_id, node_name="test"))
+        def bind(self, *bind_args):
+            assert len(bind_args) % 2 == 0, "Bind arguments must be pairs of bind_key and bind_obj"
 
-        def bind(self, bind_key: str, *args, **kwargs):
-            class_method_node = self.__call__.bind(*args, **kwargs)
-            gb_class_method_node = GraphbookClassMethodNode(bind_key)
-            gb_class_method_node.__dict__.update(class_method_node.__dict__)
-            return gb_class_method_node
+            ref = step_handler.handle.bind(step_id, *bind_args)
+            class_method_node = self.all.bind(ref)
+
+            return class_method_node
 
         actor_handle.bind = bind.__get__(actor_handle)
         return actor_handle
+
+
+class GraphbookSourceActorClass:
+    def __init__(self, actor: ray.actor.ActorClass):
+        self._actor = actor
+
+    def remote(self, *args, **kwargs):
+        actor_handle: ray.actor.ActorHandle = self._actor._remote(
+            args=args, kwargs=kwargs, **self._actor._default_options
+        )
+
+        step_id = step_handler.init_step.remote()
+        ref = actor_handle.__call__.remote()
+
+        return ref
 
 
 def remote(
@@ -401,5 +247,8 @@ def remote(
     ray.remote_function.RemoteFunction, ray.actor.ActorClass, GraphbookActorClass
 ]:
     actor_class = ray.remote(*args, **kwargs)
-    gb_actor_class = GraphbookActorClass(actor_class)
+    if isinstance(actor_class, SourceStep):
+        gb_actor_class = GraphbookSourceActorClass(actor_class)
+    else:
+        gb_actor_class = GraphbookActorClass(actor_class)
     return gb_actor_class

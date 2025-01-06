@@ -80,7 +80,9 @@ class ClientPool:
         close_event: mp.Event,
         options: dict = DEFAULT_CLIENT_OPTIONS,
     ):
+        self.manager = mp.Manager()
         self.clients: Dict[str, Client] = {}
+        self.ws: Dict[str, WebSocketResponse] = self.manager.dict()
         self.tmpdirs: Dict[str, str] = {}
         self.web_processor_args = web_processor_args
         self.setup_paths = setup_paths
@@ -166,18 +168,26 @@ class ClientPool:
 
         client = Client(sid, ws, **resources, setup_paths=setup_paths)
         self.clients[sid] = client
+        self.ws[sid] = ws
         await ws.send_json({"type": "sid", "data": sid})
         print(f"{sid}: {client.get_root_path()}")
         return client
 
     def get(self, sid: str) -> Client | None:
         return self.clients.get(sid, None)
+    
+    def get_all(self) -> List[Client]:
+        return list(self.clients.values())
+    
+    def get_all_ws(self) -> Dict[str, WebSocketResponse]:
+        return self.ws
 
     async def remove_client(self, client: Client):
         sid = client.sid
         if sid in self.clients:
             await client.close()
             del self.clients[sid]
+            del self.ws[sid]
             if not self.shared_execution:
                 client.get_processor().stop()
                 client.get_node_hub().stop()

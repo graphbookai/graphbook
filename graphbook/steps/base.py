@@ -12,6 +12,7 @@ from .. import Note, prompts
 import warnings
 import traceback
 import copy
+import ray
 
 if TYPE_CHECKING:
     from ..dataloading import Dataloader
@@ -30,13 +31,23 @@ def log(msg: Any, type: LogType = "info"):
     node_id: str = ExecutionContext.get("node_id")
     node_name: str = ExecutionContext.get("node_name")
     view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
+    runtime_env = ray.get_runtime_context().get_runtime_env_string()
+    print(f"runtime_env: {runtime_env}", True)
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
 
     if view_manager is None:
-        raise ValueError(
-            "View manager not initialized in context. Is this being called in a running graph?"
-        )
+        if ray.is_initialized():
+            actor_handle = ray.get_actor("_graphbook_RayStepHandler")
+            log_handle = actor_handle.handle_log.remote
+            runtime_env = ray.get_runtime_context().get_runtime_env_string()
+            print(f"runtime_env: {runtime_env}")
+        else:
+            raise ValueError(
+                "View manager not initialized in context. Is this being called in a running graph?"
+            )
+    else:
+        log_handle = view_manager.handle_log
 
     if type in text_log_types:
         if type == "error":
@@ -48,7 +59,7 @@ def log(msg: Any, type: LogType = "info"):
         pass  # TODO
     else:
         raise ValueError(f"Unknown log type {type}")
-    view_manager.handle_log(node_id, msg, type)
+    log_handle(node_id, msg, type)
 
 
 def prompt(prompt: dict):
@@ -76,6 +87,15 @@ class Step:
         self.id = None
         self.item_key = item_key
         self.children = {"out": []}
+        
+    def set_context(self, **context):
+        """
+        Sets the context of the step. This is useful for setting the node_id and node_name of the step.
+
+        Args:
+            **context: The context to set
+        """
+        ExecutionContext.update(**context)
 
     def set_child(self, child: Step, slot_name: str = "out"):
         """

@@ -14,6 +14,8 @@ from .clients import ClientPool, Client
 from .plugins import setup_plugins
 import json
 
+server = None
+
 
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
@@ -475,7 +477,8 @@ class GraphServer:
 def create_graph_server(
     isolate_users,
     no_sample,
-    host, port,
+    host,
+    port,
     web_processor_args,
     img_mem_args,
     setup_paths,
@@ -555,9 +558,11 @@ def start_web(args):
 def async_start(
     isolate_users,
     no_sample,
-    host, port,
+    host,
+    port,
 ):
     import threading
+
     close_event = mp.Event()
 
     setup_paths = dict(
@@ -572,6 +577,7 @@ def async_start(
         spawn=False,
         num_workers=1,
     )
+    global server
     server = GraphServer(
         web_processor_args,
         None,
@@ -582,6 +588,6 @@ def async_start(
         host=host,
         port=port,
     )
-    
+    print("Set global server var")
+
     threading.Thread(target=server.start, daemon=True).start()
-    
