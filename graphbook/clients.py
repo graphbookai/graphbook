@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
@@ -23,25 +23,30 @@ class Client:
         processor: WebInstanceProcessor,
         node_hub: NodeHub,
         view_manager: ViewManager,
-        setup_paths: dict,
+        setup_paths: Optional[dict] = None,
     ):
         self.sid = sid
         self.ws = ws
         self.processor = processor
         self.node_hub = node_hub
         self.view_manager = view_manager
-        self.root_path = Path(setup_paths["workflow_dir"])
-        self.docs_path = Path(setup_paths["docs_path"])
-        self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
+        if setup_paths:
+            self.root_path = Path(setup_paths["workflow_dir"])
+            self.docs_path = Path(setup_paths["docs_path"])
+            self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
+        else:
+            self.root_path = None
+            self.docs_path = None
+            self.custom_nodes_path = None
         self.close_event = asyncio.Event()
 
-    def get_root_path(self) -> Path:
+    def get_root_path(self) -> Path | None:
         return self.root_path
 
-    def get_docs_path(self) -> Path:
+    def get_docs_path(self) -> Path | None:
         return self.docs_path
 
-    def get_custom_nodes_path(self) -> Path:
+    def get_custom_nodes_path(self) -> Path | None:
         return self.custom_nodes_path
 
     def nodes(self):
@@ -73,41 +78,45 @@ class ClientPool:
     def __init__(
         self,
         web_processor_args: dict,
-        setup_paths: dict,
         plugins: tuple,
         isolate_users: bool,
         no_sample: bool,
         close_event: mp.Event,
+        setup_paths: Optional[dict] = None,
+        view_queue: Optional[mp.Queue] = None,
         options: dict = DEFAULT_CLIENT_OPTIONS,
     ):
-        self.manager = mp.Manager()
         self.clients: Dict[str, Client] = {}
-        self.ws: Dict[str, WebSocketResponse] = self.manager.dict()
+        self.ws: Dict[str, WebSocketResponse] = {}
         self.tmpdirs: Dict[str, str] = {}
         self.web_processor_args = web_processor_args
         self.setup_paths = setup_paths
+        self.is_interactive = setup_paths is not None
+        self.custom_nodes_path = setup_paths["custom_nodes_path"] if setup_paths else None
         self.plugins = plugins
         self.shared_execution = not isolate_users
         self.no_sample = no_sample
         self.close_event = close_event
+        self.view_queue = view_queue
         self.options = options
         if self.shared_execution:
+            if setup_paths:
+                self._create_dirs(**setup_paths, no_sample=self.no_sample)
             self.shared_resources = self._create_resources(
-                web_processor_args, setup_paths
+                web_processor_args, self.custom_nodes_path
             )
         self.curr_task = None
 
-    def _create_resources(self, web_processor_args: dict, setup_paths: dict):
-        view_queue = mp.Queue()
+    def _create_resources(self, web_processor_args: dict, custom_nodes_path: Optional[str] = None):
+        view_queue = self.view_queue if self.view_queue is not None else mp.Queue()
         processor_args = {
             **web_processor_args,
-            "custom_nodes_path": setup_paths["custom_nodes_path"],
+            "custom_nodes_path": custom_nodes_path,
             "view_manager_queue": view_queue,
         }
-        self._create_dirs(**setup_paths, no_sample=self.no_sample)
         processor = WebInstanceProcessor(**processor_args)
         view_manager = ViewManager(view_queue, processor)
-        node_hub = NodeHub(setup_paths["custom_nodes_path"], self.plugins, view_manager)
+        node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
         processor.start()
         view_manager.start()
         node_hub.start()
@@ -151,7 +160,7 @@ class ClientPool:
 
     async def add_client(self, ws: WebSocketResponse) -> Client:
         sid = uuid.uuid4().hex
-        setup_paths = {**self.setup_paths}
+        setup_paths = {**self.setup_paths} if self.setup_paths else None
         if self.shared_execution:
             resources = self.shared_resources
         else:
@@ -160,17 +169,18 @@ class ClientPool:
             setup_paths = {
                 key: root_path.joinpath(path) for key, path in setup_paths.items()
             }
+            custom_nodes_path = setup_paths["custom_nodes_path"] if setup_paths else None
             web_processor_args = {
                 **self.web_processor_args,
-                "custom_nodes_path": setup_paths["custom_nodes_path"],
+                "custom_nodes_path": custom_nodes_path,
             }
-            resources = self._create_resources(web_processor_args, setup_paths)
+            resources = self._create_resources(web_processor_args, custom_nodes_path)
 
-        client = Client(sid, ws, **resources, setup_paths=setup_paths)
+        client = Client(sid, ws, setup_paths=setup_paths, **resources)
         self.clients[sid] = client
         self.ws[sid] = ws
         await ws.send_json({"type": "sid", "data": sid})
-        print(f"{sid}: {client.get_root_path()}")
+        print(f"{sid}: {client.get_root_path() if client.get_root_path() else '(non-interactive)'}")
         return client
 
     def get(self, sid: str) -> Client | None:

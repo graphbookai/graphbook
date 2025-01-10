@@ -6,6 +6,7 @@ import asyncio
 import base64
 import hashlib
 import aiohttp
+from typing import Optional
 from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
@@ -13,8 +14,6 @@ from .shm import SharedMemoryManager
 from .clients import ClientPool, Client
 from .plugins import setup_plugins
 import json
-
-server = None
 
 
 @web.middleware
@@ -41,13 +40,14 @@ class GraphServer:
         self,
         web_processor_args: dict,
         img_mem_args: dict,
-        setup_paths: dict,
         isolate_users: bool,
         no_sample: bool,
         close_event: mp.Event,
-        web_dir: str | None = None,
-        host="0.0.0.0",
-        port=8005,
+        setup_paths: Optional[dict] = None,
+        web_dir: Optional[str] = None,
+        host: str = "0.0.0.0",
+        port: int = 8005,
+        view_queue: Optional[mp.Queue] = None,
     ):
         self.host = host
         self.port = port
@@ -71,11 +71,12 @@ class GraphServer:
         node_plugins = (self.plugin_steps, self.plugin_resources)
         self.client_pool = ClientPool(
             web_processor_args,
-            setup_paths,
             node_plugins,
             isolate_users,
             no_sample,
             close_event,
+            setup_paths=setup_paths,
+            view_queue=view_queue
         )
 
         if not self.web_dir.is_dir():
@@ -131,7 +132,7 @@ class GraphServer:
         @routes.get("/")
         async def get(request: web.Request) -> web.Response:
             if self.web_dir is None:
-                raise web.HTTPNotFound(body="No web files found.")
+                raise web.HTTPNotFound()
             return web.FileResponse(self.web_dir.joinpath("index.html"))
 
         @routes.get("/media")
@@ -279,8 +280,10 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path", "")
             docs_path = client.get_docs_path()
-            fullpath = docs_path.joinpath(path)
+            if docs_path is None:
+                raise web.HTTPNotFound()
 
+            fullpath = docs_path.joinpath(path)
             if fullpath.exists():
                 with open(fullpath, "r") as f:
                     file_contents = f.read()
@@ -297,6 +300,9 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path", "")
             client_path = client.get_root_path()
+            if client_path is None:
+                raise web.HTTPNotFound()
+
             fullpath = client_path.joinpath(path)
             assert str(fullpath).startswith(
                 str(client_path)
@@ -364,6 +370,9 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path", "")
             client_path = client.get_root_path()
+            if client_path is None:
+                raise web.HTTPNotFound()
+
             fullpath = client_path.joinpath(path)
             data = await request.json()
             if request.query.get("mv"):
@@ -401,6 +410,9 @@ class GraphServer:
             client = get_client(request)
             path = request.match_info.get("path")
             client_path = client.get_root_path()
+            if client_path is None:
+                raise web.HTTPNotFound()
+
             fullpath = client_path.joinpath(path)
             assert str(fullpath).startswith(
                 client_path
@@ -434,7 +446,7 @@ class GraphServer:
             plugin_name = request.match_info.get("name")
             plugin_location = self.web_plugins.get(plugin_name)
             if plugin_location is None:
-                raise web.HTTPNotFound(body=f"Plugin {plugin_name} not found.")
+                raise web.HTTPNotFound(text=f"Plugin {plugin_name} not found.")
             return web.FileResponse(plugin_location)
 
         def get_client(request: web.Request) -> Client:
@@ -463,6 +475,7 @@ class GraphServer:
             await self.client_pool.start()
             print(f"Started graph server at {self.host}:{self.port}")
             await asyncio.Event().wait()
+            print("Exiting graph server")
         except KeyboardInterrupt:
             self.close_event.set()
             print("Exiting graph server")
@@ -472,31 +485,6 @@ class GraphServer:
 
     def start(self):
         asyncio.run(self._async_start())
-
-
-def create_graph_server(
-    isolate_users,
-    no_sample,
-    host,
-    port,
-    web_processor_args,
-    img_mem_args,
-    setup_paths,
-    close_event,
-    web_dir,
-):
-    server = GraphServer(
-        web_processor_args,
-        img_mem_args,
-        setup_paths,
-        isolate_users,
-        no_sample,
-        close_event,
-        web_dir=web_dir,
-        host=host,
-        port=port,
-    )
-    server.start()
 
 
 def start_web(args):
@@ -543,33 +531,24 @@ def start_web(args):
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    create_graph_server(
-        args.isolate_users,
-        args.no_sample,
-        args.host,
-        args.port,
+    server = GraphServer(
         web_processor_args,
         img_mem.get_shared_args() if img_mem else {},
-        setup_paths,
+        args.isolate_users,
+        args.no_sample,
         close_event,
-        args.web_dir,
+        host=args.host,
+        port=args.port,
+        setup_paths=setup_paths,
     )
+    server.start()
 
-def async_start(
-    isolate_users,
-    no_sample,
-    host,
-    port,
-):
+
+def async_start(isolate_users, no_sample, host, port, view_queue=None):
     import threading
 
     close_event = mp.Event()
 
-    setup_paths = dict(
-        workflow_dir="./workflow",
-        custom_nodes_path="./workflow/custom_nodes",
-        docs_path="./workflow/docs",
-    )
     web_processor_args = dict(
         img_mem=None,
         continue_on_failure=False,
@@ -577,17 +556,20 @@ def async_start(
         spawn=False,
         num_workers=1,
     )
-    global server
     server = GraphServer(
         web_processor_args,
         None,
-        setup_paths,
         isolate_users,
         no_sample,
         close_event,
         host=host,
         port=port,
+        setup_paths=None,
+        view_queue=view_queue,
     )
-    print("Set global server var")
 
-    threading.Thread(target=server.start, daemon=True).start()
+    # threading.Thread(target=server.start, daemon=True).start()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_in_executor(None, server.start)
+    # loop.close()

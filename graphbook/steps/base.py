@@ -31,8 +31,6 @@ def log(msg: Any, type: LogType = "info"):
     node_id: str = ExecutionContext.get("node_id")
     node_name: str = ExecutionContext.get("node_name")
     view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
-    runtime_env = ray.get_runtime_context().get_runtime_env_string()
-    print(f"runtime_env: {runtime_env}", True)
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
 
@@ -40,8 +38,6 @@ def log(msg: Any, type: LogType = "info"):
         if ray.is_initialized():
             actor_handle = ray.get_actor("_graphbook_RayStepHandler")
             log_handle = actor_handle.handle_log.remote
-            runtime_env = ray.get_runtime_context().get_runtime_env_string()
-            print(f"runtime_env: {runtime_env}")
         else:
             raise ValueError(
                 "View manager not initialized in context. Is this being called in a running graph?"

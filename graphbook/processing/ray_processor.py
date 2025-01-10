@@ -1,24 +1,17 @@
-from typing import Dict, List, Iterator, Optional, Tuple, Any, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
 
-import asyncio
 import logging
-import time
-from collections import defaultdict
 from dataclasses import dataclass
 from ray import ObjectRef
-from ray.dag import DAGNode, DAGInputData
 from ..steps import (
-    log,
     StepOutput as Outputs,
 )
 from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from ..note import Note
 from typing import List
-from pathlib import Path
-import multiprocessing as mp
-import time
 import ray._raylet
 import ray
+from graphbook.viewer import ViewManagerInterface
 
 from ray.workflow.common import (
     TaskID,
@@ -69,18 +62,29 @@ class GraphbookRef:
     def __hash__(self):
         return hash(self.task_id)
 
+
 @ray.remote(name="_graphbook_RayStepHandler")
 class RayStepHandler:
-    def __init__(self):
+    def __init__(self, view_manager_queue):
         self.graph_state = RayExecutionState()
-        # self.view_manager.set_state({"is_running": True, "filename": "gb://test"})
+        self.view_manager = ViewManagerInterface(view_manager_queue)
 
     def init_step(self):
         return self.graph_state.init_step()
+    
+    def handle_new_execution(self, name: str):
+        self.view_manager.set_state("run_state", {"is_running": True, "filename": name})
+        
+    def handle_end_execution(self, name: str):
+        self.view_manager.set_state("run_state", {"is_running": False, "filename": name})
 
-    def handle(self, step_id: str, *bind_args: List[Tuple[str, dict]]) -> Optional[List[Note]]:
+    def handle_log(self, node_id, msg, type):
+        self.view_manager.handle_log(node_id, msg, type)
+
+    def handle(
+        self, step_id: str, *bind_args: List[Tuple[str, dict]]
+    ) -> Optional[List[Note]]:
         all_notes = []
-        print("args", bind_args)
         for i in range(0, len(bind_args), 2):
             bind_key, outputs = bind_args[i], bind_args[i + 1]
             for note in outputs[bind_key]:
@@ -94,7 +98,7 @@ class RayStepHandler:
             all_notes.extend(outputs[bind_key])
             self.graph_state.handle_outputs(step_id, outputs)
         return all_notes
-    
+
 
 class RayExecutionState:
     def __init__(self):
