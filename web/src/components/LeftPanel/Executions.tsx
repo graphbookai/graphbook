@@ -1,4 +1,4 @@
-import { Typography, theme, Badge, Space, Empty } from "antd";
+import { Typography, theme, Badge, Space, Empty, Flex } from "antd";
 import React, { useState, useMemo, useCallback, MouseEventHandler } from "react";
 import { Resizable } from "re-resizable";
 import { useAPIMessage } from "../../hooks/API";
@@ -12,7 +12,7 @@ type ExecutionData = {
     status: ExecutionStatus;
 };
 
-export default function Executions({ setWorkflow, remainingHeight }: { setWorkflow: Function, remainingHeight: number }) {
+export default function Executions({ setWorkflow }: { setWorkflow: Function }) {
     const [isResizing, setIsResizing] = useState(false);
     const [executions, setExecutions] = useState<ExecutionData[]>([]);
     const [selectedExecution, setSelectedExecution] = useState<string>();
@@ -31,16 +31,17 @@ export default function Executions({ setWorkflow, remainingHeight }: { setWorkfl
 
         for (let i = 0; i < executions.length; i++) {
             if (executions[i].name === data.filename) {
-                executions[i].status = data.status;
+                executions[i].status = data.is_running ? "processing" : "default";
                 setExecutions(executions);
                 return;
             }
         }
 
         setExecutions([...executions, { name: data.filename, status: data.is_running ? "processing" : "default" }]);
-    }, [executions])
+    }, [executions]);
 
     useAPIMessage("run_state", (message) => {
+        console.log("run_state", message);
         trySetNewExecution(message);
     });
 
@@ -49,12 +50,13 @@ export default function Executions({ setWorkflow, remainingHeight }: { setWorkfl
             backgroundColor: isResizing ? token.colorInfoHover : token.colorBorder,
             height: 2 + (isResizing ? 2 : 0),
         };
-    }, [token, isResizing])
+    }, [token, isResizing]);
+
 
     return (
         <Resizable
-            maxHeight={remainingHeight}
-            style={{ marginTop: 'auto' }}
+            maxHeight={'70%'}
+            style={{ position: 'relative', marginTop: 'auto' }}
             defaultSize={{ height: 300 }}
             enable={{ top: true }}
             handleStyles={{ top: handleStyle }}
@@ -64,7 +66,7 @@ export default function Executions({ setWorkflow, remainingHeight }: { setWorkfl
             {
                 executions.length === 0 ?
                 <Empty description="No executions found" /> :
-                <Space direction="vertical" style={{ overflowY: 'auto', height: '100%', width: '100%' }}>
+                <Flex vertical style={{ overflowY: 'auto', height: '100%', width: '100%' }}>
                     {
                         executions.map((execution, index) => {
                             return (
@@ -78,7 +80,7 @@ export default function Executions({ setWorkflow, remainingHeight }: { setWorkfl
                             );
                         })
                     }
-                </Space>
+                </Flex>
             }
         </Resizable>
     );

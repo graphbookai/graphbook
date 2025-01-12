@@ -73,9 +73,11 @@ class RayStepHandler:
         return self.graph_state.init_step()
     
     def handle_new_execution(self, name: str):
+        print("New execution:", name)
         self.view_manager.set_state("run_state", {"is_running": True, "filename": name})
         
     def handle_end_execution(self, name: str):
+        print("CALLING THIS")
         self.view_manager.set_state("run_state", {"is_running": False, "filename": name})
 
     def handle_log(self, node_id, msg, type):

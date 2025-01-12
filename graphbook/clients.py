@@ -16,6 +16,23 @@ DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
 class Client:
+    def __init__(self, sid: str, ws: WebSocketResponse, view_manager: ViewManager):
+        self.sid = sid
+        self.ws = ws
+        self.view_manager = view_manager
+        self.state_idx: Dict[str, int] = {}
+
+    def get_view_manager(self) -> ViewManager:
+        return self.view_manager
+    
+    def stop(self):
+        self.view_manager.stop()
+
+    async def close(self):
+        await self.ws.close()
+
+
+class WebClient(Client):
     def __init__(
         self,
         sid: str,
@@ -25,11 +42,9 @@ class Client:
         view_manager: ViewManager,
         setup_paths: Optional[dict] = None,
     ):
-        self.sid = sid
-        self.ws = ws
+        super().__init__(sid, ws, view_manager)
         self.processor = processor
         self.node_hub = node_hub
-        self.view_manager = view_manager
         if setup_paths:
             self.root_path = Path(setup_paths["workflow_dir"])
             self.docs_path = Path(setup_paths["docs_path"])
@@ -64,14 +79,13 @@ class Client:
     def get_processor(self) -> WebInstanceProcessor:
         return self.processor
 
-    def get_view_manager(self) -> ViewManager:
-        return self.view_manager
-
     def get_node_hub(self) -> NodeHub:
         return self.node_hub
-
-    async def close(self):
-        await self.ws.close()
+    
+    def stop(self):
+        self.processor.stop()
+        self.node_hub.stop()
+        super().stop()
 
 
 class ClientPool:
@@ -92,7 +106,9 @@ class ClientPool:
         self.web_processor_args = web_processor_args
         self.setup_paths = setup_paths
         self.is_interactive = setup_paths is not None
-        self.custom_nodes_path = setup_paths["custom_nodes_path"] if setup_paths else None
+        self.custom_nodes_path = (
+            setup_paths["custom_nodes_path"] if setup_paths else None
+        )
         self.plugins = plugins
         self.shared_execution = not isolate_users
         self.no_sample = no_sample
@@ -107,22 +123,31 @@ class ClientPool:
             )
         self.curr_task = None
 
-    def _create_resources(self, web_processor_args: dict, custom_nodes_path: Optional[str] = None):
+    def _create_resources(
+        self, web_processor_args: dict, custom_nodes_path: Optional[str] = None
+    ):
         view_queue = self.view_queue if self.view_queue is not None else mp.Queue()
-        processor_args = {
-            **web_processor_args,
-            "custom_nodes_path": custom_nodes_path,
-            "view_manager_queue": view_queue,
-        }
-        processor = WebInstanceProcessor(**processor_args)
-        view_manager = ViewManager(view_queue, processor)
-        node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
-        processor.start()
+        if self.is_interactive:
+            processor_args = {
+                **web_processor_args,
+                "custom_nodes_path": custom_nodes_path,
+                "view_manager_queue": view_queue,
+            }
+            processor = WebInstanceProcessor(**processor_args)
+            view_manager = ViewManager(view_queue, processor)
+            node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
+            processor.start()
+            view_manager.start()
+            node_hub.start()
+            return {
+                "processor": processor,
+                "node_hub": node_hub,
+                "view_manager": view_manager,
+            }
+
+        view_manager = ViewManager(view_queue)
         view_manager.start()
-        node_hub.start()
         return {
-            "processor": processor,
-            "node_hub": node_hub,
             "view_manager": view_manager,
         }
 
@@ -169,26 +194,32 @@ class ClientPool:
             setup_paths = {
                 key: root_path.joinpath(path) for key, path in setup_paths.items()
             }
-            custom_nodes_path = setup_paths["custom_nodes_path"] if setup_paths else None
+            custom_nodes_path = (
+                setup_paths["custom_nodes_path"] if setup_paths else None
+            )
             web_processor_args = {
                 **self.web_processor_args,
                 "custom_nodes_path": custom_nodes_path,
             }
             resources = self._create_resources(web_processor_args, custom_nodes_path)
 
-        client = Client(sid, ws, setup_paths=setup_paths, **resources)
+        if self.is_interactive:
+            client = WebClient(sid, ws, **resources, setup_paths=setup_paths)
+            print(f"{sid}: {client.get_root_path()}")
+        else:
+            client = Client(sid, ws, **resources)
+            print(f"{sid}: (non-interactive)")
         self.clients[sid] = client
         self.ws[sid] = ws
         await ws.send_json({"type": "sid", "data": sid})
-        print(f"{sid}: {client.get_root_path() if client.get_root_path() else '(non-interactive)'}")
         return client
 
     def get(self, sid: str) -> Client | None:
         return self.clients.get(sid, None)
-    
+
     def get_all(self) -> List[Client]:
         return list(self.clients.values())
-    
+
     def get_all_ws(self) -> Dict[str, WebSocketResponse]:
         return self.ws
 
@@ -199,9 +230,7 @@ class ClientPool:
             del self.clients[sid]
             del self.ws[sid]
             if not self.shared_execution:
-                client.get_processor().stop()
-                client.get_node_hub().stop()
-                client.get_view_manager().stop()
+                client.stop()
         if sid in self.tmpdirs:
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
@@ -217,32 +246,51 @@ class ClientPool:
             self.shared_resources["view_manager"].stop()
 
     async def _loop(self):
-        def get_view_data(view_manager: ViewManager) -> List[dict]:
-            current_view_data = view_manager.get_current_view_data()
-            current_states = view_manager.get_current_states()
-            return [*current_view_data, *current_states]
+        def get_state_data(view_manager: ViewManager, client: Client) -> List[dict]:
+            current_states = view_manager.get_current_states(client.state_idx)
+            state_data = [data[0] for data in current_states]
+            for data, idx in current_states:
+                client.state_idx[data["type"]] = idx
+            return state_data
 
-        while not self.close_event.is_set():
-            await asyncio.sleep(self.options["SEND_EVERY"])
-
-            if self.shared_execution:
-                all_data = get_view_data(self.shared_resources["view_manager"])
-                for client in self.clients.values():
-                    try:
-                        await asyncio.gather(
-                            *[client.ws.send_json(data) for data in all_data]
-                        )
-                    except Exception as e:
-                        print(f"Error sending to client: {e}")
-            else:
-                for client in self.clients.values():
-                    all_data = get_view_data(client.get_view_manager())
-                    try:
-                        await asyncio.gather(
-                            *[client.ws.send_json(data) for data in all_data]
-                        )
-                    except Exception as e:
-                        print(f"Error sending to client: {e}")
+        try:
+            while not self.close_event.is_set():
+                await asyncio.sleep(self.options["SEND_EVERY"])
+                if self.shared_execution:
+                    view_manager: ViewManager = self.shared_resources["view_manager"]
+                    view_data = view_manager.get_current_view_data()
+                    for client in list(self.clients.values()):
+                        if client.ws.closed:
+                            continue
+                        state_data = get_state_data(view_manager, client)                        
+                        try:
+                            await asyncio.gather(
+                                *[
+                                    client.ws.send_json(data)
+                                    for data in [*view_data, *state_data]
+                                ]
+                            )
+                        except Exception as e:
+                            print(f"Error sending to client: {e}")
+                else:
+                    for client in list(self.clients.values()):
+                        if client.ws.closed:
+                            continue
+                        view_manager = client.get_view_manager()
+                        view_data = view_manager.get_current_view_data()
+                        state_data = get_state_data(view_manager, client)
+                        try:
+                            await asyncio.gather(
+                                *[
+                                    client.ws.send_json(data)
+                                    for data in [*view_data, *state_data]
+                                ]
+                            )
+                        except Exception as e:
+                            print(f"Error sending to client: {e}")
+        except Exception as e:
+            print(f"ClientPool Error: {e}")
+            raise
 
     async def start(self):
         self.curr_task = asyncio.create_task(self._loop())

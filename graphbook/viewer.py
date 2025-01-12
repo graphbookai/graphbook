@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple, Optional, TYPE_CHECKING
 import asyncio
 import time
 import multiprocessing as mp
@@ -6,6 +6,10 @@ import queue
 import copy
 import psutil
 from .utils import MP_WORKER_TIMEOUT, get_gpu_util
+import ray.util.queue
+
+if TYPE_CHECKING:
+    from .processing.web_processor import WebInstanceProcessor
 
 
 class Viewer:
@@ -192,20 +196,20 @@ class ViewManager:
     def __init__(
         self,
         work_queue: mp.Queue,
-        processor,
+        processor: Optional["WebInstanceProcessor"] = None,
     ):
         self.data_viewer = DataViewer()
         self.node_stats_viewer = NodeStatsViewer()
         self.logs_viewer = NodeLogsViewer()
-        self.system_util_viewer = SystemUtilViewer(processor)
         self.prompt_viewer = PromptViewer()
         self.viewers: List[Viewer] = [
             self.data_viewer,
             self.node_stats_viewer,
             self.logs_viewer,
-            self.system_util_viewer,
             self.prompt_viewer,
         ]
+        if processor:
+            self.viewers.append(SystemUtilViewer(processor))
         self.states: Dict[str, Any] = {}
         self.work_queue = work_queue
         self.close_event = mp.Event()
@@ -247,17 +251,25 @@ class ViewManager:
         """
         Set state data for a specific type
         """
-        self.states[type] = data
+        original = self.states.get(type, None)
+        if original is not None:
+            i, _ = original
+            self.states[type] = (i + 1, data)
+            return
+        self.states[type] = (0, data)
 
-    def get_current_states(self):
+    def get_current_states(self, client_idx: dict) -> List[Tuple[dict, int]]:
         """
         Retrieve all current state data
         """
-        states = [{"type": key, "data": self.states[key]} for key in self.states]
-        self.states.clear()
+        states = [
+            ({"type": key, "data": self.states[key][1]}, self.states[key][0])
+            for key in self.states
+            if key not in client_idx or self.states[key][0] > client_idx[key]
+        ]
         return states
 
-    def get_current_view_data(self):
+    def get_current_view_data(self) -> List[dict]:
         """
         Get the current data from all viewer classes
         """
@@ -270,34 +282,43 @@ class ViewManager:
         return view_data
 
     def _loop(self):
-        while not self.close_event.is_set():
-            try:
-                work = self.work_queue.get(timeout=MP_WORKER_TIMEOUT)
-                if work["cmd"] == "handle_outputs":
-                    self.handle_outputs(work["node_id"], work["outputs"])
-                elif work["cmd"] == "handle_queue_size":
-                    self.handle_queue_size(work["node_id"], work["size"])
-                elif work["cmd"] == "handle_time":
-                    self.handle_time(work["node_id"], work["time"])
-                elif work["cmd"] == "handle_start":
-                    self.handle_start(work["node_id"])
-                elif work["cmd"] == "handle_end":
-                    self.handle_end()
-                elif work["cmd"] == "handle_log":
-                    self.handle_log(work["node_id"], work["log"], work["type"])
-                elif work["cmd"] == "handle_clear":
-                    self.handle_clear(work["node_id"])
-                elif work["cmd"] == "handle_prompt":
-                    self.handle_prompt(work["node_id"], work["prompt"])
-                elif work["cmd"] == "set_state":
-                    self.set_state(work["type"], work["data"])
-            except queue.Empty:
-                pass
+        try:
+            while not self.close_event.is_set():
+                try:
+                    work = self.work_queue.get(timeout=MP_WORKER_TIMEOUT)
+                    if work["cmd"] == "handle_outputs":
+                        self.handle_outputs(work["node_id"], work["outputs"])
+                    elif work["cmd"] == "handle_queue_size":
+                        self.handle_queue_size(work["node_id"], work["size"])
+                    elif work["cmd"] == "handle_time":
+                        self.handle_time(work["node_id"], work["time"])
+                    elif work["cmd"] == "handle_start":
+                        self.handle_start(work["node_id"])
+                    elif work["cmd"] == "handle_end":
+                        self.handle_end()
+                    elif work["cmd"] == "handle_log":
+                        self.handle_log(work["node_id"], work["log"], work["type"])
+                    elif work["cmd"] == "handle_clear":
+                        self.handle_clear(work["node_id"])
+                    elif work["cmd"] == "handle_prompt":
+                        self.handle_prompt(work["node_id"], work["prompt"])
+                    elif work["cmd"] == "set_state":
+                        self.set_state(work["type"], work["data"])
+                except queue.Empty:
+                    pass
+                except ray.util.queue.Empty:
+                    pass
+                except asyncio.exceptions.CancelledError:
+                    self.close_event.set()
+                    break
+        except Exception as e:
+            print(f"ViewManager Error: {e}")
+            raise
 
     def start(self):
         loop = asyncio.new_event_loop()
         loop.run_in_executor(None, self._loop)
-        
+
     def stop(self):
         self.close_event.set()
 

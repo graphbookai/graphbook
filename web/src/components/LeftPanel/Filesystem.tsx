@@ -24,7 +24,6 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, filename: string } | null>(null);
     const [renamingState, setRenamingState] = useState({ isRenaming: false, filename: '' });
     const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
-    const [tree, filesystem] = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)];
     const { token } = theme.useToken();
     const API = useAPI();
 
@@ -302,14 +301,6 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         getFiles();
     }, [API]);
 
-    const remainingExecutionsHeight = useMemo(() => {
-        if (!filesystem.current || !tree.current) {
-            return 0;
-        }
-
-        return filesystem.current.offsetHeight - tree.current.offsetHeight;
-    }, [filesystem, tree, window.innerHeight]);
-
     return (
         <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
             <Flex vertical className="filesystem">
@@ -322,8 +313,8 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                         <Button disabled={isDisabled} className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
                     </Flex>
                 </Flex>
-                <Flex ref={filesystem} vertical style={{ height: '100%' }}>
-                    <div ref={tree} style={{ overflowY: 'auto', overflowX: 'hidden', minHeight: '50%', maxHeight: '100%' }}>
+                <Flex vertical style={{ height: '100%' }}>
+                    <div style={{ overflowY: 'auto', overflowX: 'hidden' }}>
                         <Tree.DirectoryTree
                             onExpand={onExpand}
                             expandedKeys={expandedKeys}
@@ -338,7 +329,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                             draggable
                         />
                     </div>
-                    <Executions setWorkflow={setWorkflow} remainingHeight={remainingExecutionsHeight} />
+                    <Executions setWorkflow={setWorkflow} />
                 </Flex>
             </Flex>
             {contextMenu && (
