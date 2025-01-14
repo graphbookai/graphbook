@@ -16,14 +16,18 @@ DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
 class Client:
-    def __init__(self, sid: str, ws: WebSocketResponse, view_manager: ViewManager):
+    def __init__(self, sid: str, ws: WebSocketResponse, view_manager: ViewManager, proc_queue: Optional[mp.Queue] = None):
         self.sid = sid
         self.ws = ws
         self.view_manager = view_manager
         self.state_idx: Dict[str, int] = {}
+        self.proc_queue = proc_queue
 
     def get_view_manager(self) -> ViewManager:
         return self.view_manager
+    
+    def get_proc_queue(self) -> mp.Queue:
+        return self.proc_queue
     
     def stop(self):
         self.view_manager.stop()
@@ -97,6 +101,7 @@ class ClientPool:
         no_sample: bool,
         close_event: mp.Event,
         setup_paths: Optional[dict] = None,
+        proc_queue: Optional[mp.Queue] = None,
         view_queue: Optional[mp.Queue] = None,
         options: dict = DEFAULT_CLIENT_OPTIONS,
     ):
@@ -113,6 +118,7 @@ class ClientPool:
         self.shared_execution = not isolate_users
         self.no_sample = no_sample
         self.close_event = close_event
+        self.proc_queue = proc_queue
         self.view_queue = view_queue
         self.options = options
         if self.shared_execution:
@@ -207,7 +213,7 @@ class ClientPool:
             client = WebClient(sid, ws, **resources, setup_paths=setup_paths)
             print(f"{sid}: {client.get_root_path()}")
         else:
-            client = Client(sid, ws, **resources)
+            client = Client(sid, ws, **resources, proc_queue=self.proc_queue)
             print(f"{sid}: (non-interactive)")
         self.clients[sid] = client
         self.ws[sid] = ws
@@ -248,7 +254,7 @@ class ClientPool:
     async def _loop(self):
         def get_state_data(view_manager: ViewManager, client: Client) -> List[dict]:
             current_states = view_manager.get_current_states(client.state_idx)
-            state_data = [data[0] for data in current_states]
+            state_data = [{"type": "state", "value": data[0]} for data in current_states]
             for data, idx in current_states:
                 client.state_idx[data["type"]] = idx
             return state_data

@@ -318,6 +318,10 @@ export class ServerAPI {
         return await this.post(`prompt_response/${stepId}`, { response });
     }
 
+    public async paramRun(graphId: string, params: any) {
+        return await this.post(`param_run/${graphId}`, { params });
+    }
+
     /**
      * File API
      */

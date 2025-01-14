@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Flow from './components/Flow';
+import ReadOnlyFlow from './components/ReadOnlyFlow';
 import TopPanel from './components/TopPanel'
 import { Layout, ConfigProvider, theme } from 'antd';
 import LeftPanel from './components/LeftPanel/LeftPanel';
@@ -51,6 +52,7 @@ function View() {
     } = theme.useToken();
     const [codeEditor, setCodeEditor] = useState<{ name: string } | null>(null);
     const [workflowFile, setWorkflowFile] = useState<string | null>(null);
+    const [execution, setExecution] = useState<string | null>(null);
     const API = useAPI();
 
     const onBeginEdit = useCallback((val) => {
@@ -75,11 +77,24 @@ function View() {
             );
         }
 
+        if (execution) {
+            return (
+                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    <ReadOnlyFlow filename={execution} />
+                </div>
+            );
+        }
+
         return <WelcomeScreen />;
-    }, [workflowFile, codeEditorView, API]);
+    }, [workflowFile, execution, codeEditorView, API]);
 
     const setFile = useCallback((filename: string) => {
         setWorkflowFile(filename);
+        setGlobalFilename(filename);
+    }, []);
+
+    const setReadonlyFile = useCallback((filename: string) => {
+        setExecution(filename);
         setGlobalFilename(filename);
     }, []);
 
@@ -91,7 +106,7 @@ function View() {
             <Content style={{ height: '100%' }}>
                 <Layout style={{ width: '100vw', height: '100%' }}>
                     <Sider width={300} style={{ background: colorBgContainer }}>
-                        <LeftPanel setWorkflow={setFile} onBeginEdit={onBeginEdit} />
+                        <LeftPanel setWorkflow={setFile} setExecution={setReadonlyFile} onBeginEdit={onBeginEdit} />
                     </Sider>
                     {mainView}
                 </Layout>

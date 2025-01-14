@@ -19,7 +19,7 @@ import { getHandle, evalDragData } from '../utils.ts';
 import { Resource } from './Nodes/Resource.js';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
-import { useAPI, useAPIMessage } from '../hooks/API.ts';
+import { useAPI, useAPIMessage, useAPIMessageState } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState.ts';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
@@ -31,6 +31,8 @@ import { useFilename } from '../hooks/Filename.ts';
 import { ReactFlowInstance, BackgroundVariant } from 'reactflow';
 import { ActiveOverlay } from './ActiveOverlay.tsx';
 import { Docs } from './Docs.tsx';
+
+import type { Node, Edge } from 'reactflow';
 
 const { useToken } = theme;
 
@@ -54,28 +56,11 @@ export default function ReadOnlyFlow({ filename }) {
     const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
     const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
     const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
-    const [runState, _] = useRunState();
-    const graphStore = useRef<GraphStore | null>(null);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
-
-    useEffect(() => {
-        const loadGraph = async () => {
-            if (API) {
-                /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
-                setNodes([]);
-                setEdges([]);
-
-                // const [nodes, edges] = await onLoadGraph(filename, API);
-                // setNodes(nodes);
-                // setEdges(edges);
-            }
-        };
-
-        loadGraph();
-
-    }, [API, filename]);
-
+    const runState = useAPIMessageState("run_state")?.[filename];
+    const graphState = useAPIMessageState("graph_state")?.[filename];
+    const isDimensionsInitialized = useRef(false);
 
     const nodeTypes = useMemo(() => ({
         step: Step,
@@ -85,11 +70,78 @@ export default function ReadOnlyFlow({ filename }) {
         subflow: Subflow,
     }), []);
 
+    useEffect(() => {
+        const toReactFlow = (graphState): [Node[], Edge[]] => {
+            if (!graphState) {
+                return [[], []];
+            }
+
+            const nodes: Node[] = [];
+            const edges: Edge[] = [];
+            Object.entries<any>(graphState).forEach(([nodeId, node]) => {
+                Object.values<any>(node.parameters).forEach((param) => {
+                    param.value = param.default
+                });
+                let newNode: Node = {
+                    id: nodeId,
+                    position: {
+                        x: 0, y: 0
+                    },
+                    type: node.type,
+                    data: {
+                        name: node.name,
+                        parameters: node.parameters,
+                        isCollapsed: false,
+                        category: node.category,
+                    }
+                };
+                if (node.type === "step") {
+                    newNode.data.inputs = node.inputs.length > 0 ? ["in"] : [];
+                    newNode.data.outputs = node.outputs;
+                    for (const input of node.inputs) {
+                        edges.push({
+                            source: input.node,
+                            target: nodeId,
+                            sourceHandle: input.pin,
+                            targetHandle: "in",
+                            id: `reactflow__edge-${input.node}${input.pin}-${nodeId}in`
+                        });
+                    }
+                }
+                nodes.push(newNode);
+                
+            });
+            return [nodes, edges];
+        }
+
+        const [nodes, edges] = toReactFlow(graphState);
+        console.log(nodes);
+        console.log(edges);
+        setNodes(nodes);
+        setEdges(edges);
+        isDimensionsInitialized.current = false;
+    }, [graphState]);
+
+
     const onInitReactFlow = useCallback((instance) => {
         reactFlowInstance.current = instance;
     }, [reactFlowInstance]);
 
-
+    const onNodesChangeCallback = useCallback((changes: any[]) => {
+        if (isDimensionsInitialized.current) {
+            onNodesChange(changes);
+            return;
+        }
+        if (changes.every(change => change.type === 'dimensions')) {
+            console.log('Dimensions initialized');
+            const mapping = new Map(changes.map(node => [node.id, node.dimensions]));
+            const updatedDimensionsNodes = nodes.map(node => ({...node, width: mapping.get(node.id)?.width, height: mapping.get(node.id)?.height}));
+            const updatedPositionsNodes = layoutDAG(updatedDimensionsNodes, edges);
+            const positionChanges = updatedPositionsNodes.map(node => ({id: node.id, type: 'position', position: node.position, positionAbsolute: node.position}));
+            onNodesChange([...changes, ...positionChanges]);
+            isDimensionsInitialized.current = true;
+        }
+    }, [isDimensionsInitialized, nodes, edges, setNodes, onNodesChange]);
 
     const handleMouseClickComp = useCallback(() => {
         setSearchMenu(null);
@@ -107,8 +159,6 @@ export default function ReadOnlyFlow({ filename }) {
             });
         }
     }, [nodes]);
-
-
 
     const onNodeContextMenu = useCallback((event, node) => {
         event.preventDefault();
@@ -133,7 +183,7 @@ export default function ReadOnlyFlow({ filename }) {
                     zoomOnDoubleClick={false}
                     nodes={nodes}
                     edges={edges}
-                    onNodesChange={onNodesChange}
+                    onNodesChange={onNodesChangeCallback}
                     onEdgesChange={onEdgesChange}
                     deleteKeyCode={null}
                     onInit={onInitReactFlow}
@@ -147,7 +197,7 @@ export default function ReadOnlyFlow({ filename }) {
                     <Space direction="horizontal" align="start" style={{ position: 'absolute', top: '10px', right: '0px', zIndex: 9 }}>
                         <div>
                             <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
-                                <ControlRow />
+                                <ControlRow filename={filename} />
                             </div>
                             <Docs />
                         </div>
@@ -167,49 +217,40 @@ export default function ReadOnlyFlow({ filename }) {
     );
 }
 
-function ControlRow() {
+function ControlRow({ filename }) {
     const size = 'large';
-    const [runState, runStateShouldChange] = useRunState();
+    const runState = useAPIMessageState("run_state")?.[filename];
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();
     const { setNodes } = useReactFlow();
     const notification = useNotification();
-    const filename = useFilename();
 
     const run = useCallback(async () => {
         if (!API) {
             return;
         }
-        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-        if (errors.length > 0) {
-            notification.error({
-                key: 'invalid-graph',
-                message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors} />,
-                duration: 3,
-            })
-            return;
-        }
-        API.runAll(graph, resources, filename);
-        runStateShouldChange();
-    }, [API, nodes, edges, notification, filename]);
+
+        const nodeParams = nodes.reduce((acc, node: any) => {
+            const params = Object.entries<any>(node.data.parameters).reduce((acc, [key, param]) => {
+                acc[key] = param.value;
+                return acc;
+            }, {});
+
+            acc[node.id] = params;
+            return acc;
+        }, {});
+
+        API.paramRun(filename, nodeParams);
+    }, [API, nodes, filename]);
 
     const pause = useCallback(() => {
         if (!API) {
             return;
         }
         API.pause();
-        runStateShouldChange();
     }, [API]);
 
-    const clear = useCallback(async () => {
-        if (!API) {
-            return;
-        }
-
-        API.clearAll();
-    }, [API]);
 
     const layout = useCallback(() => {
         const newNodes = layoutDAG(nodes, edges);
@@ -220,14 +261,7 @@ function ControlRow() {
         <div className="control-row">
             <Flex gap="small">
                 <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
-                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} />
-                {
-                    runState !== 'stopped' ? (
-                        <Button type="default" title="Pause" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
-                    ) : (
-                        <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />
-                    )
-                }
+                <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} loading={runState==="running"}/>
             </Flex>
         </div>
     );

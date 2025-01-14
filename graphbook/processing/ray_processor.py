@@ -2,7 +2,6 @@ from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
 
 import logging
 from dataclasses import dataclass
-from ray import ObjectRef
 from ..steps import (
     StepOutput as Outputs,
 )
@@ -11,12 +10,14 @@ from ..note import Note
 from typing import List
 import ray._raylet
 import ray
+from ray import ObjectRef
+from ray.util import queue
+import asyncio
+# import multiprocessing as mp
 from graphbook.viewer import ViewManagerInterface
-
 from ray.workflow.common import (
     TaskID,
 )
-import graphbook.web
 
 if TYPE_CHECKING:
     from graphbook.processing.ray_api import GraphbookTaskContext
@@ -62,29 +63,34 @@ class GraphbookRef:
     def __hash__(self):
         return hash(self.task_id)
 
-
 @ray.remote(name="_graphbook_RayStepHandler")
 class RayStepHandler:
-    def __init__(self, view_manager_queue):
+    def __init__(self, cmd_queue: queue.Queue, view_manager_queue: queue.Queue):
         self.graph_state = RayExecutionState()
         self.view_manager = ViewManagerInterface(view_manager_queue)
+        self.cmd_queue = cmd_queue
 
     def init_step(self):
         return self.graph_state.init_step()
     
-    def handle_new_execution(self, name: str):
+    def init_resource(self):
+        return self.graph_state.init_resource()
+    
+    async def handle_new_execution(self, name: str, G: dict):
         print("New execution:", name)
-        self.view_manager.set_state("run_state", {"is_running": True, "filename": name})
-        
+        self.view_manager.set_state("run_state", {name: "initializing"})
+        self.view_manager.set_state("graph_state", {name: G})
+        params = await self.wait_for_params()
+        return params       
+
     def handle_end_execution(self, name: str):
-        print("CALLING THIS")
-        self.view_manager.set_state("run_state", {"is_running": False, "filename": name})
+        self.view_manager.set_state("run_state", {name: "finished"})
 
     def handle_log(self, node_id, msg, type):
         self.view_manager.handle_log(node_id, msg, type)
 
     def handle(
-        self, step_id: str, *bind_args: List[Tuple[str, dict]]
+        self, dummy_input, step_id: str, *bind_args: List[Tuple[str, dict]]
     ) -> Optional[List[Note]]:
         all_notes = []
         for i in range(0, len(bind_args), 2):
@@ -100,6 +106,25 @@ class RayStepHandler:
             all_notes.extend(outputs[bind_key])
             self.graph_state.handle_outputs(step_id, outputs)
         return all_notes
+    
+    async def wait_for_params(self) -> dict:
+        def _loop():
+            while True:
+                try:
+                    work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)
+                    if work["cmd"] == "set_params":
+                        self.graph_state.set_params(work.get("params"))
+                        return work.get("params")
+                except queue.Empty:
+                    pass
+                except KeyboardInterrupt:
+                    break
+                except Exception as e:
+                    print("Error in RayInterface:", e)
+                    break
+            return None
+                
+        return _loop()
 
 
 class RayExecutionState:
@@ -107,12 +132,21 @@ class RayExecutionState:
         self.curr_idx = 0
         self.steps_outputs: Dict[str, DictionaryArrays] = {}
         self.handled_steps = set()
+        self.params = None        
 
     def init_step(self):
         idx = str(self.curr_idx)
         self.curr_idx += 1
         self.steps_outputs[idx] = DictionaryArrays()
         return idx
+    
+    def init_resource(self):
+        idx = str(self.curr_idx)
+        self.curr_idx += 1
+        return idx
+    
+    def set_params(self, params):
+        self.params = params
 
     def get_iterator(self, step_id: str, label: str):
         for note in self.steps_outputs[step_id][label]:

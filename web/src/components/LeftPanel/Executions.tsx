@@ -1,7 +1,7 @@
 import { Typography, theme, Badge, Space, Empty, Flex } from "antd";
 import React, { useState, useMemo, useCallback, MouseEventHandler } from "react";
 import { Resizable } from "re-resizable";
-import { useAPIMessage } from "../../hooks/API";
+import { useAPIMessageState } from "../../hooks/API";
 const { useToken } = theme;
 const { Text } = Typography;
 
@@ -12,38 +12,48 @@ type ExecutionData = {
     status: ExecutionStatus;
 };
 
-export default function Executions({ setWorkflow }: { setWorkflow: Function }) {
+export default function Executions({ setExecution }: { setExecution: Function }) {
     const [isResizing, setIsResizing] = useState(false);
-    const [executions, setExecutions] = useState<ExecutionData[]>([]);
+    // const [executions, setExecutions] = useState<ExecutionData[]>([]);
     const [selectedExecution, setSelectedExecution] = useState<string>();
     const { token } = useToken();
+    const runState = useAPIMessageState("run_state");
+    console.log(runState);
 
 
     const onExecutionClick = useCallback((name: string) => {
         setSelectedExecution(name);
-        setWorkflow(name);
-    }, [setWorkflow]);
+        setExecution(name);
+    }, [setExecution]);
 
-    const trySetNewExecution = useCallback((data) => {
-        if (!data.filename) {
-            return;
+    // const trySetNewExecution = useCallback((data) => {
+    //     if (!data.filename) {
+    //         return;
+    //     }
+
+    //     for (let i = 0; i < executions.length; i++) {
+    //         if (executions[i].name === data.filename) {
+    //             executions[i].status = data.is_running ? "processing" : "default";
+    //             setExecutions(executions);
+    //             return;
+    //         }
+    //     }
+
+    //     setExecutions([...executions, { name: data.filename, status: data.is_running ? "processing" : "default" }]);
+    // }, [executions]);
+
+    const executions: ExecutionData[] = useMemo(() => {
+        if (!runState) {
+            return [];
         }
-
-        for (let i = 0; i < executions.length; i++) {
-            if (executions[i].name === data.filename) {
-                executions[i].status = data.is_running ? "processing" : "default";
-                setExecutions(executions);
-                return;
-            }
-        }
-
-        setExecutions([...executions, { name: data.filename, status: data.is_running ? "processing" : "default" }]);
-    }, [executions]);
-
-    useAPIMessage("run_state", (message) => {
-        console.log("run_state", message);
-        trySetNewExecution(message);
-    });
+        type RunState = "initializing" | "running";
+        return Object.entries<RunState>(runState).map(([name, status]) => {
+            return {
+                name,
+                status: status === "initializing" || status === "running" ? "processing" : "default",
+            };
+        });
+    }, [runState])
 
     const handleStyle = useMemo(() => {
         return {

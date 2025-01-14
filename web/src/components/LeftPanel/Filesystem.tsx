@@ -13,7 +13,7 @@ import './filesystem.css';
 import Executions from "./Executions";
 
 
-export default function Filesystem({ setWorkflow, onBeginEdit }) {
+export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
     const [isDisabled, setIsDisabled] = useState(false);
     const [files, setFiles] = useState<any[]>([]);
     const [filesRoot, setFilesRoot] = useState('.');
@@ -329,7 +329,7 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
                             draggable
                         />
                     </div>
-                    <Executions setWorkflow={setWorkflow} />
+                    <Executions setExecution={setExecution} />
                 </Flex>
             </Flex>
             {contextMenu && (

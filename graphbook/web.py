@@ -11,7 +11,7 @@ from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
 from .shm import SharedMemoryManager
-from .clients import ClientPool, Client
+from .clients import ClientPool, Client, WebClient
 from .plugins import setup_plugins
 import json
 
@@ -47,6 +47,7 @@ class GraphServer:
         web_dir: Optional[str] = None,
         host: str = "0.0.0.0",
         port: int = 8005,
+        proc_queue: Optional[mp.Queue] = None,
         view_queue: Optional[mp.Queue] = None,
     ):
         self.host = host
@@ -77,6 +78,7 @@ class GraphServer:
             no_sample,
             close_event,
             setup_paths=setup_paths,
+            proc_queue=proc_queue,
             view_queue=view_queue,
         )
 
@@ -163,10 +165,20 @@ class GraphServer:
                 if img is None:
                     raise web.HTTPNotFound()
                 return web.Response(body=img, content_type="image/png")
+            
+        @routes.post("/param_run/{id}")
+        async def param_run(request: web.Request) -> web.Response:
+            client: Client = get_client(request)
+            graph_id = request.match_info.get("id")
+            data = await request.json()
+            params = data.get("params", {})
+            proc_queue = client.get_proc_queue()
+            proc_queue.put({"cmd": "set_params", "graph_id": graph_id, "params": params})
+            return web.json_response({"success": True})
 
         @routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
-            client = get_client(request)
+            client: WebClient = get_client(request)
             data = await request.json()
             graph = data.get("graph", {})
             resources = data.get("resources", {})
@@ -462,7 +474,6 @@ class GraphServer:
                 return web.FileResponse(plugin_location)
 
 
-
     async def _async_start(self):
         try:
             self.app.router.add_routes(self.routes)
@@ -549,9 +560,7 @@ def start_web(args):
     server.start()
 
 
-def async_start(isolate_users, no_sample, host, port, view_queue=None):
-    import threading
-
+def async_start(isolate_users, no_sample, host, port, proc_queue=None, view_queue=None):
     close_event = mp.Event()
 
     web_processor_args = dict(
@@ -570,11 +579,10 @@ def async_start(isolate_users, no_sample, host, port, view_queue=None):
         host=host,
         port=port,
         setup_paths=None,
+        proc_queue=proc_queue,
         view_queue=view_queue,
     )
 
-    # threading.Thread(target=server.start, daemon=True).start()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_in_executor(None, server.start)
-    # loop.close()

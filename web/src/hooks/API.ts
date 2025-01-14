@@ -5,6 +5,10 @@ import { getGlobalRunningFile } from "./RunState";
 let globalAPI: ServerAPI | null = null;
 let localSetters: Function[] = [];
 let initialized = false;
+let apiMessageCallbacks: { [event_type: string]: Function[] } = {};
+let apiSetTo: ServerAPI | null = null;
+let messageStates: { [type: string]: any } = {};
+let messageStateListeners: { [type: string]: Function[] } = {};
 
 const onConnectStateChange = (isConnected: boolean) => {
     if (!isConnected) {
@@ -21,6 +25,21 @@ function setGlobalAPI(api: ServerAPI | null) {
     }
 }
 
+function onStatefulMessage(msg) {
+    const parsedMsg = JSON.parse(msg.data);
+    if (parsedMsg.type !== 'state') {
+        return;
+    }
+
+    const { type, data } = parsedMsg.value;
+    messageStates[type] = data;
+    if (messageStateListeners[type]) {
+        for (const listener of messageStateListeners[type]) {
+            listener(data);
+        }
+    }
+}
+
 export function useAPI() {
     const [_, setAPI] = useState<ServerAPI | null>(globalAPI);
 
@@ -28,9 +47,11 @@ export function useAPI() {
         if (!initialized) {
             initialized = true;
             const discard = API.onConnectStateChange(onConnectStateChange);
+            API.addWSMessageListener(onStatefulMessage)
 
             return () => {
                 discard();
+                API.removeWSMessageListener(onStatefulMessage);
                 initialized = false
             };
         }
@@ -47,8 +68,6 @@ export function useAPI() {
     return globalAPI;
 }
 
-let apiMessageCallbacks: { [event_type: string]: Function[] } = {};
-let apiSetTo: ServerAPI | null = null;
 export function useAPIMessage(event_type: string, callback: Function) {
     const api = useAPI();
 
@@ -83,6 +102,23 @@ export function useAPINodeMessage(event_type: string, node_id: string, filename:
             callback(msg[node_id]);
         }
     }, [node_id, callback, filename]));
+}
+
+export function useAPIMessageState(event_type: string) {
+    const [_, setState] = useState<any>(null);
+
+    useEffect(() => {
+        if (!messageStateListeners[event_type]) {
+            messageStateListeners[event_type] = [];
+        }
+        messageStateListeners[event_type].push(setState);
+
+        return () => {
+            messageStateListeners[event_type].filter((listener) => listener !== setState);
+        };
+    }, []);
+
+    return messageStates[event_type];
 }
 
 
