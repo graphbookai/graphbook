@@ -66,7 +66,7 @@ class GraphbookRef:
 @ray.remote(name="_graphbook_RayStepHandler")
 class RayStepHandler:
     def __init__(self, cmd_queue: queue.Queue, view_manager_queue: queue.Queue):
-        self.graph_state = RayExecutionState()
+        self.graph_state = RayExecutionState(view_manager_queue)
         self.view_manager = ViewManagerInterface(view_manager_queue)
         self.cmd_queue = cmd_queue
 
@@ -77,7 +77,6 @@ class RayStepHandler:
         return self.graph_state.init_resource()
     
     async def handle_new_execution(self, name: str, G: dict):
-        print("New execution:", name)
         self.view_manager.set_state("run_state", {name: "initializing"})
         self.view_manager.set_state("graph_state", {name: G})
         params = await self.wait_for_params()
@@ -95,6 +94,9 @@ class RayStepHandler:
         all_notes = []
         for i in range(0, len(bind_args), 2):
             bind_key, outputs = bind_args[i], bind_args[i + 1]
+            notes = outputs.get(bind_key)
+            if notes is None:
+                raise ValueError(f"[{step_id}] Couldn't get outputs at {bind_key}")
             for note in outputs[bind_key]:
                 if not isinstance(note, Note):
                     # log
@@ -128,7 +130,8 @@ class RayStepHandler:
 
 
 class RayExecutionState:
-    def __init__(self):
+    def __init__(self, view_manager_queue: queue.Queue):
+        self.view_manager = ViewManagerInterface(view_manager_queue)
         self.curr_idx = 0
         self.steps_outputs: Dict[str, DictionaryArrays] = {}
         self.handled_steps = set()
@@ -160,10 +163,10 @@ class RayExecutionState:
         for label, notes in outputs.items():
             self.steps_outputs[step_id].enqueue(label, notes)
 
-        # self.view_manager.handle_queue_size(
-        #     step_id, self.steps_outputs[step_id].sizes()
-        # )
-        # self.view_manager.handle_outputs(step_id, transform_json_log(outputs))
+        self.view_manager.handle_queue_size(
+            step_id, self.steps_outputs[step_id].sizes()
+        )
+        self.view_manager.handle_outputs(step_id, transform_json_log(outputs))
 
 
 class DictionaryArrays:

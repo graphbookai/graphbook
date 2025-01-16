@@ -80,7 +80,9 @@ export default function ReadOnlyFlow({ filename }) {
             const edges: Edge[] = [];
             Object.entries<any>(graphState).forEach(([nodeId, node]) => {
                 Object.values<any>(node.parameters).forEach((param) => {
-                    param.value = param.default
+                    if (param.type !== "resource" && param.default !== undefined) {
+                        param.value = param.default;
+                    }
                 });
                 let newNode: Node = {
                     id: nodeId,
@@ -95,6 +97,18 @@ export default function ReadOnlyFlow({ filename }) {
                         category: node.category,
                     }
                 };
+                for (const [key, param] of Object.entries<any>(newNode.data.parameters)) {
+                    if (param.type === "resource") {
+                        edges.push({
+                            source: param.value,
+                            target: nodeId,
+                            sourceHandle: "resource",
+                            targetHandle: key,
+                            id: `reactflow__edge-${param.value}-${nodeId}${key}`
+                        });
+                        // delete param.value;
+                    }
+                }
                 if (node.type === "step") {
                     newNode.data.inputs = node.inputs.length > 0 ? ["in"] : [];
                     newNode.data.outputs = node.outputs;
@@ -107,6 +121,10 @@ export default function ReadOnlyFlow({ filename }) {
                             id: `reactflow__edge-${input.node}${input.pin}-${nodeId}in`
                         });
                     }
+                } else if (node.type === "resource") {
+                    // do nothing special
+                } else {
+                    console.error("Unsupported node type: ", node.type);
                 }
                 nodes.push(newNode);
                 
