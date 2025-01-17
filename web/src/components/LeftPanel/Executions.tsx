@@ -1,59 +1,48 @@
 import { Typography, theme, Badge, Space, Empty, Flex } from "antd";
 import React, { useState, useMemo, useCallback, MouseEventHandler } from "react";
 import { Resizable } from "re-resizable";
-import { useAPIMessageState } from "../../hooks/API";
+import { useAPIAnyGraphLastValue} from "../../hooks/API";
 const { useToken } = theme;
 const { Text } = Typography;
 
-type ExecutionStatus = "processing" | "default";
+type RunState = "initializing" | "running" | "errored" | "finished";
+type AntdBadgeStatus = "default" | "processing" | "success" | "error" | "warning";
+
+const runStateToStatus: Record<RunState, AntdBadgeStatus> = {
+    "initializing": "warning",
+    "running": "processing",
+    "errored": "error",
+    "finished": "success",
+};
 
 type ExecutionData = {
     name: string;
-    status: ExecutionStatus;
+    status: RunState;
 };
 
 export default function Executions({ setExecution }: { setExecution: Function }) {
     const [isResizing, setIsResizing] = useState(false);
-    // const [executions, setExecutions] = useState<ExecutionData[]>([]);
     const [selectedExecution, setSelectedExecution] = useState<string>();
     const { token } = useToken();
-    const runState = useAPIMessageState("run_state");
-    console.log(runState);
-
+    const runStates = useAPIAnyGraphLastValue("run_state");
 
     const onExecutionClick = useCallback((name: string) => {
         setSelectedExecution(name);
         setExecution(name);
     }, [setExecution]);
 
-    // const trySetNewExecution = useCallback((data) => {
-    //     if (!data.filename) {
-    //         return;
-    //     }
-
-    //     for (let i = 0; i < executions.length; i++) {
-    //         if (executions[i].name === data.filename) {
-    //             executions[i].status = data.is_running ? "processing" : "default";
-    //             setExecutions(executions);
-    //             return;
-    //         }
-    //     }
-
-    //     setExecutions([...executions, { name: data.filename, status: data.is_running ? "processing" : "default" }]);
-    // }, [executions]);
-
     const executions: ExecutionData[] = useMemo(() => {
-        if (!runState) {
+        if (!runStates) {
             return [];
         }
-        type RunState = "initializing" | "running";
-        return Object.entries<RunState>(runState).map(([name, status]) => {
+        return Object.entries<RunState>(runStates).map(([name, status]) => {
+
             return {
                 name,
-                status: status === "initializing" || status === "running" ? "processing" : "default",
+                status,
             };
         });
-    }, [runState])
+    }, [runStates])
 
     const handleStyle = useMemo(() => {
         return {
@@ -97,7 +86,7 @@ export default function Executions({ setExecution }: { setExecution: Function })
 }
 
 
-function ExecutionEntry({ name, status, selected, onClick }: { name: string, status: ExecutionStatus, selected: boolean, onClick: MouseEventHandler }) {
+function ExecutionEntry({ name, status, selected, onClick }: { name: string, status: RunState, selected: boolean, onClick: MouseEventHandler }) {
     const [isHovered, setIsHovered] = useState(false);
     const { token } = useToken();
 
@@ -119,7 +108,7 @@ function ExecutionEntry({ name, status, selected, onClick }: { name: string, sta
 
     return (
         <Space direction="horizontal" align="start" style={style} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} onClick={onClick}>
-            <Badge status={status} />
+            <Badge status={runStateToStatus[status]} />
             <Text>{name}</Text>
         </Space>
     );

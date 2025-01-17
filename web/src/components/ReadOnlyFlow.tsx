@@ -19,7 +19,7 @@ import { getHandle, evalDragData } from '../utils.ts';
 import { Resource } from './Nodes/Resource.js';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
-import { useAPI, useAPIMessage, useAPIMessageState } from '../hooks/API.ts';
+import { useAPI, useAPIMessageLastValue } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState.ts';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
@@ -58,8 +58,8 @@ export default function ReadOnlyFlow({ filename }) {
     const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
-    const runState = useAPIMessageState("run_state")?.[filename];
-    const graphState = useAPIMessageState("graph_state")?.[filename];
+    const runState = useAPIMessageLastValue("run_state", filename);
+    const graphState = useAPIMessageLastValue("graph_state", filename);
     const isDimensionsInitialized = useRef(false);
 
     const nodeTypes = useMemo(() => ({
@@ -208,7 +208,6 @@ export default function ReadOnlyFlow({ filename }) {
                     nodeTypes={nodeTypes}
                     onNodeContextMenu={onNodeContextMenu}
                     nodesConnectable={false}
-
                     preventScrolling={true}
                 >
                     {notificationCtxt}
@@ -237,7 +236,7 @@ export default function ReadOnlyFlow({ filename }) {
 
 function ControlRow({ filename }) {
     const size = 'large';
-    const runState = useAPIMessageState("run_state")?.[filename];
+    const runState = useAPIMessageLastValue("run_state", filename);
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();

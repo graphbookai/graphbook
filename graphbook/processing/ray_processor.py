@@ -13,8 +13,9 @@ import ray
 from ray import ObjectRef
 from ray.util import queue
 import asyncio
+
 # import multiprocessing as mp
-from graphbook.viewer import ViewManagerInterface
+from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from ray.workflow.common import (
     TaskID,
 )
@@ -63,32 +64,42 @@ class GraphbookRef:
     def __hash__(self):
         return hash(self.task_id)
 
+
 @ray.remote(name="_graphbook_RayStepHandler")
 class RayStepHandler:
     def __init__(self, cmd_queue: queue.Queue, view_manager_queue: queue.Queue):
-        self.graph_state = RayExecutionState(view_manager_queue)
-        self.view_manager = ViewManagerInterface(view_manager_queue)
+        self.view_manager = MultiGraphViewManagerInterface(view_manager_queue)
+        self.viewer = None
+        self.graph_state = RayExecutionState()
         self.cmd_queue = cmd_queue
 
     def init_step(self):
         return self.graph_state.init_step()
-    
+
     def init_resource(self):
         return self.graph_state.init_resource()
-    
-    async def handle_new_execution(self, name: str, G: dict):
-        self.view_manager.set_state("run_state", {name: "initializing"})
-        self.view_manager.set_state("graph_state", {name: G})
-        params = await self.wait_for_params()
-        return params       
 
-    def handle_end_execution(self, name: str):
-        self.view_manager.set_state("run_state", {name: "finished"})
+    async def handle_new_execution(self, name: str, G: dict):
+        self.viewer = self.view_manager.new(name)
+        self.graph_state.set_viewer(self.viewer)
+        self.viewer.set_state("run_state", "initializing")
+        self.viewer.set_state("graph_state", G)
+        params = await self.wait_for_params()
+        return params
+
+    def handle_start_execution(self):
+        assert self.viewer is not None
+        self.viewer.set_state("run_state", "running")
+
+    def handle_end_execution(self):
+        assert self.viewer is not None
+        self.viewer.set_state("run_state", "finished")
 
     def handle_log(self, node_id, msg, type):
-        self.view_manager.handle_log(node_id, msg, type)
+        assert self.viewer is not None
+        self.viewer.handle_log(node_id, msg, type)
 
-    def handle(
+    def prepare_inputs(
         self, dummy_input, step_id: str, *bind_args: List[Tuple[str, dict]]
     ) -> Optional[List[Note]]:
         all_notes = []
@@ -106,9 +117,12 @@ class RayStepHandler:
                     )
                     return None
             all_notes.extend(outputs[bind_key])
-            self.graph_state.handle_outputs(step_id, outputs)
         return all_notes
     
+    def handle_outputs(self, step_id: str, outputs: Outputs):
+        self.graph_state.handle_outputs(step_id, outputs)
+        return outputs
+
     async def wait_for_params(self) -> dict:
         def _loop():
             while True:
@@ -125,29 +139,32 @@ class RayStepHandler:
                     print("Error in RayInterface:", e)
                     break
             return None
-                
+
         return _loop()
 
 
 class RayExecutionState:
-    def __init__(self, view_manager_queue: queue.Queue):
-        self.view_manager = ViewManagerInterface(view_manager_queue)
+    def __init__(self):
+        self.viewer = None
         self.curr_idx = 0
         self.steps_outputs: Dict[str, DictionaryArrays] = {}
         self.handled_steps = set()
-        self.params = None        
+        self.params = None
+
+    def set_viewer(self, viewer: ViewManagerInterface):
+        self.viewer = viewer
 
     def init_step(self):
         idx = str(self.curr_idx)
         self.curr_idx += 1
         self.steps_outputs[idx] = DictionaryArrays()
         return idx
-    
+
     def init_resource(self):
         idx = str(self.curr_idx)
         self.curr_idx += 1
         return idx
-    
+
     def set_params(self, params):
         self.params = params
 
@@ -157,16 +174,15 @@ class RayExecutionState:
 
     def handle_outputs(self, step_id: str, outputs: Outputs):
         assert step_id in self.steps_outputs, f"Step {step_id} not initialized"
+        assert self.viewer is not None, "Viewer not initialized"
         if step_id in self.handled_steps:
             return
         self.handled_steps.add(step_id)
         for label, notes in outputs.items():
             self.steps_outputs[step_id].enqueue(label, notes)
 
-        self.view_manager.handle_queue_size(
-            step_id, self.steps_outputs[step_id].sizes()
-        )
-        self.view_manager.handle_outputs(step_id, transform_json_log(outputs))
+        self.viewer.handle_queue_size(step_id, self.steps_outputs[step_id].sizes())
+        self.viewer.handle_outputs(step_id, transform_json_log(outputs))
 
 
 class DictionaryArrays:

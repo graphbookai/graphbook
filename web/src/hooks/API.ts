@@ -1,16 +1,34 @@
 import { API, ServerAPI } from "../api";
 import { useState, useEffect, useCallback } from "react";
-import { getGlobalRunningFile } from "./RunState";
+
+type States = { [type: string]: any };
+type GraphStateLists = { [graph: string]: States };
+type StateCallbacks = { [type: string]: Function[] };
+type GraphStateCallbacks = { [graph: string]: StateCallbacks };
 
 let globalAPI: ServerAPI | null = null;
-let localSetters: Function[] = [];
 let initialized = false;
-let apiMessageCallbacks: { [event_type: string]: Function[] } = {};
-let apiSetTo: ServerAPI | null = null;
-let messageStates: { [type: string]: any } = {};
-let messageStateListeners: { [type: string]: Function[] } = {};
+let apiSetters: Function[] = [];
+
+const messageStates: GraphStateLists = {};
+const messageStateListeners: GraphStateCallbacks = {};
+const lastValueSetters: GraphStateCallbacks = {};
+
+const globalMessageStates: States = {};
+const globalMessageListeners: StateCallbacks = {};
+const globalLastValueSetters: StateCallbacks = {};
+const anyGraphLastValueSetters: StateCallbacks = {};
+
+
 
 const onConnectStateChange = (isConnected: boolean) => {
+    const setGlobalAPI = (api: ServerAPI | null) => {
+        globalAPI = api;
+        for (const setter of apiSetters) {
+            setter(globalAPI);
+        }
+    }
+
     if (!isConnected) {
         setGlobalAPI(null);
     } else {
@@ -18,24 +36,49 @@ const onConnectStateChange = (isConnected: boolean) => {
     }
 };
 
-function setGlobalAPI(api: ServerAPI | null) {
-    globalAPI = api;
-    for (const setter of localSetters) {
-        setter(globalAPI);
-    }
-}
-
 function onStatefulMessage(msg) {
     const parsedMsg = JSON.parse(msg.data);
-    if (parsedMsg.type !== 'state') {
-        return;
+
+    let states = globalMessageStates;
+    let listeners = globalMessageListeners;
+    let setters = globalLastValueSetters;
+    const { graph_id, type, data } = parsedMsg;
+    // if (type === 'view' || type === 'stats' || type === 'logs' || type === 'prompt' || type === 'system_util') {
+    //     return;
+    // }
+
+    if (graph_id) {
+        states = messageStates[graph_id];
+        listeners = messageStateListeners[graph_id];
+        setters = lastValueSetters[graph_id];
+        if (!states) {
+            states = { [type]: data };
+            messageStates[graph_id] = states;
+        }
+        if (!listeners) {
+            listeners = { [type]: [] };
+            messageStateListeners[graph_id] = listeners;
+        }
+        if (!setters) {
+            setters = { [type]: [] };
+            lastValueSetters[graph_id] = setters;
+        }
     }
 
-    const { type, data } = parsedMsg.value;
-    messageStates[type] = data;
-    if (messageStateListeners[type]) {
-        for (const listener of messageStateListeners[type]) {
+    states[type] = data;
+    if (listeners[type]) {
+        for (const listener of listeners[type]) {
             listener(data);
+        }
+    }
+    if (setters[type]) {
+        for (const setter of setters[type]) {
+            setter(data);
+        }
+    }
+    if (anyGraphLastValueSetters[type]) {
+        for (const setter of anyGraphLastValueSetters[type]) {
+            setter(data);
         }
     }
 }
@@ -58,67 +101,113 @@ export function useAPI() {
     }, []);
 
     useEffect(() => {
-        localSetters.push(setAPI);
+        apiSetters.push(setAPI);
 
         return () => {
-            localSetters = localSetters.filter((setter) => setter !== setAPI);
+            apiSetters = apiSetters.filter((setter) => setter !== setAPI);
         }
     }, []);
 
     return globalAPI;
 }
 
-export function useAPIMessage(event_type: string, callback: Function) {
-    const api = useAPI();
 
+export function useAPIMessageEffect(event_type: string, callback: Function, graph: string | null = null) {
     useEffect(() => {
-        if(api && api !== apiSetTo) {
-            apiSetTo = api;
-            const globalListener = (res) => {
-                const msg = JSON.parse(res.data);
-                if (apiMessageCallbacks[msg.type]) {
-                    apiMessageCallbacks[msg.type].forEach((cb) => cb(msg.data));
-                }
-            };
-            api.addWSMessageListener(globalListener);
+        let listeners: Function[];
+        if (graph) {
+            let graphListeners = messageStateListeners[graph];
+            if (!graphListeners) {
+                graphListeners = { [event_type]: [] };
+                messageStateListeners[graph] = graphListeners;
+            } else if (!graphListeners[event_type]) {
+                graphListeners[event_type] = [];
+            }
+            listeners = graphListeners[event_type];
+        } else {
+            if (!globalMessageListeners[event_type]) {
+                globalMessageListeners[event_type] = [];
+            }
+            listeners = globalMessageListeners[event_type];
         }
-    }, [api]);
 
-    useEffect(() => {
-        if (!apiMessageCallbacks[event_type]) {
-            apiMessageCallbacks[event_type] = [];
-        }
-        apiMessageCallbacks[event_type].push(callback);
+        listeners.push(callback);
 
         return () => {
-            apiMessageCallbacks[event_type] = apiMessageCallbacks[event_type].filter((cb) => cb !== callback);
+            listeners = listeners.filter((cb) => cb !== callback);
         };
     }, []);
 }
 
-export function useAPINodeMessage(event_type: string, node_id: string, filename: string, callback: Function) {
-    useAPIMessage(event_type, useCallback((msg) => {
-        if (filename === getGlobalRunningFile() && msg[node_id]) {
+export function useAPINodeMessageEffect(event_type: string, node_id: string, graph_id: string, callback: Function) {
+    const internalCallback = useCallback((msg) => {
+        if (msg[node_id]) {
             callback(msg[node_id]);
         }
-    }, [node_id, callback, filename]));
+    }, [node_id, callback]);
+
+    useAPIMessageEffect(event_type, internalCallback, graph_id);
 }
 
-export function useAPIMessageState(event_type: string) {
+
+export function useAPIMessageLastValue(event_type: string, graph: string | null = null) {
     const [_, setState] = useState<any>(null);
 
     useEffect(() => {
-        if (!messageStateListeners[event_type]) {
-            messageStateListeners[event_type] = [];
+        if (graph) {
+            let graphSetters = lastValueSetters[graph];
+            if (!graphSetters) {
+                graphSetters = { [event_type]: [] };
+                lastValueSetters[graph] = graphSetters;
+            } else if (!graphSetters[event_type]) {
+                graphSetters[event_type] = [];
+            }
+            graphSetters[event_type].push(setState);
+
+            return () => {
+                graphSetters[event_type] = graphSetters[event_type].filter((cb) => cb !== setState);
+            }
         }
-        messageStateListeners[event_type].push(setState);
+
+        if (!globalLastValueSetters[event_type]) {
+            globalLastValueSetters[event_type] = [];
+        }
+        globalLastValueSetters[event_type].push(setState);
 
         return () => {
-            messageStateListeners[event_type].filter((listener) => listener !== setState);
+            globalLastValueSetters[event_type] = globalLastValueSetters[event_type].filter((cb) => cb !== setState);
+        }
+
+    }, []);
+
+    let states = globalMessageStates;
+    if (graph) {
+        states = messageStates[graph];
+    }
+
+    return states[event_type];
+}
+
+export function useAPIAnyGraphLastValue(event_type: string) {
+    const [_, setState] = useState<any>(null);
+
+    useEffect(() => {
+        if (!anyGraphLastValueSetters[event_type]) {
+            anyGraphLastValueSetters[event_type] = [];
+        }
+        anyGraphLastValueSetters[event_type].push(setState);
+
+        return () => {
+            anyGraphLastValueSetters[event_type] = anyGraphLastValueSetters[event_type].filter((cb) => cb !== setState);
         };
     }, []);
 
-    return messageStates[event_type];
+    return Object.entries(messageStates).reduce((acc, [graph, states]) => {
+        if (states[event_type]) {
+            acc[graph] = states[event_type];
+        }
+        return acc;
+    }, {});
 }
 
 

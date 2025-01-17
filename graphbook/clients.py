@@ -3,7 +3,7 @@ import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
 from .nodes import NodeHub
-from .viewer import ViewManager
+from .viewer import MultiGraphViewManager
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -11,19 +11,21 @@ import multiprocessing as mp
 import os
 import asyncio
 import shutil
+import traceback
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
 class Client:
-    def __init__(self, sid: str, ws: WebSocketResponse, view_manager: ViewManager, proc_queue: Optional[mp.Queue] = None):
+    def __init__(self, sid: str, ws: WebSocketResponse, view_manager: MultiGraphViewManager, proc_queue: Optional[mp.Queue] = None):
         self.sid = sid
         self.ws = ws
         self.view_manager = view_manager
-        self.state_idx: Dict[str, int] = {}
+        # graph_id -> {state_type -> idx}
+        self.state_idx: Dict[str, Dict[str, int]] = {}
         self.proc_queue = proc_queue
 
-    def get_view_manager(self) -> ViewManager:
+    def get_view_manager(self) -> MultiGraphViewManager:
         return self.view_manager
     
     def get_proc_queue(self) -> mp.Queue:
@@ -43,7 +45,7 @@ class WebClient(Client):
         ws: WebSocketResponse,
         processor: WebInstanceProcessor,
         node_hub: NodeHub,
-        view_manager: ViewManager,
+        view_manager: MultiGraphViewManager,
         setup_paths: Optional[dict] = None,
     ):
         super().__init__(sid, ws, view_manager)
@@ -140,7 +142,7 @@ class ClientPool:
                 "view_manager_queue": view_queue,
             }
             processor = WebInstanceProcessor(**processor_args)
-            view_manager = ViewManager(view_queue, processor)
+            view_manager = MultiGraphViewManager(view_queue, processor)
             node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
             processor.start()
             view_manager.start()
@@ -151,7 +153,7 @@ class ClientPool:
                 "view_manager": view_manager,
             }
 
-        view_manager = ViewManager(view_queue)
+        view_manager = MultiGraphViewManager(view_queue)
         view_manager.start()
         return {
             "view_manager": view_manager,
@@ -252,18 +254,21 @@ class ClientPool:
             self.shared_resources["view_manager"].stop()
 
     async def _loop(self):
-        def get_state_data(view_manager: ViewManager, client: Client) -> List[dict]:
+        def get_state_data(view_manager: MultiGraphViewManager, client: Client) -> List[dict]:
             current_states = view_manager.get_current_states(client.state_idx)
-            state_data = [{"type": "state", "value": data[0]} for data in current_states]
-            for data, idx in current_states:
-                client.state_idx[data["type"]] = idx
+            state_data = [data for _, data in current_states]
+            for idx, data in current_states:
+                graph_id, type = data["graph_id"], data["type"]
+                if graph_id not in client.state_idx:
+                    client.state_idx[graph_id] = {}
+                client.state_idx[graph_id][type] = idx
             return state_data
 
         try:
             while not self.close_event.is_set():
                 await asyncio.sleep(self.options["SEND_EVERY"])
                 if self.shared_execution:
-                    view_manager: ViewManager = self.shared_resources["view_manager"]
+                    view_manager: MultiGraphViewManager = self.shared_resources["view_manager"]
                     view_data = view_manager.get_current_view_data()
                     for client in list(self.clients.values()):
                         if client.ws.closed:
@@ -295,7 +300,8 @@ class ClientPool:
                         except Exception as e:
                             print(f"Error sending to client: {e}")
         except Exception as e:
-            print(f"ClientPool Error: {e}")
+            print(f"ClientPool Error:")
+            traceback.print_exc()
             raise
 
     async def start(self):

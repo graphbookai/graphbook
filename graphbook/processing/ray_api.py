@@ -7,6 +7,8 @@ from typing import (
     Any,
     Optional,
     Generator,
+    List,
+    Tuple,
     TypeVar,
 )
 from contextlib import contextmanager
@@ -54,6 +56,92 @@ def is_graphbook_ray_initialized() -> bool:
     return ray.is_initialized() and step_handler is not None
 
 
+def create_graph_execution(
+    dag: DAGNode,
+) -> Tuple[dict, List[Tuple[str, str, ActorHandle]]]:
+    """
+    Create a graph execution.
+
+    Args:
+        dag: The leaf node to the dag
+    """
+    # BFS
+    curr_node = None
+    curr_id = None
+    actor_id_to_idx = {}
+    nodes = []
+    G = {}
+
+    def fn(node: ClassMethodNode):
+        handle: ActorHandle = node._parent_class_node
+        node_context = getattr(handle, "_graphbook_context", None)
+        if node_context is not None:
+            nonlocal curr_node, curr_id
+            curr_id = str(handle._actor_id)
+            curr_node = node
+            if curr_id in G:
+                return
+
+            assert node_context is not None
+            node_id = node_context["node_id"]
+
+            node_class = node_context["class"]
+            node_name = node_class.__name__[len("ActorClass(") : -1]
+            print(node_name, node_id, curr_id)
+            if issubclass(node_class, Step):
+                G[curr_id] = {
+                    "type": "step",
+                    "name": node_name,
+                    "parameters": deepcopy(node_class.Parameters or {}),
+                    "inputs": [],
+                    "outputs": node_class.Outputs or ["out"],
+                    "category": node_class.Category or "",
+                }
+            else:  # Resource
+                G[curr_id] = {
+                    "type": "resource",
+                    "name": node_name,
+                    "parameters": deepcopy(node_class.Parameters or {}),
+                    "category": node_class.Category or "",
+                }
+
+            resource_deps = node_context["resource_deps"]
+            parameters = G[curr_id]["parameters"]
+            for k, actor_id in resource_deps.items():
+                parameters[k]["value"] = actor_id
+
+            actor_id_to_idx[curr_id] = node_id
+            nodes.append((node_id, node_name, handle))
+        else:  # StepHandler
+            # dummy_input, step_id, *bind_args: List[Tuple[str, dict]]
+            if node._method_name == "prepare_inputs":
+                for i in range(2, len(node._bound_args), 2):
+                    G[curr_id]["inputs"].append(
+                        {
+                            "node": str(
+                                node._bound_args[i + 1]._parent_class_node._actor_id
+                            ),
+                            "pin": node._bound_args[i],
+                        }
+                    )
+
+    dag.traverse_and_apply(fn)
+
+    # Transform actor ids to simple ids
+    for n in G:
+        if G[n]["type"] == "step":
+            for input in G[n]["inputs"]:
+                input["node"] = actor_id_to_idx[input["node"]]
+        parameters = G[n]["parameters"]
+        for k, param in parameters.items():
+            if param["type"] == "resource":
+                param["value"] = actor_id_to_idx[param["value"]]
+    for k in list(G):
+        G[actor_id_to_idx[k]] = G.pop(k)
+
+    return G, nodes
+
+
 def run_async(
     dag: DAGNode,
     name: Optional[str] = None,
@@ -63,8 +151,8 @@ def run_async(
     If the workflow with the given id already exists, it will be resumed.
 
     Args:
-        name: A unique identifier that can be used to resume the
-            workflow. If not specified, a random id will be generated.
+        name: A unique identifier that can be used to identify the graphbook execution
+            in the web UI. If not specified, a random id will be generated.
         metadata: The metadata to add to the workflow. It has to be able
             to serialize to json.
 
@@ -82,90 +170,24 @@ def run_async(
     logger.info(f'Graphbook job created. [id="{name}"].')
     context = GraphbookTaskContext(name=name)
     with graphbook_task_context(context):
-        # BFS
-        curr_node = None
-        curr_id = None
-        actor_id_to_idx = {}
-        context_setup_refs = []
-        nodes = []
-        G = {}
-
-        def fn(node: ClassMethodNode):
-            handle: ActorHandle = node._parent_class_node
-            node_context = getattr(handle, "_graphbook_context", None)
-            if node_context is not None:
-                nonlocal curr_node, curr_id
-                curr_id = str(handle._actor_id)
-                curr_node = node
-                if curr_id in G:
-                    return
-
-                assert node_context is not None
-                node_id = node_context["node_id"]
-
-                node_class = node_context["class"]
-                node_name = node_class.__name__[len("ActorClass(") : -1]
-                if issubclass(node_class, Step):
-                    G[curr_id] = {
-                        "type": "step",
-                        "name": node_name,
-                        "parameters": deepcopy(node_class.Parameters or {}),
-                        "inputs": [],
-                        "outputs": node_class.Outputs or ["out"],
-                        "category": node_class.Category or "",
-                    }
-                else:  # Resource
-                    G[curr_id] = {
-                        "type": "resource",
-                        "name": node_name,
-                        "parameters": deepcopy(node_class.Parameters or {}),
-                        "category": node_class.Category or "",
-                    }
-
-                resource_deps = node_context["resource_deps"]
-                parameters = G[curr_id]["parameters"]
-                for k, actor_id in resource_deps.items():
-                    parameters[k]["value"] = actor_id
-
-                actor_id_to_idx[curr_id] = node_id
-                context_setup = handle.set_context.remote(
-                    node_id=node_id,
-                    node_name=node_name,
-                )
-                context_setup_refs.append(context_setup)
-                nodes.append((node_id, handle))
-            else:  # StepHandler
-                # dummy_input, step_id, *bind_args: List[Tuple[str, dict]]
-                for i in range(2, len(node._bound_args), 2):
-                    G[curr_id]["inputs"].append(
-                        {
-                            "node": str(
-                                node._bound_args[i + 1]._parent_class_node._actor_id
-                            ),
-                            "pin": node._bound_args[i],
-                        }
-                    )
-
-        dag.traverse_and_apply(fn)
-        for n in G:
-            if G[n]["type"] == "step":
-                for input in G[n]["inputs"]:
-                    input["node"] = actor_id_to_idx[input["node"]]
-            parameters = G[n]["parameters"]
-            for k, param in parameters.items():
-                if param["type"] == "resource":
-                    param["value"] = actor_id_to_idx[param["value"]]
-        for k in list(G):
-            G[actor_id_to_idx[k]] = G.pop(k)
+        G, nodes = create_graph_execution(dag)
 
         # Prompts for user input
         params = ray.get(step_handler.handle_new_execution.remote(name, G))
 
         # Set the param values to each node and other context variables
-        for node_id, handle in nodes:
+        context_setup_refs = []
+        for node_id, node_name, handle in nodes:
             node_params = params.get(node_id)
             ref = handle._set_init_params.remote(**node_params)
             context_setup_refs.append(ref)
+            context_setup = handle.set_context.remote(
+                node_id=node_id,
+                node_name=node_name,
+            )
+            context_setup_refs.append(context_setup)
+            
+        context_setup_refs.append(step_handler.handle_start_execution.remote())
         ray.wait(context_setup_refs)
 
         return execute(dag, context)
@@ -303,7 +325,6 @@ class GraphbookActorWrapper:
 
         requires_input = is_step and not isinstance(self._actor, SourceStep)
         if requires_input:
-
             def bind(self, *bind_args):
                 assert (
                     len(bind_args) % 2 == 0
@@ -311,25 +332,31 @@ class GraphbookActorWrapper:
 
                 dummy_input = self._set_init_params.bind(**kwargs)
                 dummy_input = self._patched_init_method.bind(dummy_input)
-                input_notes = step_handler.handle.bind(dummy_input, node_id, *bind_args)
-                class_method_node = self.all.bind(input_notes)
+                input_notes = step_handler.prepare_inputs.bind(dummy_input, node_id, *bind_args)
+                outputs = self.all.bind(input_notes)
+                outputs = step_handler.handle_outputs.bind(node_id, outputs)
 
-                return class_method_node
+                return outputs
 
             actor_handle.bind = bind.__get__(actor_handle)
             return actor_handle
 
-        def bind(self, *args):
-            raise ValueError(
-                "Cannot bind a non-step node. SourceSteps and Resources should not have any inputs. To supply it with parameters, use kwargs in the .remote() call."
-            )
+        # def bind(self, *args):
+        #     raise ValueError(
+        #         "Cannot bind a non-step node. SourceSteps and Resources should not have any inputs. To supply it with parameters, use kwargs in the .remote() call."
+        #     )
 
         dummy_input = actor_handle._set_init_params.bind(**kwargs)
         dummy_input = actor_handle._patched_init_method.bind(dummy_input)
-        class_method_node = actor_handle._call_with_dummy.bind(dummy_input)
+        outputs = actor_handle._call_with_dummy.bind(dummy_input)
 
-        class_method_node.bind = bind.__get__(class_method_node)
-        return class_method_node
+        print(actor_handle._actor_id)
+        if is_step:
+            outputs = step_handler.handle_outputs.bind(node_id, outputs)
+
+        # class_method_node.bind = bind.__get__(class_method_node)
+
+        return outputs
 
 
 def remote(*args, **kwargs) -> GraphbookActorWrapper:

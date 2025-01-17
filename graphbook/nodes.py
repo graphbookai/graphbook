@@ -11,7 +11,7 @@ import os
 import inspect
 import traceback
 from .decorators import get_steps, get_resources
-from .viewer import ViewManager
+from .viewer import MultiGraphViewManager
 
 
 BUILT_IN_STEPS = [
@@ -54,7 +54,7 @@ default_exported_resources = {
 
 class NodeHub:
     def __init__(
-        self, plugins: Tuple[dict, dict], view_manager: ViewManager, path: Optional[Path] = None
+        self, plugins: Tuple[dict, dict], view_manager: MultiGraphViewManager, path: Optional[Path] = None
     ):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources

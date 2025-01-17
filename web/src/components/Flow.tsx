@@ -19,7 +19,7 @@ import { getHandle, evalDragData } from '../utils.ts';
 import { Resource } from './Nodes/Resource.jsx';
 import { Export } from './Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
-import { useAPI, useAPIMessage } from '../hooks/API.ts';
+import { useAPI, useAPIMessageEffect } from '../hooks/API.ts';
 import { useRunState } from '../hooks/RunState.ts';
 import { GraphStore } from '../graphstore.ts';
 import { NodeConfig } from './NodeConfig.tsx';
@@ -354,7 +354,7 @@ export default function Flow({ filename }) {
         });
     }, [setNodes, API]);
 
-    useAPIMessage('node_updated', nodeUpdatedCallback);
+    useAPIMessageEffect('node_updated', nodeUpdatedCallback);
 
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
