@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Flow from './components/Flow';
-import ReadOnlyFlow from './components/ReadOnlyFlow';
+import Flow from './components/Flows/Flow.tsx';
+import ReadOnlyFlow from './components/Flows/ReadOnlyFlow.tsx';
 import TopPanel from './components/TopPanel'
 import { Layout, ConfigProvider, theme } from 'antd';
 import LeftPanel from './components/LeftPanel/LeftPanel';
@@ -53,7 +53,6 @@ function View() {
     const [codeEditor, setCodeEditor] = useState<{ name: string } | null>(null);
     const [workflowFile, setWorkflowFile] = useState<string | null>(null);
     const [execution, setExecution] = useState<string | null>(null);
-    const API = useAPI();
 
     const onBeginEdit = useCallback((val) => {
         setCodeEditor(val);
@@ -86,7 +85,7 @@ function View() {
         }
 
         return <WelcomeScreen />;
-    }, [workflowFile, execution, codeEditorView, API]);
+    }, [workflowFile, execution, codeEditorView]);
 
     const setFile = useCallback((filename: string) => {
         setWorkflowFile(filename);

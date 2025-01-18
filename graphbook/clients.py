@@ -73,12 +73,6 @@ class WebClient(Client):
     def nodes(self):
         return self.node_hub.get_exported_nodes()
 
-    def step_doc(self, name):
-        return self.node_hub.get_step_docstring(name)
-
-    def resource_doc(self, name):
-        return self.node_hub.get_resource_docstring(name)
-
     def exec(self, req: dict):
         self.processor.exec(req)
 

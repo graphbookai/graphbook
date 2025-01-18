@@ -11,26 +11,27 @@ import ReactFlow, {
 } from 'reactflow';
 import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined } from '@ant-design/icons';
-import { Graph, layoutDAG } from '../graph.ts';
-import { SearchNode } from './SearchNode.tsx';
-import { Step } from './Nodes/Step.tsx';
-import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle, evalDragData } from '../utils.ts';
-import { Resource } from './Nodes/Resource.jsx';
-import { Export } from './Nodes/Export.tsx';
-import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
-import { useAPI, useAPIMessageEffect } from '../hooks/API.ts';
-import { useRunState } from '../hooks/RunState.ts';
-import { GraphStore } from '../graphstore.ts';
-import { NodeConfig } from './NodeConfig.tsx';
-import { Subflow } from './Nodes/Subflow.tsx';
-import { Monitor } from './Monitor.tsx';
-import { useNotificationInitializer, useNotification } from '../hooks/Notification.ts';
-import { SerializationErrorMessages } from './Errors.tsx';
-import { useFilename } from '../hooks/Filename.ts';
+import { Graph, layoutDAG } from '../../graph.ts';
+import { SearchNode } from '../SearchNode.tsx';
+import { Step } from '../Nodes/Step.tsx';
+import { Group, groupIfPossible } from '../Nodes/Group.tsx';
+import { getHandle, evalDragData } from '../../utils.ts';
+import { Resource } from '../Nodes/Resource.js';
+import { Export } from '../Nodes/Export.tsx';
+import { NodeContextMenu, PaneContextMenu } from '../ContextMenu.tsx';
+import { useAPI, useAPIMessageEffect } from '../../hooks/API.ts';
+import { useRunState } from '../../hooks/RunState.ts';
+import { GraphStore } from '../../graphstore.ts';
+import { NodeConfig } from '../NodeConfig.tsx';
+import { Subflow } from '../Nodes/Subflow.tsx';
+import { Monitor } from '../Monitor.tsx';
+import { useNotificationInitializer, useNotification } from '../../hooks/Notification.ts';
+import { SerializationErrorMessages } from '../Errors.tsx';
+import { useFilename } from '../../hooks/Filename.ts';
 import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
-import { ActiveOverlay } from './ActiveOverlay.tsx';
-import { Docs } from './Docs.tsx';
+import { ActiveOverlay } from '../ActiveOverlay.tsx';
+import { Docs } from '../Docs.tsx';
+import { NotFoundFlow } from './NotFoundFlow.tsx';
 
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -56,18 +57,11 @@ type PaneMenu = {
     left: number;
 };
 
-export default function Flow({ filename }) {
-    const { token } = useToken();
+export default function FlowInitializer({ filename }) {
     const API = useAPI();
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
-    const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
-    const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
-    const [runState, _] = useRunState();
-    const graphStore = useRef<GraphStore | null>(null);
-    const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
-    const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const [edges, setEdges] = useState<Edge[]>([]);
+    const notFound = useRef(false);
 
     useEffect(() => {
         const loadGraph = async () => {
@@ -76,17 +70,61 @@ export default function Flow({ filename }) {
                 setNodes([]);
                 setEdges([]);
 
-                const [nodes, edges] = await onLoadGraph(filename, API);
-                setNodes(nodes);
-                setEdges(edges);
-                graphStore.current = new GraphStore(filename, API!, nodes, edges);
+                try {
+                    const [nodes, edges] = await onLoadGraph(filename, API);
+                    setNodes(nodes);
+                    setEdges(edges);
+                } catch {
+                    notFound.current = true;
+                    return;
+                }
+                // graphStore.current = new GraphStore(filename, API!, nodes, edges);
             }
         };
 
-        graphStore.current = null;
+        // graphStore.current = null;
         loadGraph();
 
     }, [API, filename]);
+
+    if (notFound.current) {
+        return <NotFoundFlow />;
+    }
+
+    return <Flow initialNodes={nodes} initialEdges={edges} filename={filename} />;
+}
+
+function Flow({ initialNodes, initialEdges, filename }) {
+    const { token } = useToken();
+    const API = useAPI();
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
+    const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
+    const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
+    const [runState, _] = useRunState();
+    const graphStore = useRef<GraphStore | null>(new GraphStore(filename, API!, nodes, edges));
+    const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
+    const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+
+    // useEffect(() => {
+    //     const loadGraph = async () => {
+    //         if (API) {
+    //             /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
+    //             setNodes([]);
+    //             setEdges([]);
+
+    //             const [nodes, edges] = await onLoadGraph(filename, API);
+    //             setNodes(nodes);
+    //             setEdges(edges);
+    //             graphStore.current = ;
+    //         }
+    //     };
+
+    //     graphStore.current = null;
+    //     loadGraph();
+
+    // }, [API, filename]);
 
     useEffect(() => {
         const searchListener = (e) => {

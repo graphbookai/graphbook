@@ -140,6 +140,7 @@ class NodeHub:
                 "inputs": ["in"] if v.RequiresInput else [],
                 "outputs": v.Outputs,
                 "category": v.Category,
+                "doc": v.__doc__,
             }
             for k, v in self.get_steps().items()
         }
@@ -148,6 +149,7 @@ class NodeHub:
                 "name": k,
                 "parameters": v.Parameters,
                 "category": v.Category,
+                "doc": v.__doc__,
             }
             for k, v in self.get_resources().items()
         }

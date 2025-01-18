@@ -284,20 +284,6 @@ class GraphServer:
                 res = client.get_processor().get_running_state()
                 return web.json_response(res)
 
-            @routes.get("/step_docstring/{name}")
-            async def get_step_docstring(request: web.Request):
-                client = get_client(request)
-                name = request.match_info.get("name")
-                docstring = client.step_doc(name)
-                return web.json_response({"content": docstring})
-
-            @routes.get("/resource_docstring/{name}")
-            async def get_resource_docstring(request: web.Request):
-                client = get_client(request)
-                name = request.match_info.get("name")
-                docstring = client.resource_doc(name)
-                return web.json_response({"content": docstring})
-
             @routes.get(r"/docs/{path:.+}")
             async def get_docs(request: web.Request) -> web.Response:
                 client = get_client(request)

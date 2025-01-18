@@ -4,35 +4,27 @@ import ReactFlow, {
     Background,
     useNodesState,
     useEdgesState,
-    addEdge,
     useNodes,
     useEdges,
     useReactFlow
 } from 'reactflow';
 import { Button, Flex, Space, theme } from 'antd';
-import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined } from '@ant-design/icons';
-import { Graph, layoutDAG } from '../graph.ts';
-import { SearchNode } from './SearchNode.tsx';
-import { Step } from './Nodes/Step.tsx';
-import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle, evalDragData } from '../utils.ts';
-import { Resource } from './Nodes/Resource.js';
-import { Export } from './Nodes/Export.tsx';
-import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
-import { useAPI, useAPIMessageLastValue } from '../hooks/API.ts';
-import { useRunState } from '../hooks/RunState.ts';
-import { GraphStore } from '../graphstore.ts';
-import { NodeConfig } from './NodeConfig.tsx';
-import { Subflow } from './Nodes/Subflow.tsx';
-import { Monitor } from './Monitor.tsx';
-import { useNotificationInitializer, useNotification } from '../hooks/Notification.ts';
-import { SerializationErrorMessages } from './Errors.tsx';
-import { useFilename } from '../hooks/Filename.ts';
+import { CaretRightOutlined, PartitionOutlined } from '@ant-design/icons';
+import { layoutDAG } from '../../graph.ts';
+import { SearchNode } from '../SearchNode.tsx';
+import { Step } from '../Nodes/Step.tsx';
+import { Resource } from '../Nodes/Resource.js';
+import { NodeContextMenu, PaneContextMenu } from '../ContextMenu.tsx';
+import { useAPI, useAPIMessageLastValue } from '../../hooks/API.ts';
+import { NodeConfig } from '../NodeConfig.tsx';
+import { Monitor } from '../Monitor.tsx';
+import { useNotificationInitializer, useNotification } from '../../hooks/Notification.ts';
 import { ReactFlowInstance, BackgroundVariant } from 'reactflow';
-import { ActiveOverlay } from './ActiveOverlay.tsx';
-import { Docs } from './Docs.tsx';
+import { ActiveOverlay } from '../ActiveOverlay.tsx';
+import { Docs } from '../Docs.tsx';
 
 import type { Node, Edge } from 'reactflow';
+import { NotFoundFlow } from './NotFoundFlow.tsx';
 
 const { useToken } = theme;
 
@@ -65,9 +57,6 @@ export default function ReadOnlyFlow({ filename }) {
     const nodeTypes = useMemo(() => ({
         step: Step,
         resource: Resource,
-        group: Group,
-        export: Export,
-        subflow: Subflow,
     }), []);
 
     useEffect(() => {
@@ -84,7 +73,7 @@ export default function ReadOnlyFlow({ filename }) {
                         param.value = param.default;
                     }
                 });
-                let newNode: Node = {
+                const newNode: Node = {
                     id: nodeId,
                     position: {
                         x: 0, y: 0
@@ -95,6 +84,9 @@ export default function ReadOnlyFlow({ filename }) {
                         parameters: node.parameters,
                         isCollapsed: false,
                         category: node.category,
+                        properties: {
+                            doc: node.doc
+                        }
                     }
                 };
                 for (const [key, param] of Object.entries<any>(newNode.data.parameters)) {
@@ -106,7 +98,6 @@ export default function ReadOnlyFlow({ filename }) {
                             targetHandle: key,
                             id: `reactflow__edge-${param.value}-${nodeId}${key}`
                         });
-                        // delete param.value;
                     }
                 }
                 if (node.type === "step") {
@@ -133,8 +124,6 @@ export default function ReadOnlyFlow({ filename }) {
         }
 
         const [nodes, edges] = toReactFlow(graphState);
-        console.log(nodes);
-        console.log(edges);
         setNodes(nodes);
         setEdges(edges);
         isDimensionsInitialized.current = false;
@@ -151,7 +140,6 @@ export default function ReadOnlyFlow({ filename }) {
             return;
         }
         if (changes.every(change => change.type === 'dimensions')) {
-            console.log('Dimensions initialized');
             const mapping = new Map(changes.map(node => [node.id, node.dimensions]));
             const updatedDimensionsNodes = nodes.map(node => ({...node, width: mapping.get(node.id)?.width, height: mapping.get(node.id)?.height}));
             const updatedPositionsNodes = layoutDAG(updatedDimensionsNodes, edges);
@@ -188,6 +176,9 @@ export default function ReadOnlyFlow({ filename }) {
         });
     }, []);
 
+    if (!graphState) {
+        return <NotFoundFlow />;
+    }
 
     return (
         <div style={{ height: '100%', width: '100%' }}>
@@ -216,7 +207,7 @@ export default function ReadOnlyFlow({ filename }) {
                             <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
                                 <ControlRow filename={filename} />
                             </div>
-                            <Docs />
+                            <Docs helpString='Welcome to the beta release of Ray DAGs w/ Graphbook'/>
                         </div>
                     </Space>
                     <Panel position='top-left'>
@@ -237,10 +228,12 @@ export default function ReadOnlyFlow({ filename }) {
 function ControlRow({ filename }) {
     const size = 'large';
     const runState = useAPIMessageLastValue("run_state", filename);
+    const [isRunClicked, setIsRunClicked] = useState(false);
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();
     const { setNodes } = useReactFlow();
+
     const notification = useNotification();
 
     const run = useCallback(async () => {
@@ -248,6 +241,7 @@ function ControlRow({ filename }) {
             return;
         }
 
+        setIsRunClicked(true);
         const nodeParams = nodes.reduce((acc, node: any) => {
             const params = Object.entries<any>(node.data.parameters).reduce((acc, [key, param]) => {
                 acc[key] = param.value;
@@ -261,14 +255,6 @@ function ControlRow({ filename }) {
         API.paramRun(filename, nodeParams);
     }, [API, nodes, filename]);
 
-    const pause = useCallback(() => {
-        if (!API) {
-            return;
-        }
-        API.pause();
-    }, [API]);
-
-
     const layout = useCallback(() => {
         const newNodes = layoutDAG(nodes, edges);
         setNodes(newNodes);
@@ -278,7 +264,10 @@ function ControlRow({ filename }) {
         <div className="control-row">
             <Flex gap="small">
                 <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
-                <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} loading={runState==="running"}/>
+                {
+                    runState === "initializing" &&
+                    <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} loading={isRunClicked}/>
+                }
             </Flex>
         </div>
     );

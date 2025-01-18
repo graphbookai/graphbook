@@ -20,7 +20,6 @@ const globalLastValueSetters: StateCallbacks = {};
 const anyGraphLastValueSetters: StateCallbacks = {};
 
 
-
 const onConnectStateChange = (isConnected: boolean) => {
     const setGlobalAPI = (api: ServerAPI | null) => {
         globalAPI = api;
@@ -29,9 +28,18 @@ const onConnectStateChange = (isConnected: boolean) => {
         }
     }
 
+    const clearGraphs = () => {
+        for (const graph in messageStates) {
+            for (const type in messageStates[graph]) {
+                delete messageStates[graph][type];
+            }
+        }
+    }
+
     if (!isConnected) {
         setGlobalAPI(null);
     } else {
+        clearGraphs();
         setGlobalAPI(API);
     }
 };
@@ -43,9 +51,6 @@ function onStatefulMessage(msg) {
     let listeners = globalMessageListeners;
     let setters = globalLastValueSetters;
     const { graph_id, type, data } = parsedMsg;
-    // if (type === 'view' || type === 'stats' || type === 'logs' || type === 'prompt' || type === 'system_util') {
-    //     return;
-    // }
 
     if (graph_id) {
         states = messageStates[graph_id];
@@ -114,28 +119,29 @@ export function useAPI() {
 
 export function useAPIMessageEffect(event_type: string, callback: Function, graph: string | null = null) {
     useEffect(() => {
-        let listeners: Function[];
         if (graph) {
-            let graphListeners = messageStateListeners[graph];
-            if (!graphListeners) {
-                graphListeners = { [event_type]: [] };
-                messageStateListeners[graph] = graphListeners;
-            } else if (!graphListeners[event_type]) {
-                graphListeners[event_type] = [];
+            if (!messageStateListeners[graph]) {
+                messageStateListeners[graph] = { [event_type]: [] };
             }
-            listeners = graphListeners[event_type];
-        } else {
-            if (!globalMessageListeners[event_type]) {
-                globalMessageListeners[event_type] = [];
+            
+            if (!messageStateListeners[graph][event_type]) {
+                messageStateListeners[graph][event_type] = [];
             }
-            listeners = globalMessageListeners[event_type];
+
+            messageStateListeners[graph][event_type].push(callback);
+            return () => {
+                messageStateListeners[graph][event_type] = messageStateListeners[graph][event_type].filter((cb) => cb !== callback);
+            };
         }
 
-        listeners.push(callback);
+        if (!globalMessageListeners[event_type]) {
+            globalMessageListeners[event_type] = [];
+        }
 
+        globalMessageListeners[event_type].push(callback);
         return () => {
-            listeners = listeners.filter((cb) => cb !== callback);
-        };
+            globalMessageListeners[event_type] = globalMessageListeners[event_type].filter((cb) => cb !== callback);
+        }
     }, []);
 }
 
@@ -149,8 +155,7 @@ export function useAPINodeMessageEffect(event_type: string, node_id: string, gra
     useAPIMessageEffect(event_type, internalCallback, graph_id);
 }
 
-
-export function useAPIMessageLastValue(event_type: string, graph: string | null = null) {
+export function useAPIMessageLastValue(event_type: string, graph: string | null = null): any | undefined {
     const [_, setState] = useState<any>(null);
 
     useEffect(() => {
@@ -177,7 +182,6 @@ export function useAPIMessageLastValue(event_type: string, graph: string | null 
         return () => {
             globalLastValueSetters[event_type] = globalLastValueSetters[event_type].filter((cb) => cb !== setState);
         }
-
     }, []);
 
     let states = globalMessageStates;
@@ -185,7 +189,7 @@ export function useAPIMessageLastValue(event_type: string, graph: string | null 
         states = messageStates[graph];
     }
 
-    return states[event_type];
+    return states?.[event_type];
 }
 
 export function useAPIAnyGraphLastValue(event_type: string) {

@@ -125,9 +125,9 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
         ...NODE_OPTIONS
     ], [node, reactFlowInstance, runState, runStateShouldChange, API, filename, NODE_OPTIONS]);
 
-    const RESOURCE_OPTIONS = useMemo(() => !node ? [] : [ ...NODE_OPTIONS ], [NODE_OPTIONS]);
+    const RESOURCE_OPTIONS = useMemo(() => !node ? [] : [...NODE_OPTIONS], [NODE_OPTIONS]);
 
-    const SUBFLOW_OPTIONS = useMemo(() => !node ? [] : [ ...NODE_OPTIONS ], [NODE_OPTIONS]);
+    const SUBFLOW_OPTIONS = useMemo(() => !node ? [] : [...NODE_OPTIONS], [NODE_OPTIONS]);
 
     const GROUP_OPTIONS = useMemo(() => {
         if (!node || !API) {
@@ -237,8 +237,7 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
                         continue;
                     }
                     if ((src.parentId !== node.id && tgt.parentId === node.id) ||
-                        (src.parentId === node.id && tgt.parentId !== node.id))
-                    {
+                        (src.parentId === node.id && tgt.parentId !== node.id)) {
                         notification.error({
                             key: 'uncollapsible-group',
                             message: 'Uncollapsible Group',
@@ -384,7 +383,7 @@ export function PaneContextMenu({ top, left, close }) {
                 }
             }
         };
-        
+
         setData();
     }, [API]);
 
@@ -441,7 +440,9 @@ export function PaneContextMenu({ top, left, close }) {
         Object.values<any>(node.parameters).forEach((p) => {
             p.value = p.default;
         });
-        const newNode = ({ type, position, data: node });
+        const { doc } = node;
+        delete node.doc;
+        const newNode = ({ type, position, data: { ...node, properties: { doc } } });
         const newNodes = Graph.addNode(newNode, graphNodes);
         setNodes(newNodes);
     }, [graphNodes]);
@@ -452,7 +453,9 @@ export function PaneContextMenu({ top, left, close }) {
         Object.values<any>(node.parameters).forEach((p) => {
             p.value = p.default;
         });
-        const newNode = ({ type, position, data: node });
+        const { doc } = node;
+        delete node.doc;
+        const newNode = ({ type, position, data: { ...node, properties: { doc } } });
         const newNodes = Graph.addNode(newNode, graphNodes);
         setNodes(newNodes);
     }, [graphNodes]);

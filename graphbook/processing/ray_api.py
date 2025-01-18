@@ -87,22 +87,27 @@ def create_graph_execution(
 
             node_class = node_context["class"]
             node_name = node_class.__name__[len("ActorClass(") : -1]
-            print(node_name, node_id, curr_id)
+            node_doc = node_context["doc"]
+            
             if issubclass(node_class, Step):
+                step_deps = node_context.get("step_deps", [])
                 G[curr_id] = {
                     "type": "step",
                     "name": node_name,
                     "parameters": deepcopy(node_class.Parameters or {}),
-                    "inputs": [],
+                    "inputs": step_deps,
                     "outputs": node_class.Outputs or ["out"],
                     "category": node_class.Category or "",
+                    "doc": node_doc or "",
                 }
             else:  # Resource
+                print("DOC", node_doc)
                 G[curr_id] = {
                     "type": "resource",
                     "name": node_name,
                     "parameters": deepcopy(node_class.Parameters or {}),
                     "category": node_class.Category or "",
+                    "doc": node_doc or "",
                 }
 
             resource_deps = node_context["resource_deps"]
@@ -112,18 +117,6 @@ def create_graph_execution(
 
             actor_id_to_idx[curr_id] = node_id
             nodes.append((node_id, node_name, handle))
-        else:  # StepHandler
-            # dummy_input, step_id, *bind_args: List[Tuple[str, dict]]
-            if node._method_name == "prepare_inputs":
-                for i in range(2, len(node._bound_args), 2):
-                    G[curr_id]["inputs"].append(
-                        {
-                            "node": str(
-                                node._bound_args[i + 1]._parent_class_node._actor_id
-                            ),
-                            "pin": node._bound_args[i],
-                        }
-                    )
 
     dag.traverse_and_apply(fn)
 
@@ -173,6 +166,8 @@ def run_async(
         G, nodes = create_graph_execution(dag)
 
         # Prompts for user input
+        print(f"Starting execution {name}")
+        print("Found parameters that need to be set. Please navigate to the Graphbook UI to set them.")
         params = ray.get(step_handler.handle_new_execution.remote(name, G))
 
         # Set the param values to each node and other context variables
@@ -290,8 +285,9 @@ def make_input_grapbook_class(cls):
 
 
 class GraphbookActorWrapper:
-    def __init__(self, actor, *args, **kwargs):
+    def __init__(self, actor, doc, *args, **kwargs):
         self._actor = actor
+        self._doc = doc
         return self._actor.__init__(self, *args, **kwargs)
 
     def __call__(self, *args, **kwargs):
@@ -317,10 +313,12 @@ class GraphbookActorWrapper:
         )
         gb_context = {}
         gb_context["class"] = self._actor.__class__
+        gb_context["doc"] = self._doc
         gb_context["node_id"] = node_id
         gb_context["resource_deps"] = {
             k: str(v._parent_class_node._actor_id) for k, v in kwargs.items()
         }
+        gb_context["step_deps"] = []
         setattr(actor_handle, "_graphbook_context", gb_context)
 
         requires_input = is_step and not isinstance(self._actor, SourceStep)
@@ -329,12 +327,19 @@ class GraphbookActorWrapper:
                 assert (
                     len(bind_args) % 2 == 0
                 ), "Bind arguments must be pairs of bind_key and bind_obj"
+                
+                gb_context["step_deps"] = [{
+                    "node": str(getattr(bind_args[i+1], "_graphbook_bound_actor")._ray_actor_id),
+                    "pin": bind_args[i],
+                } for i in range(0, len(bind_args), 2)]
+                setattr(actor_handle, "_graphbook_context", gb_context)
 
                 dummy_input = self._set_init_params.bind(**kwargs)
                 dummy_input = self._patched_init_method.bind(dummy_input)
                 input_notes = step_handler.prepare_inputs.bind(dummy_input, node_id, *bind_args)
                 outputs = self.all.bind(input_notes)
                 outputs = step_handler.handle_outputs.bind(node_id, outputs)
+                setattr(outputs, "_graphbook_bound_actor", actor_handle)
 
                 return outputs
 
@@ -350,9 +355,9 @@ class GraphbookActorWrapper:
         dummy_input = actor_handle._patched_init_method.bind(dummy_input)
         outputs = actor_handle._call_with_dummy.bind(dummy_input)
 
-        print(actor_handle._actor_id)
         if is_step:
             outputs = step_handler.handle_outputs.bind(node_id, outputs)
+            setattr(outputs, "_graphbook_bound_actor", actor_handle)
 
         # class_method_node.bind = bind.__get__(class_method_node)
 
@@ -364,6 +369,6 @@ def remote(*args, **kwargs) -> GraphbookActorWrapper:
     cls = make_input_grapbook_class(cls)
 
     actor_class = ray.remote(cls, **kwargs)  # do something with *args[1:] ?
-    gb_actor_class = GraphbookActorWrapper(actor_class)
+    gb_actor_class = GraphbookActorWrapper(actor_class, cls.__doc__)
 
     return gb_actor_class
