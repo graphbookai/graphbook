@@ -118,13 +118,15 @@ class RayStepHandler:
                     return None
             all_notes.extend(outputs[bind_key])
         return all_notes
-    
+
     def handle_outputs(self, step_id: str, outputs: Outputs):
         self.graph_state.handle_outputs(step_id, outputs)
         return outputs
-    
+
     def get_output_note(self, step_id, pin_id, index):
-        return transform_json_log(self.graph_state.steps_outputs[step_id][pin_id][index])
+        return transform_json_log(
+            self.graph_state.steps_outputs[step_id][pin_id][index]
+        )
 
     async def wait_for_params(self) -> dict:
         def _loop():

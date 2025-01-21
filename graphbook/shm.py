@@ -115,22 +115,22 @@ class MultiThreadedMemoryManager:
     """
 
     def __init__(self):
-        self.lock =  Lock()
+        self.lock = Lock()
         self.ez_storage: Dict[str, Image.Image] = {}
-        
+
     def add_image(self, pil_image):
         image_id = str(uuid.uuid4())
         with self.lock:
             self.ez_storage[image_id] = pil_image
         return image_id
-    
+
     def get_image(self, image_id):
         with self.lock:
             image = self.ez_storage.get(image_id, None)
-        
+
         if image is None:
             return None
-        
+
         img_buffer = BytesIO()
         image.save(img_buffer, format=image.format or "PNG")
         return img_buffer.getvalue()

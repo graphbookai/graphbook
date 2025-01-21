@@ -162,7 +162,6 @@ class GraphServer:
                 if self.img_mem is None:
                     raise web.HTTPNotFound()
                 img = self.img_mem.get_image(shm_id)
-                # print(f"Got image {shm_id} len={len(img)}")
                 if img is None:
                     raise web.HTTPNotFound()
                 return web.Response(body=img, content_type="image/png")

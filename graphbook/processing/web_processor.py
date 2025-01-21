@@ -238,7 +238,9 @@ class WebInstanceProcessor:
     def set_is_running(self, is_running: bool = True, filename: str | None = None):
         self.is_running = is_running
         if filename is None and is_running:
-            raise ValueError("Filename must be provided when setting is_running to True")
+            raise ValueError(
+                "Filename must be provided when setting is_running to True"
+            )
         self.filename = filename
         if is_running:
             self.viewer = self.view_manager.new(filename)
@@ -292,9 +294,7 @@ class WebInstanceProcessor:
             self.set_is_running(False)
 
     def start_loop(self):
-        ExecutionContext.update(
-            dataloader=self.dataloader
-        )
+        ExecutionContext.update(dataloader=self.dataloader)
         exec_cmds = ["run_all", "run", "step"]
         while not self.close_event.is_set():
             try:
@@ -340,6 +340,6 @@ class WebInstanceProcessor:
 
     def pause(self):
         self.pause_event.set()
-        
+
     def get_queue(self):
         return self.cmd_queue

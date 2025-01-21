@@ -123,7 +123,7 @@ class GraphState:
         self._updated_nodes: Dict[str, Dict[str, bool]] = {}
         self._step_states: Dict[str, Set[StepState]] = {}
         self._step_graph = {"child": {}, "parent": {}}
-        
+
     def set_viewer(self, viewer: ViewManagerInterface):
         self.view_manager = viewer
 

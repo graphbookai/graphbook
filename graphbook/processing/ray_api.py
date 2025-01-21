@@ -82,7 +82,7 @@ def create_graph_execution(
             node_class = node_context["class"]
             node_name = node_class.__name__[len("ActorClass(") : -1]
             node_doc = node_context["doc"]
-            
+
             if issubclass(node_class, Step):
                 step_deps = node_context.get("step_deps", [])
                 G[curr_id] = {
@@ -160,7 +160,9 @@ def run_async(
 
         # Prompts for user input
         print(f"Starting execution {name}")
-        print("Found parameters that need to be set. Please navigate to the Graphbook UI to set them.")
+        print(
+            "Found parameters that need to be set. Please navigate to the Graphbook UI to set them."
+        )
         params = ray.get(step_handler.handle_new_execution.remote(name, G))
 
         # Set the param values to each node and other context variables
@@ -174,7 +176,7 @@ def run_async(
                 node_name=node_name,
             )
             context_setup_refs.append(context_setup)
-            
+
         context_setup_refs.append(step_handler.handle_start_execution.remote())
         ray.wait(context_setup_refs)
         final = step_handler.handle_end_execution.bind(dag)
@@ -245,7 +247,7 @@ def make_input_grapbook_class(cls):
     assert issubclass(cls, Step) or issubclass(
         cls, Resource
     ), "Invalid Graphbook Node class."
-    
+
     if issubclass(cls, PromptStep):
         raise ValueError("PromptStep is not yet supported in Graphbook Ray API.")
 
@@ -320,20 +322,30 @@ class GraphbookActorWrapper:
 
         requires_input = is_step and not isinstance(self._actor, SourceStep)
         if requires_input:
+
             def bind(self, *bind_args):
                 assert (
                     len(bind_args) % 2 == 0
                 ), "Bind arguments must be pairs of bind_key and bind_obj"
-                
-                gb_context["step_deps"] = [{
-                    "node": str(getattr(bind_args[i+1], "_graphbook_bound_actor")._ray_actor_id),
-                    "pin": bind_args[i],
-                } for i in range(0, len(bind_args), 2)]
+
+                gb_context["step_deps"] = [
+                    {
+                        "node": str(
+                            getattr(
+                                bind_args[i + 1], "_graphbook_bound_actor"
+                            )._ray_actor_id
+                        ),
+                        "pin": bind_args[i],
+                    }
+                    for i in range(0, len(bind_args), 2)
+                ]
                 setattr(actor_handle, "_graphbook_context", gb_context)
 
                 dummy_input = self._set_init_params.bind(**kwargs)
                 dummy_input = self._patched_init_method.bind(dummy_input)
-                input_notes = step_handler.prepare_inputs.bind(dummy_input, node_id, *bind_args)
+                input_notes = step_handler.prepare_inputs.bind(
+                    dummy_input, node_id, *bind_args
+                )
                 outputs = self.all.bind(input_notes)
                 outputs = step_handler.handle_outputs.bind(node_id, outputs)
                 setattr(outputs, "_graphbook_bound_actor", actor_handle)
