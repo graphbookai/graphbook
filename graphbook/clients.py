@@ -1,9 +1,12 @@
+import ray
 from typing import List, Dict, Optional
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
+from .processing.ray_processor import RayStepHandler
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
+from .shm import MultiThreadedMemoryManager
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -16,26 +19,74 @@ import traceback
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
+class ProcessorInterface:
+    def get_output_note(self, step_id: str, pin_id: str, index: int):
+        raise NotImplementedError
+
+    def pause(self):
+        raise NotImplementedError
+
+    def get_queue(self):
+        raise NotImplementedError
+
+    def handle_prompt_response(self, response: dict):
+        raise NotImplementedError
+
+
 class Client:
-    def __init__(self, sid: str, ws: WebSocketResponse, view_manager: MultiGraphViewManager, proc_queue: Optional[mp.Queue] = None):
+    def __init__(
+        self,
+        sid: str,
+        ws: WebSocketResponse,
+        view_manager: MultiGraphViewManager,
+        proc_interface: ProcessorInterface,
+    ):
         self.sid = sid
         self.ws = ws
         self.view_manager = view_manager
         # graph_id -> {state_type -> idx}
         self.state_idx: Dict[str, Dict[str, int]] = {}
-        self.proc_queue = proc_queue
+        self.proc_interface = proc_interface
 
     def get_view_manager(self) -> MultiGraphViewManager:
         return self.view_manager
-    
-    def get_proc_queue(self) -> mp.Queue:
-        return self.proc_queue
-    
+
+    def get_processor(self) -> ProcessorInterface:
+        return self.proc_interface
+
     def stop(self):
         self.view_manager.stop()
 
     async def close(self):
         await self.ws.close()
+
+
+class RayProcessorInterface:
+    def __init__(self, processor: RayStepHandler, proc_queue: mp.Queue):
+        self.processor = processor
+        self.queue = proc_queue
+
+    def get_output_note(self, step_id: str, pin_id: str, index: int):
+        return self.processor.get_output_note.remote(step_id, pin_id, index)
+
+    def pause(self):
+        raise NotImplementedError("RayProcessor does not support pause")
+
+    def get_queue(self):
+        return self.queue
+
+
+class RayClient(Client):
+    def __init__(
+        self,
+        sid: str,
+        ws: WebSocketResponse,
+        view_manager: MultiGraphViewManager,
+        proc_queue: mp.Queue,
+    ):
+        processor = ray.get_actor("_graphbook_RayStepHandler")
+        self.processor_interface = RayProcessorInterface(processor, proc_queue)
+        super().__init__(sid, ws, view_manager, self.processor_interface)
 
 
 class WebClient(Client):
@@ -48,7 +99,7 @@ class WebClient(Client):
         view_manager: MultiGraphViewManager,
         setup_paths: Optional[dict] = None,
     ):
-        super().__init__(sid, ws, view_manager)
+        super().__init__(sid, ws, view_manager, processor)
         self.processor = processor
         self.node_hub = node_hub
         if setup_paths:
@@ -76,12 +127,9 @@ class WebClient(Client):
     def exec(self, req: dict):
         self.processor.exec(req)
 
-    def get_processor(self) -> WebInstanceProcessor:
-        return self.processor
-
     def get_node_hub(self) -> NodeHub:
         return self.node_hub
-    
+
     def stop(self):
         self.processor.stop()
         self.node_hub.stop()
@@ -96,6 +144,7 @@ class ClientPool:
         isolate_users: bool,
         no_sample: bool,
         close_event: mp.Event,
+        img_mem: MultiThreadedMemoryManager,
         setup_paths: Optional[dict] = None,
         proc_queue: Optional[mp.Queue] = None,
         view_queue: Optional[mp.Queue] = None,
@@ -114,6 +163,7 @@ class ClientPool:
         self.shared_execution = not isolate_users
         self.no_sample = no_sample
         self.close_event = close_event
+        self.img_mem = img_mem
         self.proc_queue = proc_queue
         self.view_queue = view_queue
         self.options = options
@@ -134,6 +184,7 @@ class ClientPool:
                 **web_processor_args,
                 "custom_nodes_path": custom_nodes_path,
                 "view_manager_queue": view_queue,
+                "img_mem": self.img_mem,
             }
             processor = WebInstanceProcessor(**processor_args)
             view_manager = MultiGraphViewManager(view_queue, processor)
@@ -209,7 +260,7 @@ class ClientPool:
             client = WebClient(sid, ws, **resources, setup_paths=setup_paths)
             print(f"{sid}: {client.get_root_path()}")
         else:
-            client = Client(sid, ws, **resources, proc_queue=self.proc_queue)
+            client = RayClient(sid, ws, **resources, proc_queue=self.proc_queue)
             print(f"{sid}: (non-interactive)")
         self.clients[sid] = client
         self.ws[sid] = ws
@@ -248,7 +299,9 @@ class ClientPool:
             self.shared_resources["view_manager"].stop()
 
     async def _loop(self):
-        def get_state_data(view_manager: MultiGraphViewManager, client: Client) -> List[dict]:
+        def get_state_data(
+            view_manager: MultiGraphViewManager, client: Client
+        ) -> List[dict]:
             current_states = view_manager.get_current_states(client.state_idx)
             state_data = [data for _, data in current_states]
             for idx, data in current_states:
@@ -262,12 +315,14 @@ class ClientPool:
             while not self.close_event.is_set():
                 await asyncio.sleep(self.options["SEND_EVERY"])
                 if self.shared_execution:
-                    view_manager: MultiGraphViewManager = self.shared_resources["view_manager"]
+                    view_manager: MultiGraphViewManager = self.shared_resources[
+                        "view_manager"
+                    ]
                     view_data = view_manager.get_current_view_data()
                     for client in list(self.clients.values()):
                         if client.ws.closed:
                             continue
-                        state_data = get_state_data(view_manager, client)                        
+                        state_data = get_state_data(view_manager, client)
                         try:
                             await asyncio.gather(
                                 *[

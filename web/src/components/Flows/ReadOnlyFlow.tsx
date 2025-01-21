@@ -11,10 +11,8 @@ import ReactFlow, {
 import { Button, Flex, Space, theme } from 'antd';
 import { CaretRightOutlined, PartitionOutlined } from '@ant-design/icons';
 import { layoutDAG } from '../../graph.ts';
-import { SearchNode } from '../SearchNode.tsx';
 import { Step } from '../Nodes/Step.tsx';
 import { Resource } from '../Nodes/Resource.js';
-import { NodeContextMenu, PaneContextMenu } from '../ContextMenu.tsx';
 import { useAPI, useAPIMessageLastValue } from '../../hooks/API.ts';
 import { NodeConfig } from '../NodeConfig.tsx';
 import { Monitor } from '../Monitor.tsx';
@@ -29,25 +27,11 @@ import { NotFoundFlow } from './NotFoundFlow.tsx';
 const { useToken } = theme;
 
 
-type NodeMenu = {
-    nodeId: string;
-    top: number;
-    left: number;
-};
-
-type PaneMenu = {
-    top: number;
-    left: number;
-};
-
 export default function ReadOnlyFlow({ filename }) {
     const { token } = useToken();
     const API = useAPI();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
-    const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
-    const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
     const runState = useAPIMessageLastValue("run_state", filename);
@@ -149,32 +133,6 @@ export default function ReadOnlyFlow({ filename }) {
         }
     }, [isDimensionsInitialized, nodes, edges, setNodes, onNodesChange]);
 
-    const handleMouseClickComp = useCallback(() => {
-        setSearchMenu(null);
-        setNodeMenu(null);
-        setPaneMenu(null);
-    }, []);
-
-    const onPaneDoubleClick = useCallback((event) => {
-        const isANodeSelected = nodes.some(node => node.selected);
-
-        if (!isANodeSelected) {
-            setSearchMenu({
-                top: event.clientY,
-                left: event.clientX
-            });
-        }
-    }, [nodes]);
-
-    const onNodeContextMenu = useCallback((event, node) => {
-        event.preventDefault();
-
-        setNodeMenu({
-            nodeId: node.id,
-            top: event.clientY,
-            left: event.clientX,
-        });
-    }, []);
 
     if (!graphState) {
         return <NotFoundFlow />;
@@ -185,10 +143,6 @@ export default function ReadOnlyFlow({ filename }) {
             <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
                 <ReactFlow
                     key={filename}
-                    onDoubleClick={onPaneDoubleClick}
-                    onPaneClick={handleMouseClickComp}
-                    onNodeClick={handleMouseClickComp}
-                    onMove={handleMouseClickComp}
                     zoomOnDoubleClick={false}
                     nodes={nodes}
                     edges={edges}
@@ -197,7 +151,6 @@ export default function ReadOnlyFlow({ filename }) {
                     deleteKeyCode={null}
                     onInit={onInitReactFlow}
                     nodeTypes={nodeTypes}
-                    onNodeContextMenu={onNodeContextMenu}
                     nodesConnectable={false}
                     preventScrolling={true}
                 >
@@ -214,9 +167,6 @@ export default function ReadOnlyFlow({ filename }) {
                         <NodeConfig />
                     </Panel>
                     <Monitor />
-                    {nodeMenu && <NodeContextMenu close={() => setNodeMenu(null)} top={nodeMenu.top} left={nodeMenu.left} nodeId={nodeMenu.nodeId} />}
-                    {paneMenu && <PaneContextMenu close={() => setPaneMenu(null)} top={paneMenu.top} left={paneMenu.left} />}
-                    {searchMenu && <SearchNode close={() => setSearchMenu(null)} top={searchMenu.top} left={searchMenu.left} />}
                     <Background id="1" variant={BackgroundVariant.Lines} gap={20} size={1} color={token.colorBorder} />
                     <Background id="2" variant={BackgroundVariant.Lines} gap={200} size={1} color={token.colorFill} />
                 </ReactFlow>

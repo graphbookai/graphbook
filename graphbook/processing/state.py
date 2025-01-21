@@ -111,9 +111,8 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(self, custom_nodes_path: Path, view_manager_queue: mp.Queue):
-        self.view_manager_queue = view_manager_queue
-        self.view_manager = ViewManagerInterface(view_manager_queue)
+    def __init__(self, custom_nodes_path: Path):
+        self.view_manager: ViewManagerInterface = None
         self._dict_graph = {}
         self._dict_resources = {}
         self._steps: Dict[str, Step] = {}
@@ -124,6 +123,9 @@ class GraphState:
         self._updated_nodes: Dict[str, Dict[str, bool]] = {}
         self._step_states: Dict[str, Set[StepState]] = {}
         self._step_graph = {"child": {}, "parent": {}}
+        
+    def set_viewer(self, viewer: ViewManagerInterface):
+        self.view_manager = viewer
 
     def update_state(self, graph: dict, graph_resources: dict):
         nodes, is_updated = self._node_catalog.get_nodes()

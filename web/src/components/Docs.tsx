@@ -68,66 +68,47 @@ export function Docs({ helpString }: { helpString?: string }) {
             return;
         }
 
-        // const loadNodeDocs = async (docs) => {
-        //     if (docs.length === 0) {
-        //         return;
-        //     }
-
-        //     const newDocs = await Promise.all(docs.map(async (doc) => {
-        //         const loadedDoc = doc.type === 'step' ? await API.getStepDocstring(doc.name) : await API.getResourceDocstring(doc.name);
-        //         return {
-        //             ...doc,
-        //             content: loadedDoc?.content || '(No docstring)'
-        //         };
-        //     }));
-
-        //     setNodeDocs(pre => {
-        //         return pre.map(doc => {
-        //             const newDoc = newDocs.find(d => d.name === doc.name);
-        //             if (newDoc) {
-        //                 return newDoc;
-        //             }
-        //             return doc;
-        //         });
-        //     });
-        // };
-
         const n = nodes as any[];
         const uniqueNodeNames = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.data.name));
         const uniqueNodes = [...uniqueNodeNames].map(name => n.find(n => n.data.name === name));
-        setNodeDocs(uniqueNodes.map(n => {
-            const doc = {
+
+        if (uniqueNodes.length === nodeDocs.length) {
+            return;
+        }
+        
+        const currentNodeDocs = uniqueNodes.map(n => {
+            return {
                 type: n.type,
                 name: n.data.name,
-                content: n.data.properties.doc || '(No docstring)',
+                content: n.data.properties?.doc,
             };
-            return doc;
-        }));
+        });
 
-        // if (nodeDocs.length !== uniqueNodes.length) {
-        //     console.log("yo")
-        //     const toLoad: any[] = [];
-        //     const docs = [...uniqueNodes].map(n => {
-        //         const existingDoc = nodeDocs.find(doc => doc.name === n.data.name);
-        //         if (existingDoc) {
-        //             return existingDoc;
-        //         } else {
-        //             console.log('a', n.data);
-        //             const doc = {
-        //                 type: n.type,
-        //                 name: n.data.name,
-        //                
-        //                 content: '(Loading...)',
-        //             };
-        //             toLoad.push(doc);
-        //             return doc;
-        //         }
-        //     });
+        const loadNodeExtraDocs = async () => {
+            const extraNodes = currentNodeDocs.filter(n => !n.content);
+            if (extraNodes.length === 0) {
+                return;
+            }
+            const nodeDocs = await Promise.all(extraNodes.map(async n => {
+                const data = n.type === 'step' ? await API.getStepDocstring(n.name) : await API.getResourceDocstring(n.name);
+                return {
+                    name: n.name,
+                    content: data?.content,
+                };
+            }));
+            const mergedNodeDocs = currentNodeDocs.map(n => {
+                const doc = nodeDocs.find(d => d.name === n.name);
+                return {
+                    type: n.name,
+                    name: n.name,
+                    content: doc?.content || '(No docstring)',
+                };
+            });
 
-        //     setNodeDocs(docs);
-        //     loadNodeDocs(toLoad);
-        // }
+            setNodeDocs(mergedNodeDocs);
+        };
 
+        loadNodeExtraDocs();
     }, [nodes, API]);
 
     const containerStyle: React.CSSProperties = useMemo(() => ({

@@ -16,6 +16,7 @@ import './components/Nodes/node.css';
 
 import { CodeEditor } from './components/Editor/CodeEditor';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import FlowInitializer from './components/Flows/Flow.tsx';
 
 export default function App() {
     const [settings, _] = useSettings();
@@ -71,7 +72,7 @@ function View() {
             return (
                 <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                     {codeEditorView}
-                    <Flow filename={workflowFile} />
+                    <FlowInitializer filename={workflowFile} />
                 </div>
             );
         }

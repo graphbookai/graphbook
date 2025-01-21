@@ -10,7 +10,7 @@ import ReactFlow, {
     useReactFlow
 } from 'reactflow';
 import { Button, Flex, Space, theme } from 'antd';
-import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined } from '@ant-design/icons';
+import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined, LoadingOutlined } from '@ant-design/icons';
 import { Graph, layoutDAG } from '../../graph.ts';
 import { SearchNode } from '../SearchNode.tsx';
 import { Step } from '../Nodes/Step.tsx';
@@ -61,6 +61,7 @@ export default function FlowInitializer({ filename }) {
     const API = useAPI();
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const notFound = useRef(false);
 
     useEffect(() => {
@@ -69,6 +70,7 @@ export default function FlowInitializer({ filename }) {
                 /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
                 setNodes([]);
                 setEdges([]);
+                setIsLoading(true);
 
                 try {
                     const [nodes, edges] = await onLoadGraph(filename, API);
@@ -77,15 +79,22 @@ export default function FlowInitializer({ filename }) {
                 } catch {
                     notFound.current = true;
                     return;
+                } finally {
+                    setIsLoading(false);
                 }
-                // graphStore.current = new GraphStore(filename, API!, nodes, edges);
             }
         };
 
-        // graphStore.current = null;
         loadGraph();
-
     }, [API, filename]);
+
+    if (isLoading) {
+        return (
+            <Flex style={{ height: '100%', width: '100%' }} justify='center' align='middle'>
+                <LoadingOutlined style={{fontSize: 32}} />
+            </Flex>
+        );
+    }
 
     if (notFound.current) {
         return <NotFoundFlow />;
@@ -106,25 +115,6 @@ function Flow({ initialNodes, initialEdges, filename }) {
     const graphStore = useRef<GraphStore | null>(new GraphStore(filename, API!, nodes, edges));
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
-
-    // useEffect(() => {
-    //     const loadGraph = async () => {
-    //         if (API) {
-    //             /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
-    //             setNodes([]);
-    //             setEdges([]);
-
-    //             const [nodes, edges] = await onLoadGraph(filename, API);
-    //             setNodes(nodes);
-    //             setEdges(edges);
-    //             graphStore.current = ;
-    //         }
-    //     };
-
-    //     graphStore.current = null;
-    //     loadGraph();
-
-    // }, [API, filename]);
 
     useEffect(() => {
         const searchListener = (e) => {
@@ -155,7 +145,7 @@ function Flow({ initialNodes, initialEdges, filename }) {
     }, [reactFlowInstance]);
 
     const onNodesChangeCallback = useCallback((changes) => {
-        if (runState !== 'stopped') {
+        if (runState !== 'finished') {
             const newChanges = changes.filter(change => change.type !== 'remove');
             if (newChanges.length !== changes.length) {
                 notificationCtrl.error({
@@ -171,7 +161,7 @@ function Flow({ initialNodes, initialEdges, filename }) {
     }, [runState]);
 
     const onEdgesChangeCallback = useCallback((changes) => {
-        if (runState !== 'stopped') {
+        if (runState !== 'finished') {
             const newChanges = changes.filter(change => change.type !== 'remove');
             if (newChanges.length !== changes.length) {
                 notificationCtrl.error({
@@ -510,9 +500,9 @@ function ControlRow() {
         <div className="control-row">
             <Flex gap="small">
                 <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
-                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} />
+                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'finished' || !API} />
                 {
-                    runState !== 'stopped' ? (
+                    runState !== 'finished' ? (
                         <Button type="default" title="Pause" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
                         <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />

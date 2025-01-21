@@ -128,7 +128,7 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
                     }
                     {
                         isRunnable &&
-                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
+                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'finished' || !API} />
                     }
                 </Flex>
                 {
@@ -258,11 +258,10 @@ function ContentOverlay({ children }) {
     }
 
     const overlayStyle = {
-        background: 'white',
         width: '100%',
         maxWidth: '400px',
         maxHeight: '400px',
-        zIndex: 5,
+        zIndex: 1,
         overflow: 'auto'
     };
 

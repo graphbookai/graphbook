@@ -15,9 +15,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from copy import deepcopy
 from graphbook.processing.ray_processor import RayStepHandler
-from graphbook.steps import Step, SourceStep
+from graphbook.steps import Step, SourceStep, PromptStep
 from graphbook.resources import Resource
-from graphbook.utils import ExecutionContext
 import graphbook.web
 import ray.actor
 import logging
@@ -66,8 +65,7 @@ def create_graph_execution(
         dag: The leaf node to the dag
     """
     # BFS
-    curr_node = None
-    curr_id = None
+
     actor_id_to_idx = {}
     nodes = []
     G = {}
@@ -76,15 +74,11 @@ def create_graph_execution(
         handle: ActorHandle = node._parent_class_node
         node_context = getattr(handle, "_graphbook_context", None)
         if node_context is not None:
-            nonlocal curr_node, curr_id
             curr_id = str(handle._actor_id)
-            curr_node = node
             if curr_id in G:
                 return
 
-            assert node_context is not None
             node_id = node_context["node_id"]
-
             node_class = node_context["class"]
             node_name = node_class.__name__[len("ActorClass(") : -1]
             node_doc = node_context["doc"]
@@ -101,7 +95,6 @@ def create_graph_execution(
                     "doc": node_doc or "",
                 }
             else:  # Resource
-                print("DOC", node_doc)
                 G[curr_id] = {
                     "type": "resource",
                     "name": node_name,
@@ -184,8 +177,9 @@ def run_async(
             
         context_setup_refs.append(step_handler.handle_start_execution.remote())
         ray.wait(context_setup_refs)
+        final = step_handler.handle_end_execution.bind(dag)
 
-        return execute(dag, context)
+        return execute(final, context)
 
 
 def run(
@@ -251,6 +245,9 @@ def make_input_grapbook_class(cls):
     assert issubclass(cls, Step) or issubclass(
         cls, Resource
     ), "Invalid Graphbook Node class."
+    
+    if issubclass(cls, PromptStep):
+        raise ValueError("PromptStep is not yet supported in Graphbook Ray API.")
 
     class DerivedGraphbookRayClass(cls):
         def __init__(self, *args, **kwargs):

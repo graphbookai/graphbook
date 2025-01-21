@@ -49,7 +49,7 @@ class DataViewer(Viewer):
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        new_entries = {k: v[0] for k, v in output.items() if len(v) > 0}
+        new_entries = {k: v[-1] for k, v in output.items() if len(v) > 0}
         self.last_outputs[node_id] |= new_entries
 
     def set_filename(self, filename: str):
@@ -341,7 +341,9 @@ class MultiGraphViewManager:
                             work["graph_id"], work["node_id"], work["size"]
                         )
                     elif work["cmd"] == "handle_time":
-                        self.handle_time(work["node_id"], work["time"])
+                        self.handle_time(
+                            work["graph_id"], work["node_id"], work["time"]
+                        )
                     elif work["cmd"] == "handle_start":
                         self.handle_start(work["graph_id"], work["node_id"])
                     elif work["cmd"] == "handle_end":
@@ -400,6 +402,16 @@ class ViewManagerInterface:
                 "graph_id": self.graph_id,
                 "node_id": node_id,
                 "outputs": outputs,
+            }
+        )
+
+    def handle_time(self, node_id: str, time: float):
+        self.queue.put(
+            {
+                "cmd": "handle_time",
+                "graph_id": self.graph_id,
+                "node_id": node_id,
+                "time": time,
             }
         )
 

@@ -21,14 +21,14 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
     const NODE_OPTIONS = useMemo(() => !node || !API ? [] : [
         {
             name: 'Clear Outputs',
-            disabled: () => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'finished',
             action: async () => {
                 API.clear(node.id);
             }
         },
         {
             name: 'Duplicate',
-            disabled: () => runState !== 'stopped',
+            disabled: () => runState !== 'finished',
             action: () => {
                 const { setNodes } = reactFlowInstance;
                 const position = {
@@ -50,7 +50,7 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
         },
         {
             name: 'Delete',
-            disabled: () => runState !== 'stopped',
+            disabled: () => runState !== 'finished',
             action: () => {
                 const { setNodes, setEdges } = reactFlowInstance;
                 setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
@@ -82,7 +82,7 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
     const STEP_OPTIONS = useMemo(() => !node || !API ? [] : [
         {
             name: 'Run',
-            disabled: () => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'finished',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -103,7 +103,7 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
         },
         {
             name: 'Step',
-            disabled: () => API && runState !== 'stopped',
+            disabled: () => API && runState !== 'finished',
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
@@ -164,7 +164,7 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
         };
         return [{
             name: 'Disband Group',
-            disabled: () => runState !== 'stopped',
+            disabled: () => runState !== 'finished',
             action: () => {
                 const { setNodes, setEdges } = reactFlowInstance;
                 setNodes((nodes) => nodes

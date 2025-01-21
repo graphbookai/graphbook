@@ -314,7 +314,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
                     </Flex>
                 </Flex>
                 <Flex vertical style={{ height: '100%' }}>
-                    <div style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+                    <Flex vertical style={{ overflowY: 'auto', overflowX: 'hidden'}}>
                         <Tree.DirectoryTree
                             onExpand={onExpand}
                             expandedKeys={expandedKeys}
@@ -328,7 +328,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
                             blockNode
                             draggable
                         />
-                    </div>
+                    </Flex>
                     <Executions setExecution={setExecution} />
                 </Flex>
             </Flex>

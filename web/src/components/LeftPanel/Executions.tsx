@@ -1,7 +1,8 @@
 import { Typography, theme, Badge, Space, Empty, Flex } from "antd";
+import { RightOutlined, DownOutlined } from "@ant-design/icons";
 import React, { useState, useMemo, useCallback, MouseEventHandler } from "react";
 import { Resizable } from "re-resizable";
-import { useAPIAnyGraphLastValue} from "../../hooks/API";
+import { useAPIAnyGraphLastValue } from "../../hooks/API";
 const { useToken } = theme;
 const { Text } = Typography;
 
@@ -21,6 +22,7 @@ type ExecutionData = {
 };
 
 export default function Executions({ setExecution }: { setExecution: Function }) {
+    const [isOpened, setIsOpened] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [selectedExecution, setSelectedExecution] = useState<string>();
     const { token } = useToken();
@@ -44,42 +46,68 @@ export default function Executions({ setExecution }: { setExecution: Function })
         });
     }, [runStates])
 
-    const handleStyle = useMemo(() => {
+    const handleStyle: React.CSSProperties = useMemo(() => {
         return {
             backgroundColor: isResizing ? token.colorInfoHover : token.colorBorder,
             height: 2 + (isResizing ? 2 : 0),
+            top: -2 - (isResizing ? 2 : 0),
         };
     }, [token, isResizing]);
 
+    const headerStyle: React.CSSProperties = useMemo(() => {
+        return {
+            cursor: 'pointer',
+            marginTop: 'auto',
+            position: 'relative',
+            borderTop: `2px solid ${token.colorBorder}`,
+        };
+    }, [token]);
+
+    if (!isOpened) {
+        return (
+            <div style={headerStyle}>
+                <Flex onClick={() => setIsOpened(true)}>
+                    <RightOutlined style={{ marginRight: 5 }} />
+                    <Text strong>Executions</Text>
+                </Flex>
+            </div>
+
+        );
+    }
 
     return (
         <Resizable
             maxHeight={'70%'}
-            style={{ position: 'relative', marginTop: 'auto' }}
-            defaultSize={{ height: 300 }}
+            minHeight={240}
+            style={{ position: 'relative', marginTop: 'auto', paddingTop: 5 }}
+            defaultSize={{ height: 240 }}
             enable={{ top: true }}
             handleStyles={{ top: handleStyle }}
             onResizeStart={() => setIsResizing(true)}
             onResizeStop={() => setIsResizing(false)}
         >
+            <Flex style={{ cursor: 'pointer' }} onClick={() => setIsOpened(false)}>
+                <DownOutlined style={{ marginRight: 5 }} />
+                <Text strong>Executions</Text>
+            </Flex>
             {
                 executions.length === 0 ?
-                <Empty description="No executions found" /> :
-                <Flex vertical style={{ overflowY: 'auto', height: '100%', width: '100%' }}>
-                    {
-                        executions.map((execution, index) => {
-                            return (
-                                <ExecutionEntry
-                                    key={index}
-                                    name={execution.name}
-                                    status={execution.status}
-                                    selected={execution.name === selectedExecution}
-                                    onClick={() => onExecutionClick(execution.name)}
-                                />
-                            );
-                        })
-                    }
-                </Flex>
+                    <Empty description="No executions found" /> :
+                    <Flex vertical style={{ overflowY: 'auto', height: '100%', width: '100%' }}>
+                        {
+                            executions.map((execution, index) => {
+                                return (
+                                    <ExecutionEntry
+                                        key={index}
+                                        name={execution.name}
+                                        status={execution.status}
+                                        selected={execution.name === selectedExecution}
+                                        onClick={() => onExecutionClick(execution.name)}
+                                    />
+                                );
+                            })
+                        }
+                    </Flex>
             }
         </Resizable>
     );
@@ -104,7 +132,7 @@ function ExecutionEntry({ name, status, selected, onClick }: { name: string, sta
             cursor: 'pointer',
             padding: 5,
         }
-    }, [selected, isHovered]);
+    }, [selected, isHovered, token]);
 
     return (
         <Space direction="horizontal" align="start" style={style} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} onClick={onClick}>

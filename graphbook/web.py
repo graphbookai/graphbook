@@ -10,7 +10,7 @@ from typing import Optional
 from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
-from .shm import SharedMemoryManager
+from .shm import MultiThreadedMemoryManager
 from .clients import ClientPool, Client, WebClient
 from .plugins import setup_plugins
 import json
@@ -39,7 +39,6 @@ class GraphServer:
     def __init__(
         self,
         web_processor_args: dict,
-        img_mem_args: dict,
         isolate_users: bool,
         no_sample: bool,
         close_event: mp.Event,
@@ -60,7 +59,7 @@ class GraphServer:
             self.web_dir = Path(self.web_dir)
         routes = web.RouteTableDef()
         self.routes = routes
-        self.img_mem = SharedMemoryManager(**img_mem_args) if img_mem_args else None
+        self.img_mem = MultiThreadedMemoryManager()
         middlewares = [cors_middleware]
         max_upload_size = 100  # MB
         max_upload_size = round(max_upload_size * 1024 * 1024)
@@ -77,6 +76,7 @@ class GraphServer:
             isolate_users,
             no_sample,
             close_event,
+            self.img_mem,
             setup_paths=setup_paths,
             proc_queue=proc_queue,
             view_queue=view_queue,
@@ -87,7 +87,7 @@ class GraphServer:
                 f"Couldn't find web files inside {self.web_dir}. Will not serve web files."
             )
             self.web_dir = None
-            
+
         def get_client(request: web.Request) -> Client:
             sid = request.headers.get("sid")
             if sid is None:
@@ -162,18 +162,21 @@ class GraphServer:
                 if self.img_mem is None:
                     raise web.HTTPNotFound()
                 img = self.img_mem.get_image(shm_id)
+                # print(f"Got image {shm_id} len={len(img)}")
                 if img is None:
                     raise web.HTTPNotFound()
                 return web.Response(body=img, content_type="image/png")
-            
+
         @routes.post("/param_run/{id}")
         async def param_run(request: web.Request) -> web.Response:
             client: Client = get_client(request)
             graph_id = request.match_info.get("id")
             data = await request.json()
             params = data.get("params", {})
-            proc_queue = client.get_proc_queue()
-            proc_queue.put({"cmd": "set_params", "graph_id": graph_id, "params": params})
+            proc_queue = client.get_processor().get_queue()
+            proc_queue.put(
+                {"cmd": "set_params", "graph_id": graph_id, "params": params}
+            )
             return web.json_response({"success": True})
 
         @routes.post("/run")
@@ -192,7 +195,7 @@ class GraphServer:
                 },
             )
             return web.json_response({"success": True})
-        
+
         @routes.get("/state/{step_id}/{pin_id}/{index}")
         async def get_output_note(request: web.Request) -> web.Response:
             client = get_client(request)
@@ -210,7 +213,31 @@ class GraphServer:
 
             return web.json_response({"error": "Could not get output note."})
 
+        @routes.post("/prompt_response/{id}")
+        async def prompt_response(request: web.Request) -> web.Response:
+            client = get_client(request)
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            response = data.get("response")
+            res = client.get_processor().handle_prompt_response(step_id, response)
+            return web.json_response({"ok": res})
+
         if self.is_editor_enabled:
+
+            @routes.get("/step_docstring/{name}")
+            async def get_step_docstring(request: web.Request):
+                client: WebClient = get_client(request)
+                name = request.match_info.get("name")
+                docstring = client.get_node_hub().get_step_docstring(name)
+                return web.json_response({"content": docstring})
+
+            @routes.get("/resource_docstring/{name}")
+            async def get_resource_docstring(request: web.Request):
+                client: WebClient = get_client(request)
+                name = request.match_info.get("name")
+                docstring = client.get_node_hub().get_resource_docstring(name)
+                return web.json_response({"content": docstring})
+
             @routes.post("/run/{id}")
             async def run(request: web.Request) -> web.Response:
                 client = get_client(request)
@@ -263,26 +290,11 @@ class GraphServer:
                 client.exec({"cmd": "clear", "node_id": node_id})
                 return web.json_response({"success": True})
 
-            @routes.post("/prompt_response/{id}")
-            async def prompt_response(request: web.Request) -> web.Response:
-                client = get_client(request)
-                step_id = request.match_info.get("id")
-                data = await request.json()
-                response = data.get("response")
-                res = client.get_processor().handle_prompt_response(step_id, response)
-                return web.json_response({"ok": res})
-
             @routes.get("/nodes")
             async def get_nodes(request: web.Request) -> web.Response:
                 client = get_client(request)
                 nodes = client.nodes()
                 return web.json_response(nodes)
-
-            @routes.get("/state")
-            async def get_run_state(request: web.Request) -> web.Response:
-                client = get_client(request)
-                res = client.get_processor().get_running_state()
-                return web.json_response(res)
 
             @routes.get(r"/docs/{path:.+}")
             async def get_docs(request: web.Request) -> web.Response:
@@ -459,7 +471,6 @@ class GraphServer:
                     raise web.HTTPNotFound(text=f"Plugin {plugin_name} not found.")
                 return web.FileResponse(plugin_location)
 
-
     async def _async_start(self):
         try:
             self.app.router.add_routes(self.routes)
@@ -494,9 +505,6 @@ def start_web(args):
     if not args.spawn and mp.get_start_method() == "spawn":
         mp.set_start_method("fork", force=True)
 
-    img_mem = (
-        SharedMemoryManager(size=args.img_shm_size) if args.img_shm_size > 0 else None
-    )
     close_event = mp.Event()
     setup_paths = dict(
         workflow_dir=args.workflow_dir,
@@ -505,7 +513,6 @@ def start_web(args):
     )
 
     web_processor_args = dict(
-        img_mem=img_mem,
         continue_on_failure=args.continue_on_failure,
         copy_outputs=args.copy_outputs,
         spawn=args.spawn,
@@ -520,12 +527,6 @@ def start_web(args):
     def cleanup():
         close_event.set()
 
-        if img_mem:
-            try:
-                img_mem.close()
-            except FileNotFoundError:
-                pass
-
     def signal_handler(*_):
         cleanup()
         raise KeyboardInterrupt()
@@ -535,7 +536,6 @@ def start_web(args):
 
     server = GraphServer(
         web_processor_args,
-        img_mem.get_shared_args() if img_mem else {},
         args.isolate_users,
         args.no_sample,
         close_event,
