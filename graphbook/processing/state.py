@@ -171,6 +171,7 @@ class GraphState:
                     del curr_resource, self._dict_resources[resource_id]
                 try:
                     resource = resource_hub[resource_name](**p)
+                    resource_values[resource_id] = resource.value()
                 except KeyError:
                     raise NodeInstantiationError(
                         f"No resource node with name {resource_name} found",
@@ -179,7 +180,6 @@ class GraphState:
                     )
                 except Exception as e:
                     raise NodeInstantiationError(str(e), resource_id, resource_name)
-                resource_values[resource_id] = resource.value()
                 dict_resources[resource_id] = resource_data
                 resource_has_changed[resource_id] = True
                 return resource_values[resource_id]

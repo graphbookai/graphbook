@@ -284,7 +284,7 @@ class GraphServer:
             @routes.post("/clear")
             @routes.post("/clear/{id}")
             async def clear(request: web.Request) -> web.Response:
-                client = get_client(request)
+                client: WebClient = get_client(request)
                 node_id = request.match_info.get("id")
                 client.exec({"cmd": "clear", "node_id": node_id})
                 return web.json_response({"success": True})
@@ -428,17 +428,13 @@ class GraphServer:
 
             @routes.delete("/fs/{path:.+}")
             async def delete(request: web.Request) -> web.Response:
-                client = get_client(request)
+                client: WebClient = get_client(request)
                 path = request.match_info.get("path")
                 client_path = client.get_root_path()
                 if client_path is None:
                     raise web.HTTPNotFound()
 
                 fullpath = client_path.joinpath(path)
-                assert str(fullpath).startswith(
-                    client_path
-                ), f"{fullpath} must be within {client_path}"
-
                 if fullpath.exists():
                     if fullpath.is_dir():
                         try:
@@ -496,7 +492,11 @@ class GraphServer:
             await self.client_pool.stop()
 
     def start(self):
-        asyncio.run(self._async_start())
+        try:
+            asyncio.run(self._async_start())
+        except KeyboardInterrupt:
+            self.close_event.set()
+            print("Exiting graph server")
 
 
 def start_web(args):

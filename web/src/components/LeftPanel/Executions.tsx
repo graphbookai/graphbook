@@ -2,7 +2,7 @@ import { Typography, theme, Badge, Space, Empty, Flex } from "antd";
 import { RightOutlined, DownOutlined } from "@ant-design/icons";
 import React, { useState, useMemo, useCallback, MouseEventHandler } from "react";
 import { Resizable } from "re-resizable";
-import { useAPIAnyGraphLastValue } from "../../hooks/API";
+import { useAPIEveryGraphLastValue } from "../../hooks/API";
 const { useToken } = theme;
 const { Text } = Typography;
 
@@ -26,7 +26,7 @@ export default function Executions({ setExecution }: { setExecution: Function })
     const [isResizing, setIsResizing] = useState(false);
     const [selectedExecution, setSelectedExecution] = useState<string>();
     const { token } = useToken();
-    const runStates = useAPIAnyGraphLastValue("run_state");
+    const runStates = useAPIEveryGraphLastValue("run_state");
 
     const onExecutionClick = useCallback((name: string) => {
         setSelectedExecution(name);
@@ -49,8 +49,8 @@ export default function Executions({ setExecution }: { setExecution: Function })
     const handleStyle: React.CSSProperties = useMemo(() => {
         return {
             backgroundColor: isResizing ? token.colorInfoHover : token.colorBorder,
-            height: 2 + (isResizing ? 2 : 0),
-            top: -2 - (isResizing ? 2 : 0),
+            height: 3 + (isResizing ? 2 : 0),
+            top: -3 - (isResizing ? 2 : 0),
         };
     }, [token, isResizing]);
 
@@ -66,7 +66,7 @@ export default function Executions({ setExecution }: { setExecution: Function })
     if (!isOpened) {
         return (
             <div style={headerStyle}>
-                <Flex onClick={() => setIsOpened(true)}>
+                <Flex style={{paddingTop: 5}} onClick={() => setIsOpened(true)}>
                     <RightOutlined style={{ marginRight: 5 }} />
                     <Text strong>Executions</Text>
                 </Flex>
@@ -78,15 +78,15 @@ export default function Executions({ setExecution }: { setExecution: Function })
     return (
         <Resizable
             maxHeight={'70%'}
-            minHeight={240}
+            minHeight={100}
             style={{ position: 'relative', marginTop: 'auto', paddingTop: 5 }}
-            defaultSize={{ height: 240 }}
+            defaultSize={{ height: 100 }}
             enable={{ top: true }}
             handleStyles={{ top: handleStyle }}
             onResizeStart={() => setIsResizing(true)}
             onResizeStop={() => setIsResizing(false)}
         >
-            <Flex style={{ cursor: 'pointer' }} onClick={() => setIsOpened(false)}>
+            <Flex style={{ cursor: 'pointer', marginBottom: 5, marginTop: 2 }} onClick={() => setIsOpened(false)}>
                 <DownOutlined style={{ marginRight: 5 }} />
                 <Text strong>Executions</Text>
             </Flex>
@@ -128,9 +128,11 @@ function ExecutionEntry({ name, status, selected, onClick }: { name: string, sta
 
     const style = useMemo(() => {
         return {
-            backgroundColor: selected ? token.colorInfoBgHover : isHovered ? token.colorBgTextHover : token.colorBgBase,
+            borderRadius: token.borderRadius,
+            backgroundColor: selected ? token.colorInfoText : isHovered ? token.colorBgTextHover : token.colorBgContainer,
             cursor: 'pointer',
-            padding: 5,
+            padding: '2px 5px',
+            margin: '2px 0',
         }
     }, [selected, isHovered, token]);
 

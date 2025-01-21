@@ -121,6 +121,7 @@ function MonitorView({ selectedNodes, onResize }) {
         setNodeStates(prev => {
             const newState = { ...prev };
             Object.entries<any>(data).forEach(([key, value]) => {
+                console.log(key);
                 newState[key] = {
                     ...newState[key],
                     stats: {

@@ -19,7 +19,7 @@ import { getHandle, evalDragData } from '../../utils.ts';
 import { Resource } from '../Nodes/Resource.js';
 import { Export } from '../Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from '../ContextMenu.tsx';
-import { useAPI, useAPIMessageEffect } from '../../hooks/API.ts';
+import { useAPI, useAPIMessageEffect, useAPIMessageLastValue } from '../../hooks/API.ts';
 import { useRunState } from '../../hooks/RunState.ts';
 import { GraphStore } from '../../graphstore.ts';
 import { NodeConfig } from '../NodeConfig.tsx';
@@ -449,13 +449,13 @@ function Flow({ initialNodes, initialEdges, filename }) {
 
 function ControlRow() {
     const size = 'large';
-    const [runState, runStateShouldChange] = useRunState();
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();
     const { setNodes } = useReactFlow();
     const notification = useNotification();
     const filename = useFilename();
+    const [runState, runStateShouldChange] = useRunState();
 
     const run = useCallback(async () => {
         if (!API) {
@@ -496,13 +496,15 @@ function ControlRow() {
         setNodes(newNodes);
     }, [nodes, edges, setNodes]);
 
+    const isRunning = useMemo(() => runState === 'running' || runState === 'changing', [runState]);
+
     return (
         <div className="control-row">
             <Flex gap="small">
                 <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
-                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'finished' || !API} />
+                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={isRunning|| !API} />
                 {
-                    runState !== 'finished' ? (
+                    isRunning ? (
                         <Button type="default" title="Pause" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
                         <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />

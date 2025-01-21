@@ -278,12 +278,13 @@ class ClientPool:
 
     async def remove_client(self, client: Client):
         sid = client.sid
+        await client.close()
+        if not self.shared_execution:
+            client.stop()
         if sid in self.clients:
-            await client.close()
             del self.clients[sid]
+        if sid in self.ws:
             del self.ws[sid]
-            if not self.shared_execution:
-                client.stop()
         if sid in self.tmpdirs:
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]

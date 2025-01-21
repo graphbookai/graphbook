@@ -50,7 +50,6 @@ class WebInstanceProcessor:
         self.dataloader = Dataloader(self.num_workers, spawn)
         self.close_event = mp.Event()
         self.pause_event = mp.Event()
-        self.is_running = False
         self.filename = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
 
@@ -236,7 +235,6 @@ class WebInstanceProcessor:
                 self.try_execute_step_event(step, "on_end")
 
     def set_is_running(self, is_running: bool = True, filename: str | None = None):
-        self.is_running = is_running
         if filename is None and is_running:
             raise ValueError(
                 "Filename must be provided when setting is_running to True"
@@ -249,7 +247,6 @@ class WebInstanceProcessor:
             self.graph_state.set_viewer(self.viewer)
         else:
             self.viewer.set_state("run_state", "finished")
-            self.viewer = None
 
     def cleanup(self):
         self.dataloader.shutdown()
@@ -313,6 +310,7 @@ class WebInstanceProcessor:
                 break
             except Exception as e:
                 self.cleanup()
+                traceback.print_exc()
                 break
 
     def start(self):
@@ -331,9 +329,6 @@ class WebInstanceProcessor:
     def get_output_note(self, step_id: str, pin_id: str, index: int) -> Note | None:
         output = self.graph_state.get_output_note(step_id, pin_id, index)
         return transform_json_log(output)
-
-    def get_running_state(self):
-        return self.is_running
 
     def handle_prompt_response(self, step_id: str, response: str) -> bool:
         return self.graph_state.handle_prompt_response(step_id, response)

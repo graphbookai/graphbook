@@ -216,6 +216,8 @@ class MultiGraphViewManager:
         return self.viewers[graph_id]
 
     def handle_new_graph(self, graph_id: str):
+        if graph_id in self.viewers:
+            return
         self.node_stats_viewers[graph_id] = NodeStatsViewer()
         self.log_viewers[graph_id] = NodeLogsViewer()
         self.prompt_viewers[graph_id] = PromptViewer()

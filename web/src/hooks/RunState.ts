@@ -1,25 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAPIAnyGraphLastValue } from "./API";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useAPIEveryGraphLastValue, useAPIEveryGraphMessageEffect } from "./API";
 
 export type RunState = 'changing' | 'running' | 'finished';
 let globalRunState: RunState = 'finished';
 let globalRunningFile: string = '';
 let localSetters: Function[] = [];
-
-const updateRunState = (graphs) => {
-    if (!graphs) {
-        return;
-    }
-
-    for (const state of Object.values<RunState>(graphs)) {
-        globalRunState = state;
-        break;
-    }
-
-    for (const setter of localSetters) {
-        setter(globalRunState);
-    }
-};
 
 export function useRunState(): [RunState, () => void] {
     const [_, setRunState] = useState<RunState>(globalRunState);
@@ -31,10 +16,23 @@ export function useRunState(): [RunState, () => void] {
         };
     }, []);
 
-    const runStates = useAPIAnyGraphLastValue("run_state");
+    const runStates = useAPIEveryGraphLastValue("run_state");
 
-    useEffect(() => {
-        updateRunState(runStates);
+    const runState = useMemo(() => {
+        const isRunning = () => {
+            for (const state of Object.values<RunState>(runStates)) {
+                if (state === 'running') {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if (isRunning()) {
+            return 'running';
+        } 
+        
+        return 'finished';
     }, [runStates]);
 
     const runStateShouldChange = useCallback(() => {
@@ -45,7 +43,7 @@ export function useRunState(): [RunState, () => void] {
         }
     }, []);
 
-    return [globalRunState, runStateShouldChange];
+    return [runState, runStateShouldChange];
 }
 
 export function getGlobalRunningFile() {

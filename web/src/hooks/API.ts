@@ -17,7 +17,8 @@ const lastValueSetters: GraphStateCallbacks = {};
 const globalMessageStates: States = {};
 const globalMessageListeners: StateCallbacks = {};
 const globalLastValueSetters: StateCallbacks = {};
-const anyGraphLastValueSetters: StateCallbacks = {};
+const everyGraphLastValueSetters: StateCallbacks = {};
+const everyGraphMessageListeners: StateCallbacks = {};
 
 
 const onConnectStateChange = (isConnected: boolean) => {
@@ -81,9 +82,20 @@ function onStatefulMessage(msg) {
             setter(data);
         }
     }
-    if (anyGraphLastValueSetters[type]) {
-        for (const setter of anyGraphLastValueSetters[type]) {
+    if (everyGraphLastValueSetters[type]) {
+        for (const setter of everyGraphLastValueSetters[type]) {
             setter(data);
+        }
+    }
+    if (everyGraphMessageListeners[type]) {
+        const everyState = Object.entries(messageStates).reduce((acc, [graph, states]) => {
+            if (states[type]) {
+                acc[graph] = states[type];
+            }
+            return acc;
+        }, {});
+        for (const listener of everyGraphMessageListeners[type]) {
+            listener(everyState);
         }
     }
 }
@@ -115,7 +127,6 @@ export function useAPI() {
 
     return globalAPI;
 }
-
 
 export function useAPIMessageEffect(event_type: string, callback: Function, graph: string | null = null) {
     useEffect(() => {
@@ -192,17 +203,17 @@ export function useAPIMessageLastValue(event_type: string, graph: string | null 
     return states?.[event_type];
 }
 
-export function useAPIAnyGraphLastValue(event_type: string) {
+export function useAPIEveryGraphLastValue(event_type: string) {
     const [_, setState] = useState<any>(null);
 
     useEffect(() => {
-        if (!anyGraphLastValueSetters[event_type]) {
-            anyGraphLastValueSetters[event_type] = [];
+        if (!everyGraphLastValueSetters[event_type]) {
+            everyGraphLastValueSetters[event_type] = [];
         }
-        anyGraphLastValueSetters[event_type].push(setState);
+        everyGraphLastValueSetters[event_type].push(setState);
 
         return () => {
-            anyGraphLastValueSetters[event_type] = anyGraphLastValueSetters[event_type].filter((cb) => cb !== setState);
+            everyGraphLastValueSetters[event_type] = everyGraphLastValueSetters[event_type].filter((cb) => cb !== setState);
         };
     }, []);
 
@@ -212,6 +223,20 @@ export function useAPIAnyGraphLastValue(event_type: string) {
         }
         return acc;
     }, {});
+}
+
+
+export function useAPIEveryGraphMessageEffect(event_type: string, callback: Function) {
+    useEffect(() => {
+        if (!everyGraphMessageListeners[event_type]) {
+            everyGraphMessageListeners[event_type] = [];
+        }
+        everyGraphMessageListeners[event_type].push(callback);
+
+        return () => {
+            everyGraphMessageListeners[event_type] = everyGraphMessageListeners[event_type].filter((cb) => cb !== callback);
+        };
+    }, []);
 }
 
 

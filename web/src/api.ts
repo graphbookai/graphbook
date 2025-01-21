@@ -237,18 +237,23 @@ export class ServerAPI {
     }
 
     private async delete(path): Promise<any> {
+        if (!this.sid) {
+            throw Error("Cannot make request without SID.");
+        }
+
         try {
-            const response = await fetch(`${this.host}/${path}`, {
+            const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'sid': this.sid,
                 }
             });
             if (response.ok) {
                 return await response.json();
             }
         } catch (e) {
-            console.error(e);
+            console.error(`DELETE request error: ${e}`);
             return null;
         }
     }

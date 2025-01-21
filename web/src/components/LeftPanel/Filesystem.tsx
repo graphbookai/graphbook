@@ -305,7 +305,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
         <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
             <Flex vertical className="filesystem">
                 <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
-                <Flex justify="space-between" align="center">
+                <Flex justify="space-between" align="center" style={{ marginBottom: 5 }}>
                     <Text ellipsis style={{ fontWeight: 'bold' }}>{filesRoot}</Text>
                     <Flex>
                         <Button disabled={isDisabled} className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
