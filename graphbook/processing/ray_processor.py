@@ -1,28 +1,31 @@
-from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
-
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Generator,
+    List,
+    Tuple,
+)
 import logging
 from dataclasses import dataclass
 from ..steps import (
     StepOutput as Outputs,
 )
-from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
+from ..utils import MP_WORKER_TIMEOUT, transform_json_log
 from ..note import Note
 from typing import List
-import ray._raylet
 import ray
-from ray import ObjectRef
+import ray._raylet
+from ray.actor import ActorHandle
 from ray.util import queue
-import asyncio
-
-# import multiprocessing as mp
+from ray.dag import DAGNode
+from ray.dag.class_node import ClassMethodNode
+from contextlib import contextmanager
+from copy import deepcopy
 from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
-from ray.workflow.common import (
-    TaskID,
-)
+from graphbook.steps import Step
 
-if TYPE_CHECKING:
-    from graphbook.processing.ray_api import GraphbookTaskContext
-    from graphbook.clients import ClientPool, Client
 
 logger = logging.getLogger(__name__)
 
@@ -32,37 +35,127 @@ step_output_err_res = (
 
 
 @dataclass
-class GraphbookRef:
-    """This class represents a reference of a workflow output.
-
-    A reference means the workflow has already been executed,
-    and we have both the workflow task ID and the object ref to it
-    living outputs.
-
-    This could be used when you want to return a running workflow
-    from a workflow task. For example, the remaining workflows
-    returned by 'workflow.wait' contains a static ref to these
-    pending workflows.
+class GraphbookTaskContext:
+    """
+    The structure for saving workflow task context. The context provides
+    critical info (e.g. where to checkpoint, which is its parent task)
+    for the task to execute correctly.
     """
 
-    # The ID of the task that produces the output of the workflow.
-    task_id: TaskID
-    # The ObjectRef of the output. If it is "None", then the output has been
-    # saved in the storage, and we need to check the workflow management actor
-    # for the object ref.
-    ref: Optional[ObjectRef] = None
+    # ID of the workflow.
+    name: Optional[str] = None
+    # ID of the current task.
+    task_id: str = ""
+    # The context of catching exceptions.
+    catch_exceptions: bool = False
 
-    @classmethod
-    def from_output(cls, task_id: str, output: Any):
-        """Create static ref from given output."""
-        if not isinstance(output, cls):
-            if not isinstance(output, ray.ObjectRef):
-                output = ray.put(output)
-            output = cls(task_id=task_id, ref=output)
-        return output
 
-    def __hash__(self):
-        return hash(self.task_id)
+_context: Optional[GraphbookTaskContext] = None
+
+
+@contextmanager
+def graphbook_task_context(context) -> Generator[None, None, None]:
+    """Initialize the workflow task context.
+
+    Args:
+        context: The new context.
+    """
+    global _context
+    original_context = _context
+    try:
+        _context = context
+        yield
+    finally:
+        _context = original_context
+
+
+def execute(dag: DAGNode, context: GraphbookTaskContext) -> None:
+    """Execute a Graphbook DAG.
+
+    Args:
+        dag: A leaf node of the DAG.
+        context: The execution context.
+    Returns:
+        An object ref that represent the result.
+    """
+    logger.info(f"Graphbook job [id={context.name}] started.")
+    try:
+        return dag.execute()
+    finally:
+        pass
+
+
+def create_graph_execution(
+    dag: DAGNode,
+) -> Tuple[dict, List[Tuple[str, str, ActorHandle]]]:
+    """
+    Create a graph execution.
+
+    Args:
+        dag: The leaf node to the dag
+    """
+    # BFS
+
+    actor_id_to_idx = {}
+    nodes = []
+    G = {}
+
+    def fn(node: ClassMethodNode):
+        handle: ActorHandle = node._parent_class_node
+        node_context = getattr(handle, "_graphbook_context", None)
+        if node_context is not None:
+            curr_id = str(handle._actor_id)
+            if curr_id in G:
+                return
+
+            node_id = node_context["node_id"]
+            node_class = node_context["class"]
+            node_name = node_class.__name__[len("ActorClass(") : -1]
+            node_doc = node_context["doc"]
+
+            if issubclass(node_class, Step):
+                step_deps = node_context.get("step_deps", [])
+                G[curr_id] = {
+                    "type": "step",
+                    "name": node_name,
+                    "parameters": deepcopy(node_class.Parameters or {}),
+                    "inputs": step_deps,
+                    "outputs": node_class.Outputs or ["out"],
+                    "category": node_class.Category or "",
+                    "doc": node_doc or "",
+                }
+            else:  # Resource
+                G[curr_id] = {
+                    "type": "resource",
+                    "name": node_name,
+                    "parameters": deepcopy(node_class.Parameters or {}),
+                    "category": node_class.Category or "",
+                    "doc": node_doc or "",
+                }
+
+            resource_deps = node_context["resource_deps"]
+            parameters = G[curr_id]["parameters"]
+            for k, actor_id in resource_deps.items():
+                parameters[k]["value"] = actor_id
+
+            actor_id_to_idx[curr_id] = node_id
+            nodes.append((node_id, node_name, handle))
+
+    dag.traverse_and_apply(fn)
+
+    # Transform actor ids to simple ids
+    for n in G:
+        if G[n]["type"] == "step":
+            for input in G[n]["inputs"]:
+                input["node"] = actor_id_to_idx[input["node"]]
+        parameters = G[n]["parameters"]
+        for k, param in parameters.items():
+            if param["type"] == "resource":
+                param["value"] = actor_id_to_idx[param["value"]]
+    for k in list(G):
+        G[actor_id_to_idx[k]] = G.pop(k)
+
+    return G, nodes
 
 
 @ray.remote(name="_graphbook_RayStepHandler")
@@ -124,9 +217,12 @@ class RayStepHandler:
         return outputs
 
     def get_output_note(self, step_id, pin_id, index):
-        return transform_json_log(
-            self.graph_state.steps_outputs[step_id][pin_id][index]
-        )
+        return {
+            "step_id": step_id,
+            "pin_id": pin_id,
+            "index": index,
+            "data": transform_json_log(self.graph_state.steps_outputs[step_id][pin_id][index])
+        }
 
     async def wait_for_params(self) -> dict:
         def _loop():

@@ -67,7 +67,7 @@ class RayProcessorInterface:
         self.queue = proc_queue
 
     def get_output_note(self, step_id: str, pin_id: str, index: int):
-        return self.processor.get_output_note.remote(step_id, pin_id, index)
+        return ray.get(self.processor.get_output_note.remote(step_id, pin_id, index))
 
     def pause(self):
         raise NotImplementedError("RayProcessor does not support pause")

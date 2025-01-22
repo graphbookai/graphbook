@@ -1,25 +1,24 @@
 import ray
-import uuid
-from ray.dag import DAGNode, ClassMethodNode
-from ray.actor import ActorHandle
+from ray.dag import DAGNode
+import ray.actor
 import ray.util.queue
 from typing import (
     Any,
     Optional,
-    Generator,
-    List,
-    Tuple,
     TypeVar,
 )
-from contextlib import contextmanager
-from dataclasses import dataclass
-from copy import deepcopy
-from graphbook.processing.ray_processor import RayStepHandler
+from graphbook.processing.ray_processor import (
+    RayStepHandler,
+    execute,
+    GraphbookTaskContext,
+    graphbook_task_context,
+    create_graph_execution,
+)
 from graphbook.steps import Step, SourceStep, PromptStep
 from graphbook.resources import Resource
 import graphbook.web
-import ray.actor
 import logging
+import uuid
 
 
 logger = logging.getLogger(__name__)
@@ -53,79 +52,6 @@ def init() -> None:
 
 def is_graphbook_ray_initialized() -> bool:
     return ray.is_initialized() and step_handler is not None
-
-
-def create_graph_execution(
-    dag: DAGNode,
-) -> Tuple[dict, List[Tuple[str, str, ActorHandle]]]:
-    """
-    Create a graph execution.
-
-    Args:
-        dag: The leaf node to the dag
-    """
-    # BFS
-
-    actor_id_to_idx = {}
-    nodes = []
-    G = {}
-
-    def fn(node: ClassMethodNode):
-        handle: ActorHandle = node._parent_class_node
-        node_context = getattr(handle, "_graphbook_context", None)
-        if node_context is not None:
-            curr_id = str(handle._actor_id)
-            if curr_id in G:
-                return
-
-            node_id = node_context["node_id"]
-            node_class = node_context["class"]
-            node_name = node_class.__name__[len("ActorClass(") : -1]
-            node_doc = node_context["doc"]
-
-            if issubclass(node_class, Step):
-                step_deps = node_context.get("step_deps", [])
-                G[curr_id] = {
-                    "type": "step",
-                    "name": node_name,
-                    "parameters": deepcopy(node_class.Parameters or {}),
-                    "inputs": step_deps,
-                    "outputs": node_class.Outputs or ["out"],
-                    "category": node_class.Category or "",
-                    "doc": node_doc or "",
-                }
-            else:  # Resource
-                G[curr_id] = {
-                    "type": "resource",
-                    "name": node_name,
-                    "parameters": deepcopy(node_class.Parameters or {}),
-                    "category": node_class.Category or "",
-                    "doc": node_doc or "",
-                }
-
-            resource_deps = node_context["resource_deps"]
-            parameters = G[curr_id]["parameters"]
-            for k, actor_id in resource_deps.items():
-                parameters[k]["value"] = actor_id
-
-            actor_id_to_idx[curr_id] = node_id
-            nodes.append((node_id, node_name, handle))
-
-    dag.traverse_and_apply(fn)
-
-    # Transform actor ids to simple ids
-    for n in G:
-        if G[n]["type"] == "step":
-            for input in G[n]["inputs"]:
-                input["node"] = actor_id_to_idx[input["node"]]
-        parameters = G[n]["parameters"]
-        for k, param in parameters.items():
-            if param["type"] == "resource":
-                param["value"] = actor_id_to_idx[param["value"]]
-    for k in list(G):
-        G[actor_id_to_idx[k]] = G.pop(k)
-
-    return G, nodes
 
 
 def run_async(
@@ -192,58 +118,7 @@ def run(
     return ray.get(run_async(dag, name=name, **kwargs))
 
 
-@dataclass
-class GraphbookTaskContext:
-    """
-    The structure for saving workflow task context. The context provides
-    critical info (e.g. where to checkpoint, which is its parent task)
-    for the task to execute correctly.
-    """
-
-    # ID of the workflow.
-    name: Optional[str] = None
-    # ID of the current task.
-    task_id: str = ""
-    # The context of catching exceptions.
-    catch_exceptions: bool = False
-
-
-_context: Optional[GraphbookTaskContext] = None
-
-
-@contextmanager
-def graphbook_task_context(context) -> Generator[None, None, None]:
-    """Initialize the workflow task context.
-
-    Args:
-        context: The new context.
-    """
-    global _context
-    original_context = _context
-    try:
-        _context = context
-        yield
-    finally:
-        _context = original_context
-
-
-def execute(dag: DAGNode, context: GraphbookTaskContext) -> None:
-    """Execute a Graphbook DAG.
-
-    Args:
-        dag: A leaf node of the DAG.
-        context: The execution context.
-    Returns:
-        An object ref that represent the result.
-    """
-    logger.info(f"Graphbook job [id={context.name}] started.")
-    try:
-        return dag.execute()
-    finally:
-        pass
-
-
-def make_input_grapbook_class(cls):
+def _make_input_grapbook_class(cls):
     assert issubclass(cls, Step) or issubclass(
         cls, Resource
     ), "Invalid Graphbook Node class."
@@ -355,11 +230,6 @@ class GraphbookActorWrapper:
             actor_handle.bind = bind.__get__(actor_handle)
             return actor_handle
 
-        # def bind(self, *args):
-        #     raise ValueError(
-        #         "Cannot bind a non-step node. SourceSteps and Resources should not have any inputs. To supply it with parameters, use kwargs in the .remote() call."
-        #     )
-
         dummy_input = actor_handle._set_init_params.bind(**kwargs)
         dummy_input = actor_handle._patched_init_method.bind(dummy_input)
         outputs = actor_handle._call_with_dummy.bind(dummy_input)
@@ -368,14 +238,12 @@ class GraphbookActorWrapper:
             outputs = step_handler.handle_outputs.bind(node_id, outputs)
             setattr(outputs, "_graphbook_bound_actor", actor_handle)
 
-        # class_method_node.bind = bind.__get__(class_method_node)
-
         return outputs
 
 
 def remote(*args, **kwargs) -> GraphbookActorWrapper:
     cls = args[0]
-    cls = make_input_grapbook_class(cls)
+    cls = _make_input_grapbook_class(cls)
 
     actor_class = ray.remote(cls, **kwargs)  # do something with *args[1:] ?
     gb_actor_class = GraphbookActorWrapper(actor_class, cls.__doc__)

@@ -557,13 +557,11 @@ def async_start(isolate_users, no_sample, host, port, proc_queue=None, view_queu
     )
     server = GraphServer(
         web_processor_args,
-        None,
         isolate_users,
         no_sample,
         close_event,
         host=host,
         port=port,
-        setup_paths=None,
         proc_queue=proc_queue,
         view_queue=view_queue,
     )
