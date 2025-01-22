@@ -6,7 +6,14 @@ from PIL import Image
 from typing import Dict
 
 
-class SharedMemoryManager:
+class ImageStorageInterface:
+    def add_image(self, pil_image) -> str:
+        pass
+
+    def get_image(self, image_id) -> bytes:
+        pass
+
+class SharedMemoryManager(ImageStorageInterface):
     """
     Creates a shared memory region for storing images.
 
@@ -109,7 +116,7 @@ class SharedMemoryManager:
         self.shm.unlink()
 
 
-class MultiThreadedMemoryManager:
+class MultiThreadedMemoryManager(ImageStorageInterface):
     """
     A thread-safe memory region for storing images.
     """
@@ -134,3 +141,15 @@ class MultiThreadedMemoryManager:
         img_buffer = BytesIO()
         image.save(img_buffer, format=image.format or "PNG")
         return img_buffer.getvalue()
+
+import ray
+
+class RayMemoryManger(ImageStorageInterface):
+    def __init__(self):
+        pass
+    
+    # def add_image
+    
+    def get_image(self, image_id: str):
+        obj_ref = ray.ObjectRef(image_id)
+        return ray.get(image_id)

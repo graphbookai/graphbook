@@ -6,7 +6,7 @@ from .processing.web_processor import WebInstanceProcessor
 from .processing.ray_processor import RayStepHandler
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
-from .shm import MultiThreadedMemoryManager
+from .shm import MultiThreadedMemoryManager, ImageStorageInterface
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -20,16 +20,19 @@ DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
 class ProcessorInterface:
-    def get_output_note(self, step_id: str, pin_id: str, index: int):
+    def get_output_note(self, step_id: str, pin_id: str, index: int) -> dict:
         raise NotImplementedError
 
     def pause(self):
         raise NotImplementedError
 
-    def get_queue(self):
+    def get_queue(self) -> mp.Queue:
         raise NotImplementedError
 
     def handle_prompt_response(self, response: dict):
+        raise NotImplementedError
+    
+    def get_image_storage(self) -> ImageStorageInterface:
         raise NotImplementedError
 
 
