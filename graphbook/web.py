@@ -91,9 +91,11 @@ class GraphServer:
         def get_client(request: web.Request) -> Client:
             sid = request.headers.get("sid")
             if sid is None:
+                print('0')
                 raise web.HTTPUnauthorized()
             client = self.client_pool.get(sid)
             if client is None:
+                print(1)
                 raise web.HTTPUnauthorized()
             return client
 
@@ -159,9 +161,13 @@ class GraphServer:
                 return web.FileResponse(path)
 
             if shm_id is not None:
-                if self.img_mem is None:
-                    raise web.HTTPNotFound()
-                img = self.img_mem.get_image(shm_id)
+                # if self.img_mem is None:
+                #     raise web.HTTPNotFound()
+                print("getting client")
+                client = get_client(request)
+                img_storage = client.get_image_storage()
+                # img = self.img_mem.get_image(shm_id)
+                img = img_storage.get_image(shm_id)
                 if img is None:
                     raise web.HTTPNotFound()
                 return web.Response(body=img, content_type="image/png")

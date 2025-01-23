@@ -4,7 +4,7 @@ import uuid
 from io import BytesIO
 from PIL import Image
 from typing import Dict
-
+from graphbook.processing.ray_processor import RayStepHandler
 
 class ImageStorageInterface:
     def add_image(self, pil_image) -> str:
@@ -145,11 +145,11 @@ class MultiThreadedMemoryManager(ImageStorageInterface):
 import ray
 
 class RayMemoryManger(ImageStorageInterface):
-    def __init__(self):
-        pass
+    def __init__(self, processor: RayStepHandler):
+        self.processor = processor
     
-    # def add_image
+    def add_image(self, image):
+        raise NotImplementedError
     
-    def get_image(self, image_id: str):
-        obj_ref = ray.ObjectRef(image_id)
-        return ray.get(image_id)
+    def get_image(self, image_id: str) -> bytes:
+        return ray.get(self.processor.get_image.remote(image_id))

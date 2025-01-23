@@ -6,7 +6,7 @@ from .processing.web_processor import WebInstanceProcessor
 from .processing.ray_processor import RayStepHandler
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
-from .shm import MultiThreadedMemoryManager, ImageStorageInterface
+from .shm import MultiThreadedMemoryManager, RayMemoryManger, ImageStorageInterface
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -56,6 +56,9 @@ class Client:
 
     def get_processor(self) -> ProcessorInterface:
         return self.proc_interface
+    
+    def get_image_storage(self) -> ImageStorageInterface:
+        return self.proc_interface.get_image_storage()
 
     def stop(self):
         self.view_manager.stop()
@@ -68,9 +71,13 @@ class RayProcessorInterface:
     def __init__(self, processor: RayStepHandler, proc_queue: mp.Queue):
         self.processor = processor
         self.queue = proc_queue
+        self.img_storage = RayMemoryManger(processor)
 
     def get_output_note(self, step_id: str, pin_id: str, index: int):
         return ray.get(self.processor.get_output_note.remote(step_id, pin_id, index))
+    
+    def get_image_storage(self):
+        return self.img_storage
 
     def pause(self):
         raise NotImplementedError("RayProcessor does not support pause")
