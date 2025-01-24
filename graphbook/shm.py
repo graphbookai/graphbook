@@ -142,14 +142,20 @@ class MultiThreadedMemoryManager(ImageStorageInterface):
         image.save(img_buffer, format=image.format or "PNG")
         return img_buffer.getvalue()
 
-import ray
 
 class RayMemoryManger(ImageStorageInterface):
-    def __init__(self):
-        pass
+    import ray
+
+    _storage: Dict[str, ray.ObjectRef] = {}
+    _ray = ray
+
+    @classmethod
+    def add_image(cls, pil_image):
+        image_id = str(uuid.uuid4())
+        cls._storage[image_id] = pil_image
+        return image_id
     
-    # def add_image
-    
-    def get_image(self, image_id: str):
-        obj_ref = ray.ObjectRef(image_id)
-        return ray.get(image_id)
+    @classmethod
+    def get_image(cls, image_id: str):
+        obj_ref = cls._storage.get(image_id)
+        return cls._ray.get(obj_ref)
