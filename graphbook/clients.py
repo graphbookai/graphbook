@@ -6,7 +6,7 @@ from .processing.web_processor import WebInstanceProcessor
 from .processing.ray_processor import RayStepHandler
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
-from .shm import MultiThreadedMemoryManager, ImageStorageInterface
+from .shm import MultiThreadedMemoryManager, RayMemoryManger, ImageStorageInterface
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -30,9 +30,6 @@ class ProcessorInterface:
         raise NotImplementedError
 
     def handle_prompt_response(self, response: dict):
-        raise NotImplementedError
-    
-    def get_image_storage(self) -> ImageStorageInterface:
         raise NotImplementedError
 
 
@@ -113,7 +110,6 @@ class WebClient(Client):
             self.root_path = None
             self.docs_path = None
             self.custom_nodes_path = None
-        self.close_event = asyncio.Event()
 
     def get_root_path(self) -> Path | None:
         return self.root_path
@@ -157,6 +153,7 @@ class ClientPool:
         self.ws: Dict[str, WebSocketResponse] = {}
         self.tmpdirs: Dict[str, str] = {}
         self.web_processor_args = web_processor_args
+        self.web_processor_args["close_event"] = close_event
         self.setup_paths = setup_paths
         self.is_interactive = setup_paths is not None
         self.custom_nodes_path = (
@@ -190,7 +187,9 @@ class ClientPool:
                 "img_mem": self.img_mem,
             }
             processor = WebInstanceProcessor(**processor_args)
-            view_manager = MultiGraphViewManager(view_queue, processor)
+            view_manager = MultiGraphViewManager(
+                view_queue, processor, self.close_event
+            )
             node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
             processor.start()
             view_manager.start()

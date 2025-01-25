@@ -89,7 +89,11 @@ def run_async(
         print(
             "Found parameters that need to be set. Please navigate to the Graphbook UI to set them."
         )
-        params = ray.get(step_handler.handle_new_execution.remote(name, G))
+        try:
+            params = ray.get(step_handler.handle_new_execution.remote(name, G))
+        except KeyboardInterrupt:
+            print("Execution cancelled.")
+            raise KeyboardInterrupt
 
         # Set the param values to each node and other context variables
         context_setup_refs = []
@@ -115,7 +119,11 @@ def run(
     name: Optional[str] = None,
     **kwargs,
 ) -> Any:
-    return ray.get(run_async(dag, name=name, **kwargs))
+    try:
+        return ray.get(run_async(dag, name=name, **kwargs))
+    except KeyboardInterrupt:
+        print("Execution cancelled.")
+        exit(0)
 
 
 def _make_input_grapbook_class(cls):

@@ -302,10 +302,8 @@ class Dataloader:
             while not q.empty():
                 try:
                     q.get(False)
-                except queue.Empty:
+                except:
                     return
-                except FileNotFoundError:
-                    pass
 
         if consumer_id is None:
             for q in self._load_queues.values():

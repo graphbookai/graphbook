@@ -202,6 +202,7 @@ class MultiGraphViewManager:
         self,
         work_queue: mp.Queue,
         processor: Optional["WebInstanceProcessor"] = None,
+        close_event: Optional[mp.Event] = None,
     ):
         self.system_util_viewer = SystemUtilViewer(processor)
         self.node_stats_viewers: Dict[str, NodeStatsViewer] = {}
@@ -210,7 +211,7 @@ class MultiGraphViewManager:
         self.viewers: Dict[str, List[Viewer]] = {}
         self.graph_states: Dict[str, Dict[str, StateEntry]] = {}
         self.work_queue = work_queue
-        self.close_event = mp.Event()
+        self.close_event = close_event or mp.Event()
 
     def get_viewers(self, graph_id: str):
         return self.viewers[graph_id]

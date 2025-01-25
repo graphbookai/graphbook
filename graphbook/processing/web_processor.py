@@ -31,6 +31,7 @@ step_output_err_res = (
 class WebInstanceProcessor:
     def __init__(
         self,
+        close_event: mp.Event,
         view_manager_queue: mp.Queue,
         img_mem: MultiThreadedMemoryManager,
         continue_on_failure: bool,
@@ -48,7 +49,7 @@ class WebInstanceProcessor:
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
         self.dataloader = Dataloader(self.num_workers, spawn)
-        self.close_event = mp.Event()
+        self.close_event = close_event
         self.pause_event = mp.Event()
         self.filename = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
@@ -305,7 +306,7 @@ class WebInstanceProcessor:
                     self.dataloader.clear(id(step) if step != None else None)
             except queue.Empty:
                 pass
-            except KeyboardInterrupt:
+            except (OSError, EOFError, KeyboardInterrupt):
                 self.cleanup()
                 break
             except Exception as e:
@@ -317,8 +318,11 @@ class WebInstanceProcessor:
         self.thread.start()
 
     def stop(self):
+        self.cmd_queue.close()
+        self.cmd_queue.join_thread()
         self.close_event.set()
         self.cleanup()
+        self.thread.join()
 
     def exec(self, work: dict):
         self.cmd_queue.put(work)

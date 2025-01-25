@@ -25,6 +25,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from graphbook.steps import Step
+from PIL import Image
 
 
 logger = logging.getLogger(__name__)
@@ -184,9 +185,10 @@ class RayStepHandler:
         assert self.viewer is not None
         self.viewer.set_state("run_state", "running")
 
-    def handle_end_execution(self, dummy_input):
+    def handle_end_execution(self, outputs):
         assert self.viewer is not None
         self.viewer.set_state("run_state", "finished")
+        return outputs
 
     def handle_log(self, node_id, msg, type):
         assert self.viewer is not None
@@ -213,6 +215,7 @@ class RayStepHandler:
         return all_notes
 
     def handle_outputs(self, step_id: str, outputs: Outputs):
+        self.graph_state.handle_images(outputs)
         self.graph_state.handle_outputs(step_id, outputs)
         return outputs
 
@@ -223,6 +226,9 @@ class RayStepHandler:
             "index": index,
             "data": transform_json_log(self.graph_state.steps_outputs[step_id][pin_id][index])
         }
+    
+    def get_image(self, image_id: str):
+        return self.graph_state.get_image(image_id)
 
     async def wait_for_params(self) -> dict:
         def _loop():
@@ -251,6 +257,7 @@ class RayExecutionState:
         self.steps_outputs: Dict[str, DictionaryArrays] = {}
         self.handled_steps = set()
         self.params = None
+        self.images: Dict[str, ray._raylet.ObjectRef] = {}
 
     def set_viewer(self, viewer: ViewManagerInterface):
         self.viewer = viewer
@@ -272,6 +279,35 @@ class RayExecutionState:
     def get_iterator(self, step_id: str, label: str):
         for note in self.steps_outputs[step_id][label]:
             yield note
+
+    def handle_images(self, outputs: Outputs):
+        def try_add_image(item):
+            if isinstance(item, dict):
+                if item.get("shm_id") is not None:
+                    return
+                if item.get("type") == "image" and isinstance(
+                    item.get("value"), Image.Image
+                ):
+                    obj_ref = ray.put(item["value"])
+                    shm_id = str(obj_ref)
+                    self.images[shm_id] = obj_ref
+                    item["shm_id"] = shm_id
+                    print(f"Added image {shm_id}")
+            elif isinstance(item, list):
+                for val in item:
+                    try_add_image(val)
+
+        for output in outputs.values():
+            for note in output:
+                for item in note.items.values():
+                    if isinstance(item, list):
+                        for i in item:
+                            try_add_image(i)
+                    else:
+                        try_add_image(item)
+
+    def get_image(self, image_id: str):
+        return ray.get(self.images.get(image_id, None))
 
     def handle_outputs(self, step_id: str, outputs: Outputs):
         assert step_id in self.steps_outputs, f"Step {step_id} not initialized"

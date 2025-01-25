@@ -10,10 +10,11 @@ from typing import Optional
 from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
-from .shm import MultiThreadedMemoryManager
+from .shm import MultiThreadedMemoryManager, RayMemoryManager
 from .clients import ClientPool, Client, WebClient
 from .plugins import setup_plugins
 import json
+import threading
 
 
 @web.middleware
@@ -59,7 +60,6 @@ class GraphServer:
             self.web_dir = Path(self.web_dir)
         routes = web.RouteTableDef()
         self.routes = routes
-        self.img_mem = MultiThreadedMemoryManager()
         middlewares = [cors_middleware]
         max_upload_size = 100  # MB
         max_upload_size = round(max_upload_size * 1024 * 1024)
@@ -70,6 +70,7 @@ class GraphServer:
         self.plugin_steps, self.plugin_resources, self.web_plugins = self.plugins
         node_plugins = (self.plugin_steps, self.plugin_resources)
         self.is_editor_enabled = setup_paths is not None
+        self.img_mem = MultiThreadedMemoryManager() if self.is_editor_enabled else RayMemoryManager
         self.client_pool = ClientPool(
             web_processor_args,
             node_plugins,
@@ -156,11 +157,11 @@ class GraphServer:
                 path = Path(path)
                 if not path.exists():
                     raise web.HTTPNotFound()
-                return web.FileResponse(path)
+                with open(path, "rb") as f:
+                    data = f.read()
+                return web.Response(body=data, content_type="image/png")
 
             if shm_id is not None:
-                if self.img_mem is None:
-                    raise web.HTTPNotFound()
                 img = self.img_mem.get_image(shm_id)
                 if img is None:
                     raise web.HTTPNotFound()
@@ -175,23 +176,6 @@ class GraphServer:
             proc_queue = client.get_processor().get_queue()
             proc_queue.put(
                 {"cmd": "set_params", "graph_id": graph_id, "params": params}
-            )
-            return web.json_response({"success": True})
-
-        @routes.post("/run")
-        async def run_all(request: web.Request) -> web.Response:
-            client: WebClient = get_client(request)
-            data = await request.json()
-            graph = data.get("graph", {})
-            resources = data.get("resources", {})
-            filename = data.get("filename", "")
-            client.exec(
-                {
-                    "cmd": "run_all",
-                    "graph": graph,
-                    "resources": resources,
-                    "filename": filename,
-                },
             )
             return web.json_response({"success": True})
 
@@ -222,6 +206,24 @@ class GraphServer:
             return web.json_response({"ok": res})
 
         if self.is_editor_enabled:
+            
+            @routes.post("/run")
+            async def run_all(request: web.Request) -> web.Response:
+                client: WebClient = get_client(request)
+                data = await request.json()
+                graph = data.get("graph", {})
+                resources = data.get("resources", {})
+                filename = data.get("filename", "")
+                client.exec(
+                    {
+                        "cmd": "run_all",
+                        "graph": graph,
+                        "resources": resources,
+                        "filename": filename,
+                    },
+                )
+                return web.json_response({"success": True})
+
 
             @routes.get("/step_docstring/{name}")
             async def get_step_docstring(request: web.Request):
@@ -466,34 +468,26 @@ class GraphServer:
                     raise web.HTTPNotFound(text=f"Plugin {plugin_name} not found.")
                 return web.FileResponse(plugin_location)
 
-    async def _async_start(self):
-        try:
-            self.app.router.add_routes(self.routes)
-            if self.web_plugins:
-                print("Loaded web plugins:")
-                print(self.web_plugins)
+    async def setup(self):
+        self.app.router.add_routes(self.routes)
+        if self.web_plugins:
+            print("Loaded web plugins:")
+            print(self.web_plugins)
 
-            if self.web_dir is not None:
-                self.app.router.add_routes([web.static("/", self.web_dir)])
+        if self.web_dir is not None:
+            self.app.router.add_routes([web.static("/", self.web_dir)])
 
-            runner = web.AppRunner(self.app)
-            await runner.setup()
-            site = web.TCPSite(runner, self.host, self.port)
-            await site.start()
-            await self.client_pool.start()
-            print(f"Started graph server at {self.host}:{self.port}")
-            await asyncio.Event().wait()
-            print("Exiting graph server")
-        except KeyboardInterrupt:
-            self.close_event.set()
-            print("Exiting graph server")
-        finally:
-            self.close_event.set()
-            await self.client_pool.stop()
+        runner = web.AppRunner(self.app)
+        await runner.setup()
+        site = web.TCPSite(runner, self.host, self.port)
+        await site.start()
+        await self.client_pool.start()
+        print(f"Started graph server at {self.host}:{self.port}")
+        await asyncio.sleep(100 * 3600)
 
     def start(self):
         try:
-            asyncio.run(self._async_start())
+            asyncio.run(self.setup())
         except KeyboardInterrupt:
             self.close_event.set()
             print("Exiting graph server")
@@ -546,26 +540,45 @@ def start_web(args):
 
 
 def async_start(isolate_users, no_sample, host, port, proc_queue=None, view_queue=None):
-    close_event = mp.Event()
+    def _fn(isolate_users, no_sample, host, port, proc_queue=None, view_queue=None):
+        close_event = mp.Event()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        server = GraphServer(
+            {},
+            isolate_users,
+            no_sample,
+            close_event,
+            host=host,
+            port=port,
+            proc_queue=proc_queue,
+            view_queue=view_queue,
+        )
 
-    web_processor_args = dict(
-        img_mem=None,
-        continue_on_failure=False,
-        copy_outputs=False,
-        spawn=False,
-        num_workers=1,
-    )
-    server = GraphServer(
-        web_processor_args,
-        isolate_users,
-        no_sample,
-        close_event,
-        host=host,
-        port=port,
-        proc_queue=proc_queue,
-        view_queue=view_queue,
-    )
+        def shutdown():
+            close_event.set()
+            tasks = [
+                t
+                for t in asyncio.all_tasks(loop)
+                if t is not asyncio.current_task(loop)
+            ]
+            for task in tasks:
+                task.cancel()
+            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+            loop.stop()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_in_executor(None, server.start)
+        try:
+            loop.run_until_complete(server.setup())
+            loop.run_forever()
+        except KeyboardInterrupt:
+            print("Exiting graph server")
+        finally:
+            shutdown()
+            loop.close()
+
+    thread = threading.Thread(
+        target=_fn,
+        args=(isolate_users, no_sample, host, port, proc_queue, view_queue),
+        daemon=True,
+    )
+    thread.start()
