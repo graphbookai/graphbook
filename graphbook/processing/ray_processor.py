@@ -224,9 +224,11 @@ class RayStepHandler:
             "step_id": step_id,
             "pin_id": pin_id,
             "index": index,
-            "data": transform_json_log(self.graph_state.steps_outputs[step_id][pin_id][index])
+            "data": transform_json_log(
+                self.graph_state.steps_outputs[step_id][pin_id][index]
+            ),
         }
-    
+
     def get_image(self, image_id: str):
         return self.graph_state.get_image(image_id)
 
@@ -292,7 +294,6 @@ class RayExecutionState:
                     shm_id = str(obj_ref)
                     self.images[shm_id] = obj_ref
                     item["shm_id"] = shm_id
-                    print(f"Added image {shm_id}")
             elif isinstance(item, list):
                 for val in item:
                     try_add_image(val)

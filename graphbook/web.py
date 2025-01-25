@@ -70,14 +70,15 @@ class GraphServer:
         self.plugin_steps, self.plugin_resources, self.web_plugins = self.plugins
         node_plugins = (self.plugin_steps, self.plugin_resources)
         self.is_editor_enabled = setup_paths is not None
-        self.img_mem = MultiThreadedMemoryManager() if self.is_editor_enabled else RayMemoryManager
+        self.img_mem = (
+            MultiThreadedMemoryManager if self.is_editor_enabled else RayMemoryManager
+        )
         self.client_pool = ClientPool(
             web_processor_args,
             node_plugins,
             isolate_users,
             no_sample,
             close_event,
-            self.img_mem,
             setup_paths=setup_paths,
             proc_queue=proc_queue,
             view_queue=view_queue,
@@ -206,7 +207,7 @@ class GraphServer:
             return web.json_response({"ok": res})
 
         if self.is_editor_enabled:
-            
+
             @routes.post("/run")
             async def run_all(request: web.Request) -> web.Response:
                 client: WebClient = get_client(request)
@@ -223,7 +224,6 @@ class GraphServer:
                     },
                 )
                 return web.json_response({"success": True})
-
 
             @routes.get("/step_docstring/{name}")
             async def get_step_docstring(request: web.Request):

@@ -4,7 +4,6 @@ import uuid
 from io import BytesIO
 from PIL import Image
 from typing import Dict
-from graphbook.processing.ray_processor import RayStepHandler
 
 
 class ImageStorageInterface:
@@ -15,6 +14,7 @@ class ImageStorageInterface:
         pass
 
 
+## UNUSED
 class SharedMemoryManager(ImageStorageInterface):
     """
     Creates a shared memory region for storing images.
@@ -123,19 +123,20 @@ class MultiThreadedMemoryManager(ImageStorageInterface):
     A thread-safe memory region for storing images.
     """
 
-    def __init__(self):
-        self.lock = Lock()
-        self.ez_storage: Dict[str, Image.Image] = {}
+    _lock = Lock()
+    _storage: Dict[str, Image.Image] = {}
 
-    def add_image(self, pil_image):
+    @classmethod
+    def add_image(cls, pil_image):
         image_id = str(uuid.uuid4())
-        with self.lock:
-            self.ez_storage[image_id] = pil_image
+        with cls.lock:
+            cls._storage[image_id] = pil_image
         return image_id
 
-    def get_image(self, image_id):
-        with self.lock:
-            image = self.ez_storage.get(image_id, None)
+    @classmethod
+    def get_image(cls, image_id):
+        with cls._lock:
+            image = cls._storage.get(image_id, None)
 
         if image is None:
             return None
@@ -146,8 +147,11 @@ class MultiThreadedMemoryManager(ImageStorageInterface):
 
 
 class RayMemoryManager(ImageStorageInterface):
+    """
+    For retrieving images from a Ray actor.
+    """
+
     import ray
-    import ray.actor
 
     _ray = ray
     _processor = None
@@ -162,4 +166,7 @@ class RayMemoryManager(ImageStorageInterface):
     def get_image(cls, image_id: str):
         if cls._processor is None:
             cls._processor = cls._ray.get_actor("_graphbook_RayStepHandler")
-        return cls._ray.get(cls._processor.get_image.remote(image_id))
+        img_buffer = BytesIO()
+        image = cls._ray.get(cls._processor.get_image.remote(image_id))
+        image.save(img_buffer, format=image.format or "PNG")
+        return img_buffer.getvalue()

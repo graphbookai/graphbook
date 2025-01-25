@@ -54,7 +54,10 @@ default_exported_resources = {
 
 class NodeHub:
     def __init__(
-        self, plugins: Tuple[dict, dict], view_manager: MultiGraphViewManager, path: Optional[Path] = None
+        self,
+        plugins: Tuple[dict, dict],
+        view_manager: MultiGraphViewManager,
+        path: Optional[Path] = None,
     ):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources
@@ -80,7 +83,7 @@ class NodeHub:
             self.custom_node_importer.stop_observer()
 
     def handle_module(self, filename, module):
-        self.view_manager.set_state("node_updated")
+        self.view_manager.set_state("node_updated")  # TODO: make global set_state
 
     def handle_step(self, filename: Path, name: str, step: steps.Step):
         print(f"{filename.name}: {name} (step)")

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Flow from './components/Flows/Flow.tsx';
+import FlowInitializer from './components/Flows/Flow.tsx';
 import ReadOnlyFlow from './components/Flows/ReadOnlyFlow.tsx';
+import { CodeEditor } from './components/Editor/CodeEditor';
+import { WelcomeScreen } from './components/WelcomeScreen';
 import TopPanel from './components/TopPanel'
 import { Layout, ConfigProvider, theme } from 'antd';
 import LeftPanel from './components/LeftPanel/LeftPanel';
@@ -14,9 +16,6 @@ const { Header, Content, Sider } = Layout;
 import 'reactflow/dist/style.css';
 import './components/Nodes/node.css';
 
-import { CodeEditor } from './components/Editor/CodeEditor';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import FlowInitializer from './components/Flows/Flow.tsx';
 
 export default function App() {
     const [settings, _] = useSettings();
@@ -47,13 +46,16 @@ export default function App() {
     );
 }
 
+type FlowFile = {
+    name: string;
+    type: 'flow' | 'readonly'
+};
 function View() {
     const {
         token: { colorBgContainer, colorBorder },
     } = theme.useToken();
     const [codeEditor, setCodeEditor] = useState<{ name: string } | null>(null);
-    const [workflowFile, setWorkflowFile] = useState<string | null>(null);
-    const [execution, setExecution] = useState<string | null>(null);
+    const [flowFile, setFlowFile] = useState<FlowFile | null>(null);
 
     const onBeginEdit = useCallback((val) => {
         setCodeEditor(val);
@@ -68,33 +70,33 @@ function View() {
     }, [codeEditor]);
 
     const mainView = useMemo(() => {
-        if (workflowFile) {
+        if (flowFile) {
+            if (flowFile.type === 'readonly') {
+                return (
+                    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                        <ReadOnlyFlow filename={flowFile.name} />
+                    </div>
+                );
+            }
+
             return (
                 <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                     {codeEditorView}
-                    <FlowInitializer filename={workflowFile} />
-                </div>
-            );
-        }
-
-        if (execution) {
-            return (
-                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                    <ReadOnlyFlow filename={execution} />
+                    <FlowInitializer filename={flowFile.name} />
                 </div>
             );
         }
 
         return <WelcomeScreen />;
-    }, [workflowFile, execution, codeEditorView]);
+    }, [flowFile, codeEditorView]);
 
     const setFile = useCallback((filename: string) => {
-        setWorkflowFile(filename);
+        setFlowFile({ name: filename, type: 'flow' });
         setGlobalFilename(filename);
     }, []);
 
     const setReadonlyFile = useCallback((filename: string) => {
-        setExecution(filename);
+        setFlowFile({ name: filename, type: 'readonly' });
         setGlobalFilename(filename);
     }, []);
 

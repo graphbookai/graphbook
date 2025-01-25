@@ -33,7 +33,6 @@ class WebInstanceProcessor:
         self,
         close_event: mp.Event,
         view_manager_queue: mp.Queue,
-        img_mem: MultiThreadedMemoryManager,
         continue_on_failure: bool,
         copy_outputs: bool,
         custom_nodes_path: Path,
@@ -43,7 +42,6 @@ class WebInstanceProcessor:
         self.cmd_queue = mp.Queue()
         self.view_manager = MultiGraphViewManagerInterface(view_manager_queue)
         self.viewer = None
-        self.img_mem = img_mem
         self.graph_state = GraphState(custom_nodes_path)
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
@@ -62,7 +60,7 @@ class WebInstanceProcessor:
                 if item.get("type") == "image" and isinstance(
                     item.get("value"), Image.Image
                 ):
-                    shm_id = self.img_mem.add_image(item["value"])
+                    shm_id = MultiThreadedMemoryManager.add_image(item["value"])
                     item["shm_id"] = shm_id
             elif isinstance(item, list):
                 for val in item:

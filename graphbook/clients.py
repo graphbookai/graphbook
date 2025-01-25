@@ -6,7 +6,7 @@ from .processing.web_processor import WebInstanceProcessor
 from .processing.ray_processor import RayStepHandler
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
-from .shm import MultiThreadedMemoryManager, RayMemoryManger, ImageStorageInterface
+from .shm import MultiThreadedMemoryManager
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -143,7 +143,6 @@ class ClientPool:
         isolate_users: bool,
         no_sample: bool,
         close_event: mp.Event,
-        img_mem: MultiThreadedMemoryManager,
         setup_paths: Optional[dict] = None,
         proc_queue: Optional[mp.Queue] = None,
         view_queue: Optional[mp.Queue] = None,
@@ -163,7 +162,6 @@ class ClientPool:
         self.shared_execution = not isolate_users
         self.no_sample = no_sample
         self.close_event = close_event
-        self.img_mem = img_mem
         self.proc_queue = proc_queue
         self.view_queue = view_queue
         self.options = options
@@ -184,7 +182,6 @@ class ClientPool:
                 **web_processor_args,
                 "custom_nodes_path": custom_nodes_path,
                 "view_manager_queue": view_queue,
-                "img_mem": self.img_mem,
             }
             processor = WebInstanceProcessor(**processor_args)
             view_manager = MultiGraphViewManager(
