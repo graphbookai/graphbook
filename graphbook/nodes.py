@@ -83,7 +83,7 @@ class NodeHub:
             self.custom_node_importer.stop_observer()
 
     def handle_module(self, filename, module):
-        self.view_manager.set_state("node_updated")  # TODO: make global set_state
+        self.view_manager.set_state(None, "node_updated")
 
     def handle_step(self, filename: Path, name: str, step: steps.Step):
         print(f"{filename.name}: {name} (step)")

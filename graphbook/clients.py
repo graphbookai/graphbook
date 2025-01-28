@@ -6,7 +6,6 @@ from .processing.web_processor import WebInstanceProcessor
 from .processing.ray_processor import RayStepHandler
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
-from .shm import MultiThreadedMemoryManager
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -15,6 +14,8 @@ import os
 import asyncio
 import shutil
 import traceback
+import time
+from .utils import TaskLoop
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
@@ -46,6 +47,7 @@ class Client:
         self.view_manager = view_manager
         # graph_id -> {state_type -> idx}
         self.state_idx: Dict[str, Dict[str, int]] = {}
+        self.state_idx_global: Dict[str, int] = {}
         self.proc_interface = proc_interface
 
     def get_view_manager(self) -> MultiGraphViewManager:
@@ -135,7 +137,7 @@ class WebClient(Client):
         super().stop()
 
 
-class ClientPool:
+class ClientPool(TaskLoop):
     def __init__(
         self,
         web_processor_args: dict,
@@ -171,7 +173,7 @@ class ClientPool:
             self.shared_resources = self._create_resources(
                 web_processor_args, self.custom_nodes_path
             )
-        self.curr_task = None
+        super().__init__(options["SEND_EVERY"], close_event)
 
     def _create_resources(
         self, web_processor_args: dict, custom_nodes_path: Optional[str] = None
@@ -188,17 +190,13 @@ class ClientPool:
                 view_queue, processor, self.close_event
             )
             node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
-            processor.start()
-            view_manager.start()
-            node_hub.start()
             return {
                 "processor": processor,
                 "node_hub": node_hub,
                 "view_manager": view_manager,
             }
 
-        view_manager = MultiGraphViewManager(view_queue)
-        view_manager.start()
+        view_manager = MultiGraphViewManager(view_queue, close_event=self.close_event)
         return {
             "view_manager": view_manager,
         }
@@ -288,70 +286,89 @@ class ClientPool:
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
 
-    async def stop(self):
-        for client in list(self.clients.values()):
-            await self.remove_client(client)
-        if self.curr_task:
-            self.curr_task.cancel()
-        if self.shared_execution:
-            self.shared_resources["processor"].stop()
-            self.shared_resources["node_hub"].stop()
-            self.shared_resources["view_manager"].stop()
+    # async def stop(self):
+    #     for client in list(self.clients.values()):
+    #         await self.remove_client(client)
+    #     if self.curr_task:
+    #         self.curr_task.cancel()
+    #     if self.shared_execution:
+    #         self.shared_resources["processor"].stop()
+    #         self.shared_resources["node_hub"].stop()
+    #         self.shared_resources["view_manager"].stop()
 
-    async def _loop(self):
+    async def loop(self):
         def get_state_data(
             view_manager: MultiGraphViewManager, client: Client
         ) -> List[dict]:
-            current_states = view_manager.get_current_states(client.state_idx)
-            state_data = [data for _, data in current_states]
-            for idx, data in current_states:
-                graph_id, type = data["graph_id"], data["type"]
-                if graph_id not in client.state_idx:
-                    client.state_idx[graph_id] = {}
-                client.state_idx[graph_id][type] = idx
-            return state_data
+            states = view_manager.get_current_states(
+                client.state_idx, client.state_idx_global
+            )
+
+            for idx, data in states:
+                graph_id, type = data.get("graph_id"), data["type"]
+
+                if graph_id is None:
+                    client.state_idx_global[type] = idx
+                else:
+                    if graph_id not in client.state_idx:
+                        client.state_idx[graph_id] = {}
+                    client.state_idx[graph_id][type] = idx
+
+            return_data = [data for _, data in states]
+            return return_data
 
         try:
-            while not self.close_event.is_set():
-                await asyncio.sleep(self.options["SEND_EVERY"])
-                if self.shared_execution:
-                    view_manager: MultiGraphViewManager = self.shared_resources[
-                        "view_manager"
-                    ]
+            if self.shared_execution:
+                view_manager: MultiGraphViewManager = self.shared_resources[
+                    "view_manager"
+                ]
+                view_data = view_manager.get_current_view_data()
+                for client in list(self.clients.values()):
+                    if client.ws.closed:
+                        continue
+                    state_data = get_state_data(view_manager, client)
+                    try:
+                        await asyncio.gather(
+                            *[
+                                client.ws.send_json(data)
+                                for data in [*view_data, *state_data]
+                            ]
+                        )
+                    except Exception as e:
+                        print(f"Error sending to client: {e}")
+            else:
+                for client in list(self.clients.values()):
+                    if client.ws.closed:
+                        continue
+                    view_manager = client.get_view_manager()
                     view_data = view_manager.get_current_view_data()
-                    for client in list(self.clients.values()):
-                        if client.ws.closed:
-                            continue
-                        state_data = get_state_data(view_manager, client)
-                        try:
-                            await asyncio.gather(
-                                *[
-                                    client.ws.send_json(data)
-                                    for data in [*view_data, *state_data]
-                                ]
-                            )
-                        except Exception as e:
-                            print(f"Error sending to client: {e}")
-                else:
-                    for client in list(self.clients.values()):
-                        if client.ws.closed:
-                            continue
-                        view_manager = client.get_view_manager()
-                        view_data = view_manager.get_current_view_data()
-                        state_data = get_state_data(view_manager, client)
-                        try:
-                            await asyncio.gather(
-                                *[
-                                    client.ws.send_json(data)
-                                    for data in [*view_data, *state_data]
-                                ]
-                            )
-                        except Exception as e:
-                            print(f"Error sending to client: {e}")
+                    state_data = get_state_data(view_manager, client)
+                    try:
+                        await asyncio.gather(
+                            *[
+                                client.ws.send_json(data)
+                                for data in [*view_data, *state_data]
+                            ]
+                        )
+                    except Exception as e:
+                        print(f"Error sending to client: {e}")
         except Exception as e:
             print(f"ClientPool Error:")
             traceback.print_exc()
             raise
 
-    async def start(self):
-        self.curr_task = asyncio.create_task(self._loop())
+    def start(self):
+        super().start()
+        if self.shared_execution:
+            viewer = self.shared_resources.get("view_manager")
+            if viewer:
+                viewer.start()
+
+            processor = self.shared_resources.get("processor")
+            if processor:
+                processor.start()
+
+            node_hub = self.shared_resources.get("node_hub")
+            if node_hub:
+                node_hub.start()
+

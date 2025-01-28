@@ -15,6 +15,8 @@ from .clients import ClientPool, Client, WebClient
 from .plugins import setup_plugins
 import json
 import threading
+import time
+import atexit
 
 
 @web.middleware
@@ -481,9 +483,9 @@ class GraphServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
-        await self.client_pool.start()
         print(f"Started graph server at {self.host}:{self.port}")
-        await asyncio.sleep(100 * 3600)
+        self.client_pool.start()
+        
 
     def start(self):
         try:
@@ -539,46 +541,49 @@ def start_web(args):
     server.start()
 
 
-def async_start(isolate_users, no_sample, host, port, proc_queue=None, view_queue=None):
-    def _fn(isolate_users, no_sample, host, port, proc_queue=None, view_queue=None):
-        close_event = mp.Event()
+def async_start(host, port, proc_queue=None, view_queue=None):
+    def _fn(close_event):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         server = GraphServer(
             {},
-            isolate_users,
-            no_sample,
-            close_event,
+            isolate_users=False,
+            no_sample=True,
+            close_event=close_event,
             host=host,
             port=port,
             proc_queue=proc_queue,
             view_queue=view_queue,
         )
 
-        def shutdown():
-            close_event.set()
-            tasks = [
-                t
-                for t in asyncio.all_tasks(loop)
-                if t is not asyncio.current_task(loop)
-            ]
-            for task in tasks:
-                task.cancel()
-            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-            loop.stop()
+
 
         try:
             loop.run_until_complete(server.setup())
             loop.run_forever()
-        except KeyboardInterrupt:
-            print("Exiting graph server")
         finally:
-            shutdown()
-            loop.close()
+            pass
+    
+    close_event = mp.Event()  
+    
+    def shutdown():
+        close_event.set()
+        
+    atexit.register(shutdown)
+      
 
     thread = threading.Thread(
         target=_fn,
-        args=(isolate_users, no_sample, host, port, proc_queue, view_queue),
+        args=(close_event,),
         daemon=True,
     )
     thread.start()
+    
+    def signal_handler(*_):
+        close_event.set()
+        time.sleep(.1)
+        raise SystemExit()
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+

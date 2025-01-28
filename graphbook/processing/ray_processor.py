@@ -26,6 +26,7 @@ from copy import deepcopy
 from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from graphbook.steps import Step
 from PIL import Image
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -158,7 +159,7 @@ def create_graph_execution(
 
     return G, nodes
 
-
+import asyncio
 @ray.remote(name="_graphbook_RayStepHandler")
 class RayStepHandler:
     def __init__(self, cmd_queue: queue.Queue, view_manager_queue: queue.Queue):
@@ -173,12 +174,12 @@ class RayStepHandler:
     def init_resource(self):
         return self.graph_state.init_resource()
 
-    async def handle_new_execution(self, name: str, G: dict):
+    def handle_new_execution(self, name: str, G: dict):
         self.viewer = self.view_manager.new(name)
         self.graph_state.set_viewer(self.viewer)
         self.viewer.set_state("run_state", "initializing")
         self.viewer.set_state("graph_state", G)
-        params = await self.wait_for_params()
+        params = self.wait_for_params()
         return params
 
     def handle_start_execution(self):
@@ -232,7 +233,7 @@ class RayStepHandler:
     def get_image(self, image_id: str):
         return self.graph_state.get_image(image_id)
 
-    async def wait_for_params(self) -> dict:
+    def wait_for_params(self) -> dict:
         def _loop():
             while True:
                 try:
@@ -243,13 +244,28 @@ class RayStepHandler:
                 except queue.Empty:
                     pass
                 except KeyboardInterrupt:
+                    print("KeyboardInterrupt in RayInterface")
                     break
                 except Exception as e:
                     print("Error in RayInterface:", e)
                     break
             return None
-
+        
         return _loop()
+        
+        # task = self.loop.create_task(_loop())
+        # try:
+        #     while True:
+        #         # Run one iteration of the event loop
+        #         self.loop.call_soon(self.loop.stop)
+        #         self.loop.run_forever()
+        #         time.sleep(0.1)  # Give other threads a chance to run
+        # finally:
+        #     task.cancel()
+        #     self.loop.run_until_complete(task)
+        #     self.loop.close()
+        
+
 
 
 class RayExecutionState:

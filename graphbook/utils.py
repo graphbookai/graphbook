@@ -10,6 +10,7 @@ from torch import Tensor
 from numpy import ndarray
 from PIL import Image
 from .note import Note
+import time
 
 
 MP_WORKER_TIMEOUT = 5.0
@@ -188,3 +189,38 @@ class ExecutionContext:
     @classmethod
     def get(cls, key: str, default: Any = None) -> Any:
         return cls.get_context().get(key, default)
+
+import asyncio
+from abc import ABC, abstractmethod
+from typing import Optional
+
+class TaskLoop:
+    def __init__(self, interval_seconds: float = MP_WORKER_TIMEOUT, close_event: Optional[asyncio.Event] = None):
+        self._stop_event = close_event or asyncio.Event()
+        self._interval = interval_seconds
+        self._task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        
+    @abstractmethod
+    async def loop(self) -> None:
+        """Override this method with the work to be done periodically"""
+        pass
+        
+    async def _run(self):
+        while not self._stop_event.is_set():
+            try:
+                await self.loop()
+            except Exception as e:
+                print(f"Error in worker loop: {e}")
+            await asyncio.sleep(self._interval)
+    
+    def start(self):
+        """Start the worker in the current event loop"""
+        self._loop = asyncio.get_event_loop()
+        self._task = self._loop.create_task(self._run())
+        
+    async def stop(self):
+        """Stop the worker"""
+        if self._task:
+            self._stop_event.set()
+            await self._task

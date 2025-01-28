@@ -19,7 +19,7 @@ from graphbook.resources import Resource
 import graphbook.web
 import logging
 import uuid
-
+import asyncio
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -41,8 +41,6 @@ def init() -> None:
         cmd_queue = ray.util.queue.Queue()
         step_handler = RayStepHandler.remote(cmd_queue, view_queue)
         graphbook.web.async_start(
-            isolate_users=False,
-            no_sample=False,
             host="0.0.0.0",
             port=8005,
             proc_queue=cmd_queue,
@@ -89,11 +87,7 @@ def run_async(
         print(
             "Found parameters that need to be set. Please navigate to the Graphbook UI to set them."
         )
-        try:
-            params = ray.get(step_handler.handle_new_execution.remote(name, G))
-        except KeyboardInterrupt:
-            print("Execution cancelled.")
-            raise KeyboardInterrupt
+        params = ray.get(step_handler.handle_new_execution.remote(name, G))
 
         # Set the param values to each node and other context variables
         context_setup_refs = []
@@ -119,11 +113,7 @@ def run(
     name: Optional[str] = None,
     **kwargs,
 ) -> Any:
-    try:
-        return ray.get(run_async(dag, name=name, **kwargs))
-    except KeyboardInterrupt:
-        print("Execution cancelled.")
-        exit(0)
+    return ray.get(run_async(dag, name=name, **kwargs))
 
 
 def _make_input_grapbook_class(cls):
