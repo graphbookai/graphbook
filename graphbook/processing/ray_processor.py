@@ -120,18 +120,18 @@ def create_graph_execution(
                 G[curr_id] = {
                     "type": "step",
                     "name": node_name,
-                    "parameters": deepcopy(node_class.Parameters or {}),
+                    "parameters": deepcopy(getattr(node_class, "Parameters", {})),
                     "inputs": step_deps,
-                    "outputs": node_class.Outputs or ["out"],
-                    "category": node_class.Category or "",
+                    "outputs": getattr(node_class, "Outputs", ["out"]),
+                    "category": getattr(node_class, "Category", ""),
                     "doc": node_doc or "",
                 }
             else:  # Resource
                 G[curr_id] = {
                     "type": "resource",
                     "name": node_name,
-                    "parameters": deepcopy(node_class.Parameters or {}),
-                    "category": node_class.Category or "",
+                    "parameters": deepcopy(getattr(node_class, "Parameters", {})),
+                    "category": getattr(node_class, "Category", ""),
                     "doc": node_doc or "",
                 }
 
@@ -159,7 +159,7 @@ def create_graph_execution(
 
     return G, nodes
 
-import asyncio
+
 @ray.remote(name="_graphbook_RayStepHandler")
 class RayStepHandler:
     def __init__(self, cmd_queue: queue.Queue, view_manager_queue: queue.Queue):
@@ -250,22 +250,8 @@ class RayStepHandler:
                     print("Error in RayInterface:", e)
                     break
             return None
-        
-        return _loop()
-        
-        # task = self.loop.create_task(_loop())
-        # try:
-        #     while True:
-        #         # Run one iteration of the event loop
-        #         self.loop.call_soon(self.loop.stop)
-        #         self.loop.run_forever()
-        #         time.sleep(0.1)  # Give other threads a chance to run
-        # finally:
-        #     task.cancel()
-        #     self.loop.run_until_complete(task)
-        #     self.loop.close()
-        
 
+        return _loop()
 
 
 class RayExecutionState:

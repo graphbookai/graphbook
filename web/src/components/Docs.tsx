@@ -75,7 +75,7 @@ export function Docs({ helpString }: { helpString?: string }) {
         if (uniqueNodes.length === nodeDocs.length) {
             return;
         }
-        
+
         const currentNodeDocs = uniqueNodes.map(n => {
             return {
                 type: n.type,
@@ -97,11 +97,10 @@ export function Docs({ helpString }: { helpString?: string }) {
                 };
             }));
             const mergedNodeDocs = currentNodeDocs.map(n => {
-                const doc = nodeDocs.find(d => d.name === n.name);
+                const content = n.content || nodeDocs.find(d => d.name === n.name)?.content || '(No docstring)';
                 return {
-                    type: n.name,
-                    name: n.name,
-                    content: doc?.content || '(No docstring)',
+                    ...n,
+                    content,
                 };
             });
 
@@ -137,7 +136,7 @@ export function Docs({ helpString }: { helpString?: string }) {
             return {
                 key: i.toString(),
                 label: doc.name,
-                children: <Markdown>{doc.content}</Markdown>,
+                children: <Markdown>{doc.content.trim()}</Markdown>,
             }
         });
     }, [nodeDocs]);

@@ -45,7 +45,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
         const files = await API.listFiles();
         if (!files) {
             setIsDisabled(true);
-            setFilesRoot('(Editor disabled)');
+            setFilesRoot('(Filesystem disabled)');
             return;
         }
 
@@ -314,7 +314,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
                     </Flex>
                 </Flex>
                 <Flex vertical style={{ height: '100%' }}>
-                    <Flex vertical style={{ overflowY: 'auto', overflowX: 'hidden'}}>
+                    <Flex vertical style={{ overflowY: 'auto', overflowX: 'hidden' }}>
                         <Tree.DirectoryTree
                             onExpand={onExpand}
                             expandedKeys={expandedKeys}

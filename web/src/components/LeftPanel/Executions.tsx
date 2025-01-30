@@ -22,7 +22,7 @@ type ExecutionData = {
 };
 
 export default function Executions({ setExecution }: { setExecution: Function }) {
-    const [isOpened, setIsOpened] = useState(false);
+    const [isOpened, setIsOpened] = useState(true);
     const [isResizing, setIsResizing] = useState(false);
     const [selectedExecution, setSelectedExecution] = useState<string>();
     const { token } = useToken();
@@ -66,7 +66,7 @@ export default function Executions({ setExecution }: { setExecution: Function })
     if (!isOpened) {
         return (
             <div style={headerStyle}>
-                <Flex style={{paddingTop: 5}} onClick={() => setIsOpened(true)}>
+                <Flex style={{ paddingTop: 5 }} onClick={() => setIsOpened(true)}>
                     <RightOutlined style={{ marginRight: 5 }} />
                     <Text strong>Executions</Text>
                 </Flex>

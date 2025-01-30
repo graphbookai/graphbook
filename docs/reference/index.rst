@@ -21,4 +21,5 @@ Reference
     decorators
     params
     prompts
+    ray
     utils

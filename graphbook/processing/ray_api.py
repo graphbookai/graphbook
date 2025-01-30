@@ -14,12 +14,11 @@ from graphbook.processing.ray_processor import (
     graphbook_task_context,
     create_graph_execution,
 )
-from graphbook.steps import Step, SourceStep, PromptStep
+from graphbook.steps import Step, SourceStep, PromptStep, GeneratorSourceStep, BatchStep
 from graphbook.resources import Resource
 import graphbook.web
 import logging
 import uuid
-import asyncio
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -31,7 +30,14 @@ def _ensure_graphbook_initialized() -> None:
         init()
 
 
-def init() -> None:
+def init(*, host="0.0.0.0", port=8005) -> None:
+    """
+    Initializes Ray and Graphbook web server if not already initialized.
+
+    Args:
+        host: The host address to bind the web server to. Default is 0.0.0.0.
+        port: The port to bind the web server to. Default is 8005.
+    """
     if not ray.is_initialized():
         ray.init()
 
@@ -41,14 +47,17 @@ def init() -> None:
         cmd_queue = ray.util.queue.Queue()
         step_handler = RayStepHandler.remote(cmd_queue, view_queue)
         graphbook.web.async_start(
-            host="0.0.0.0",
-            port=8005,
+            host=host,
+            port=port,
             proc_queue=cmd_queue,
             view_queue=view_queue,
         )
 
 
 def is_graphbook_ray_initialized() -> bool:
+    """
+    Returns whether the Graphbook Ray API is initialized.
+    """
     return ray.is_initialized() and step_handler is not None
 
 
@@ -61,10 +70,9 @@ def run_async(
     If the workflow with the given id already exists, it will be resumed.
 
     Args:
+        dag: The leaf node of the DAG. Will recursively run its dependencies.
         name: A unique identifier that can be used to identify the graphbook execution
             in the web UI. If not specified, a random id will be generated.
-        metadata: The metadata to add to the workflow. It has to be able
-            to serialize to json.
 
     Returns:
        The running result as ray.ObjectRef.
@@ -111,9 +119,14 @@ def run_async(
 def run(
     dag: DAGNode,
     name: Optional[str] = None,
-    **kwargs,
-) -> Any:
-    return ray.get(run_async(dag, name=name, **kwargs))
+) -> dict:
+    """
+    Runs a workflow synchronously. See :func:`run_async` for more details.
+
+    Returns:
+        The multi-output value of the argument leaf node.
+    """
+    return ray.get(run_async(dag, name=name))
 
 
 def _make_input_grapbook_class(cls):
@@ -122,7 +135,17 @@ def _make_input_grapbook_class(cls):
     ), "Invalid Graphbook Node class."
 
     if issubclass(cls, PromptStep):
-        raise ValueError("PromptStep is not yet supported in Graphbook Ray API.")
+        raise ValueError("Prompting is not yet supported in Graphbook Ray API.")
+
+    if issubclass(cls, GeneratorSourceStep):
+        raise ValueError(
+            "Sources with generators is not yet supported in Graphbook Ray API."
+        )
+
+    if issubclass(cls, BatchStep):
+        raise ValueError(
+            "Automatic batching is not yet supported in Graphbook Ray API."
+        )
 
     class DerivedGraphbookRayClass(cls):
         def __init__(self, *args, **kwargs):
@@ -240,6 +263,9 @@ class GraphbookActorWrapper:
 
 
 def remote(*args, **kwargs) -> GraphbookActorWrapper:
+    """
+    Decorates the following class to be a remote actor in Ray that is also compatible with Graphbook.
+    """
     cls = args[0]
     cls = _make_input_grapbook_class(cls)
 

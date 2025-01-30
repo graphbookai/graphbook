@@ -22,4 +22,5 @@ Learn
     document
     batch
     dump
+    using-ray
     examples/index

@@ -139,10 +139,10 @@ class NodeHub:
         steps = {
             k: {
                 "name": k,
-                "parameters": v.Parameters,
-                "inputs": ["in"] if v.RequiresInput else [],
-                "outputs": v.Outputs,
-                "category": v.Category,
+                "parameters": getattr(v, "Parameters", {}),
+                "inputs": ["in"] if not issubclass(v, steps.SourceStep) else [],
+                "outputs": getattr(v, "Outputs", ["out"]),
+                "category": getattr(v, "Category", ""),
                 "doc": v.__doc__,
             }
             for k, v in self.get_steps().items()
@@ -150,8 +150,8 @@ class NodeHub:
         resources = {
             k: {
                 "name": k,
-                "parameters": v.Parameters,
-                "category": v.Category,
+                "parameters": getattr(v, "Parameters", {}),
+                "category": getattr(v, "Category", ""),
                 "doc": v.__doc__,
             }
             for k, v in self.get_resources().items()
@@ -235,7 +235,7 @@ class CustomNodeImporter:
         self.module_handler = module_handler
         self.observer = Observer()
         self.event_handler = CustomModuleEventHandler(path, self.on_module)
-        # self.event_handler.init_custom_nodes()
+        self.event_handler.init_custom_nodes()
 
     def on_module(self, filename: Path, mod):
         for name, obj in inspect.getmembers(mod):
