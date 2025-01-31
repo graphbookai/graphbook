@@ -1,9 +1,7 @@
-import ray
 from typing import List, Dict, Optional
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
-from .processing.ray_processor import RayStepHandler
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
 import tempfile
@@ -14,8 +12,7 @@ import os
 import asyncio
 import shutil
 import traceback
-import time
-from .utils import TaskLoop
+from .utils import TaskLoop, RAY
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
@@ -64,12 +61,12 @@ class Client:
 
 
 class RayProcessorInterface:
-    def __init__(self, processor: RayStepHandler, proc_queue: mp.Queue):
+    def __init__(self, processor, proc_queue: mp.Queue):
         self.processor = processor
         self.queue = proc_queue
 
     def get_output_note(self, step_id: str, pin_id: str, index: int):
-        return ray.get(self.processor.get_output_note.remote(step_id, pin_id, index))
+        return RAY.get(self.processor.get_output_note.remote(step_id, pin_id, index))
 
     def pause(self):
         raise NotImplementedError("RayProcessor does not support pause")
@@ -86,7 +83,7 @@ class RayClient(Client):
         view_manager: MultiGraphViewManager,
         proc_queue: mp.Queue,
     ):
-        processor = ray.get_actor("_graphbook_RayStepHandler")
+        processor = RAY.get_actor("_graphbook_RayStepHandler")
         self.processor_interface = RayProcessorInterface(processor, proc_queue)
         super().__init__(sid, ws, view_manager, self.processor_interface)
 

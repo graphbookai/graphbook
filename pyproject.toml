@@ -55,3 +55,4 @@ optional = true
 
 [tool.poetry.group.peer.dependencies]
 torchvision = "^0.18.1"
+ray = "^2.41.0"

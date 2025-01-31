@@ -5,8 +5,14 @@ import multiprocessing as mp
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, TaskLoop
-import ray.util.queue
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, TaskLoop, RAY, RAY_AVAILABLE
+
+try:
+    import RAY.util.queue
+
+    RAY_UTIL_QUEUE = RAY.util.queue
+except ImportError:
+    RAY_UTIL_QUEUE = None
 
 if TYPE_CHECKING:
     from .processing.web_processor import WebInstanceProcessor
@@ -293,7 +299,9 @@ class MultiGraphViewManager(TaskLoop):
             return
         states[type] = (0, data)
 
-    def get_current_states(self, client_idx: dict, global_client_idx: dict) -> List[StateEntry]:
+    def get_current_states(
+        self, client_idx: dict, global_client_idx: dict
+    ) -> List[StateEntry]:
         """
         Retrieve all current state data
         """
@@ -308,7 +316,7 @@ class MultiGraphViewManager(TaskLoop):
             or state_type not in client_idx[graph_id]
             or state_entry[0] > client_idx[graph_id][state_type]
         ]
-        
+
         global_states = [
             (
                 state_entry[0],
@@ -358,9 +366,7 @@ class MultiGraphViewManager(TaskLoop):
                         work["graph_id"], work["node_id"], work["size"]
                     )
                 elif work["cmd"] == "handle_time":
-                    self.handle_time(
-                        work["graph_id"], work["node_id"], work["time"]
-                    )
+                    self.handle_time(work["graph_id"], work["node_id"], work["time"])
                 elif work["cmd"] == "handle_start":
                     self.handle_start(work["graph_id"], work["node_id"])
                 elif work["cmd"] == "handle_end":
@@ -385,14 +391,15 @@ class MultiGraphViewManager(TaskLoop):
                 work = self.work_queue.get_nowait()
         except queue.Empty:
             pass
-        except ray.util.queue.Empty:
-            pass
         except asyncio.exceptions.CancelledError:
             self.close_event.set()
             return
         except Exception as e:
-            raise Exception(f"MultiGraphViewManager Error: {e}")
-            
+            if RAY_AVAILABLE and isinstance(e, RAY_UTIL_QUEUE.Empty):
+                pass
+            else:
+                raise Exception(f"MultiGraphViewManager Error: {e}")
+
 
 class ViewManagerInterface:
     def __init__(self, graph_id: str, queue: mp.Queue):

@@ -220,3 +220,11 @@ class TaskLoop:
         if self._task:
             self._stop_event.set()
             await self._task
+
+try:
+    import ray
+    RAY_AVAILABLE = True
+    RAY = ray
+except ImportError:
+    RAY_AVAILABLE = False
+    RAY = None

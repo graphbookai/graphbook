@@ -4,6 +4,7 @@ import uuid
 from io import BytesIO
 from PIL import Image
 from typing import Dict
+from graphbook.utils import RAY
 
 
 class ImageStorageInterface:
@@ -151,9 +152,7 @@ class RayMemoryManager(ImageStorageInterface):
     For retrieving images from a Ray actor.
     """
 
-    import ray
-
-    _ray = ray
+    _ray = RAY
     _processor = None
 
     @classmethod

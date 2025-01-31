@@ -12,7 +12,14 @@ from .. import Note, prompts
 import warnings
 import traceback
 import copy
-import ray
+
+try:
+    import ray
+    RAY_AVAILABLE = True
+    RAY = ray
+except ImportError:
+    RAY_AVAILABLE = False
+    RAY = None
 
 if TYPE_CHECKING:
     from ..dataloading import Dataloader
@@ -34,8 +41,8 @@ def log(msg: Any, type: LogType = "info"):
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
 
-    if view_manager is None:
-        if ray.is_initialized():
+    if view_manager is None and RAY_AVAILABLE:
+        if RAY.is_initialized():
             actor_handle = ray.get_actor("_graphbook_RayStepHandler")
             log_handle = actor_handle.handle_log.remote
         else:
