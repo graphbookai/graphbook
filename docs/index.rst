@@ -33,20 +33,22 @@ Features
 * Node grouping and subflows
 * Autosaving and shareable serialized workflow files
 * Registers node code changes without needing a restart
-* Monitorable CPU and GPU resource usage
+* Monitorable system CPU and GPU resource usage
+* Monitorable worker queue sizes for optimal worker scaling
 * Human-in-the-loop prompting for interactivity and manual control during DAG execution
-* (BETA) Third Party Plugins
+* Can switch to threaded processing per client session for demoing apps to multiple simultaneous users
+* (BETA) **Now with Ray!** Build all-code workflows and scale pipelines on remote machines
+* (BETA) Third Party Plugins 
 
 Applications
 *************
 
-Graphbook can be used for a variety of applications, including the development of:
-
-* Highly efficient ML-powered data processing or ETL pipelines
-* A platform to curate custom datasets to train ML models
-* A development tool to experiment with different ML models and hyperparameters
-* A tool to build highly efficient ML applications, tasks, and services
-* A no-code ML development platform for non-engineers to build robust ML data processing pipelines
+* Clean and curate custom large scale datasets
+* `Demo ML apps <https://huggingface.co/spaces/rsamf/rmbg-graphbook>`_ on Huggingface Spaces
+* Build and deliver customizable no-code or hybrid low-code ML apps and services
+* Quickly experiment with different ML models and adjust hyperparameters
+* Maximize GPU utilization, parallelize IO, and scale across clusters
+* Wrap your Ray DAGs with a frontend for end users
 
 
 Why
