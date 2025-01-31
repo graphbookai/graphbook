@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Popover, Modal, Typography, Space, Popconfirm, theme } from 'antd';
 import { LinkOutlined, DisconnectOutlined, SettingFilled, QuestionCircleOutlined } from '@ant-design/icons';
 import Settings from './Settings';
-import { useAPI, useAPIMessage, useAPIReconnectTimer } from '../hooks/API';
+import { useAPI, useAPIMessageEffect, useAPIReconnectTimer } from '../hooks/API';
 import { SparklineChart, LinearYAxis, LinearYAxisTickSeries, LinearXAxis, LinearXAxisTickSeries, LineSeries, TooltipArea, ChartTooltip, StackedBarChart, StackedBarSeries, Bar } from 'reaviz';
 import type { ChartShallowDataShape, ChartNestedDataShape } from 'reaviz';
 import './top-panel.css';
@@ -119,7 +119,7 @@ function GPUSparkCharts() {
         });
     }, []);
 
-    useAPIMessage('system_util', updateData);
+    useAPIMessageEffect('system_util', updateData);
 
     const YAxis = useMemo(() => {
         return (
@@ -196,7 +196,7 @@ function SparkChart({ dataLabel }: SparkChartProps) {
         });
     }, [dataLabel]);
 
-    useAPIMessage('system_util', updateData);
+    useAPIMessageEffect('system_util', updateData);
 
     const Series = useMemo(() => {
         return (
@@ -272,7 +272,7 @@ function WorkerChart() {
         });
     }, []);
 
-    useAPIMessage('system_util', updateData);
+    useAPIMessageEffect('system_util', updateData);
 
     const Series = useMemo(() => {
         return (

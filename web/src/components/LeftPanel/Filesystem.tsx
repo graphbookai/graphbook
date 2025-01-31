@@ -1,5 +1,5 @@
 import { Flex, Input, Tree, Button, Typography, Menu, theme } from "antd";
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { FileAddOutlined, FolderAddOutlined, UndoOutlined } from "@ant-design/icons";
 import { useAPI } from "../../hooks/API";
 import { bindDragData } from "../../utils";
@@ -10,9 +10,11 @@ const { Text } = Typography;
 const { Search } = Input;
 
 import './filesystem.css';
+import Executions from "./Executions";
 
 
-export default function Filesystem({ setWorkflow, onBeginEdit }) {
+export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
+    const [isDisabled, setIsDisabled] = useState(false);
     const [files, setFiles] = useState<any[]>([]);
     const [filesRoot, setFilesRoot] = useState('.');
     const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
@@ -42,9 +44,12 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         }
         const files = await API.listFiles();
         if (!files) {
+            setIsDisabled(true);
+            setFilesRoot('(Filesystem disabled)');
             return;
         }
 
+        setIsDisabled(false);
         const filesRoot = files.title.toUpperCase();
         const setKey = (data) => {
             data.forEach((item) => {
@@ -118,6 +123,10 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         } else {
             onBeginEdit(null);
         }
+    }, []);
+
+    const onExecutionClick = useCallback((executionName: string) => {
+        console.log("Execution clicked", executionName);
     }, []);
 
     const onFileItemRightClick = useCallback(({ event, node }) => {
@@ -296,37 +305,40 @@ export default function Filesystem({ setWorkflow, onBeginEdit }) {
         <ActiveOverlay backgroundColor={token.colorBgBase} isActive={API !== null}>
             <Flex vertical className="filesystem">
                 <Search style={{ marginBottom: 5 }} placeholder="Search" onChange={onSearchChange} />
-                <Flex justify="space-between">
+                <Flex justify="space-between" align="center" style={{ marginBottom: 5 }}>
                     <Text ellipsis style={{ fontWeight: 'bold' }}>{filesRoot}</Text>
-                    <div style={{ display: 'flex', flexDirection: 'row' }}>
-                        <Button className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
-                        <Button className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />
-                        <Button className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
-                    </div>
+                    <Flex>
+                        <Button disabled={isDisabled} className="fs-icon" icon={<FileAddOutlined />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: true })} />
+                        <Button disabled={isDisabled} className="fs-icon" icon={<FolderAddOutlined style={{ fontSize: '17px' }} />} onClick={() => setAddingState({ isAddingItem: true, isAddingFile: false })} />
+                        <Button disabled={isDisabled} className="fs-icon" icon={<UndoOutlined style={{ fontSize: '15px' }} />} onClick={getFiles} />
+                    </Flex>
                 </Flex>
-                <div style={{ overflowY: 'auto', overflowX: 'hidden' }}>
-                    <Tree.DirectoryTree
-                        onExpand={onExpand}
-                        expandedKeys={expandedKeys}
-                        autoExpandParent={autoExpandParent}
-                        selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
-                        treeData={treeData}
-                        onSelect={onFileItemClick}
-                        onRightClick={onFileItemRightClick}
-                        onDrop={onDrop}
-                        onDragStart={onDragStart}
-                        blockNode
-                        draggable
-                    />
-                </div>
-                {contextMenu && (
-                    <Menu
-                        style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
-                        onClick={onContextMenuClick}
-                        items={contextMenuItems}
-                    />
-                )}
+                <Flex vertical style={{ height: '100%' }}>
+                    <Flex vertical style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+                        <Tree.DirectoryTree
+                            onExpand={onExpand}
+                            expandedKeys={expandedKeys}
+                            autoExpandParent={autoExpandParent}
+                            selectedKeys={selectedWorkflow ? [selectedWorkflow] : []}
+                            treeData={treeData}
+                            onSelect={onFileItemClick}
+                            onRightClick={onFileItemRightClick}
+                            onDrop={onDrop}
+                            onDragStart={onDragStart}
+                            blockNode
+                            draggable
+                        />
+                    </Flex>
+                    <Executions setExecution={setExecution} />
+                </Flex>
             </Flex>
+            {contextMenu && (
+                <Menu
+                    style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 100 }}
+                    onClick={onContextMenuClick}
+                    items={contextMenuItems}
+                />
+            )}
         </ActiveOverlay>
     );
 }

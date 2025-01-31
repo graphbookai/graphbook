@@ -6,7 +6,7 @@ import { Tabs } from 'antd';
 import Filesystem from './Filesystem';
 import { usePluginPanels } from '../../hooks/Plugins';
 
-export default function LeftPanel({ setWorkflow, onBeginEdit }) {
+export default function LeftPanel({ setWorkflow, setExecution, onBeginEdit }) {
     const panels = usePluginPanels();
     const items = useMemo(() => {
         const pluginPanels = panels.map((p, i) => ({ ...p, key: (i + 1).toString(), icon: p.icon || <AppstoreOutlined /> }));
@@ -14,7 +14,7 @@ export default function LeftPanel({ setWorkflow, onBeginEdit }) {
             {
                 key: '0',
                 label: 'Explorer',
-                children: <Filesystem setWorkflow={setWorkflow} onBeginEdit={onBeginEdit} />,
+                children: <Filesystem setWorkflow={setWorkflow} setExecution={setExecution} onBeginEdit={onBeginEdit} />,
                 icon: <FileFilled />,
             },
             ...pluginPanels

@@ -1,3 +1,5 @@
+from ..utils import ExecutionContext
+
 class Resource:
     """
     The base class for all resources in Graphbook. All resources should be a descendant from this class. Also acts as the resource for string values.
@@ -7,6 +9,15 @@ class Resource:
 
     def __init__(self, val=""):
         self.val = val
+        
+    def set_context(self, **context):
+        """
+        Sets the context of the step. This is useful for setting the node_id and node_name of the step.
+
+        Args:
+            **context: The context to set
+        """
+        ExecutionContext.update(**context)
 
     def value(self):
         return self.val

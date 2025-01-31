@@ -1,11 +1,21 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple, Optional, TYPE_CHECKING
 import asyncio
 import time
 import multiprocessing as mp
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, TaskLoop, RAY, RAY_AVAILABLE
+
+try:
+    import RAY.util.queue
+
+    RAY_UTIL_QUEUE = RAY.util.queue
+except ImportError:
+    RAY_UTIL_QUEUE = None
+
+if TYPE_CHECKING:
+    from .processing.web_processor import WebInstanceProcessor
 
 
 class Viewer:
@@ -45,7 +55,7 @@ class DataViewer(Viewer):
     def handle_outputs(self, node_id: str, output: dict):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        new_entries = {k: v[0] for k, v in output.items() if len(v) > 0}
+        new_entries = {k: v[-1] for k, v in output.items() if len(v) > 0}
         self.last_outputs[node_id] |= new_entries
 
     def set_filename(self, filename: str):
@@ -53,7 +63,7 @@ class DataViewer(Viewer):
             self.filename = filename
             self.last_outputs = {}
 
-    def handle_clear(self, node_id: str | None = None):
+    def handle_clear(self, node_id: Optional[str] = None):
         if node_id is None:
             self.last_outputs = {}
         if node_id in self.last_outputs:
@@ -147,7 +157,7 @@ class SystemUtilViewer(Viewer):
     Tracks system utilization: CPU util, CPU memory, GPU util, GPU memory
     """
 
-    def __init__(self, processor):
+    def __init__(self, processor: Optional["WebInstanceProcessor"] = None):
         super().__init__("system_util")
         self.processor = processor
 
@@ -162,7 +172,9 @@ class SystemUtilViewer(Viewer):
         return gpus
 
     def get_next(self):
-        sizes = self.processor.get_worker_queue_sizes()
+        sizes = {}
+        if self.processor:
+            sizes = self.processor.get_worker_queue_sizes()
         return {
             "cpu": self.get_cpu_usage(),
             "mem": self.get_mem_usage(),
@@ -188,159 +200,296 @@ class PromptViewer(Viewer):
         return self.prompts
 
 
-class ViewManager:
+StateEntry = Tuple[int, dict]
+
+
+class MultiGraphViewManager(TaskLoop):
     def __init__(
         self,
         work_queue: mp.Queue,
-        processor,
+        processor: Optional["WebInstanceProcessor"] = None,
+        close_event: Optional[mp.Event] = None,
     ):
-        self.data_viewer = DataViewer()
-        self.node_stats_viewer = NodeStatsViewer()
-        self.logs_viewer = NodeLogsViewer()
         self.system_util_viewer = SystemUtilViewer(processor)
-        self.prompt_viewer = PromptViewer()
-        self.viewers: List[Viewer] = [
-            self.data_viewer,
-            self.node_stats_viewer,
-            self.logs_viewer,
-            self.system_util_viewer,
-            self.prompt_viewer,
-        ]
-        self.states: Dict[str, Any] = {}
+        self.node_stats_viewers: Dict[str, NodeStatsViewer] = {}
+        self.log_viewers: Dict[str, NodeLogsViewer] = {}
+        self.prompt_viewers: Dict[str, PromptViewer] = {}
+        self.viewers: Dict[str, List[Viewer]] = {}
+        self.graph_states: Dict[str, Dict[str, StateEntry]] = {}
+        self.global_states: Dict[str, StateEntry] = {}
         self.work_queue = work_queue
-        self.close_event = mp.Event()
+        self.close_event = close_event or mp.Event()
+        super().__init__(MP_WORKER_TIMEOUT, self.close_event)
 
-    def get_viewers(self):
-        return self.viewers
+    def get_viewers(self, graph_id: str):
+        return self.viewers[graph_id]
 
-    def handle_outputs(self, node_id: str, outputs: dict):
+    def handle_new_graph(self, graph_id: str):
+        if graph_id in self.viewers:
+            return
+        self.node_stats_viewers[graph_id] = NodeStatsViewer()
+        self.log_viewers[graph_id] = NodeLogsViewer()
+        self.prompt_viewers[graph_id] = PromptViewer()
+        self.viewers[graph_id] = [
+            self.node_stats_viewers[graph_id],
+            self.log_viewers[graph_id],
+            self.prompt_viewers[graph_id],
+            DataViewer(),
+        ]
+        self.graph_states[graph_id] = {}
+
+    def rm_graph(self, graph_id: str):
+        del self.viewers[graph_id]
+        del self.graph_states[graph_id]
+
+    def handle_outputs(self, graph_id: str, node_id: str, outputs: dict):
         if len(outputs) == 0:
             return
-        for viewer in self.viewers:
+        if graph_id not in self.viewers:
+            return
+        for viewer in self.viewers[graph_id]:
             viewer.handle_outputs(node_id, outputs)
 
-    def handle_time(self, node_id: str, time: float):
-        self.node_stats_viewer.handle_time(node_id, time)
+    def handle_time(self, graph_id: str, node_id: str, time: float):
+        if graph_id not in self.viewers:
+            return
+        self.node_stats_viewers[graph_id].handle_time(node_id, time)
 
-    def handle_queue_size(self, node_id: str, size: int):
-        self.node_stats_viewer.handle_queue_size(node_id, size)
+    def handle_queue_size(self, graph_id: str, node_id: str, size: int):
+        self.node_stats_viewers[graph_id].handle_queue_size(node_id, size)
 
-    def handle_start(self, node_id: str):
-        for viewer in self.viewers:
+    def handle_start(self, graph_id: str, node_id: str):
+        if graph_id not in self.viewers:
+            return
+        for viewer in self.viewers[graph_id]:
             viewer.handle_start(node_id)
 
-    def handle_clear(self, node_id: str | None):
-        for viewer in self.viewers:
+    def handle_clear(self, graph_id: str, node_id: Optional[str]):
+        if graph_id not in self.viewers:
+            return
+        for viewer in self.viewers[graph_id]:
             viewer.handle_clear(node_id)
 
-    def handle_log(self, node_id: str, log: str, type: str):
-        self.logs_viewer.handle_log(node_id, log, type)
+    def handle_log(self, graph_id: str, node_id: str, log: str, type: str):
+        self.log_viewers[graph_id].handle_log(node_id, log, type)
 
-    def handle_prompt(self, node_id: str, prompt: dict):
-        self.prompt_viewer.handle_prompt(node_id, prompt)
+    def handle_prompt(self, graph_id: str, node_id: str, prompt: dict):
+        self.prompt_viewers[graph_id].handle_prompt(node_id, prompt)
 
-    def handle_end(self):
-        for viewer in self.viewers:
+    def handle_end(self, graph_id: str):
+        if graph_id not in self.viewers:
+            return
+        for viewer in self.viewers[graph_id]:
             viewer.handle_end()
 
-    def set_state(self, type: str, data: Any = None):
+    def set_state(self, graph_id: Optional[str], type: str, data: Any = None):
         """
         Set state data for a specific type
         """
-        self.states[type] = data
+        if graph_id is None:
+            states = self.global_states
+        else:
+            states = self.graph_states.get(graph_id, None)
+        if states is None:
+            return
+        original = states.get(type, None)
+        if original is not None:
+            i, _ = original
+            states[type] = (i + 1, data)
+            return
+        states[type] = (0, data)
 
-    def get_current_states(self):
+    def get_current_states(
+        self, client_idx: dict, global_client_idx: dict
+    ) -> List[StateEntry]:
         """
         Retrieve all current state data
         """
-        states = [{"type": key, "data": self.states[key]} for key in self.states]
-        self.states.clear()
-        return states
+        states = [
+            (
+                state_entry[0],
+                {"graph_id": graph_id, "type": state_type, "data": state_entry[1]},
+            )
+            for graph_id, states in self.graph_states.items()
+            for state_type, state_entry in states.items()
+            if graph_id not in client_idx
+            or state_type not in client_idx[graph_id]
+            or state_entry[0] > client_idx[graph_id][state_type]
+        ]
 
-    def get_current_view_data(self):
+        global_states = [
+            (
+                state_entry[0],
+                {"type": state_type, "data": state_entry[1]},
+            )
+            for state_type, state_entry in self.global_states.items()
+            if state_type not in global_client_idx
+            or state_entry[0] > global_client_idx[state_type]
+        ]
+        return [*states, *global_states]
+
+    def get_current_view_data(self) -> List[dict]:
         """
         Get the current data from all viewer classes
         """
         view_data = []
-        for viewer in self.viewers:
-            next_entry = viewer.get_next()
-            if next_entry is not None:
-                entry = {"type": viewer.get_event_name(), "data": next_entry}
-                view_data.append(entry)
+        for graph_id, viewers in self.viewers.items():
+            for viewer in viewers:
+                next_entry = viewer.get_next()
+                if next_entry is not None:
+                    entry = {
+                        "graph_id": graph_id,
+                        "type": viewer.get_event_name(),
+                        "data": next_entry,
+                    }
+                    view_data.append(entry)
+        view_data.append(
+            {"type": "system_util", "data": self.system_util_viewer.get_next()}
+        )
         return view_data
 
-    def _loop(self):
-        while not self.close_event.is_set():
-            try:
-                work = self.work_queue.get(timeout=MP_WORKER_TIMEOUT)
-                if work["cmd"] == "handle_outputs":
-                    self.handle_outputs(work["node_id"], work["outputs"])
+    async def loop(self):
+        try:
+            work = self.work_queue.get_nowait()
+            while work is not None:
+                if work.get("cmd") is None or work.get("graph_id") is None:
+                    print("MultiGraphViewManager: Received invalid work:", work)
+                    return
+                if work["cmd"] == "handle_new_graph":
+                    self.handle_new_graph(work["graph_id"])
+                elif work["cmd"] == "handle_outputs":
+                    self.handle_outputs(
+                        work["graph_id"], work["node_id"], work["outputs"]
+                    )
                 elif work["cmd"] == "handle_queue_size":
-                    self.handle_queue_size(work["node_id"], work["size"])
+                    self.handle_queue_size(
+                        work["graph_id"], work["node_id"], work["size"]
+                    )
                 elif work["cmd"] == "handle_time":
-                    self.handle_time(work["node_id"], work["time"])
+                    self.handle_time(work["graph_id"], work["node_id"], work["time"])
                 elif work["cmd"] == "handle_start":
-                    self.handle_start(work["node_id"])
+                    self.handle_start(work["graph_id"], work["node_id"])
                 elif work["cmd"] == "handle_end":
-                    self.handle_end()
+                    self.handle_end(work["graph_id"])
                 elif work["cmd"] == "handle_log":
-                    self.handle_log(work["node_id"], work["log"], work["type"])
+                    self.handle_log(
+                        work["graph_id"], work["node_id"], work["log"], work["type"]
+                    )
                 elif work["cmd"] == "handle_clear":
-                    self.handle_clear(work["node_id"])
+                    self.handle_clear(work["graph_id"], work["node_id"])
                 elif work["cmd"] == "handle_prompt":
-                    self.handle_prompt(work["node_id"], work["prompt"])
+                    self.handle_prompt(
+                        work["graph_id"], work["node_id"], work["prompt"]
+                    )
                 elif work["cmd"] == "set_state":
-                    self.set_state(work["type"], work["data"])
-            except queue.Empty:
+                    self.set_state(work.get("graph_id"), work["type"], work["data"])
+                else:
+                    print(
+                        "MultiGraphViewManager: Received invalid work cmd:",
+                        work["cmd"],
+                    )
+                work = self.work_queue.get_nowait()
+        except queue.Empty:
+            pass
+        except asyncio.exceptions.CancelledError:
+            self.close_event.set()
+            return
+        except Exception as e:
+            if RAY_AVAILABLE and isinstance(e, RAY_UTIL_QUEUE.Empty):
                 pass
-
-    def start(self):
-        loop = asyncio.new_event_loop()
-        loop.run_in_executor(None, self._loop)
-        
-    def stop(self):
-        self.close_event.set()
+            else:
+                raise Exception(f"MultiGraphViewManager Error: {e}")
 
 
 class ViewManagerInterface:
-    def __init__(self, view_manager_queue: mp.Queue):
-        self.view_manager_queue = view_manager_queue
+    def __init__(self, graph_id: str, queue: mp.Queue):
+        self.graph_id = graph_id
+        self.queue = queue
+        self.handle_new_graph()
 
-    def handle_log(self, node_id: str, log: str, type: str = "info"):
-        self.view_manager_queue.put(
-            {"cmd": "handle_log", "node_id": node_id, "log": log, "type": type}
-        )
+    def handle_new_graph(self):
+        self.queue.put({"cmd": "handle_new_graph", "graph_id": self.graph_id})
 
     def handle_outputs(self, node_id: str, outputs: dict):
         if len(outputs) == 0:
             return
-        self.view_manager_queue.put(
-            {"cmd": "handle_outputs", "node_id": node_id, "outputs": outputs}
+        self.queue.put(
+            {
+                "cmd": "handle_outputs",
+                "graph_id": self.graph_id,
+                "node_id": node_id,
+                "outputs": outputs,
+            }
         )
 
     def handle_time(self, node_id: str, time: float):
-        self.view_manager_queue.put(
-            {"cmd": "handle_time", "node_id": node_id, "time": time}
-        )
-
-    def handle_queue_size(self, node_id: str, size: dict):
-        self.view_manager_queue.put(
-            {"cmd": "handle_queue_size", "node_id": node_id, "size": size}
+        self.queue.put(
+            {
+                "cmd": "handle_time",
+                "graph_id": self.graph_id,
+                "node_id": node_id,
+                "time": time,
+            }
         )
 
     def handle_start(self, node_id: str):
-        self.view_manager_queue.put({"cmd": "handle_start", "node_id": node_id})
+        self.queue.put(
+            {"cmd": "handle_start", "graph_id": self.graph_id, "node_id": node_id}
+        )
 
     def handle_end(self):
-        self.view_manager_queue.put({"cmd": "handle_end"})
+        self.queue.put(
+            {
+                "cmd": "handle_end",
+                "graph_id": self.graph_id,
+            }
+        )
 
-    def handle_clear(self, node_id: str | None):
-        self.view_manager_queue.put({"cmd": "handle_clear", "node_id": node_id})
-
-    def handle_prompt(self, node_id: str, prompt: dict):
-        self.view_manager_queue.put(
-            {"cmd": "handle_prompt", "node_id": node_id, "prompt": prompt}
+    def handle_clear(self, node_id: Optional[str]):
+        self.queue.put(
+            {"cmd": "handle_clear", "graph_id": self.graph_id, "node_id": node_id}
         )
 
     def set_state(self, type: str, data: Any):
-        self.view_manager_queue.put({"cmd": "set_state", "type": type, "data": data})
+        self.queue.put(
+            {"cmd": "set_state", "graph_id": self.graph_id, "type": type, "data": data}
+        )
+
+    def handle_queue_size(self, node_id: str, size: dict):
+        self.queue.put(
+            {
+                "cmd": "handle_queue_size",
+                "graph_id": self.graph_id,
+                "node_id": node_id,
+                "size": size,
+            }
+        )
+
+    def handle_log(self, node_id: str, log: str, type: str = "info"):
+        self.queue.put(
+            {
+                "cmd": "handle_log",
+                "graph_id": self.graph_id,
+                "node_id": node_id,
+                "log": log,
+                "type": type,
+            }
+        )
+
+    def handle_prompt(self, node_id: str, prompt: dict):
+        self.queue.put(
+            {
+                "cmd": "handle_prompt",
+                "graph_id": self.graph_id,
+                "node_id": node_id,
+                "prompt": prompt,
+            }
+        )
+
+
+class MultiGraphViewManagerInterface:
+    def __init__(self, view_manager_queue: mp.Queue):
+        self.view_manager_queue = view_manager_queue
+
+    def new(self, graph_id: str):
+        return ViewManagerInterface(graph_id, self.view_manager_queue)

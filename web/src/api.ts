@@ -237,18 +237,23 @@ export class ServerAPI {
     }
 
     private async delete(path): Promise<any> {
+        if (!this.sid) {
+            throw Error("Cannot make request without SID.");
+        }
+
         try {
-            const response = await fetch(`${this.host}/${path}`, {
+            const response = await fetch(`${this.protocol}//${this.host}/${path}`, {
                 method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'sid': this.sid,
                 }
             });
             if (response.ok) {
                 return await response.json();
             }
         } catch (e) {
-            console.error(e);
+            console.error(`DELETE request error: ${e}`);
             return null;
         }
     }
@@ -310,12 +315,12 @@ export class ServerAPI {
         return await this.get(`state/${stepId}/${pin}/${index}`);
     }
 
-    public async getRunState() {
-        return await this.get('state');
-    }
-
     public async respondToPrompt(stepId: string, response: any) {
         return await this.post(`prompt_response/${stepId}`, { response });
+    }
+
+    public async paramRun(graphId: string, params: any) {
+        return await this.post(`param_run/${graphId}`, { params });
     }
 
     /**

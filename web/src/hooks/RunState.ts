@@ -1,33 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAPI } from "./API";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useAPIEveryGraphLastValue, useAPIEveryGraphMessageEffect } from "./API";
 
-export type RunState = 'changing' | 'running' | 'stopped';
-let globalRunState: RunState = 'stopped';
+export type RunState = 'changing' | 'running' | 'finished';
+let globalRunState: RunState = 'finished';
 let globalRunningFile: string = '';
 let localSetters: Function[] = [];
-let initialized = false;
-
-const updateRunState = (msg) => {
-    if (msg) {
-        if (msg.is_running) {
-            globalRunState = 'running';
-        } else {
-            globalRunState = 'stopped';
-        }
-        globalRunningFile = msg.filename;
-    } else {
-        globalRunState = 'changing';
-        globalRunningFile = '';
-    }
-
-    for (const setter of localSetters) {
-        setter(globalRunState);
-    }
-};
 
 export function useRunState(): [RunState, () => void] {
     const [_, setRunState] = useState<RunState>(globalRunState);
-    const API = useAPI();
 
     useEffect(() => {
         localSetters.push(setRunState);
@@ -36,30 +16,24 @@ export function useRunState(): [RunState, () => void] {
         };
     }, []);
 
-    useEffect(() => {
-        const globalEventListener = res => {
-            const msg = JSON.parse(res.data);
-            if (msg.type === 'run_state') {
-                updateRunState(msg.data);
+    const runStates = useAPIEveryGraphLastValue("run_state");
+
+    const runState = useMemo(() => {
+        const isRunning = () => {
+            for (const state of Object.values<RunState>(runStates)) {
+                if (state === 'running') {
+                    return true;
+                }
             }
+            return false;
         };
 
-        (async () => {
-            if (!initialized && API) {
-                initialized = true;
-                API.addWSMessageListener(globalEventListener);
-                const runState = await API?.getRunState();
-                updateRunState(runState);
-            }
-
-            return () => {
-                if (localSetters.length === 0) {
-                    API?.removeWSMessageListener(globalEventListener);
-                    initialized = false;
-                }
-            };
-        })();
-    }, [API]);
+        if (isRunning()) {
+            return 'running';
+        } 
+        
+        return 'finished';
+    }, [runStates]);
 
     const runStateShouldChange = useCallback(() => {
         globalRunState = 'changing';
@@ -69,7 +43,7 @@ export function useRunState(): [RunState, () => void] {
         }
     }, []);
 
-    return [globalRunState, runStateShouldChange];
+    return [runState, runStateShouldChange];
 }
 
 export function getGlobalRunningFile() {

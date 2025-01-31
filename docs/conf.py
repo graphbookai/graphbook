@@ -46,7 +46,7 @@ html_theme_options = {
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_favicon = '_static/graphbook_32.png'
-html_title = 'Graphbook - ML Workflow Framework'
+html_title = 'Graphbook - Build AI-driven Data Pipelines'
 html_permalinks_icon = Icons.permalinks_icon
 html_theme = 'sphinxawesome_theme'
 html_static_path = ['_static']
@@ -54,7 +54,7 @@ html_extra_path = ["robots.txt"]
 sitemap_url_scheme = "{link}"
 html_context = {
     'og_image': 'https://cdn.prod.website-files.com/6620137e5938f28a7e4eef8a/66aebc5f3b8d7345af42babe_GB%20OpenGraph.png',
-    'og_description': 'Graphbook is a framework for building efficient, interactive DAG-structured ML workflows composed of nodes which can be implemented in Python. It provides common ML processing features and a web UI to assemble, monitor, and execute data processing pipelines.'
+    'og_description': 'Graphbook is a framework for building efficient, interactive DAG-structured data pipelines composed of your own custom-built nodes in Python. It provides common ML processing features and a web UI to assemble, monitor, and execute data processing pipelines.'
 }
 
 pygments_style = "default"

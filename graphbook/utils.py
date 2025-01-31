@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, Union
 import importlib
 import shutil
 import subprocess
@@ -7,7 +7,6 @@ import os
 import platform
 import threading
 from torch import Tensor
-from numpy import ndarray
 from PIL import Image
 from .note import Note
 
@@ -142,8 +141,6 @@ def transform_json_log(log: Any) -> Any:
         return f"(bytes of length {len(log)})"
     if isinstance(log, Tensor):
         return f"(Tensor of shape {log.shape})"
-    if isinstance(log, ndarray):
-        return f"(ndarray of shape {log.shape})"
     if isinstance(log, Image.Image):
         return f"(PIL Image of size {log.size})"
     if (
@@ -158,7 +155,7 @@ def transform_json_log(log: Any) -> Any:
     return "(Not JSON serializable)"
 
 
-def image(path_or_pil: str | Image.Image) -> dict:
+def image(path_or_pil: Union[str, Image.Image]) -> dict:
     """
     A simple helper function to create a Graphbook-recognizable image object.
     A path to an image file or a PIL Image object is supported for rendering in the UI.
@@ -166,7 +163,7 @@ def image(path_or_pil: str | Image.Image) -> dict:
     If shared memory is disabled, PIL Image objects will not be rendered in the UI.
 
     Args:
-        path_or_pil (str | Image.Image): A path to an image file or a PIL Image object.
+        path_or_pil (Union[str, Image.Image]): A path to an image file or a PIL Image object.
     """
     assert isinstance(path_or_pil, str) or isinstance(path_or_pil, Image.Image)
     return {"type": "image", "value": path_or_pil}
@@ -189,3 +186,45 @@ class ExecutionContext:
     def get(cls, key: str, default: Any = None) -> Any:
         return cls.get_context().get(key, default)
 
+import asyncio
+from abc import ABC, abstractmethod
+from typing import Optional
+
+class TaskLoop:
+    def __init__(self, interval_seconds: float = MP_WORKER_TIMEOUT, close_event: Optional[asyncio.Event] = None):
+        self._stop_event = close_event or asyncio.Event()
+        self._interval = interval_seconds
+        self._task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        
+    @abstractmethod
+    async def loop(self) -> None:
+        """Override this method with the work to be done periodically"""
+        pass
+        
+    async def _run(self):
+        while not self._stop_event.is_set():
+            try:
+                await self.loop()
+            except Exception as e:
+                print(f"Error in worker loop: {e}")
+            await asyncio.sleep(self._interval)
+    
+    def start(self):
+        """Start the worker in the current event loop"""
+        self._loop = asyncio.get_event_loop()
+        self._task = self._loop.create_task(self._run())
+        
+    async def stop(self):
+        """Stop the worker"""
+        if self._task:
+            self._stop_event.set()
+            await self._task
+
+try:
+    import ray
+    RAY_AVAILABLE = True
+    RAY = ray
+except ImportError:
+    RAY_AVAILABLE = False
+    RAY = None

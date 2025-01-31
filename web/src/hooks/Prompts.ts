@@ -1,4 +1,4 @@
-import { useAPINodeMessage } from "./API";
+import { useAPINodeMessageEffect } from "./API";
 import { useFilename } from "./Filename"
 import { useEffect, useCallback, useState } from "react";
 
@@ -66,7 +66,7 @@ export function usePrompt(nodeId: string, callback?: (p: Prompt) => void | null)
         globalPrompts[nodeId] = { ...globalPrompts[nodeId], "type": null };
     }, []);
 
-    useAPINodeMessage("prompt", nodeId, filename, onPrompt);
+    useAPINodeMessageEffect("prompt", nodeId, filename, onPrompt);
 
     return setSubmitted;
 }

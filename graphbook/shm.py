@@ -2,9 +2,21 @@ from multiprocessing import shared_memory, Lock, Event
 import json
 import uuid
 from io import BytesIO
+from PIL import Image
+from typing import Dict
+from graphbook.utils import RAY
 
 
-class SharedMemoryManager:
+class ImageStorageInterface:
+    def add_image(self, pil_image) -> str:
+        pass
+
+    def get_image(self, image_id) -> bytes:
+        pass
+
+
+## UNUSED
+class SharedMemoryManager(ImageStorageInterface):
     """
     Creates a shared memory region for storing images.
 
@@ -105,3 +117,55 @@ class SharedMemoryManager:
     def close(self):
         self.shm.close()
         self.shm.unlink()
+
+
+class MultiThreadedMemoryManager(ImageStorageInterface):
+    """
+    A thread-safe memory region for storing images.
+    """
+
+    _lock = Lock()
+    _storage: Dict[str, Image.Image] = {}
+
+    @classmethod
+    def add_image(cls, pil_image):
+        image_id = str(uuid.uuid4())
+        with cls.lock:
+            cls._storage[image_id] = pil_image
+        return image_id
+
+    @classmethod
+    def get_image(cls, image_id):
+        with cls._lock:
+            image = cls._storage.get(image_id, None)
+
+        if image is None:
+            return None
+
+        img_buffer = BytesIO()
+        image.save(img_buffer, format=image.format or "PNG")
+        return img_buffer.getvalue()
+
+
+class RayMemoryManager(ImageStorageInterface):
+    """
+    For retrieving images from a Ray actor.
+    """
+
+    _ray = RAY
+    _processor = None
+
+    @classmethod
+    def add_image(cls, pil_image):
+        raise NotImplementedError(
+            "RayMemoryManager doesn't support add_image. Images are stored in _graphbook_RayStepHandler Actor"
+        )
+
+    @classmethod
+    def get_image(cls, image_id: str):
+        if cls._processor is None:
+            cls._processor = cls._ray.get_actor("_graphbook_RayStepHandler")
+        img_buffer = BytesIO()
+        image = cls._ray.get(cls._processor.get_image.remote(image_id))
+        image.save(img_buffer, format=image.format or "PNG")
+        return img_buffer.getvalue()

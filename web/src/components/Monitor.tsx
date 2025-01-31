@@ -33,7 +33,7 @@ import {
 } from "@ant-design/icons";
 import { Resizable } from 're-resizable';
 import { getGlobalRunningFile, useRunState } from "../hooks/RunState";
-import { useAPIMessage, useAPI } from "../hooks/API";
+import { useAPIMessageEffect, useAPI, useAPIMessageLastValue } from "../hooks/API";
 import { useOnSelectionChange } from "reactflow";
 import ReactJson from "@microlink/react-json-view";
 import { getMergedLogs, getMediaPath } from "../utils";
@@ -116,8 +116,9 @@ function MonitorView({ selectedNodes, onResize }) {
     const [nodeStates, setNodeStates] = useState({});
     const [settings, setSettings] = useSettings();
     const viewColumns = settings.monitorDataColumns;
+    const filename = useFilename();
 
-    useAPIMessage('stats', (data) => {
+    useAPIMessageEffect('stats', (data) => {
         setNodeStates(prev => {
             const newState = { ...prev };
             Object.entries<any>(data).forEach(([key, value]) => {
@@ -131,9 +132,9 @@ function MonitorView({ selectedNodes, onResize }) {
             });
             return newState;
         });
-    });
+    }, filename);
 
-    useAPIMessage('logs', (data) => {
+    useAPIMessageEffect('logs', (data) => {
         setNodeStates(prev => {
             const newState = { ...prev };
             Object.entries<any>(data).forEach(([key, value]) => {
@@ -145,7 +146,7 @@ function MonitorView({ selectedNodes, onResize }) {
             });
             return newState;
         });
-    });
+    }, filename);
 
     const onScrollToBottomChange = useCallback((e) => {
         setSettings('monitorLogsShouldScrollToBottom', e.target.checked);

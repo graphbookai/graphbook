@@ -28,7 +28,7 @@ const getExampleStr = (name: string) => {
     return `For example, make a file named \`docs/${name}.md\` and add your documentation there.`;
 };
 
-export function Docs() {
+export function Docs({ helpString }: { helpString?: string }) {
     const { token } = useToken();
     const [hidden, setHidden] = useState(false);
     const [nodeDocs, setNodeDocs] = useState<NodeDoc[]>([]);
@@ -36,7 +36,7 @@ export function Docs() {
     const nodes = useNodes();
     const API = useAPI();
     const filename = useFilename();
-    const initialDocStr = useMemo(() => DefaultDoc + getExampleStr(filename.split('.')[0]), [filename]);
+    const initialDocStr = useMemo(() => helpString ? helpString : DefaultDoc + getExampleStr(filename.split('.')[0]), [filename, helpString]);
     const [workflowDoc, setWorkflowDoc] = useState(initialDocStr);
 
     useEffect(() => {
@@ -68,56 +68,47 @@ export function Docs() {
             return;
         }
 
-        const loadNodeDocs = async (docs) => {
-            if (docs.length === 0) {
-                return;
-            }
-
-            const newDocs = await Promise.all(docs.map(async (doc) => {
-                const loadedDoc = doc.type === 'step' ? await API.getStepDocstring(doc.name) : await API.getResourceDocstring(doc.name);
-                return {
-                    ...doc,
-                    content: loadedDoc?.content || '(No docstring)'
-                };
-            }));
-
-            setNodeDocs(pre => {
-                return pre.map(doc => {
-                    const newDoc = newDocs.find(d => d.name === doc.name);
-                    if (newDoc) {
-                        return newDoc;
-                    }
-                    return doc;
-                });
-            });
-        };
-
         const n = nodes as any[];
         const uniqueNodeNames = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.data.name));
         const uniqueNodes = [...uniqueNodeNames].map(name => n.find(n => n.data.name === name));
 
-        if (nodeDocs.length !== uniqueNodes.length) {
-            const toLoad: any[] = [];
-            const docs = [...uniqueNodes].map(n => {
-                const existingDoc = nodeDocs.find(doc => doc.name === n.data.name);
-                if (existingDoc) {
-                    return existingDoc;
-                } else {
-                    const doc = {
-                        type: n.type,
-                        name: n.data.name,
-                        content: '(Loading...)',
-                    };
-                    toLoad.push(doc);
-                    return doc;
-                }
-            });
-
-            setNodeDocs(docs);
-            loadNodeDocs(toLoad);
+        if (uniqueNodes.length === nodeDocs.length) {
+            return;
         }
 
-    }, [nodes, nodeDocs, API]);
+        const currentNodeDocs = uniqueNodes.map(n => {
+            return {
+                type: n.type,
+                name: n.data.name,
+                content: n.data.properties?.doc,
+            };
+        });
+
+        const loadNodeExtraDocs = async () => {
+            const extraNodes = currentNodeDocs.filter(n => !n.content);
+            if (extraNodes.length === 0) {
+                return;
+            }
+            const nodeDocs = await Promise.all(extraNodes.map(async n => {
+                const data = n.type === 'step' ? await API.getStepDocstring(n.name) : await API.getResourceDocstring(n.name);
+                return {
+                    name: n.name,
+                    content: data?.content,
+                };
+            }));
+            const mergedNodeDocs = currentNodeDocs.map(n => {
+                const content = n.content || nodeDocs.find(d => d.name === n.name)?.content || '(No docstring)';
+                return {
+                    ...n,
+                    content,
+                };
+            });
+
+            setNodeDocs(mergedNodeDocs);
+        };
+
+        loadNodeExtraDocs();
+    }, [nodes, API]);
 
     const containerStyle: React.CSSProperties = useMemo(() => ({
         padding: '5px 10px',
@@ -145,7 +136,7 @@ export function Docs() {
             return {
                 key: i.toString(),
                 label: doc.name,
-                children: <Markdown>{doc.content}</Markdown>,
+                children: <Markdown>{doc.content.trim()}</Markdown>,
             }
         });
     }, [nodeDocs]);
@@ -177,7 +168,7 @@ export function Docs() {
                 nodeDocs.length > 0 &&
                 <Flex vertical style={{ flex: 1, height: 0 }}>
                     <Text style={{ padding: '5px', fontSize: '1.2em' }}>Included Nodes</Text>
-                    <Collapse style={docSectionStyle} items={items} defaultActiveKey={['0']} />
+                    <Collapse size='small' style={docSectionStyle} items={items} defaultActiveKey={['0']} />
                 </Flex>
             }
         </Flex>

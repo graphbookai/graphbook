@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING
+from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING, Optional
 from ..utils import (
     transform_function_string,
     convert_dict_values_to_list,
@@ -12,6 +12,14 @@ from .. import Note, prompts
 import warnings
 import traceback
 import copy
+
+try:
+    import ray
+    RAY_AVAILABLE = True
+    RAY = ray
+except ImportError:
+    RAY_AVAILABLE = False
+    RAY = None
 
 if TYPE_CHECKING:
     from ..dataloading import Dataloader
@@ -33,10 +41,16 @@ def log(msg: Any, type: LogType = "info"):
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
 
-    if view_manager is None:
-        raise ValueError(
-            "View manager not initialized in context. Is this being called in a running graph?"
-        )
+    if view_manager is None and RAY_AVAILABLE:
+        if RAY.is_initialized():
+            actor_handle = ray.get_actor("_graphbook_RayStepHandler")
+            log_handle = actor_handle.handle_log.remote
+        else:
+            raise ValueError(
+                "View manager not initialized in context. Is this being called in a running graph?"
+            )
+    else:
+        log_handle = view_manager.handle_log
 
     if type in text_log_types:
         if type == "error":
@@ -48,7 +62,7 @@ def log(msg: Any, type: LogType = "info"):
         pass  # TODO
     else:
         raise ValueError(f"Unknown log type {type}")
-    view_manager.handle_log(node_id, msg, type)
+    log_handle(node_id, msg, type)
 
 
 def prompt(prompt: dict):
@@ -76,6 +90,15 @@ class Step:
         self.id = None
         self.item_key = item_key
         self.children = {"out": []}
+        
+    def set_context(self, **context):
+        """
+        Sets the context of the step. This is useful for setting the node_id and node_name of the step.
+
+        Args:
+            **context: The context to set
+        """
+        ExecutionContext.update(**context)
 
     def set_child(self, child: Step, slot_name: str = "out"):
         """
@@ -146,7 +169,7 @@ class Step:
         """
         pass
 
-    def forward_note(self, note: Note) -> str | StepOutput:
+    def forward_note(self, note: Note) -> Optional[StepOutput]:
         """
         Routes a Note. Must return the corresponding output key or a dictionary that contains Notes.
         Is called after *on_after_item()*.
@@ -270,7 +293,7 @@ class AsyncStep(Step):
         self._in_queue = []
         self._out_queue = []
 
-    def in_q(self, note: Note | None):
+    def in_q(self, note: Optional[Note]):
         if note is None:
             return
         self._in_queue.append(note)
@@ -348,7 +371,7 @@ class BatchStep(AsyncStep):
         self.dump_fn_params = {}
         self.parallelized_load = self.load_fn != BatchStep.load_fn
 
-    def in_q(self, note: Note | None):
+    def in_q(self, note: Optional[Note]):
         """
         Enqueue a note to be processed by the step
 
@@ -532,7 +555,7 @@ class BatchStep(AsyncStep):
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, outputs, items, notes) -> List[Tuple[Any]] | None:
+    def on_item_batch(self, outputs, items, notes) -> Optional[List[Tuple[Any]]]:
         """
         Called when B items are loaded and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
@@ -544,7 +567,7 @@ class BatchStep(AsyncStep):
                 along the batch dimension
 
         Returns:
-            List[Tuple[Any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
+            Optional[List[Tuple[Any]]]: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
         """
         pass
 

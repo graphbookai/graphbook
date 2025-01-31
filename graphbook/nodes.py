@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 from . import steps, resources
 from .doc2md import convert_to_md
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
@@ -7,12 +7,11 @@ from pathlib import Path
 import importlib
 import importlib.util
 import hashlib
-import sys
 import os
 import inspect
 import traceback
 from .decorators import get_steps, get_resources
-from .viewer import ViewManager
+from .viewer import MultiGraphViewManager
 
 
 BUILT_IN_STEPS = [
@@ -55,14 +54,20 @@ default_exported_resources = {
 
 class NodeHub:
     def __init__(
-        self, path: Path, plugins: Tuple[dict, dict], view_manager: ViewManager
+        self,
+        plugins: Tuple[dict, dict],
+        view_manager: MultiGraphViewManager,
+        path: Optional[Path] = None,
     ):
         self.exported_steps = default_exported_steps
         self.exported_resources = default_exported_resources
         self.view_manager = view_manager
-        self.custom_node_importer = CustomNodeImporter(
-            path, self.handle_step, self.handle_resource, self.handle_module
-        )
+        if path:
+            self.custom_node_importer = CustomNodeImporter(
+                path, self.handle_step, self.handle_resource, self.handle_module
+            )
+        else:
+            self.custom_node_importer = None
         plugin_steps, plugin_resources = plugins
         for plugin in plugin_steps:
             self.exported_steps.update(plugin_steps[plugin])
@@ -70,13 +75,15 @@ class NodeHub:
             self.exported_resources.update(plugin_resources[plugin])
 
     def start(self):
-        self.custom_node_importer.start_observer()
+        if self.custom_node_importer:
+            self.custom_node_importer.start_observer()
 
     def stop(self):
-        self.custom_node_importer.stop_observer()
+        if self.custom_node_importer:
+            self.custom_node_importer.stop_observer()
 
     def handle_module(self, filename, module):
-        self.view_manager.set_state("node_updated")
+        self.view_manager.set_state(None, "node_updated")
 
     def handle_step(self, filename: Path, name: str, step: steps.Step):
         print(f"{filename.name}: {name} (step)")
@@ -129,28 +136,30 @@ class NodeHub:
                     curr_category[node_name] = node
             return node_tree
 
-        steps = {
+        step_catalog = {
             k: {
                 "name": k,
-                "parameters": v.Parameters,
-                "inputs": ["in"] if v.RequiresInput else [],
-                "outputs": v.Outputs,
-                "category": v.Category,
+                "parameters": getattr(v, "Parameters", {}),
+                "inputs": ["in"] if not issubclass(v, steps.SourceStep) else [],
+                "outputs": getattr(v, "Outputs", ["out"]),
+                "category": getattr(v, "Category", ""),
+                "doc": v.__doc__.strip() if v.__doc__ else "",
             }
             for k, v in self.get_steps().items()
         }
-        resources = {
+        resource_catalog = {
             k: {
                 "name": k,
-                "parameters": v.Parameters,
-                "category": v.Category,
+                "parameters": getattr(v, "Parameters", {}),
+                "category": getattr(v, "Category", ""),
+                "doc": v.__doc__.strip() if v.__doc__ else "",
             }
             for k, v in self.get_resources().items()
         }
 
         return {
-            "steps": create_dir_structure(steps),
-            "resources": create_dir_structure(resources),
+            "steps": create_dir_structure(step_catalog),
+            "resources": create_dir_structure(resource_catalog),
         }
 
 

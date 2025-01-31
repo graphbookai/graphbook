@@ -1,9 +1,9 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
 from .nodes import NodeHub
-from .viewer import ViewManager
+from .viewer import MultiGraphViewManager
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -11,8 +11,24 @@ import multiprocessing as mp
 import os
 import asyncio
 import shutil
+import traceback
+from .utils import TaskLoop, RAY
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
+
+
+class ProcessorInterface:
+    def get_output_note(self, step_id: str, pin_id: str, index: int) -> dict:
+        raise NotImplementedError
+
+    def pause(self):
+        raise NotImplementedError
+
+    def get_queue(self) -> mp.Queue:
+        raise NotImplementedError
+
+    def handle_prompt_response(self, response: dict):
+        raise NotImplementedError
 
 
 class Client:
@@ -20,98 +36,165 @@ class Client:
         self,
         sid: str,
         ws: WebSocketResponse,
-        processor: WebInstanceProcessor,
-        node_hub: NodeHub,
-        view_manager: ViewManager,
-        setup_paths: dict,
+        view_manager: MultiGraphViewManager,
+        proc_interface: ProcessorInterface,
     ):
         self.sid = sid
         self.ws = ws
-        self.processor = processor
-        self.node_hub = node_hub
         self.view_manager = view_manager
-        self.root_path = Path(setup_paths["workflow_dir"])
-        self.docs_path = Path(setup_paths["docs_path"])
-        self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
-        self.close_event = asyncio.Event()
+        # graph_id -> {state_type -> idx}
+        self.state_idx: Dict[str, Dict[str, int]] = {}
+        self.state_idx_global: Dict[str, int] = {}
+        self.proc_interface = proc_interface
 
-    def get_root_path(self) -> Path:
-        return self.root_path
-
-    def get_docs_path(self) -> Path:
-        return self.docs_path
-
-    def get_custom_nodes_path(self) -> Path:
-        return self.custom_nodes_path
-
-    def nodes(self):
-        return self.node_hub.get_exported_nodes()
-
-    def step_doc(self, name):
-        return self.node_hub.get_step_docstring(name)
-
-    def resource_doc(self, name):
-        return self.node_hub.get_resource_docstring(name)
-
-    def exec(self, req: dict):
-        self.processor.exec(req)
-
-    def get_processor(self) -> WebInstanceProcessor:
-        return self.processor
-
-    def get_view_manager(self) -> ViewManager:
+    def get_view_manager(self) -> MultiGraphViewManager:
         return self.view_manager
 
-    def get_node_hub(self) -> NodeHub:
-        return self.node_hub
+    def get_processor(self) -> ProcessorInterface:
+        return self.proc_interface
+
+    def stop(self):
+        self.view_manager.stop()
 
     async def close(self):
         await self.ws.close()
 
 
-class ClientPool:
+class RayProcessorInterface:
+    def __init__(self, processor, proc_queue: mp.Queue):
+        self.processor = processor
+        self.queue = proc_queue
+
+    def get_output_note(self, step_id: str, pin_id: str, index: int):
+        return RAY.get(self.processor.get_output_note.remote(step_id, pin_id, index))
+
+    def pause(self):
+        raise NotImplementedError("RayProcessor does not support pause")
+
+    def get_queue(self):
+        return self.queue
+
+
+class RayClient(Client):
+    def __init__(
+        self,
+        sid: str,
+        ws: WebSocketResponse,
+        view_manager: MultiGraphViewManager,
+        proc_queue: mp.Queue,
+    ):
+        processor = RAY.get_actor("_graphbook_RayStepHandler")
+        self.processor_interface = RayProcessorInterface(processor, proc_queue)
+        super().__init__(sid, ws, view_manager, self.processor_interface)
+
+
+class WebClient(Client):
+    def __init__(
+        self,
+        sid: str,
+        ws: WebSocketResponse,
+        processor: WebInstanceProcessor,
+        node_hub: NodeHub,
+        view_manager: MultiGraphViewManager,
+        setup_paths: Optional[dict] = None,
+    ):
+        super().__init__(sid, ws, view_manager, processor)
+        self.processor = processor
+        self.node_hub = node_hub
+        if setup_paths:
+            self.root_path = Path(setup_paths["workflow_dir"])
+            self.docs_path = Path(setup_paths["docs_path"])
+            self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
+        else:
+            self.root_path = None
+            self.docs_path = None
+            self.custom_nodes_path = None
+
+    def get_root_path(self) -> Optional[Path]:
+        return self.root_path
+
+    def get_docs_path(self) -> Optional[Path]:
+        return self.docs_path
+
+    def get_custom_nodes_path(self) -> Optional[Path]:
+        return self.custom_nodes_path
+
+    def nodes(self):
+        return self.node_hub.get_exported_nodes()
+
+    def exec(self, req: dict):
+        self.processor.exec(req)
+
+    def get_node_hub(self) -> NodeHub:
+        return self.node_hub
+
+    def stop(self):
+        self.processor.stop()
+        self.node_hub.stop()
+        super().stop()
+
+
+class ClientPool(TaskLoop):
     def __init__(
         self,
         web_processor_args: dict,
-        setup_paths: dict,
         plugins: tuple,
         isolate_users: bool,
         no_sample: bool,
         close_event: mp.Event,
+        setup_paths: Optional[dict] = None,
+        proc_queue: Optional[mp.Queue] = None,
+        view_queue: Optional[mp.Queue] = None,
         options: dict = DEFAULT_CLIENT_OPTIONS,
     ):
         self.clients: Dict[str, Client] = {}
+        self.ws: Dict[str, WebSocketResponse] = {}
         self.tmpdirs: Dict[str, str] = {}
         self.web_processor_args = web_processor_args
+        self.web_processor_args["close_event"] = close_event
         self.setup_paths = setup_paths
+        self.is_interactive = setup_paths is not None
+        self.custom_nodes_path = (
+            setup_paths["custom_nodes_path"] if setup_paths else None
+        )
         self.plugins = plugins
         self.shared_execution = not isolate_users
         self.no_sample = no_sample
         self.close_event = close_event
+        self.proc_queue = proc_queue
+        self.view_queue = view_queue
         self.options = options
         if self.shared_execution:
+            if setup_paths:
+                self._create_dirs(**setup_paths, no_sample=self.no_sample)
             self.shared_resources = self._create_resources(
-                web_processor_args, setup_paths
+                web_processor_args, self.custom_nodes_path
             )
-        self.curr_task = None
+        super().__init__(options["SEND_EVERY"], close_event)
 
-    def _create_resources(self, web_processor_args: dict, setup_paths: dict):
-        view_queue = mp.Queue()
-        processor_args = {
-            **web_processor_args,
-            "custom_nodes_path": setup_paths["custom_nodes_path"],
-            "view_manager_queue": view_queue,
-        }
-        self._create_dirs(**setup_paths, no_sample=self.no_sample)
-        processor = WebInstanceProcessor(**processor_args)
-        view_manager = ViewManager(view_queue, processor)
-        node_hub = NodeHub(setup_paths["custom_nodes_path"], self.plugins, view_manager)
-        processor.start()
-        view_manager.start()
-        node_hub.start()
+    def _create_resources(
+        self, web_processor_args: dict, custom_nodes_path: Optional[str] = None
+    ):
+        view_queue = self.view_queue if self.view_queue is not None else mp.Queue()
+        if self.is_interactive:
+            processor_args = {
+                **web_processor_args,
+                "custom_nodes_path": custom_nodes_path,
+                "view_manager_queue": view_queue,
+            }
+            processor = WebInstanceProcessor(**processor_args)
+            view_manager = MultiGraphViewManager(
+                view_queue, processor, self.close_event
+            )
+            node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
+            return {
+                "processor": processor,
+                "node_hub": node_hub,
+                "view_manager": view_manager,
+            }
+
+        view_manager = MultiGraphViewManager(view_queue, close_event=self.close_event)
         return {
-            "processor": processor,
-            "node_hub": node_hub,
             "view_manager": view_manager,
         }
 
@@ -149,7 +232,7 @@ class ClientPool:
 
     async def add_client(self, ws: WebSocketResponse) -> Client:
         sid = uuid.uuid4().hex
-        setup_paths = {**self.setup_paths}
+        setup_paths = {**self.setup_paths} if self.setup_paths else None
         if self.shared_execution:
             resources = self.shared_resources
         else:
@@ -158,71 +241,131 @@ class ClientPool:
             setup_paths = {
                 key: root_path.joinpath(path) for key, path in setup_paths.items()
             }
+            custom_nodes_path = (
+                setup_paths["custom_nodes_path"] if setup_paths else None
+            )
             web_processor_args = {
                 **self.web_processor_args,
-                "custom_nodes_path": setup_paths["custom_nodes_path"],
+                "custom_nodes_path": custom_nodes_path,
             }
-            resources = self._create_resources(web_processor_args, setup_paths)
+            resources = self._create_resources(web_processor_args, custom_nodes_path)
 
-        client = Client(sid, ws, **resources, setup_paths=setup_paths)
+        if self.is_interactive:
+            client = WebClient(sid, ws, **resources, setup_paths=setup_paths)
+            print(f"{sid}: {client.get_root_path()}")
+        else:
+            client = RayClient(sid, ws, **resources, proc_queue=self.proc_queue)
+            print(f"{sid}: (non-interactive)")
         self.clients[sid] = client
+        self.ws[sid] = ws
         await ws.send_json({"type": "sid", "data": sid})
-        print(f"{sid}: {client.get_root_path()}")
         return client
 
-    def get(self, sid: str) -> Client | None:
+    def get(self, sid: str) -> Optional[Client]:
         return self.clients.get(sid, None)
+
+    def get_all(self) -> List[Client]:
+        return list(self.clients.values())
+
+    def get_all_ws(self) -> Dict[str, WebSocketResponse]:
+        return self.ws
 
     async def remove_client(self, client: Client):
         sid = client.sid
+        await client.close()
+        if not self.shared_execution:
+            client.stop()
         if sid in self.clients:
-            await client.close()
             del self.clients[sid]
-            if not self.shared_execution:
-                client.get_processor().stop()
-                client.get_node_hub().stop()
-                client.get_view_manager().stop()
+        if sid in self.ws:
+            del self.ws[sid]
         if sid in self.tmpdirs:
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
 
-    async def stop(self):
-        for client in list(self.clients.values()):
-            await self.remove_client(client)
-        if self.curr_task:
-            self.curr_task.cancel()
-        if self.shared_execution:
-            self.shared_resources["processor"].stop()
-            self.shared_resources["node_hub"].stop()
-            self.shared_resources["view_manager"].stop()
+    # async def stop(self):
+    #     for client in list(self.clients.values()):
+    #         await self.remove_client(client)
+    #     if self.curr_task:
+    #         self.curr_task.cancel()
+    #     if self.shared_execution:
+    #         self.shared_resources["processor"].stop()
+    #         self.shared_resources["node_hub"].stop()
+    #         self.shared_resources["view_manager"].stop()
 
-    async def _loop(self):
-        def get_view_data(view_manager: ViewManager) -> List[dict]:
-            current_view_data = view_manager.get_current_view_data()
-            current_states = view_manager.get_current_states()
-            return [*current_view_data, *current_states]
+    async def loop(self):
+        def get_state_data(
+            view_manager: MultiGraphViewManager, client: Client
+        ) -> List[dict]:
+            states = view_manager.get_current_states(
+                client.state_idx, client.state_idx_global
+            )
 
-        while not self.close_event.is_set():
-            await asyncio.sleep(self.options["SEND_EVERY"])
+            for idx, data in states:
+                graph_id, type = data.get("graph_id"), data["type"]
 
+                if graph_id is None:
+                    client.state_idx_global[type] = idx
+                else:
+                    if graph_id not in client.state_idx:
+                        client.state_idx[graph_id] = {}
+                    client.state_idx[graph_id][type] = idx
+
+            return_data = [data for _, data in states]
+            return return_data
+
+        try:
             if self.shared_execution:
-                all_data = get_view_data(self.shared_resources["view_manager"])
-                for client in self.clients.values():
+                view_manager: MultiGraphViewManager = self.shared_resources[
+                    "view_manager"
+                ]
+                view_data = view_manager.get_current_view_data()
+                for client in list(self.clients.values()):
+                    if client.ws.closed:
+                        continue
+                    state_data = get_state_data(view_manager, client)
                     try:
                         await asyncio.gather(
-                            *[client.ws.send_json(data) for data in all_data]
+                            *[
+                                client.ws.send_json(data)
+                                for data in [*view_data, *state_data]
+                            ]
                         )
                     except Exception as e:
                         print(f"Error sending to client: {e}")
             else:
-                for client in self.clients.values():
-                    all_data = get_view_data(client.get_view_manager())
+                for client in list(self.clients.values()):
+                    if client.ws.closed:
+                        continue
+                    view_manager = client.get_view_manager()
+                    view_data = view_manager.get_current_view_data()
+                    state_data = get_state_data(view_manager, client)
                     try:
                         await asyncio.gather(
-                            *[client.ws.send_json(data) for data in all_data]
+                            *[
+                                client.ws.send_json(data)
+                                for data in [*view_data, *state_data]
+                            ]
                         )
                     except Exception as e:
                         print(f"Error sending to client: {e}")
+        except Exception as e:
+            print(f"ClientPool Error:")
+            traceback.print_exc()
+            raise
 
-    async def start(self):
-        self.curr_task = asyncio.create_task(self._loop())
+    def start(self):
+        super().start()
+        if self.shared_execution:
+            viewer = self.shared_resources.get("view_manager")
+            if viewer:
+                viewer.start()
+
+            processor = self.shared_resources.get("processor")
+            if processor:
+                processor.start()
+
+            node_hub = self.shared_resources.get("node_hub")
+            if node_hub:
+                node_hub.start()
+
