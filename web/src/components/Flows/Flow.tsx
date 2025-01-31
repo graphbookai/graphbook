@@ -19,7 +19,7 @@ import { getHandle, evalDragData } from '../../utils.ts';
 import { Resource } from '../Nodes/Resource.js';
 import { Export } from '../Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from '../ContextMenu.tsx';
-import { useAPI, useAPIMessageEffect, useAPIMessageLastValue } from '../../hooks/API.ts';
+import { useAPI, useAPIMessageEffect } from '../../hooks/API.ts';
 import { useRunState } from '../../hooks/RunState.ts';
 import { GraphStore } from '../../graphstore.ts';
 import { NodeConfig } from '../NodeConfig.tsx';
@@ -332,7 +332,7 @@ function Flow({ initialNodes, initialEdges, filename }) {
             return;
         }
 
-        const searchNodes = (catalogue, name, category) => {
+        const searchNodes = (catalogue, name, category='') => {
             const categories = category === '' ? [] : category.split('/');
             let collection = catalogue;
             for (let i = 0; i < categories.length; i++) {
@@ -345,7 +345,6 @@ function Flow({ initialNodes, initialEdges, filename }) {
         };
 
         const updatedNodes = await API.getNodes();
-        console.log(updatedNodes.steps);
 
         setNodes(nodes => {
             const mergedNodes = nodes.map(node => {

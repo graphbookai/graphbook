@@ -470,7 +470,7 @@ class GraphServer:
                     raise web.HTTPNotFound(text=f"Plugin {plugin_name} not found.")
                 return web.FileResponse(plugin_location)
 
-    async def setup(self):
+    async def start(self, block=False):
         self.app.router.add_routes(self.routes)
         if self.web_plugins:
             print("Loaded web plugins:")
@@ -483,16 +483,10 @@ class GraphServer:
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
-        print(f"Started graph server at {self.host}:{self.port}")
         self.client_pool.start()
-        
-
-    def start(self):
-        try:
-            asyncio.run(self.setup())
-        except KeyboardInterrupt:
-            self.close_event.set()
-            print("Exiting graph server")
+        print(f"Started graph server at {self.host}:{self.port}")
+        if block:
+            await asyncio.sleep(999999999)
 
 
 def start_web(args):
@@ -534,11 +528,15 @@ def start_web(args):
         args.isolate_users,
         args.no_sample,
         close_event,
+        setup_paths=setup_paths,
+        web_dir=args.web_dir,
         host=args.host,
         port=args.port,
-        setup_paths=setup_paths,
     )
-    server.start()
+    try:
+        asyncio.run(server.start(block=True))
+    except KeyboardInterrupt:
+        cleanup()
 
 
 def async_start(host, port, proc_queue=None, view_queue=None):
@@ -556,21 +554,18 @@ def async_start(host, port, proc_queue=None, view_queue=None):
             view_queue=view_queue,
         )
 
-
-
         try:
-            loop.run_until_complete(server.setup())
+            loop.run_until_complete(server.start())
             loop.run_forever()
         finally:
             pass
-    
-    close_event = mp.Event()  
-    
+
+    close_event = mp.Event()
+
     def shutdown():
         close_event.set()
-        
+
     atexit.register(shutdown)
-      
 
     thread = threading.Thread(
         target=_fn,
@@ -578,12 +573,11 @@ def async_start(host, port, proc_queue=None, view_queue=None):
         daemon=True,
     )
     thread.start()
-    
+
     def signal_handler(*_):
         close_event.set()
-        time.sleep(.1)
+        time.sleep(0.1)
         raise SystemExit()
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-

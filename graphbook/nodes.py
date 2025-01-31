@@ -136,30 +136,30 @@ class NodeHub:
                     curr_category[node_name] = node
             return node_tree
 
-        steps = {
+        step_catalog = {
             k: {
                 "name": k,
                 "parameters": getattr(v, "Parameters", {}),
                 "inputs": ["in"] if not issubclass(v, steps.SourceStep) else [],
                 "outputs": getattr(v, "Outputs", ["out"]),
                 "category": getattr(v, "Category", ""),
-                "doc": v.__doc__,
+                "doc": v.__doc__.strip() if v.__doc__ else "",
             }
             for k, v in self.get_steps().items()
         }
-        resources = {
+        resource_catalog = {
             k: {
                 "name": k,
                 "parameters": getattr(v, "Parameters", {}),
                 "category": getattr(v, "Category", ""),
-                "doc": v.__doc__,
+                "doc": v.__doc__.strip() if v.__doc__ else "",
             }
             for k, v in self.get_resources().items()
         }
 
         return {
-            "steps": create_dir_structure(steps),
-            "resources": create_dir_structure(resources),
+            "steps": create_dir_structure(step_catalog),
+            "resources": create_dir_structure(resource_catalog),
         }
 
 
