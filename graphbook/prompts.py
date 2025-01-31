@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Union
 from .note import Note
 from .utils import transform_json_log
 
@@ -44,7 +44,7 @@ def selection_prompt(
     choices: List[str],
     *,
     msg: str = "Select an option:",
-    default: List[str] | str = None,
+    default: Union[List[str], str, None] = None,
     show_images: bool = False,
     multiple_allowed: bool = False
 ):
@@ -55,7 +55,7 @@ def selection_prompt(
         note (Note): The current note that triggered the prompt.
         choices (List[str]): A list of strings representing the options the user can select.
         msg (str): An informative message or inquiry to display to the user.
-        default (List[str] | str): The default value. If multiple_allowed is True, this should be a list of strings.
+        default (Union[List[str], str, None]): The default value. If multiple_allowed is True, this should be a list of strings.
         show_images (bool): Whether to present the images (instead of the Note object) to the user.
         multiple_allowed (bool): Whether the user can select multiple options from the list of given choices.
     """

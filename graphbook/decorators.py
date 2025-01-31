@@ -251,7 +251,7 @@ def param(
         default (Any): The default value of the parameter.
         required (bool): Whether the parameter is required.
         description (str): A description of the parameter.
-        cast_as (type | callable): A function or class type to cast the parameter to a specific type.
+        cast_as (Union[type, callable]): A function or class type to cast the parameter to a specific type.
 
     Examples:
         .. highlight:: python

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, Union
 import importlib
 import shutil
 import subprocess
@@ -155,7 +155,7 @@ def transform_json_log(log: Any) -> Any:
     return "(Not JSON serializable)"
 
 
-def image(path_or_pil: str | Image.Image) -> dict:
+def image(path_or_pil: Union[str, Image.Image]) -> dict:
     """
     A simple helper function to create a Graphbook-recognizable image object.
     A path to an image file or a PIL Image object is supported for rendering in the UI.
@@ -163,7 +163,7 @@ def image(path_or_pil: str | Image.Image) -> dict:
     If shared memory is disabled, PIL Image objects will not be rendered in the UI.
 
     Args:
-        path_or_pil (str | Image.Image): A path to an image file or a PIL Image object.
+        path_or_pil (Union[str, Image.Image]): A path to an image file or a PIL Image object.
     """
     assert isinstance(path_or_pil, str) or isinstance(path_or_pil, Image.Image)
     return {"type": "image", "value": path_or_pil}

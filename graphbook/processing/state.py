@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Tuple, List, Iterator, Set, Optional
+from typing import Dict, Tuple, List, Iterator, Set, Optional, Union
 from ..note import Note
 from ..steps import Step, PromptStep, StepOutput as Outputs
 from ..resources import Resource
@@ -364,7 +364,7 @@ class GraphState:
                 i += 1
         raise StopIteration
 
-    def get_state(self, step: Step | str, state: StepState) -> bool:
+    def get_state(self, step: Union[Step, str], state: StepState) -> bool:
         step_id = step.id if isinstance(step, Step) else step
         return state in self._step_states[step_id]
 
