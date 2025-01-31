@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install poetry
+        run: |
           pipx install poetry
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
       - name: Install dependencies
@@ -19,4 +21,4 @@ jobs:
           poetry install --with dev
       - name: Run tests
         run: |
-          pytest
+          poetry run pytest
