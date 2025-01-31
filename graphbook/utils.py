@@ -7,10 +7,8 @@ import os
 import platform
 import threading
 from torch import Tensor
-from numpy import ndarray
 from PIL import Image
 from .note import Note
-import time
 
 
 MP_WORKER_TIMEOUT = 5.0
@@ -143,8 +141,6 @@ def transform_json_log(log: Any) -> Any:
         return f"(bytes of length {len(log)})"
     if isinstance(log, Tensor):
         return f"(Tensor of shape {log.shape})"
-    if isinstance(log, ndarray):
-        return f"(ndarray of shape {log.shape})"
     if isinstance(log, Image.Image):
         return f"(PIL Image of size {log.size})"
     if (
