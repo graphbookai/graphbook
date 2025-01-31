@@ -40,9 +40,14 @@ jobs:
         run: |
           poetry install --with dev
       - name: Download Web Build
+        id: download
         uses: actions/download-artifact@v4
         with:
           name: web_dir
+          path: web/dist
+      - name: Log Download Dir
+        run: |
+          echo "Downloaded web build to ${{ steps.download.outputs.download-path }}"
       - name: Run tests
         run: |
           poetry run pytest
