@@ -63,7 +63,7 @@ class DataViewer(Viewer):
             self.filename = filename
             self.last_outputs = {}
 
-    def handle_clear(self, node_id: str | None = None):
+    def handle_clear(self, node_id: Optional[str] = None):
         if node_id is None:
             self.last_outputs = {}
         if node_id in self.last_outputs:
@@ -264,7 +264,7 @@ class MultiGraphViewManager(TaskLoop):
         for viewer in self.viewers[graph_id]:
             viewer.handle_start(node_id)
 
-    def handle_clear(self, graph_id: str, node_id: str | None):
+    def handle_clear(self, graph_id: str, node_id: Optional[str]):
         if graph_id not in self.viewers:
             return
         for viewer in self.viewers[graph_id]:
@@ -282,7 +282,7 @@ class MultiGraphViewManager(TaskLoop):
         for viewer in self.viewers[graph_id]:
             viewer.handle_end()
 
-    def set_state(self, graph_id: str | None, type: str, data: Any = None):
+    def set_state(self, graph_id: Optional[str], type: str, data: Any = None):
         """
         Set state data for a specific type
         """
@@ -445,7 +445,7 @@ class ViewManagerInterface:
             }
         )
 
-    def handle_clear(self, node_id: str | None):
+    def handle_clear(self, node_id: Optional[str]):
         self.queue.put(
             {"cmd": "handle_clear", "graph_id": self.graph_id, "node_id": node_id}
         )

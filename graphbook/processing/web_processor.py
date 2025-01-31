@@ -13,7 +13,7 @@ from .state import GraphState, StepState, NodeInstantiationError
 from ..viewer import MultiGraphViewManagerInterface
 from ..shm import MultiThreadedMemoryManager
 from ..note import Note
-from typing import List
+from typing import List, Optional
 from pathlib import Path
 import queue
 import multiprocessing as mp
@@ -76,8 +76,8 @@ class WebInstanceProcessor:
                         try_add_image(item)
 
     def exec_step(
-        self, step: Step, input: Note | None = None, flush: bool = False
-    ) -> StepOutput | None:
+        self, step: Step, input: Optional[Note] = None, flush: bool = False
+    ) -> Optional[StepOutput]:
         ExecutionContext.update(node_id=step.id)
         ExecutionContext.update(node_name=step.__class__.__name__)
         outputs = {}
@@ -233,7 +233,7 @@ class WebInstanceProcessor:
             for step in steps:
                 self.try_execute_step_event(step, "on_end")
 
-    def set_is_running(self, is_running: bool = True, filename: str | None = None):
+    def set_is_running(self, is_running: bool = True, filename: Optional[str] = None):
         if filename is None and is_running:
             raise ValueError(
                 "Filename must be provided when setting is_running to True"
@@ -328,7 +328,7 @@ class WebInstanceProcessor:
     def get_worker_queue_sizes(self):
         return self.dataloader.get_all_sizes()
 
-    def get_output_note(self, step_id: str, pin_id: str, index: int) -> Note | None:
+    def get_output_note(self, step_id: str, pin_id: str, index: int) -> Optional[Note]:
         output = self.graph_state.get_output_note(step_id, pin_id, index)
         return transform_json_log(output)
 

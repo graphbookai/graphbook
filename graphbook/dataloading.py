@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any, Optional
 import queue
 from torch import set_num_threads
 import torch.multiprocessing as mp
@@ -58,7 +58,7 @@ def do_dump(
     return True, None
 
 
-PendingResult = Tuple[int, Any] | None
+PendingResult = Optional[Tuple[int, Any]]
 
 
 def load_loop(
@@ -297,7 +297,7 @@ class Dataloader:
         }
         return sz
 
-    def clear(self, consumer_id: int | None = None):
+    def clear(self, consumer_id: Optional[int] = None):
         def clear_queue(q: mp.Queue):
             while not q.empty():
                 try:

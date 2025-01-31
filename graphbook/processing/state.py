@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Tuple, List, Iterator, Set
+from typing import Dict, Tuple, List, Iterator, Set, Optional
 from ..note import Note
 from ..steps import Step, PromptStep, StepOutput as Outputs
 from ..resources import Resource
@@ -8,7 +8,6 @@ from ..viewer import ViewManagerInterface
 from ..plugins import setup_plugins
 from ..utils import transform_json_log
 from .. import nodes
-import multiprocessing as mp
 import importlib, importlib.util, inspect
 import os
 import hashlib
@@ -327,7 +326,7 @@ class GraphState:
         self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
         self.view_manager.handle_outputs(step_id, transform_json_log(outputs))
 
-    def clear_outputs(self, node_id: str | None = None):
+    def clear_outputs(self, node_id: Optional[str] = None):
         if node_id is None:
             for q in self._queues.values():
                 q.clear()

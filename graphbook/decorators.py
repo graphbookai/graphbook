@@ -1,5 +1,5 @@
 from . import steps, resources
-from typing import List, Dict
+from typing import List, Dict, Optional
 import abc
 from .utils import transform_function_string
 
@@ -177,7 +177,7 @@ def get_resources():
     return resources
 
 
-def step(name, event: str | None = None):
+def step(name, event: Optional[str] = None):
     """
     Marks a function as belonging to a step method.
     Use this decorator if you want to create a new step node or attach new functions as events to an existing step node.
@@ -238,7 +238,7 @@ def param(
     default=None,
     required: bool = False,
     description: str = "",
-    cast_as: type | None = None,
+    cast_as: Optional[type] = None,
 ):
     """
     Assigns a parameter to a step or resource.

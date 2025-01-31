@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING
+from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING, Optional
 from ..utils import (
     transform_function_string,
     convert_dict_values_to_list,
@@ -169,7 +169,7 @@ class Step:
         """
         pass
 
-    def forward_note(self, note: Note) -> str | StepOutput:
+    def forward_note(self, note: Note) -> Optional[StepOutput]:
         """
         Routes a Note. Must return the corresponding output key or a dictionary that contains Notes.
         Is called after *on_after_item()*.
@@ -293,7 +293,7 @@ class AsyncStep(Step):
         self._in_queue = []
         self._out_queue = []
 
-    def in_q(self, note: Note | None):
+    def in_q(self, note: Optional[Note]):
         if note is None:
             return
         self._in_queue.append(note)
@@ -371,7 +371,7 @@ class BatchStep(AsyncStep):
         self.dump_fn_params = {}
         self.parallelized_load = self.load_fn != BatchStep.load_fn
 
-    def in_q(self, note: Note | None):
+    def in_q(self, note: Optional[Note]):
         """
         Enqueue a note to be processed by the step
 
@@ -555,7 +555,7 @@ class BatchStep(AsyncStep):
             output[output_key].append(note)
         return output
 
-    def on_item_batch(self, outputs, items, notes) -> List[Tuple[Any]] | None:
+    def on_item_batch(self, outputs, items, notes) -> Optional[List[Tuple[Any]]]:
         """
         Called when B items are loaded and are ready to be processed where B is *batch_size*. This is meant to be overriden by subclasses.
 
@@ -567,7 +567,7 @@ class BatchStep(AsyncStep):
                 along the batch dimension
 
         Returns:
-            List[Tuple[Any]] | None: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
+            Optional[List[Tuple[Any]]]: The output data to be dumped as a list of parameters to be passed to dump_fn. If None is returned, nothing will be dumped.
         """
         pass
 

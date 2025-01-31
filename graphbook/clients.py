@@ -110,13 +110,13 @@ class WebClient(Client):
             self.docs_path = None
             self.custom_nodes_path = None
 
-    def get_root_path(self) -> Path | None:
+    def get_root_path(self) -> Optional[Path]:
         return self.root_path
 
-    def get_docs_path(self) -> Path | None:
+    def get_docs_path(self) -> Optional[Path]:
         return self.docs_path
 
-    def get_custom_nodes_path(self) -> Path | None:
+    def get_custom_nodes_path(self) -> Optional[Path]:
         return self.custom_nodes_path
 
     def nodes(self):
@@ -261,7 +261,7 @@ class ClientPool(TaskLoop):
         await ws.send_json({"type": "sid", "data": sid})
         return client
 
-    def get(self, sid: str) -> Client | None:
+    def get(self, sid: str) -> Optional[Client]:
         return self.clients.get(sid, None)
 
     def get_all(self) -> List[Client]:
