@@ -9,6 +9,7 @@ import threading
 from torch import Tensor
 from PIL import Image
 from .note import Note
+import traceback
 
 
 MP_WORKER_TIMEOUT = 5.0
@@ -208,6 +209,7 @@ class TaskLoop:
                 await self.loop()
             except Exception as e:
                 print(f"Error in worker loop: {e}")
+                traceback.print_exc()
             await asyncio.sleep(self._interval)
     
     def start(self):

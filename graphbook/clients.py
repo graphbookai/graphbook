@@ -4,6 +4,7 @@ from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
+from .logger import LogDirectoryReader
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -96,11 +97,13 @@ class WebClient(Client):
         processor: WebInstanceProcessor,
         node_hub: NodeHub,
         view_manager: MultiGraphViewManager,
+        log_handler: LogDirectoryReader,
         setup_paths: Optional[dict] = None,
     ):
         super().__init__(sid, ws, view_manager, processor)
         self.processor = processor
         self.node_hub = node_hub
+        self.log_handler = log_handler
         if setup_paths:
             self.root_path = Path(setup_paths["workflow_dir"])
             self.docs_path = Path(setup_paths["docs_path"])
@@ -131,6 +134,7 @@ class WebClient(Client):
     def stop(self):
         self.processor.stop()
         self.node_hub.stop()
+        self.log_handler.stop()
         super().stop()
 
 
@@ -187,10 +191,12 @@ class ClientPool(TaskLoop):
                 view_queue, processor, self.close_event
             )
             node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
+            log_handler = LogDirectoryReader("logs", view_queue, close_event=self.close_event)
             return {
                 "processor": processor,
                 "node_hub": node_hub,
                 "view_manager": view_manager,
+                "log_handler": log_handler,
             }
 
         view_manager = MultiGraphViewManager(view_queue, close_event=self.close_event)
@@ -283,15 +289,14 @@ class ClientPool(TaskLoop):
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
 
-    # async def stop(self):
-    #     for client in list(self.clients.values()):
-    #         await self.remove_client(client)
-    #     if self.curr_task:
-    #         self.curr_task.cancel()
-    #     if self.shared_execution:
-    #         self.shared_resources["processor"].stop()
-    #         self.shared_resources["node_hub"].stop()
-    #         self.shared_resources["view_manager"].stop()
+    async def stop(self):
+        for client in list(self.clients.values()):
+            await self.remove_client(client)
+        if self.shared_execution:
+            self.shared_resources["processor"].stop()
+            self.shared_resources["node_hub"].stop()
+            self.shared_resources["view_manager"].stop()
+            self.shared_resources["log_handler"].stop()
 
     async def loop(self):
         def get_state_data(
@@ -369,3 +374,6 @@ class ClientPool(TaskLoop):
             if node_hub:
                 node_hub.start()
 
+            log_handler = self.shared_resources.get("log_handler")
+            if log_handler:
+                log_handler.start()

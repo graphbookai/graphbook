@@ -13,6 +13,7 @@ from .media import create_media_server
 from .shm import MultiThreadedMemoryManager, RayMemoryManager
 from .clients import ClientPool, Client, WebClient
 from .plugins import setup_plugins
+from .logger import LogDirectoryReader
 import json
 import threading
 import time

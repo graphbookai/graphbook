@@ -5,14 +5,15 @@ import multiprocessing as mp
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, TaskLoop, RAY, RAY_AVAILABLE
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, TaskLoop, RAY_AVAILABLE
 
-try:
-    import RAY.util.queue
+if RAY_AVAILABLE:
+    try:
+        import ray.util.queue
 
-    RAY_UTIL_QUEUE = RAY.util.queue
-except ImportError:
-    RAY_UTIL_QUEUE = None
+        RAY_UTIL_QUEUE = ray.util.queue
+    except ImportError:
+        RAY_UTIL_QUEUE = None
 
 if TYPE_CHECKING:
     from .processing.web_processor import WebInstanceProcessor
