@@ -134,7 +134,8 @@ class WebClient(Client):
     def stop(self):
         self.processor.stop()
         self.node_hub.stop()
-        self.log_handler.stop()
+        if self.log_handler:
+            self.log_handler.stop()
         super().stop()
 
 
@@ -146,6 +147,7 @@ class ClientPool(TaskLoop):
         isolate_users: bool,
         no_sample: bool,
         close_event: mp.Event,
+        log_dir: Optional[str] = None,
         setup_paths: Optional[dict] = None,
         proc_queue: Optional[mp.Queue] = None,
         view_queue: Optional[mp.Queue] = None,
@@ -161,6 +163,7 @@ class ClientPool(TaskLoop):
         self.custom_nodes_path = (
             setup_paths["custom_nodes_path"] if setup_paths else None
         )
+        self.log_dir = log_dir
         self.plugins = plugins
         self.shared_execution = not isolate_users
         self.no_sample = no_sample
@@ -191,7 +194,9 @@ class ClientPool(TaskLoop):
                 view_queue, processor, self.close_event
             )
             node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
-            log_handler = LogDirectoryReader("logs", view_queue, close_event=self.close_event)
+            log_handler = None
+            if self.log_dir:
+                log_handler = LogDirectoryReader(self.log_dir, view_queue, close_event=self.close_event)
             return {
                 "processor": processor,
                 "node_hub": node_hub,

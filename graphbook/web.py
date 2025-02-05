@@ -48,6 +48,7 @@ class GraphServer:
         close_event: mp.Event,
         setup_paths: Optional[dict] = None,
         web_dir: Optional[str] = None,
+        log_dir: Optional[str] = None,
         host: str = "0.0.0.0",
         port: int = 8005,
         proc_queue: Optional[mp.Queue] = None,
@@ -82,6 +83,7 @@ class GraphServer:
             isolate_users,
             no_sample,
             close_event,
+            log_dir=log_dir,
             setup_paths=setup_paths,
             proc_queue=proc_queue,
             view_queue=view_queue,
@@ -531,6 +533,7 @@ def start_web(args):
         close_event,
         setup_paths=setup_paths,
         web_dir=args.web_dir,
+        log_dir=args.log_dir,
         host=args.host,
         port=args.port,
     )

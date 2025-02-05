@@ -1,5 +1,5 @@
 from typing import List, Tuple, Iterator, Union, Optional, Dict, Any
-from io import BytesIO
+from io import BufferedReader, BytesIO
 from PIL import Image
 from torch import Tensor
 from torchvision.transforms.functional import to_pil_image
@@ -25,7 +25,37 @@ META_SCHEMA = pa.schema(
     ]
 )
 METADATA_LENGTH_BYTES = 8  # Using 8 bytes for metadata length
+MARKER = b"GRAPHBOOK"
+VERSION = 0
 
+
+"""
+Log files are stored in a custom format that can be read by Graphbook.
+They combine information about the DAG in the first section (metadata) and the logs in the second section (Arrow IPC stream).
+
+Log file format:
+- Marker: GRAPHBOOK
+- First byte: Version
+- Next 8 bytes: Metadata length
+- Next N bytes: Metadata (JSON)
+- Next M bytes: Arrow IPC stream
+
+"""
+
+
+def _check_file(f: BufferedReader):
+    """Check if the file is in the correct format."""
+    marker = f.read(len(MARKER))
+    if marker != MARKER:
+        raise ValueError("Invalid file format. Not a Graphbook log file.")
+    
+    version = struct.unpack(">B", f.read(1))[0]
+    if version != VERSION:
+        raise ValueError(f"Invalid file version. Expected version {VERSION}. Instead, got {version}.")
+    
+    new_loc = f.tell()
+    f.seek(0)
+    return new_loc
 
 class ImageDAGRef:
     """
@@ -33,11 +63,10 @@ class ImageDAGRef:
     """
 
     def __init__(
-        self, id: str, name: str, stream, filepath, *back_refs: List["ImageDAGRef"]
+        self, id: str, name: str, filepath: Path, *back_refs: List["ImageDAGRef"]
     ):
         self.id = id
         self.name = name
-        self.stream = stream
         self.filepath = filepath
         self.back_refs = back_refs
         self.bufs = []
@@ -66,14 +95,8 @@ class ImageDAGRef:
             data: List of dictionaries containing the log records
         """
         schema = LOG_SCHEMA
-        # try:
         data = [{"id": self.id, "image": buf.getvalue()}]
         table = pa.Table.from_pylist(data, schema=schema)
-
-        # # Open file in read binary mode
-        # with pa.OSFile(str(self.filepath), 'rb') as f:
-        #     # Read metadata length
-        #     metadata_length = struct.unpack('>Q', f.read(self.METADATA_LENGTH_BYTES))[0]
 
         # Open file in append binary mode
         with pa.OSFile(str(self.filepath), "ab") as f:
@@ -82,8 +105,6 @@ class ImageDAGRef:
             for batch in table.to_batches():
                 writer.write_batch(batch)
             writer.close()
-        # except Exception as e:
-        #     raise RuntimeError(f"Error writing log batch: {str(e)}")
 
 
 class DAGLogger:
@@ -96,20 +117,20 @@ class DAGLogger:
         self.filepath = Path(name)
         self.nodes: List[ImageDAGRef] = []
         self.id_idx = 0
-        self.stream = None
         self._initialize_file()
 
     def _initialize_file(self):
         """Initialize the file with initial metadata length (0) if it doesn't exist."""
         if not self.filepath.exists():
             with pa.OSFile(str(self.filepath), "wb") as f:
-                # Write initial metadata length (0)
-                f.write(struct.pack(">Q", 0))
+                f.write(struct.pack(f">{len(MARKER)}s", MARKER))
+                f.write(struct.pack(">B", VERSION))
+                f.write(struct.pack(">Q", 0)) # Metadata length
                 # Initialize Arrow IPC stream
                 writer = pa.ipc.RecordBatchStreamWriter(f, LOG_SCHEMA)
                 writer.close()
 
-    def write_node(self, id: str, **node):
+    def _write_node(self, id: str, **node):
         """
         Write metadata to the first section of the file.
         Previous metadata is preserved and new metadata is appended.
@@ -119,14 +140,14 @@ class DAGLogger:
         """
         # Read existing metadata
         current_metadata = {}
-        try:
-            with open(self.filepath, "rb") as f:
-                metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
-                if metadata_length > 0:
-                    metadata_bytes = f.read(metadata_length)
-                    current_metadata = json.loads(metadata_bytes)
-        except FileNotFoundError:
-            pass
+        with open(self.filepath, "rb") as f:
+            length_loc = _check_file(f)
+
+            f.seek(length_loc)
+            metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
+            if metadata_length > 0:
+                metadata_bytes = f.read(metadata_length)
+                current_metadata = json.loads(metadata_bytes)
 
         # Append new metadata
         if not isinstance(current_metadata, dict):
@@ -137,58 +158,31 @@ class DAGLogger:
         log_data = b""
         if self.filepath.exists():
             with open(self.filepath, "rb") as f:
-                metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
-                f.seek(METADATA_LENGTH_BYTES + metadata_length)
+                f.seek(length_loc + METADATA_LENGTH_BYTES + metadata_length)
                 log_data = f.read()
 
         # Write everything back
         with open(self.filepath, "wb") as f:
-            # Convert metadata to bytes
+            f.write(struct.pack(f">{len(MARKER)}s", MARKER))
+            f.write(struct.pack(">B", VERSION))
             metadata_bytes = json.dumps(current_metadata).encode("utf-8")
-            # Write metadata length
             f.write(struct.pack(">Q", len(metadata_bytes)))
-            # Write metadata
             f.write(metadata_bytes)
-            # Write back log data
             f.write(log_data)
-
-    def close(self):
-        """Close the stream if it's open."""
-        if self.stream:
-            self.stream.close()
-            self.stream = None
 
     def node(self, name: str, *back_refs: List[ImageDAGRef]) -> ImageDAGRef:
         """
         Creates a node in the DAG ready for logging
         """
         node = ImageDAGRef(
-            str(self.id_idx), name, self.stream, self.filepath, *back_refs
+            str(self.id_idx), name, self.filepath, *back_refs
         )
-        self.write_node(
+        self._write_node(
             str(self.id_idx), name=name, back_refs=[ref.id for ref in back_refs]
         )
         self.nodes.append(node)
         self.id_idx += 1
         return node
-
-    # def log(self, pil_or_tensor: Union[Image.Image, Tensor], *back_refs: List[ImageDAGRef]) -> ImageDAGRef:
-    #     """
-    #     Logs an image to the DAG.
-    #     """
-    #     buf = BytesIO()
-    #     if isinstance(pil_or_tensor, Image.Image):
-    #         pil_or_tensor.save(buf, format="PNG")
-    #     elif isinstance(pil_or_tensor, Tensor):
-    #         pil_or_tensor = pil_or_tensor.cpu().detach().numpy()
-    #         pil_or_tensor = (pil_or_tensor * 255).astype("uint8")
-    #         pil_or_tensor = Image.fromarray(pil_or_tensor)
-    #         pil_or_tensor.save(buf, format="PNG")
-    #     else:
-    #         raise TypeError("Input should be a PIL Image or a Tensor.")
-
-    #     ref = ImageDAGRef(buf, *back_refs)
-    #     return ref
 
 
 class LogFileHandler(FileSystemEventHandler):
@@ -224,7 +218,9 @@ class LogDirectoryReader(TaskLoop):
 
         Args:
             log_dir: Path to the log directory
+            queue: Queue to send data to the viewer
             poll_interval: Time in seconds to wait between checking for new data
+            close_event: Event to signal when to stop the task loop
         """
         super().__init__(interval_seconds=poll_interval, close_event=close_event)
         self.log_dir = Path(log_dir)
@@ -238,6 +234,8 @@ class LogDirectoryReader(TaskLoop):
         self.viewers: Dict[str, ViewManagerInterface] = {}
 
     def handle_new_file(self, filepath: Path):
+        if not filepath.suffix == ".log":
+            return
         filename = filepath.name
         viewer = self.viewer_manager.new(filename)
         viewer.set_state("run_state", "initializing")
@@ -247,17 +245,16 @@ class LogDirectoryReader(TaskLoop):
         print(f"Tracking new log file: {filename}")
 
     def initialize_files(self):
-        for root, dirs, files in os.walk(self.log_dir):
+        if not self.log_dir.exists():
+            os.mkdir(self.log_dir)
+        elif not self.log_dir.is_dir():
+            raise ValueError(
+                "Directory chosen is not a directory. Will fail to read logs."
+            )
+
+        for root, _, files in os.walk(self.log_dir):
             for file in files:
                 self.handle_new_file(Path(root).joinpath(file))
-
-    def start_observer(self):
-        self.observer.schedule(self.event_handler, self.log_dir, recursive=True)
-        self.observer.start()
-
-    def stop_observer(self):
-        self.observer.stop()
-        self.observer.join()
 
     def metadata_to_graph(self, metadata: Dict[str, Any]):
         graph = {}
@@ -293,12 +290,14 @@ class LogDirectoryReader(TaskLoop):
                 self.viewers[graph_id].handle_outputs(id, {"out": [output]})
 
     def start(self):
-        self.start_observer()
         self.initialize_files()
+        self.observer.schedule(self.event_handler, self.log_dir, recursive=True)
+        self.observer.start()
         super().start()
 
     def stop(self):
-        self.stop_observer()
+        self.observer.stop()
+        self.observer.join()
         super().stop()
 
 
@@ -309,7 +308,6 @@ class DAGStreamReader:
 
         Args:
             filepath: Path to the log file
-            poll_interval: Time in seconds to wait between checking for new data
         """
         self.filepath = Path(filepath)
         self.last_metadata_length = 0
@@ -323,21 +321,23 @@ class DAGStreamReader:
             raise FileNotFoundError(f"Log file not found: {self.filepath}")
 
         with open(self.filepath, "rb") as f:
-            # Skip metadata section
+            len_loc = _check_file(f)
+            f.seek(len_loc)
             metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
-            f.seek(METADATA_LENGTH_BYTES + metadata_length)
-            # Read schema from Arrow IPC stream
-            self.log_position = f.tell()
+            self.log_position = len_loc + METADATA_LENGTH_BYTES + metadata_length
+            print(f"Len position: {len_loc}, metdata length: {metadata_length}, log position: {self.log_position}")
 
     def get_metadata(self) -> Tuple[Dict[str, Any], bool]:
         """
         Gets metadata section from file.
 
         Returns:
-            Tuple of Dictionary containing metadata and changed or unchanged flag
+            Tuple of Dictionary containing metadata and changed/unchanged flag
         """
         try:
             with open(self.filepath, "rb") as f:
+                len_loc = _check_file(f)
+                f.seek(len_loc)
                 metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
                 if metadata_length != self.last_metadata_length:
                     metadata_bytes = f.read(metadata_length)
@@ -362,21 +362,13 @@ class DAGStreamReader:
                 f.seek(0, 2)  # Seek to end
                 file_size = f.tell()
 
-                if file_size > self.log_position:
-                    # Seek to last read position
+                if self.log_position < file_size:
                     f.seek(self.log_position)
-                    # Create arrow stream from this position
-                    reader = pa.ipc.RecordBatchStreamReader(f)
 
-                    for batch in reader:
-                        yield batch
-
-                    self.log_position = f.tell()
+                    while self.log_position < file_size:
+                        reader = pa.ipc.RecordBatchStreamReader(f)
+                        for batch in reader:
+                            yield batch
+                        self.log_position = f.tell()
         except Exception as e:
             raise RuntimeError(f"Error reading log stream: {str(e)}")
-
-    def on_log(self):
-        pass
-
-    def on_metadata(self):
-        pass
