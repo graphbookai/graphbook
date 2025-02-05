@@ -25,7 +25,18 @@ import type { Node, Edge } from 'reactflow';
 import { NotFoundFlow } from './NotFoundFlow.tsx';
 
 const { useToken } = theme;
+const helpString = 
+`
+<div align="center">
+    <img src="https://github.com/graphbookai/graphbook/blob/main/docs/_static/graphbook.png?raw=true" alt="Graphbook Logo" height="64">
+    <h1 style="margin: 0 0 10px 0">Welcome to Graphbook</h1>
+    <a href="https://github.com/graphbookai/graphbook">
+        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/graphbookai/graphbook">
+    </a>
+</div>
 
+Read only views are currently in beta. Please report any issues to the [repo](https://github.com/graphbookai/graphbook).
+`;
 
 export default function ReadOnlyFlow({ filename }) {
     const { token } = useToken();
@@ -34,7 +45,6 @@ export default function ReadOnlyFlow({ filename }) {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
-    const runState = useAPIMessageLastValue("run_state", filename);
     const graphState = useAPIMessageLastValue("graph_state", filename);
     const isDimensionsInitialized = useRef(false);
 
@@ -69,7 +79,8 @@ export default function ReadOnlyFlow({ filename }) {
                         isCollapsed: false,
                         category: node.category,
                         properties: {
-                            doc: node.doc
+                            doc: node.doc,
+                            defaultTab: node.default_tab
                         }
                     }
                 };
@@ -160,7 +171,7 @@ export default function ReadOnlyFlow({ filename }) {
                             <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
                                 <ControlRow filename={filename} />
                             </div>
-                            <Docs helpString='Welcome to the beta release of Ray DAGs w/ Graphbook'/>
+                            <Docs helpString={helpString}/>
                         </div>
                     </Space>
                     <Panel position='top-left'>

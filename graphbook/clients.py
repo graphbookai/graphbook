@@ -130,6 +130,9 @@ class WebClient(Client):
 
     def get_node_hub(self) -> NodeHub:
         return self.node_hub
+    
+    def get_logger(self) -> Optional[LogDirectoryReader]:
+        return self.log_handler
 
     def stop(self):
         self.processor.stop()

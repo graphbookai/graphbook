@@ -21,7 +21,7 @@ type ExecutionData = {
     status: RunState;
 };
 
-export default function Executions({ setExecution }: { setExecution: Function }) {
+export default function Executions({ isExecution, isWorkflowSet }: { isExecution: Function, isWorkflowSet: boolean }) {
     const [isOpened, setIsOpened] = useState(true);
     const [isResizing, setIsResizing] = useState(false);
     const [selectedExecution, setSelectedExecution] = useState<string>();
@@ -29,9 +29,12 @@ export default function Executions({ setExecution }: { setExecution: Function })
     const runStates = useAPIEveryGraphLastValue("run_state");
 
     const onExecutionClick = useCallback((name: string) => {
-        setSelectedExecution(name);
-        setExecution(name);
-    }, [setExecution]);
+        if (isExecution(name)) {
+            setSelectedExecution(name);
+        } else {
+            setSelectedExecution(undefined);
+        }
+    }, [isExecution]);
 
     const executions: ExecutionData[] = useMemo(() => {
         if (!runStates) {
@@ -101,7 +104,7 @@ export default function Executions({ setExecution }: { setExecution: Function })
                                         key={index}
                                         name={execution.name}
                                         status={execution.status}
-                                        selected={execution.name === selectedExecution}
+                                        selected={!isWorkflowSet && execution.name === selectedExecution}
                                         onClick={() => onExecutionClick(execution.name)}
                                     />
                                 );

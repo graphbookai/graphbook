@@ -202,16 +202,39 @@ class GraphServer:
 
             return web.json_response({"error": "Could not get output note."})
 
-        @routes.post("/prompt_response/{id}")
-        async def prompt_response(request: web.Request) -> web.Response:
-            client = get_client(request)
-            step_id = request.match_info.get("id")
-            data = await request.json()
-            response = data.get("response")
-            res = client.get_processor().handle_prompt_response(step_id, response)
-            return web.json_response({"ok": res})
-
         if self.is_editor_enabled:
+
+            @routes.get("/log/{graph_id}/{step_id}/{pin_id}/{index}")
+            async def get_output_note(request: web.Request) -> web.Response:
+                client: WebClient = get_client(request)
+                graph_id = request.match_info.get("graph_id")
+                step_id = request.match_info.get("step_id")
+                pin_id = request.match_info.get("pin_id")
+                index = int(request.match_info.get("index"))
+                logger = client.get_logger()
+                if not logger:
+                    res = None
+                else:
+                    res = logger.get_output_note(graph_id, step_id, pin_id, index)
+
+                if (
+                    res
+                    and res.get("step_id") == step_id
+                    and res.get("pin_id") == pin_id
+                    and res.get("index") == index
+                ):
+                    return web.json_response(res)
+
+                return web.json_response({"error": "Could not get output note."})
+
+            @routes.post("/prompt_response/{id}")
+            async def prompt_response(request: web.Request) -> web.Response:
+                client = get_client(request)
+                step_id = request.match_info.get("id")
+                data = await request.json()
+                response = data.get("response")
+                res = client.get_processor().handle_prompt_response(step_id, response)
+                return web.json_response({"ok": res})
 
             @routes.post("/run")
             async def run_all(request: web.Request) -> web.Response:

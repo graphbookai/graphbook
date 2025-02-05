@@ -9,6 +9,7 @@ from watchdog.observers import Observer
 from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from graphbook.utils import TaskLoop, transform_json_log
 from graphbook.shm import MultiThreadedMemoryManager
+from graphbook.steps import StepOutput as Outputs
 import pyarrow as pa
 import json
 import struct
@@ -214,6 +215,31 @@ class LogFileHandler(FileSystemEventHandler):
         return
 
 
+class LogStates:
+    def __init__(self, viewer: ViewManagerInterface):
+        self.steps_outputs: Dict[str, list] = {}
+        self.viewer = viewer
+
+    def update_nodes_from_graph(self, graph: Dict[str, Any]):
+        for step_id in graph:
+            if step_id not in self.steps_outputs:
+                self.steps_outputs[step_id] = []
+                self.viewer.handle_queue_size(step_id, {"out": 0})
+
+    def handle_outputs(self, step_id: str, outputs: Outputs):
+        assert step_id in self.steps_outputs, f"Step {step_id} not initialized"
+        assert self.viewer is not None, "Viewer not initialized"
+
+        # Converts multi-output into single output nodes with label "out"
+        self.steps_outputs[step_id].extend(outputs["out"])
+
+        self.viewer.handle_queue_size(
+            step_id, {"out": len(self.steps_outputs[step_id])}
+        )
+        outputs = transform_json_log(outputs)
+        self.viewer.handle_outputs(step_id, outputs)
+
+
 class LogDirectoryReader(TaskLoop):
     def __init__(
         self,
@@ -241,6 +267,7 @@ class LogDirectoryReader(TaskLoop):
         self.observer = Observer()
         self.readers: Dict[str, DAGStreamReader] = {}
         self.viewers: Dict[str, ViewManagerInterface] = {}
+        self.states: Dict[str, LogStates] = {}
 
     def handle_new_file(self, filepath: Path):
         if not filepath.suffix == ".log":
@@ -251,6 +278,7 @@ class LogDirectoryReader(TaskLoop):
         reader = DAGStreamReader(filepath)
         self.viewers[filename] = viewer
         self.readers[filename] = reader
+        self.states[filename] = LogStates(viewer)
         print(f"Tracking new log file: {filename}")
 
     def initialize_files(self):
@@ -279,6 +307,7 @@ class LogDirectoryReader(TaskLoop):
                 "outputs": ["out"],
                 "category": "",
                 "doc": "",
+                "default_tab": "Images",
             }
         return graph
 
@@ -286,17 +315,17 @@ class LogDirectoryReader(TaskLoop):
         for graph_id, reader in self.readers.items():
             metadata, is_changed = reader.get_metadata()
             if is_changed:
+                G = self.metadata_to_graph(metadata)
                 self.viewers[graph_id].set_state("run_state", "finished")
-                self.viewers[graph_id].set_state(
-                    "graph_state", self.metadata_to_graph(metadata)
-                )
+                self.viewers[graph_id].set_state("graph_state", G)
+                self.states[graph_id].update_nodes_from_graph(G)
             for batch in reader.get_logs():
                 id = str(batch[0][0])
                 image_bytes = batch[1][0].as_py()
                 image_pil = Image.open(BytesIO(image_bytes))
                 image_id = MultiThreadedMemoryManager.add_image(image_pil)
                 output = {"image": {"type": "image", "shm_id": image_id}}
-                self.viewers[graph_id].handle_outputs(id, {"out": [output]})
+                self.states[graph_id].handle_outputs(id, {"out": [output]})
 
     def start(self):
         self.initialize_files()
@@ -308,7 +337,16 @@ class LogDirectoryReader(TaskLoop):
         self.observer.stop()
         self.observer.join()
         super().stop()
-
+        
+    def get_output_note(self, graph_id, step_id, pin_id, index):
+        return {
+            "step_id": step_id,
+            "pin_id": pin_id,
+            "index": index,
+            "data": transform_json_log(
+                self.states[graph_id].steps_outputs[step_id][index]
+            ),
+        }
 
 class DAGStreamReader:
     def __init__(self, filepath: str):
@@ -334,9 +372,6 @@ class DAGStreamReader:
             f.seek(len_loc)
             metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
             self.log_position = len_loc + METADATA_LENGTH_BYTES + metadata_length
-            print(
-                f"Len position: {len_loc}, metdata length: {metadata_length}, log position: {self.log_position}"
-            )
 
     def get_metadata(self) -> Tuple[Dict[str, Any], bool]:
         """
