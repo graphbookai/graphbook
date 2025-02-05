@@ -48,14 +48,17 @@ def _check_file(f: BufferedReader):
     marker = f.read(len(MARKER))
     if marker != MARKER:
         raise ValueError("Invalid file format. Not a Graphbook log file.")
-    
+
     version = struct.unpack(">B", f.read(1))[0]
     if version != VERSION:
-        raise ValueError(f"Invalid file version. Expected version {VERSION}. Instead, got {version}.")
-    
+        raise ValueError(
+            f"Invalid file version. Expected version {VERSION}. Instead, got {version}."
+        )
+
     new_loc = f.tell()
     f.seek(0)
     return new_loc
+
 
 class ImageDAGRef:
     """
@@ -112,20 +115,28 @@ class DAGLogger:
     Logs images in a directed acyclic graph (DAG) to a pyarrow format which can be read by Graphbook.
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, log_dir: Optional[str] = "logs"):
         self.name = name
-        self.filepath = Path(name)
+        self.log_dir = Path(log_dir)
+        self.filepath = self.log_dir / Path(name + ".log")
         self.nodes: List[ImageDAGRef] = []
         self.id_idx = 0
         self._initialize_file()
 
     def _initialize_file(self):
         """Initialize the file with initial metadata length (0) if it doesn't exist."""
+        if not self.log_dir.exists():
+            os.mkdir(self.log_dir)
+        elif not self.log_dir.is_dir():
+            raise ValueError(
+                "Directory chosen is not a directory. Will fail to write logs."
+            )
+
         if not self.filepath.exists():
             with pa.OSFile(str(self.filepath), "wb") as f:
                 f.write(struct.pack(f">{len(MARKER)}s", MARKER))
                 f.write(struct.pack(">B", VERSION))
-                f.write(struct.pack(">Q", 0)) # Metadata length
+                f.write(struct.pack(">Q", 0))  # Metadata length
                 # Initialize Arrow IPC stream
                 writer = pa.ipc.RecordBatchStreamWriter(f, LOG_SCHEMA)
                 writer.close()
@@ -174,9 +185,7 @@ class DAGLogger:
         """
         Creates a node in the DAG ready for logging
         """
-        node = ImageDAGRef(
-            str(self.id_idx), name, self.filepath, *back_refs
-        )
+        node = ImageDAGRef(str(self.id_idx), name, self.filepath, *back_refs)
         self._write_node(
             str(self.id_idx), name=name, back_refs=[ref.id for ref in back_refs]
         )
@@ -325,7 +334,9 @@ class DAGStreamReader:
             f.seek(len_loc)
             metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
             self.log_position = len_loc + METADATA_LENGTH_BYTES + metadata_length
-            print(f"Len position: {len_loc}, metdata length: {metadata_length}, log position: {self.log_position}")
+            print(
+                f"Len position: {len_loc}, metdata length: {metadata_length}, log position: {self.log_position}"
+            )
 
     def get_metadata(self) -> Tuple[Dict[str, Any], bool]:
         """
