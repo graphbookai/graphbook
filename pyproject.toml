@@ -25,6 +25,7 @@ graphbook = "graphbook.main:main"
 [tool.poetry.dependencies]
 python = "^3.9"
 torch = "^2.0.0"
+torchvision = "^0.18.1"
 aiohttp = "^3.9.4"
 pillow = "^10.3.0"
 watchdog = "^4.0.0"
@@ -55,5 +56,4 @@ webdriver-manager = "^4.0.2"
 optional = true
 
 [tool.poetry.group.peer.dependencies]
-torchvision = "^0.18.1"
 ray = "^2.41.0"
