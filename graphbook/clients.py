@@ -53,9 +53,12 @@ class Client:
 
     def get_processor(self) -> ProcessorInterface:
         return self.proc_interface
+    
+    def start(self):
+        self.view_manager.start()
 
-    def stop(self):
-        self.view_manager.stop()
+    async def stop(self):
+        await self.view_manager.stop()
 
     async def close(self):
         await self.ws.close()
@@ -97,7 +100,7 @@ class WebClient(Client):
         processor: WebInstanceProcessor,
         node_hub: NodeHub,
         view_manager: MultiGraphViewManager,
-        log_handler: LogDirectoryReader,
+        log_handler: Optional[LogDirectoryReader] = None,
         setup_paths: Optional[dict] = None,
     ):
         super().__init__(sid, ws, view_manager, processor)
@@ -133,13 +136,20 @@ class WebClient(Client):
     
     def get_logger(self) -> Optional[LogDirectoryReader]:
         return self.log_handler
+    
+    def start(self):
+        self.processor.start()
+        self.node_hub.start()
+        # if self.log_handler: Not available in isolated mode
+        #     self.log_handler.start()
+        super().start()
 
-    def stop(self):
+    async def stop(self):
         self.processor.stop()
         self.node_hub.stop()
         if self.log_handler:
             self.log_handler.stop()
-        super().stop()
+        await super().stop()
 
 
 class ClientPool(TaskLoop):
@@ -176,7 +186,7 @@ class ClientPool(TaskLoop):
         self.options = options
         if self.shared_execution:
             if setup_paths:
-                self._create_dirs(**setup_paths, no_sample=self.no_sample)
+                self._create_dirs(**setup_paths)
             self.shared_resources = self._create_resources(
                 web_processor_args, self.custom_nodes_path
             )
@@ -213,7 +223,7 @@ class ClientPool(TaskLoop):
         }
 
     def _create_dirs(
-        self, workflow_dir: str, custom_nodes_path: str, docs_path: str, no_sample: bool
+        self, workflow_dir: str, custom_nodes_path: str, docs_path: str
     ):
         def create_sample_workflow():
             import shutil
@@ -227,14 +237,14 @@ class ClientPool(TaskLoop):
             n = "sample_nodes.py"
             shutil.copyfile(assets_dir.joinpath(n), Path(custom_nodes_path).joinpath(n))
 
-        if not self.shared_execution and no_sample:
+        if not self.shared_execution and self.no_sample:
             if osp.exists("./workflow"):
                 shutil.copytree("./workflow", workflow_dir)
                 return
 
         should_create_sample = False
         if not osp.exists(workflow_dir):
-            should_create_sample = not no_sample
+            should_create_sample = not self.no_sample
             os.mkdir(workflow_dir)
         if not osp.exists(custom_nodes_path):
             os.mkdir(custom_nodes_path)
@@ -262,6 +272,7 @@ class ClientPool(TaskLoop):
                 **self.web_processor_args,
                 "custom_nodes_path": custom_nodes_path,
             }
+            self._create_dirs(**setup_paths)
             resources = self._create_resources(web_processor_args, custom_nodes_path)
 
         if self.is_interactive:
@@ -272,6 +283,8 @@ class ClientPool(TaskLoop):
             print(f"{sid}: (non-interactive)")
         self.clients[sid] = client
         self.ws[sid] = ws
+        if not self.shared_execution:
+            client.start()
         await ws.send_json({"type": "sid", "data": sid})
         return client
 
@@ -287,8 +300,8 @@ class ClientPool(TaskLoop):
     async def remove_client(self, client: Client):
         sid = client.sid
         await client.close()
-        if not self.shared_execution:
-            client.stop()
+        # if not self.shared_execution: #TODO: Fix from blocking
+            # await client.stop()
         if sid in self.clients:
             del self.clients[sid]
         if sid in self.ws:

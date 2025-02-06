@@ -549,6 +549,7 @@ def start_web(args):
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
+    log_dir = args.log_dir if not args.isolate_users else None
     server = GraphServer(
         web_processor_args,
         args.isolate_users,
@@ -556,7 +557,7 @@ def start_web(args):
         close_event,
         setup_paths=setup_paths,
         web_dir=args.web_dir,
-        log_dir=args.log_dir,
+        log_dir=log_dir,
         host=args.host,
         port=args.port,
     )

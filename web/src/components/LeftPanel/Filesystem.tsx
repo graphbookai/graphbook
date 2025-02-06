@@ -130,7 +130,6 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
         if (executionName.slice(-5) === '.json') {
             const find = (fileList) => {
                 for (const item of fileList) {
-                    console.log(item.path);
                     if (item.path === executionName) {
                         return true;
                     }
