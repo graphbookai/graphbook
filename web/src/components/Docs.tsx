@@ -83,6 +83,7 @@ export function Docs({ helpString }: { helpString?: string }) {
                 content: n.data.properties?.doc,
             };
         });
+        setNodeDocs(currentNodeDocs);
 
         const loadNodeExtraDocs = async () => {
             const extraNodes = currentNodeDocs.filter(n => !n.content);
@@ -103,6 +104,7 @@ export function Docs({ helpString }: { helpString?: string }) {
                     content,
                 };
             });
+            console.log("Merged node docs", mergedNodeDocs);
 
             setNodeDocs(mergedNodeDocs);
         };
@@ -136,7 +138,11 @@ export function Docs({ helpString }: { helpString?: string }) {
             return {
                 key: i.toString(),
                 label: doc.name,
-                children: <Markdown>{doc.content.trim()}</Markdown>,
+                children: (
+                    <div style={{ overflow: 'auto' }}>
+                        <Markdown>{doc.content?.trim()}</Markdown>
+                    </div>
+                ),
             }
         });
     }, [nodeDocs]);

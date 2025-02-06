@@ -41,13 +41,12 @@ export default function Executions({ isExecution, isWorkflowSet }: { isExecution
             return [];
         }
         return Object.entries<RunState>(runStates).map(([name, status]) => {
-
             return {
                 name,
                 status,
             };
         });
-    }, [runStates])
+    }, [runStates]);
 
     const handleStyle: React.CSSProperties = useMemo(() => {
         return {

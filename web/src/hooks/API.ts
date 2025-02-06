@@ -45,6 +45,7 @@ const onConnectStateChange = (isConnected: boolean) => {
     }
 };
 
+let force = 0;
 function onStatefulMessage(msg) {
     const parsedMsg = JSON.parse(msg.data);
 
@@ -79,12 +80,12 @@ function onStatefulMessage(msg) {
     }
     if (setters[type]) {
         for (const setter of setters[type]) {
-            setter(data);
+            setter(force++);
         }
     }
     if (everyGraphLastValueSetters[type]) {
         for (const setter of everyGraphLastValueSetters[type]) {
-            setter(data);
+            setter(force++);
         }
     }
     if (everyGraphMessageListeners[type]) {
@@ -134,7 +135,7 @@ export function useAPIMessageEffect(event_type: string, callback: Function, grap
             if (!messageStateListeners[graph]) {
                 messageStateListeners[graph] = { [event_type]: [] };
             }
-            
+
             if (!messageStateListeners[graph][event_type]) {
                 messageStateListeners[graph][event_type] = [];
             }
@@ -255,7 +256,6 @@ export function useAPIReconnectTimer() {
 
     useEffect(() => {
         if (!reconnectInitialized) {
-
             const discard = API.onReconnectTimerChange(onTimerChanged);
             reconnectInitialized = true;
 
