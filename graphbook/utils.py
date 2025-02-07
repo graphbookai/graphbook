@@ -1,18 +1,22 @@
 from __future__ import annotations
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 import importlib
 import shutil
 import subprocess
 import os
 import platform
 import threading
+import traceback
+import queue
+import asyncio
 from torch import Tensor
 from PIL import Image
 from .note import Note
-import traceback
+from abc import abstractmethod
 
 
 MP_WORKER_TIMEOUT = 5.0
+
 
 def is_batchable(obj: Any) -> bool:
     return isinstance(obj, list) or isinstance(obj, Tensor)
@@ -169,6 +173,7 @@ def image(path_or_pil: Union[str, Image.Image]) -> dict:
     assert isinstance(path_or_pil, str) or isinstance(path_or_pil, Image.Image)
     return {"type": "image", "value": path_or_pil}
 
+
 class ExecutionContext:
     _storage = threading.local()
 
@@ -187,22 +192,23 @@ class ExecutionContext:
     def get(cls, key: str, default: Any = None) -> Any:
         return cls.get_context().get(key, default)
 
-import asyncio
-from abc import ABC, abstractmethod
-from typing import Optional
 
 class TaskLoop:
-    def __init__(self, interval_seconds: float = MP_WORKER_TIMEOUT, close_event: Optional[asyncio.Event] = None):
+    def __init__(
+        self,
+        interval_seconds: float = MP_WORKER_TIMEOUT,
+        close_event: Optional[asyncio.Event] = None,
+    ):
         self._stop_event = close_event or asyncio.Event()
         self._interval = interval_seconds
         self._task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        
+
     @abstractmethod
     async def loop(self) -> None:
         """Override this method with the work to be done periodically"""
         pass
-        
+
     async def _run(self):
         while not self._stop_event.is_set():
             try:
@@ -211,22 +217,68 @@ class TaskLoop:
                 print(f"Error in worker loop: {e}")
                 traceback.print_exc()
             await asyncio.sleep(self._interval)
-    
+
     def start(self):
         """Start the worker in the current event loop"""
-        self._loop = asyncio.get_event_loop()
-        self._task = self._loop.create_task(self._run())
-        
+        try:
+            self._loop = asyncio.get_event_loop()
+            self._task = self._loop.create_task(self._run())
+        except:
+            traceback.print_exc()
+
     async def stop(self):
         """Stop the worker"""
         if self._task:
             self._stop_event.set()
             await self._task
 
+
+class QueueTaskLoop(TaskLoop):
+    def __init__(
+        self,
+        queue: queue.Queue,
+        interval_seconds: float = MP_WORKER_TIMEOUT,
+        close_event: Optional[asyncio.Event] = None,
+    ):
+        super().__init__(interval_seconds, close_event)
+        self.queue = queue
+
+    @abstractmethod
+    def loop(self, work: dict) -> None:
+        """Override this method with the work to be done periodically"""
+        raise NotImplementedError
+
+    async def _run(self):
+        while not self._stop_event.is_set():
+            try:
+                work = await self._loop.run_in_executor(
+                    None, self.queue.get, True, self._interval
+                )
+                self.loop(work)
+            except queue.Empty:
+                pass
+            except asyncio.exceptions.CancelledError:
+                self._stop_event.set()
+                return
+            except RuntimeError:
+                self._stop_event.set()
+                return
+            except Exception as e:
+                if RAY_AVAILABLE and isinstance(e, RAY_UTIL_QUEUE.Empty):
+                    pass
+                else:
+                    traceback.print_exc()
+                    raise Exception(f"MultiGraphViewManager Error: {e}")
+
+
 try:
     import ray
+    import ray.util.queue
+
     RAY_AVAILABLE = True
     RAY = ray
+    RAY_UTIL_QUEUE = ray.util.queue
 except ImportError:
     RAY_AVAILABLE = False
     RAY = None
+    RAY_UTIL_QUEUE = None

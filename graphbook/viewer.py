@@ -5,7 +5,7 @@ import multiprocessing as mp
 import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, TaskLoop, RAY_AVAILABLE
+from .utils import MP_WORKER_TIMEOUT, get_gpu_util, QueueTaskLoop, RAY_AVAILABLE
 
 if RAY_AVAILABLE:
     try:
@@ -204,7 +204,7 @@ class PromptViewer(Viewer):
 StateEntry = Tuple[int, dict]
 
 
-class MultiGraphViewManager(TaskLoop):
+class MultiGraphViewManager(QueueTaskLoop):
     def __init__(
         self,
         work_queue: mp.Queue,
@@ -218,9 +218,8 @@ class MultiGraphViewManager(TaskLoop):
         self.viewers: Dict[str, List[Viewer]] = {}
         self.graph_states: Dict[str, Dict[str, StateEntry]] = {}
         self.global_states: Dict[str, StateEntry] = {}
-        self.work_queue = work_queue
         self.close_event = close_event or mp.Event()
-        super().__init__(MP_WORKER_TIMEOUT, self.close_event)
+        super().__init__(work_queue, MP_WORKER_TIMEOUT, self.close_event)
 
     def get_viewers(self, graph_id: str):
         return self.viewers[graph_id]
@@ -349,57 +348,47 @@ class MultiGraphViewManager(TaskLoop):
         )
         return view_data
 
-    async def loop(self):
+    def loop(self, work: dict):
         try:
-            work = self.work_queue.get_nowait()
-            while work is not None:
-                if work.get("cmd") is None or work.get("graph_id") is None:
-                    print("MultiGraphViewManager: Received invalid work:", work)
-                    return
-                if work["cmd"] == "handle_new_graph":
-                    self.handle_new_graph(work["graph_id"])
-                elif work["cmd"] == "handle_outputs":
-                    self.handle_outputs(
-                        work["graph_id"], work["node_id"], work["outputs"]
-                    )
-                elif work["cmd"] == "handle_queue_size":
-                    self.handle_queue_size(
-                        work["graph_id"], work["node_id"], work["size"]
-                    )
-                elif work["cmd"] == "handle_time":
-                    self.handle_time(work["graph_id"], work["node_id"], work["time"])
-                elif work["cmd"] == "handle_start":
-                    self.handle_start(work["graph_id"], work["node_id"])
-                elif work["cmd"] == "handle_end":
-                    self.handle_end(work["graph_id"])
-                elif work["cmd"] == "handle_log":
-                    self.handle_log(
-                        work["graph_id"], work["node_id"], work["log"], work["type"]
-                    )
-                elif work["cmd"] == "handle_clear":
-                    self.handle_clear(work["graph_id"], work["node_id"])
-                elif work["cmd"] == "handle_prompt":
-                    self.handle_prompt(
-                        work["graph_id"], work["node_id"], work["prompt"]
-                    )
-                elif work["cmd"] == "set_state":
-                    self.set_state(work.get("graph_id"), work["type"], work["data"])
-                else:
-                    print(
-                        "MultiGraphViewManager: Received invalid work cmd:",
-                        work["cmd"],
-                    )
-                work = self.work_queue.get_nowait()
-        except queue.Empty:
-            pass
-        except asyncio.exceptions.CancelledError:
-            self.close_event.set()
-            return
-        except Exception as e:
-            if RAY_AVAILABLE and isinstance(e, RAY_UTIL_QUEUE.Empty):
-                pass
+            if work.get("cmd") is None or work.get("graph_id") is None:
+                print("MultiGraphViewManager: Received invalid work:", work)
+                return
+            if work["cmd"] == "handle_new_graph":
+                self.handle_new_graph(work["graph_id"])
+            elif work["cmd"] == "handle_outputs":
+                self.handle_outputs(
+                    work["graph_id"], work["node_id"], work["outputs"]
+                )
+            elif work["cmd"] == "handle_queue_size":
+                self.handle_queue_size(
+                    work["graph_id"], work["node_id"], work["size"]
+                )
+            elif work["cmd"] == "handle_time":
+                self.handle_time(work["graph_id"], work["node_id"], work["time"])
+            elif work["cmd"] == "handle_start":
+                self.handle_start(work["graph_id"], work["node_id"])
+            elif work["cmd"] == "handle_end":
+                self.handle_end(work["graph_id"])
+            elif work["cmd"] == "handle_log":
+                self.handle_log(
+                    work["graph_id"], work["node_id"], work["log"], work["type"]
+                )
+            elif work["cmd"] == "handle_clear":
+                self.handle_clear(work["graph_id"], work["node_id"])
+            elif work["cmd"] == "handle_prompt":
+                self.handle_prompt(
+                    work["graph_id"], work["node_id"], work["prompt"]
+                )
+            elif work["cmd"] == "set_state":
+                self.set_state(work.get("graph_id"), work["type"], work["data"])
             else:
-                raise Exception(f"MultiGraphViewManager Error: {e}")
+                print(
+                    "MultiGraphViewManager: Received invalid work cmd:",
+                    work["cmd"],
+                )
+        except Exception as e:
+            print("MultiGraphViewManager Error:", e)
+            raise e
 
 
 class ViewManagerInterface:
