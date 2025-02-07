@@ -13,6 +13,7 @@ from torch import Tensor
 from PIL import Image
 from .note import Note
 from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 
 
 MP_WORKER_TIMEOUT = 5.0
@@ -242,6 +243,7 @@ class QueueTaskLoop(TaskLoop):
     ):
         super().__init__(interval_seconds, close_event)
         self.queue = queue
+        self.executor = ThreadPoolExecutor(max_workers=4)
 
     @abstractmethod
     def loop(self, work: dict) -> None:
@@ -251,12 +253,10 @@ class QueueTaskLoop(TaskLoop):
     async def _run(self):
         while not self._stop_event.is_set():
             try:
-                work = await self._loop.run_in_executor(
-                    None, self.queue.get, True, self._interval
-                )
+                work = self.queue.get_nowait()
                 self.loop(work)
             except queue.Empty:
-                pass
+                await asyncio.sleep(self._interval)
             except asyncio.exceptions.CancelledError:
                 self._stop_event.set()
                 return
