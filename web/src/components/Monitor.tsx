@@ -419,7 +419,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
             return;
         }
         index = Math.max(0, Math.min(index, numNotes[key] - 1));
-        const res = await (filename.endsWith('.log') ? API.getLog(filename, stepId, key, 0) : API.getState(stepId, key, 0));
+        const res = await (filename.endsWith('.log') ? API.getLog(filename, stepId, key, index) : API.getState(stepId, key, index));
         setNotes((prev) => {
             return {
                 ...prev,

@@ -23,4 +23,5 @@ Learn
     batch
     dump
     using-ray
+    logging
     examples/index

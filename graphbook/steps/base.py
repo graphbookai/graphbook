@@ -37,7 +37,7 @@ def log(msg: Any, type: LogType = "info"):
 
     if view_manager is None and RAY_AVAILABLE:
         if RAY.is_initialized():
-            actor_handle = ray.get_actor("_graphbook_RayStepHandler")
+            actor_handle = RAY.get_actor("_graphbook_RayStepHandler")
             log_handle = actor_handle.handle_log.remote
         else:
             raise ValueError(

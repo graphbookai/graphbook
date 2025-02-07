@@ -205,7 +205,7 @@ class GraphServer:
         if self.is_editor_enabled:
 
             @routes.get("/log/{graph_id}/{step_id}/{pin_id}/{index}")
-            async def get_output_note(request: web.Request) -> web.Response:
+            async def get_log(request: web.Request) -> web.Response:
                 client: WebClient = get_client(request)
                 graph_id = request.match_info.get("graph_id")
                 step_id = request.match_info.get("step_id")

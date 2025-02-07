@@ -104,7 +104,6 @@ export function Docs({ helpString }: { helpString?: string }) {
                     content,
                 };
             });
-            console.log("Merged node docs", mergedNodeDocs);
 
             setNodeDocs(mergedNodeDocs);
         };

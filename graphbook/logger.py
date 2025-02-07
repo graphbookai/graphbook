@@ -12,6 +12,7 @@ from graphbook.shm import MultiThreadedMemoryManager
 from graphbook.steps import StepOutput as Outputs
 from torchvision.transforms.v2 import Transform as TransformV2, Compose as ComposeV2
 from torchvision.transforms import Compose
+from multiprocessing import Lock
 import pyarrow as pa
 import json
 import struct
@@ -19,6 +20,19 @@ import queue
 import asyncio
 import os
 import uuid
+
+# Graphbook Log File Format:
+# --------------------------
+#
+# Log files are stored in a custom format that can be read by Graphbook.
+# They combine information about the DAG in the first section (metadata) and the logs in the second section (Arrow IPC stream).
+#
+# Log file format:
+# - Marker: GRAPHBOOK
+# - First byte: Version
+# - Next 8 bytes: Metadata length
+# - Next N bytes: Metadata (JSON)
+# - Next M bytes: Arrow IPC stream
 
 LOG_SCHEMA = pa.schema([pa.field("id", pa.string()), pa.field("image", pa.binary())])
 META_SCHEMA = pa.schema(
@@ -33,24 +47,13 @@ MARKER = b"GRAPHBOOK"
 VERSION = 0
 
 
-"""
-Log files are stored in a custom format that can be read by Graphbook.
-They combine information about the DAG in the first section (metadata) and the logs in the second section (Arrow IPC stream).
-
-Log file format:
-- Marker: GRAPHBOOK
-- First byte: Version
-- Next 8 bytes: Metadata length
-- Next N bytes: Metadata (JSON)
-- Next M bytes: Arrow IPC stream
-
-"""
-
 class InvalidFileFormatError(Exception):
     pass
 
+
 class StreamUnreadyError(Exception):
     pass
+
 
 def _check_file(f: BufferedReader):
     """Check if the file is in the correct format."""
@@ -69,57 +72,6 @@ def _check_file(f: BufferedReader):
     return new_loc
 
 
-class ImageDAGRef:
-    """
-    Reference to an image in a directed acyclic graph (DAG).
-    """
-
-    def __init__(
-        self, id: str, name: str, doc: str, filepath: Path, *back_refs: List["ImageDAGRef"]
-    ):
-        self.id = id
-        self.name = name
-        self.doc = doc
-        self.filepath = filepath
-        self.back_refs = back_refs
-        self.bufs = []
-
-    def log(self, pil_or_tensor: Union[Image.Image, Tensor]):
-        """
-        Logs an image to the DAG.
-        """
-        buf = BytesIO()
-        if isinstance(pil_or_tensor, Image.Image):
-            pil_or_tensor.save(buf, format="PNG")
-        elif isinstance(pil_or_tensor, Tensor):
-            pil = to_pil_image(pil_or_tensor)
-            pil.save(buf, format="PNG")
-        else:
-            raise TypeError("Input should be a PIL Image or a Tensor.")
-
-        self.bufs.append(buf)
-        self.write_log(buf)
-
-    def write_log(self, buf: BytesIO):
-        """
-        Write log records to the logs section.
-
-        Args:
-            data: List of dictionaries containing the log records
-        """
-        schema = LOG_SCHEMA
-        data = [{"id": self.id, "image": buf.getvalue()}]
-        table = pa.Table.from_pylist(data, schema=schema)
-
-        # Open file in append binary mode
-        with pa.OSFile(str(self.filepath), "ab") as f:
-            # Write new batch
-            writer = pa.ipc.RecordBatchStreamWriter(f, schema)
-            for batch in table.to_batches():
-                writer.write_batch(batch)
-            writer.close()
-
-
 class LogFileHandler(FileSystemEventHandler):
     def __init__(self, handler: callable, on_delete: callable):
         super().__init__()
@@ -135,7 +87,7 @@ class LogFileHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         self.on_delete(event.src_path)
-        
+
     def on_modified(self, event):
         return
 
@@ -191,7 +143,9 @@ class LogDirectoryReader(TaskLoop):
         self.poll_interval = poll_interval
         self.last_metadata_length = 0
         self.last_log_position = 0
-        self.event_handler = LogFileHandler(self.handle_new_file, self.handle_deleted_file)
+        self.event_handler = LogFileHandler(
+            self.handle_new_file, self.handle_deleted_file
+        )
         self.observer = Observer()
         self.readers: Dict[str, DAGStreamReader] = {}
         self.viewers: Dict[str, ViewManagerInterface] = {}
@@ -209,7 +163,7 @@ class LogDirectoryReader(TaskLoop):
         self.readers[filename] = reader
         self.states[filename] = LogStates(viewer)
         print(f"Tracking new log file: {filename}")
-        
+
     def handle_deleted_file(self, filepath: str):
         filename = Path(filepath).name
         if filename in self.viewers:
@@ -279,7 +233,7 @@ class LogDirectoryReader(TaskLoop):
         self.observer.stop()
         self.observer.join()
         super().stop()
-        
+
     def get_output_note(self, graph_id, step_id, pin_id, index):
         return {
             "step_id": step_id,
@@ -289,6 +243,7 @@ class LogDirectoryReader(TaskLoop):
                 self.states[graph_id].steps_outputs[step_id][index]
             ),
         }
+
 
 class DAGStreamReader:
     def __init__(self, filepath: str):
@@ -328,7 +283,9 @@ class DAGStreamReader:
             Tuple of Dictionary containing metadata and changed/unchanged flag
         """
         if not self.is_initialized:
-            raise StreamUnreadyError("Stream not initialized. Call _load_initial_state() first.")
+            raise StreamUnreadyError(
+                "Stream not initialized. Call _load_initial_state() first."
+            )
 
         try:
             with open(self.filepath, "rb") as f:
@@ -358,7 +315,9 @@ class DAGStreamReader:
             PyArrow RecordBatch objects containing the new logs
         """
         if not self.is_initialized:
-            raise StreamUnreadyError("Stream not initialized. Call _load_initial_state() first.")
+            raise StreamUnreadyError(
+                "Stream not initialized. Call _load_initial_state() first."
+            )
 
         try:
             with pa.OSFile(str(self.filepath), "rb") as f:
@@ -381,7 +340,77 @@ class DAGStreamReader:
         except FileNotFoundError:
             return
         except Exception as e:
-            raise RuntimeError(f"Error reading log stream: {str(e)}")
+            raise RuntimeError(
+                f"DAGStreamReader: {str(self.filepath)} Error reading log stream: {str(e)}"
+            )
+
+
+class DAGNodeRef:
+    """
+    Reference to a DAG node capable of logging images.
+    
+    Args:
+        id: Unique identifier for the node
+        name: Name of the node
+        doc: Documentation or any description of the node
+        filepath: Path to the log file
+        lock: Lock to synchronize access to the log file
+        back_refs: List of references that are dependencies of this node
+    """
+
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        doc: str,
+        filepath: Path,
+        lock,
+        *back_refs: List["DAGNodeRef"],
+    ):
+        self.id = id
+        self.name = name
+        self.doc = doc
+        self.filepath = filepath
+        self.lock = lock
+        self.back_refs = back_refs
+
+    def log(self, pil_or_tensor: Union[Image.Image, Tensor]):
+        """
+        Logs an image to the DAG.
+
+        Args:
+            pil_or_tensor: PIL Image or Tensor to log
+        """
+        buf = BytesIO()
+        if isinstance(pil_or_tensor, Image.Image):
+            pil_or_tensor.save(buf, format="PNG")
+        elif isinstance(pil_or_tensor, Tensor):
+            pil: Image.Image = to_pil_image(pil_or_tensor)
+            pil.save(buf, format="PNG")
+        else:
+            raise TypeError("Input should be a PIL Image or a Tensor.")
+
+        self._write_log(buf)
+
+    def _write_log(self, buf: BytesIO):
+        """
+        Write log records to the logs section.
+
+        Args:
+            data: List of dictionaries containing the log records
+        """
+        schema = LOG_SCHEMA
+        data = [{"id": self.id, "image": buf.getvalue()}]
+        table = pa.Table.from_pylist(data, schema=schema)
+
+        with self.lock:
+            # Open file in append binary mode
+            with pa.OSFile(str(self.filepath), "ab") as f:
+                # Write new batch
+                writer = pa.ipc.RecordBatchStreamWriter(f, schema)
+                for batch in table.to_batches():
+                    writer.write_batch(batch)
+                writer.close()
 
 
 class DAGLogger:
@@ -395,27 +424,29 @@ class DAGLogger:
         self.name = name
         self.log_dir = Path(log_dir)
         self.filepath = self.log_dir / Path(name + ".log")
-        self.nodes: List[ImageDAGRef] = []
+        self.nodes: List[DAGNodeRef] = []
         self.id_idx = 0
+        self.lock = Lock()
         self._initialize_file()
 
     def _initialize_file(self):
-        """Initialize the file with initial metadata length (0) if it doesn't exist."""
-        if not self.log_dir.exists():
-            os.mkdir(self.log_dir)
-        elif not self.log_dir.is_dir():
-            raise ValueError(
-                "Directory chosen is not a directory. Will fail to write logs."
-            )
+        with self.lock:
+            """Initialize the file with initial metadata length (0) if it doesn't exist."""
+            if not self.log_dir.exists():
+                os.mkdir(self.log_dir)
+            elif not self.log_dir.is_dir():
+                raise ValueError(
+                    "Directory chosen is not a directory. Will fail to write logs."
+                )
 
-        if not self.filepath.exists():
-            with pa.OSFile(str(self.filepath), "wb") as f:
-                f.write(struct.pack(f">{len(MARKER)}s", MARKER))
-                f.write(struct.pack(">B", VERSION))
-                f.write(struct.pack(">Q", 0))  # Metadata length
-                # Initialize Arrow IPC stream
-                writer = pa.ipc.RecordBatchStreamWriter(f, LOG_SCHEMA)
-                writer.close()
+            if not self.filepath.exists():
+                with pa.OSFile(str(self.filepath), "wb") as f:
+                    f.write(struct.pack(f">{len(MARKER)}s", MARKER))
+                    f.write(struct.pack(">B", VERSION))
+                    f.write(struct.pack(">Q", 0))  # Metadata length
+                    # Initialize Arrow IPC stream
+                    writer = pa.ipc.RecordBatchStreamWriter(f, LOG_SCHEMA)
+                    writer.close()
 
     def _write_node(self, id: str, **node):
         """
@@ -425,62 +456,114 @@ class DAGLogger:
         Args:
             metadata: Dictionary containing the metadata
         """
-        # Read existing metadata
-        current_metadata = {}
-        with open(self.filepath, "rb") as f:
-            length_loc = _check_file(f)
-
-            f.seek(length_loc)
-            metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
-            if metadata_length > 0:
-                metadata_bytes = f.read(metadata_length)
-                current_metadata = json.loads(metadata_bytes)
-
-        # Append new metadata
-        if not isinstance(current_metadata, dict):
+        with self.lock:
+            # Read existing metadata
             current_metadata = {}
-        current_metadata.update({id: node})
-
-        # Read existing log data
-        log_data = b""
-        if self.filepath.exists():
             with open(self.filepath, "rb") as f:
-                f.seek(length_loc + METADATA_LENGTH_BYTES + metadata_length)
-                log_data = f.read()
+                length_loc = _check_file(f)
 
-        # Write everything back
-        with open(self.filepath, "wb") as f:
-            f.write(struct.pack(f">{len(MARKER)}s", MARKER))
-            f.write(struct.pack(">B", VERSION))
-            metadata_bytes = json.dumps(current_metadata).encode("utf-8")
-            f.write(struct.pack(">Q", len(metadata_bytes)))
-            f.write(metadata_bytes)
-            f.write(log_data)
+                f.seek(length_loc)
+                metadata_length = struct.unpack(">Q", f.read(METADATA_LENGTH_BYTES))[0]
+                if metadata_length > 0:
+                    metadata_bytes = f.read(metadata_length)
+                    current_metadata = json.loads(metadata_bytes)
 
-    def node(self, name: str, doc: str = "", *back_refs: List[ImageDAGRef]) -> ImageDAGRef:
+            # Append new metadata
+            if not isinstance(current_metadata, dict):
+                current_metadata = {}
+            current_metadata.update({id: node})
+
+            # Read existing log data
+            log_data = b""
+            if self.filepath.exists():
+                with open(self.filepath, "rb") as f:
+                    f.seek(length_loc + METADATA_LENGTH_BYTES + metadata_length)
+                    log_data = f.read()
+
+            # Write everything back
+            with open(self.filepath, "wb") as f:
+                f.write(struct.pack(f">{len(MARKER)}s", MARKER))
+                f.write(struct.pack(">B", VERSION))
+                metadata_bytes = json.dumps(current_metadata).encode("utf-8")
+                f.write(struct.pack(">Q", len(metadata_bytes)))
+                f.write(metadata_bytes)
+                f.write(log_data)
+
+    def node(
+        self, name: str, doc: str = "", *back_refs: List[DAGNodeRef]
+    ) -> DAGNodeRef:
         """
         Creates a node in the DAG ready for logging
+
+        Args:
+            name: Name of the node
+            doc: Documentation or any description of the node
+            back_refs: List of references that are dependencies of this node
+
+        Returns:
+            DAGNodeRef: Reference to the node
         """
-        node = ImageDAGRef(str(self.id_idx), name, doc, self.filepath, *back_refs)
+        node = DAGNodeRef(str(self.id_idx), name, doc, self.filepath, self.lock, *back_refs)
         self._write_node(
-            str(self.id_idx), name=name, doc=doc, back_refs=[ref.id for ref in back_refs]
+            str(self.id_idx),
+            name=name,
+            doc=doc,
+            back_refs=[ref.id for ref in back_refs],
         )
         self.nodes.append(node)
         self.id_idx += 1
         return node
-    
+
+
 class CallableNode(Callable):
-    def __init__(self, ref: ImageDAGRef):
+    def __init__(self, ref: DAGNodeRef, log_every: int = 1):
         self.ref = ref
-        
+        self.log_every = log_every
+        self.counter = 0
+
     def __call__(self, input):
-        self.ref.log(input)
+        if self.counter % self.log_every == 0:
+            self.ref.log(input)
+        self.counter += 1
         return input
-    
+
+
 class TransformsLogger(DAGLogger):
-    def __init__(self, name: Optional[str] = None, log_dir: Optional[str] = "logs"):
+    """
+    A DAG logger designed specifically to log the image outputs from torchvision transforms.
+
+    Args:
+        name: Name of the DAG. Will randomly generate an ID if not provided
+        log_dir: Directory to store the log files. Defaults to logs/
+        log_every: Log every nth transform. Defaults to 1 (log every time).
+
+    Example:
+        .. highlight:: python
+        .. code-block:: python
+
+            from torchvision import transforms as T
+            import torch
+            from PIL import Image
+            import graphbook as gb
+
+            l = gb.TransformsLogger()
+            transforms = T.Compose([
+                T.ToTensor(),
+                T.CenterCrop(600),
+                T.Grayscale(),
+                T.RandomHorizontalFlip(p=1),
+            ])
+            transforms = l.log(transforms)
+
+            img_path = "<YOUR_IMAGE_PATH>"
+            img = Image.open(img_path)
+            img = transforms(img)
+    """
+
+    def __init__(self, name: Optional[str] = None, log_dir: Optional[str] = "logs", log_every: int = 1):
         super().__init__(name, log_dir)
-        
+        self.log_every = log_every
+
     def _handle_sequence(self, transforms: Sequence[Callable]):
         new_sequence = []
         last_ref = None
@@ -488,16 +571,22 @@ class TransformsLogger(DAGLogger):
             back_refs = [last_ref] if last_ref is not None else []
             node = self._handle_single(t, back_refs)
             new_sequence.append(t)
-            new_sequence.append(CallableNode(node))
+            new_sequence.append(CallableNode(node, self.log_every))
             last_ref = node
         return Compose(new_sequence)
-            
-    def _handle_single(self, t: Callable, back_refs: List[ImageDAGRef]):
+
+    def _handle_single(self, t: Callable, back_refs: List[DAGNodeRef]):
         name = t.__class__.__name__
         doc = t.__doc__ if t.__doc__ is not None else ""
         return self.node(name, doc, *back_refs)
-        
+
     def log(self, transform: Union[TransformV2, Compose, ComposeV2]):
+        """
+        Sets up the transforms to log the image outputs.
+
+        Args:
+            transform: A torchvision transform or a sequence of transforms
+        """
         if isinstance(transform, Compose) or isinstance(transform, ComposeV2):
             return self._handle_sequence(transform.transforms)
         elif isinstance(transform, TransformV2):
