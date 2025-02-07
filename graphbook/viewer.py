@@ -219,7 +219,7 @@ class MultiGraphViewManager(QueueTaskLoop):
         self.graph_states: Dict[str, Dict[str, StateEntry]] = {}
         self.global_states: Dict[str, StateEntry] = {}
         self.close_event = close_event or mp.Event()
-        super().__init__(work_queue, MP_WORKER_TIMEOUT, self.close_event)
+        super().__init__(work_queue, 0.1, self.close_event)
 
     def get_viewers(self, graph_id: str):
         return self.viewers[graph_id]
@@ -356,13 +356,9 @@ class MultiGraphViewManager(QueueTaskLoop):
             if work["cmd"] == "handle_new_graph":
                 self.handle_new_graph(work["graph_id"])
             elif work["cmd"] == "handle_outputs":
-                self.handle_outputs(
-                    work["graph_id"], work["node_id"], work["outputs"]
-                )
+                self.handle_outputs(work["graph_id"], work["node_id"], work["outputs"])
             elif work["cmd"] == "handle_queue_size":
-                self.handle_queue_size(
-                    work["graph_id"], work["node_id"], work["size"]
-                )
+                self.handle_queue_size(work["graph_id"], work["node_id"], work["size"])
             elif work["cmd"] == "handle_time":
                 self.handle_time(work["graph_id"], work["node_id"], work["time"])
             elif work["cmd"] == "handle_start":
@@ -376,9 +372,7 @@ class MultiGraphViewManager(QueueTaskLoop):
             elif work["cmd"] == "handle_clear":
                 self.handle_clear(work["graph_id"], work["node_id"])
             elif work["cmd"] == "handle_prompt":
-                self.handle_prompt(
-                    work["graph_id"], work["node_id"], work["prompt"]
-                )
+                self.handle_prompt(work["graph_id"], work["node_id"], work["prompt"])
             elif work["cmd"] == "set_state":
                 self.set_state(work.get("graph_id"), work["type"], work["data"])
             else:
