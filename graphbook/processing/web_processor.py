@@ -299,7 +299,8 @@ class WebInstanceProcessor:
                     self._exec(work)
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
-                    self.viewer.handle_clear(work.get("node_id"))
+                    if self.viewer:
+                        self.viewer.handle_clear(work.get("node_id"))
                     step = self.graph_state.get_step(work.get("node_id"))
                     self.dataloader.clear(id(step) if step != None else None)
             except queue.Empty:
@@ -320,7 +321,8 @@ class WebInstanceProcessor:
         self.cmd_queue.join_thread()
         self.close_event.set()
         self.cleanup()
-        self.thread.join()
+        if self.thread.is_alive():
+            self.thread.join()
 
     def exec(self, work: dict):
         self.cmd_queue.put(work)

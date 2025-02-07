@@ -80,7 +80,8 @@ class NodeHub:
 
     def stop(self):
         if self.custom_node_importer:
-            self.custom_node_importer.stop_observer()
+            if self.custom_node_importer.observer.is_alive():
+                self.custom_node_importer.stop_observer()
 
     def handle_module(self, filename, module):
         self.view_manager.set_state(None, "node_updated")

@@ -5,6 +5,8 @@ from ..utils import (
     convert_dict_values_to_list,
     is_batchable,
     transform_json_log,
+    RAY,
+    RAY_AVAILABLE,
 )
 from ..utils import ExecutionContext
 from ..viewer import ViewManagerInterface
@@ -12,14 +14,6 @@ from .. import Note, prompts
 import warnings
 import traceback
 import copy
-
-try:
-    import ray
-    RAY_AVAILABLE = True
-    RAY = ray
-except ImportError:
-    RAY_AVAILABLE = False
-    RAY = None
 
 if TYPE_CHECKING:
     from ..dataloading import Dataloader
@@ -43,7 +37,7 @@ def log(msg: Any, type: LogType = "info"):
 
     if view_manager is None and RAY_AVAILABLE:
         if RAY.is_initialized():
-            actor_handle = ray.get_actor("_graphbook_RayStepHandler")
+            actor_handle = RAY.get_actor("_graphbook_RayStepHandler")
             log_handle = actor_handle.handle_log.remote
         else:
             raise ValueError(
@@ -90,7 +84,7 @@ class Step:
         self.id = None
         self.item_key = item_key
         self.children = {"out": []}
-        
+
     def set_context(self, **context):
         """
         Sets the context of the step. This is useful for setting the node_id and node_name of the step.

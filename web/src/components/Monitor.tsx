@@ -33,7 +33,7 @@ import {
 } from "@ant-design/icons";
 import { Resizable } from 're-resizable';
 import { getGlobalRunningFile, useRunState } from "../hooks/RunState";
-import { useAPIMessageEffect, useAPI, useAPIMessageLastValue } from "../hooks/API";
+import { useAPIMessageEffect, useAPI } from "../hooks/API";
 import { useOnSelectionChange } from "reactflow";
 import ReactJson from "@microlink/react-json-view";
 import { getMergedLogs, getMediaPath } from "../utils";
@@ -267,7 +267,7 @@ function MonitorView({ selectedNodes, onResize }) {
                     <Badge status={runState === 'running' ? 'processing' : 'default'} />
                     <Text>Data Monitoring{
                         monitoredWorkflow &&
-                        <span>:<Text italic> {getGlobalRunningFile()}</Text></span>
+                        <span>:<Text italic> {monitoredWorkflow}</Text></span>
                     }</Text>
 
                 </Space>
@@ -385,13 +385,14 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
     const globalTheme = usingToken.theme;
     const [settings, _] = useSettings();
     const { token } = usingToken;
+    const filename = useFilename();
 
     useEffect(() => {
         if (!API || !numNotes) {
             return;
         }
         const initializeKey = async (key) => {
-            const res = await API.getState(stepId, key, 0);
+            const res = await (filename.endsWith('.log') ? API.getLog(filename, stepId, key, 0) : API.getState(stepId, key, 0));
             setNotes((prev) => {
                 return {
                     ...prev,
@@ -411,14 +412,14 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
             }
         });
 
-    }, [numNotes, currentIndex, API]);
+    }, [numNotes, currentIndex, API, filename]);
 
     const onIndexChange = useCallback(async (key, index) => {
         if (!API) {
             return;
         }
         index = Math.max(0, Math.min(index, numNotes[key] - 1));
-        const res = await API.getState(stepId, key, index);
+        const res = await (filename.endsWith('.log') ? API.getLog(filename, stepId, key, index) : API.getState(stepId, key, index));
         setNotes((prev) => {
             return {
                 ...prev,
@@ -431,7 +432,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                 [key]: index
             };
         });
-    }, [numNotes, API]);
+    }, [numNotes, API, filename]);
 
     const onDownloadImage = useCallback(() => {
         const url = currentImagePreview;

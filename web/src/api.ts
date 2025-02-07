@@ -315,6 +315,10 @@ export class ServerAPI {
         return await this.get(`state/${stepId}/${pin}/${index}`);
     }
 
+    public async getLog(graphId: string, stepId: string, pin: string, index: number) {
+        return await this.get(`log/${graphId}/${stepId}/${pin}/${index}`);
+    }
+
     public async respondToPrompt(stepId: string, response: any) {
         return await this.post(`prompt_response/${stepId}`, { response });
     }

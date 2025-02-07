@@ -22,4 +22,5 @@ Reference
     params
     prompts
     ray
+    logging
     utils

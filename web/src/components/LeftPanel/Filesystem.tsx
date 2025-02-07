@@ -116,7 +116,8 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
         if (filename.slice(-3) == '.py') {
             console.log("Attempting to open", filename)
             onBeginEdit({ name: filename });
-        } else if (filename.slice(-5) == '.json') {
+        } else if (filename.slice(-5) === '.json') {
+            setExecution(null);
             setWorkflow(filename);
             setSelectedWorkflow(filename);
             onBeginEdit(null);
@@ -126,8 +127,32 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
     }, []);
 
     const onExecutionClick = useCallback((executionName: string) => {
-        console.log("Execution clicked", executionName);
-    }, []);
+        if (executionName.slice(-5) === '.json') {
+            const find = (fileList) => {
+                for (const item of fileList) {
+                    if (item.path === executionName) {
+                        return true;
+                    }
+                    if (item.children) {
+                        const result = find(item.children);
+                        if (result) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+            if (find(files)) {
+                setWorkflow(executionName);
+                setSelectedWorkflow(executionName);
+                return false;
+            }
+        }
+
+        setSelectedWorkflow(null);
+        setExecution(executionName);
+        return true;
+    }, [files]);
 
     const onFileItemRightClick = useCallback(({ event, node }) => {
         setContextMenu({ x: event.clientX, y: event.clientY, filename: node.path });
@@ -329,7 +354,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
                             draggable
                         />
                     </Flex>
-                    <Executions setExecution={setExecution} />
+                    <Executions isExecution={onExecutionClick} isWorkflowSet={selectedWorkflow ? true : false} />
                 </Flex>
             </Flex>
             {contextMenu && (

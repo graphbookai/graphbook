@@ -9,9 +9,7 @@ from typing import (
 )
 import logging
 from dataclasses import dataclass
-from ..steps import (
-    StepOutput as Outputs,
-)
+from ..steps import StepOutput as Outputs
 from ..utils import MP_WORKER_TIMEOUT, transform_json_log
 from ..note import Note
 from typing import List
@@ -26,7 +24,6 @@ from copy import deepcopy
 from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from graphbook.steps import Step
 from PIL import Image
-import time
 
 
 logger = logging.getLogger(__name__)

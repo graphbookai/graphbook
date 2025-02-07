@@ -13,6 +13,7 @@ from .media import create_media_server
 from .shm import MultiThreadedMemoryManager, RayMemoryManager
 from .clients import ClientPool, Client, WebClient
 from .plugins import setup_plugins
+from .logger import LogDirectoryReader
 import json
 import threading
 import time
@@ -47,6 +48,7 @@ class GraphServer:
         close_event: mp.Event,
         setup_paths: Optional[dict] = None,
         web_dir: Optional[str] = None,
+        log_dir: Optional[str] = None,
         host: str = "0.0.0.0",
         port: int = 8005,
         proc_queue: Optional[mp.Queue] = None,
@@ -81,6 +83,7 @@ class GraphServer:
             isolate_users,
             no_sample,
             close_event,
+            log_dir=log_dir,
             setup_paths=setup_paths,
             proc_queue=proc_queue,
             view_queue=view_queue,
@@ -199,16 +202,39 @@ class GraphServer:
 
             return web.json_response({"error": "Could not get output note."})
 
-        @routes.post("/prompt_response/{id}")
-        async def prompt_response(request: web.Request) -> web.Response:
-            client = get_client(request)
-            step_id = request.match_info.get("id")
-            data = await request.json()
-            response = data.get("response")
-            res = client.get_processor().handle_prompt_response(step_id, response)
-            return web.json_response({"ok": res})
-
         if self.is_editor_enabled:
+
+            @routes.get("/log/{graph_id}/{step_id}/{pin_id}/{index}")
+            async def get_log(request: web.Request) -> web.Response:
+                client: WebClient = get_client(request)
+                graph_id = request.match_info.get("graph_id")
+                step_id = request.match_info.get("step_id")
+                pin_id = request.match_info.get("pin_id")
+                index = int(request.match_info.get("index"))
+                logger = client.get_logger()
+                if not logger:
+                    res = None
+                else:
+                    res = logger.get_output_note(graph_id, step_id, pin_id, index)
+
+                if (
+                    res
+                    and res.get("step_id") == step_id
+                    and res.get("pin_id") == pin_id
+                    and res.get("index") == index
+                ):
+                    return web.json_response(res)
+
+                return web.json_response({"error": "Could not get output note."})
+
+            @routes.post("/prompt_response/{id}")
+            async def prompt_response(request: web.Request) -> web.Response:
+                client = get_client(request)
+                step_id = request.match_info.get("id")
+                data = await request.json()
+                response = data.get("response")
+                res = client.get_processor().handle_prompt_response(step_id, response)
+                return web.json_response({"ok": res})
 
             @routes.post("/run")
             async def run_all(request: web.Request) -> web.Response:
@@ -523,6 +549,7 @@ def start_web(args):
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
+    log_dir = args.log_dir if not args.isolate_users else None
     server = GraphServer(
         web_processor_args,
         args.isolate_users,
@@ -530,6 +557,7 @@ def start_web(args):
         close_event,
         setup_paths=setup_paths,
         web_dir=args.web_dir,
+        log_dir=log_dir,
         host=args.host,
         port=args.port,
     )

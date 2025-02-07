@@ -107,6 +107,7 @@ export function Step({ id, data, selected }) {
             errored={errored}
             isCollapsed={isCollapsed}
             tabs={tabs}
+            defaultTab={data.properties?.defaultTab}
         />
     );
 }

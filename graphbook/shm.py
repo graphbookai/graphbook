@@ -130,7 +130,7 @@ class MultiThreadedMemoryManager(ImageStorageInterface):
     @classmethod
     def add_image(cls, pil_image):
         image_id = str(uuid.uuid4())
-        with cls.lock:
+        with cls._lock:
             cls._storage[image_id] = pil_image
         return image_id
 

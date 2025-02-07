@@ -37,6 +37,7 @@ The following should be a familiar example. We will create a source node that ge
 
 .. code-block:: python
     :caption: myapp.py
+    :emphasize-added: 5,7
 
     import graphbook as gb
     from graphbook.steps import Step, SourceStep
@@ -67,9 +68,12 @@ The following should be a familiar example. We will create a source node that ge
                 "out": [gb.Note({"tensor": t}) for t in tensors]
             }
 
-Notice how it is the exact same as a normal Graphbook Source Step, but with the ``remote`` decorator.
+Notice how the class is exactly the same as a normal Graphbook Source Step, but with the :func:`graphbook.remote` decorator.
 This decorator converts your class to a `Ray Actors <https://docs.ray.io/en/latest/ray-core/actors.html>`_ that is compatible with Graphbook.
-In fact, all other node types can be used in Ray DAGs as well except for the ones listed in :ref:`Ray_Limitations`.
+All other node types can be used in Ray DAGs as well except for the ones listed in :ref:`Ray_Limitations`.
+
+Additionally, we call :func:`graphbook.init()` to initialize the Graphbook Ray backend and start the Graphbook UI which can be located at https://localhost:8005.
+But wait, we don't have a full DAG yet, so continue reading to see full working examples.
 
 Assemble the DAG
 ================
@@ -115,7 +119,7 @@ To assemble the DAG, you can add the following code to ``myapp.py``:
 
 
 Again, we've added the ``remote`` decorator to the ``AddToTensor`` class.
-And to construct the DAG, we use the ``remote`` method on the source node to create a reference to it.
+And to construct the DAG, we use the ``remote`` method on the source node to create a reference to the remote `Actor <https://docs.ray.io/en/latest/ray-core/actors.html>`_.
 Then, we use the ``bind`` method to connect the nodes together, and finally, we run the DAG with ``gb.run``.
 
 Notice the critical difference between Graphbook and Ray DAGs: the ``bind`` method requires the output name and the node reference.
@@ -149,9 +153,13 @@ Go ahead and run the DAG with ``python myapp.py``.
 You should begin to see that a name for your execution is generated, and Graphbook should invite you to configure the application in the UI.
 You can change the parameters of the nodes and monitor the performance of each node in the UI, and once you're ready, you can click the play button on the top right.
 
+.. image:: ../_static/ray-example.png
+    :alt: Example of a Ray App
+    :align: center
+
 Upon completion, you will see your output printed to the console.
 
-To keep the web app running after execution is finished, you can add this:
+To keep the web app running after execution is finished, you can add the following code to the end of your script:
 
 .. code-block:: python
     :caption: myapp.py

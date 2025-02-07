@@ -7,7 +7,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 from .common import GraphbookController
 
-
 @pytest.fixture(scope="module")
 def server():
     # Start the graphbook server
@@ -18,8 +17,7 @@ def server():
             "graphbook.main",
             "--web_dir",
             "web/dist",
-            "--root_dir",
-            "examples/workflows/class-based/simple_workflow",
+            "--isolate_users",
         ]
     )
     time.sleep(5)  # Wait for the server to start
@@ -27,7 +25,6 @@ def server():
     # Stop the server
     server_process.terminate()
     server_process.wait()
-
 
 @pytest.fixture(scope="module")
 def ctl():
@@ -44,14 +41,25 @@ def ctl():
     # Close the web driver
     driver.quit()
 
-
 def test_run_example_workflow(server, ctl: GraphbookController):
     ctl.run()
-    time.sleep(5)
+    time.sleep(15)
 
-    src_count = ctl.get_output_count(ctl.get_node("1"), 0)
-    assert src_count == 10
+    src_count = ctl.get_output_count(ctl.get_node("8"), 0)
+    assert src_count == 20000
 
-    out_a_count = ctl.get_output_count(ctl.get_node("0"), 0)
-    out_b_count = ctl.get_output_count(ctl.get_node("0"), 1)
-    assert out_a_count + out_b_count == 10
+    out_a_count = ctl.get_output_count(ctl.get_node("3"), 0)
+    out_b_count = ctl.get_output_count(ctl.get_node("3"), 1)
+    assert out_a_count + out_b_count == 20000
+    
+def test_isolated_experiences(server, ctl: GraphbookController):
+    ctl.run()
+    time.sleep(15)
+    ctl.driver.get("http://localhost:8005")
+
+    src_count = ctl.get_output_count(ctl.get_node("8"), 0)
+    assert src_count == 0
+
+    out_a_count = ctl.get_output_count(ctl.get_node("3"), 0)
+    out_b_count = ctl.get_output_count(ctl.get_node("3"), 1)
+    assert out_a_count + out_b_count == 0
