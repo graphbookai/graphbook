@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "graphbook"
-version = "0.10.1"
+version = "0.11.0"
 authors = ["Richard Franklin <rsamf@graphbook.ai>"]
 description = "The AI-driven data pipeline and workflow framework for data scientists and machine learning engineers."
 keywords = ["ml", "workflow", "framework", "pytorch", "data science", "machine learning", "ai"]
