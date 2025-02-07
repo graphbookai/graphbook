@@ -31,7 +31,6 @@ def get_args():
     parser.add_argument(
         "--config",
         type=str,
-        default="config.yaml",
         help="Path to a config file for supplementary settings",
     )
     parser.add_argument(
@@ -58,10 +57,10 @@ def get_args():
         help="Path to the docs directory",
     )
     parser.add_argument(
-        "--img_shm_size",
-        type=int,
-        default=1024,
-        help="Size of the shared memory in MB for serving PIL images. Set to 0 to disable this feature.",
+        "--log_dir",
+        type=str,
+        default="logs",
+        help="Path to the logs directory for applications that simply use the DAG Logging lib",
     )
     parser.add_argument(
         "--no_sample",

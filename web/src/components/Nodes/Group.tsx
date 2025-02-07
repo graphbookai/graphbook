@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Flex, Card, Typography, theme, Badge } from 'antd';
 import { NodeResizer, Handle, Position, useEdges, useNodes, useUpdateNodeInternals } from 'reactflow';
-import { useAPIMessage } from '../../hooks/API';
+import { useAPIMessageEffect } from '../../hooks/API';
 import { recordCountBadgeStyle, inputHandleStyle, outputHandleStyle, nodeBorderStyle } from '../../styles';
 import type { Edge, Node } from 'reactflow';
 import { useFilename } from '../../hooks/Filename';
@@ -123,7 +123,7 @@ function GroupPins({ id, data }) {
         });
     }, [filename, subscribedNodes, setRecordCount]);
 
-    useAPIMessage('stats', updateStats);
+    useAPIMessageEffect('stats', updateStats);
 
     const innerInputHandleStyle = useMemo(() => ({
         ...outputHandleStyle(),

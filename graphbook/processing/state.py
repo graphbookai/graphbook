@@ -1,14 +1,13 @@
 from __future__ import annotations
-from typing import Dict, Tuple, List, Iterator, Set
-from .note import Note
-from .steps import Step, PromptStep, StepOutput as Outputs
-from .resources import Resource
-from .decorators import get_steps, get_resources
-from .viewer import ViewManagerInterface
-from .plugins import setup_plugins
-from .utils import transform_json_log
-from . import nodes
-import multiprocessing as mp
+from typing import Dict, Tuple, List, Iterator, Set, Optional, Union
+from ..note import Note
+from ..steps import Step, PromptStep, StepOutput as Outputs
+from ..resources import Resource
+from ..decorators import get_steps, get_resources
+from ..viewer import ViewManagerInterface
+from ..plugins import setup_plugins
+from ..utils import transform_json_log
+from .. import nodes
 import importlib, importlib.util, inspect
 import os
 import hashlib
@@ -111,9 +110,8 @@ StepState = Enum("StepState", ["EXECUTED", "EXECUTED_THIS_RUN"])
 
 
 class GraphState:
-    def __init__(self, custom_nodes_path: Path, view_manager_queue: mp.Queue):
-        self.view_manager_queue = view_manager_queue
-        self.view_manager = ViewManagerInterface(view_manager_queue)
+    def __init__(self, custom_nodes_path: Path):
+        self.view_manager: ViewManagerInterface = None
         self._dict_graph = {}
         self._dict_resources = {}
         self._steps: Dict[str, Step] = {}
@@ -124,6 +122,9 @@ class GraphState:
         self._updated_nodes: Dict[str, Dict[str, bool]] = {}
         self._step_states: Dict[str, Set[StepState]] = {}
         self._step_graph = {"child": {}, "parent": {}}
+
+    def set_viewer(self, viewer: ViewManagerInterface):
+        self.view_manager = viewer
 
     def update_state(self, graph: dict, graph_resources: dict):
         nodes, is_updated = self._node_catalog.get_nodes()
@@ -169,6 +170,7 @@ class GraphState:
                     del curr_resource, self._dict_resources[resource_id]
                 try:
                     resource = resource_hub[resource_name](**p)
+                    resource_values[resource_id] = resource.value()
                 except KeyError:
                     raise NodeInstantiationError(
                         f"No resource node with name {resource_name} found",
@@ -177,7 +179,6 @@ class GraphState:
                     )
                 except Exception as e:
                     raise NodeInstantiationError(str(e), resource_id, resource_name)
-                resource_values[resource_id] = resource.value()
                 dict_resources[resource_id] = resource_data
                 resource_has_changed[resource_id] = True
                 return resource_values[resource_id]
@@ -325,7 +326,7 @@ class GraphState:
         self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
         self.view_manager.handle_outputs(step_id, transform_json_log(outputs))
 
-    def clear_outputs(self, node_id: str | None = None):
+    def clear_outputs(self, node_id: Optional[str] = None):
         if node_id is None:
             for q in self._queues.values():
                 q.clear()
@@ -363,7 +364,7 @@ class GraphState:
                 i += 1
         raise StopIteration
 
-    def get_state(self, step: Step | str, state: StepState) -> bool:
+    def get_state(self, step: Union[Step, str], state: StepState) -> bool:
         step_id = step.id if isinstance(step, Step) else step
         return state in self._step_states[step_id]
 

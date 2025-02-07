@@ -1,5 +1,5 @@
 import type { ServerAPI } from './api';
-import { useAPI, useAPIMessage, useAPINodeMessage } from './hooks/API';
+import { useAPI, useAPIMessageEffect, useAPINodeMessageEffect } from './hooks/API';
 import React from 'react';
 import * as ReactFlow from 'reactflow';
 import * as antd from 'antd';
@@ -107,6 +107,6 @@ export type WidgetPlugin = {
 
 export const GraphbookAPI = {
     useAPI,
-    useAPIMessage,
-    useAPINodeMessage,
+    useAPIMessage: useAPIMessageEffect,
+    useAPINodeMessage: useAPINodeMessageEffect,
 };

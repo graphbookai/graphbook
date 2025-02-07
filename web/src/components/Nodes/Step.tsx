@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Flex, Image, theme, Typography, Space } from 'antd';
-import { useAPINodeMessage } from '../../hooks/API';
+import { useAPINodeMessageEffect } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { getMergedLogs, getMediaPath } from '../../utils';
 import { useSettings } from '../../hooks/Settings';
@@ -39,15 +39,15 @@ export function Step({ id, data, selected }) {
     const [prompt, setPrompt] = useState<Prompt | null>(null);
     const filename = useFilename();
 
-    useAPINodeMessage('view', id, filename, (msg) => {
+    useAPINodeMessageEffect('view', id, filename, (msg) => {
         setQuickViewData(msg);
     });
 
-    useAPINodeMessage('logs', id, filename, useCallback((newEntries) => {
+    useAPINodeMessageEffect('logs', id, filename, useCallback((newEntries) => {
         setLogsData(prev => getMergedLogs(prev, newEntries));
     }, [setLogsData]));
 
-    useAPINodeMessage('stats', id, filename, (msg) => {
+    useAPINodeMessageEffect('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
     });
 
@@ -107,6 +107,7 @@ export function Step({ id, data, selected }) {
             errored={errored}
             isCollapsed={isCollapsed}
             tabs={tabs}
+            defaultTab={data.properties?.defaultTab}
         />
     );
 }

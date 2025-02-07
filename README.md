@@ -53,6 +53,8 @@
 ## Overview
 Graphbook is a framework for building efficient, interactive DAG-structured AI data pipelines or workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching for PyTorch tensors, and it features a web-based UI to assemble, monitor, and execute data processing workflows. It can be used to prepare training data for custom ML models, experiment with custom trained or off-the-shelf models, and to build ML-based ETL applications. Custom nodes can be built in Python, and Graphbook will behave like a framework and call lifecycle methods on those nodes.
 
+Try out the [demo](https://huggingface.co/spaces/rsamf/rmbg-graphbook)!
+
 <p align="center">
   <a href="https://graphbook.ai">
     <img src="https://media.githubusercontent.com/media/rsamf/public/main/docs/overview/huggingface-pipeline-demo.gif" alt="Huggingface Pipeline Demo" width="512">
@@ -62,44 +64,40 @@ Graphbook is a framework for building efficient, interactive DAG-structured AI d
 
 ### Applications
 * Clean and curate custom large scale datasets
-* Demo ML apps on Huggingface Spaces
+* [Demo ML apps](https://huggingface.co/spaces/rsamf/rmbg-graphbook) on Huggingface Spaces
 * Build and deliver customizable no-code or hybrid low-code ML apps and services
 * Quickly experiment with different ML models and adjust hyperparameters
-* Maximize GPU utilization and parallelize IO during inference and training
+* Maximize GPU utilization, parallelize IO, and scale across clusters
+* Wrap your Ray DAGs with a frontend for end users
 
 ## Status
 Graphbook is in a very early stage of development, so expect minor bugs and rapid design changes through the coming releases. If you would like to [report a bug](https://github.com/graphbookai/graphbook/issues/new?template=bug_report.md&labels=bug) or [request a feature](https://github.com/graphbookai/graphbook/issues/new?template=feature_request.md&labels=enhancement), please feel free to do so. We aim to make Graphbook serve our users in the best way possible.
 
 ### Current Features
-- ​​Graph-based visual editor to experiment and create complex ML workflows
-- Caches outputs and only re-executes parts of the workflow that changes between executions
-- UI monitoring components for logs and outputs per node
-- Custom buildable nodes with Python via OOP and functional patterns
-- Automatic batching for Pytorch tensors
-- Multiprocessing I/O to and from disk and network
-- Customizable multiprocessing functions
-- Ability to execute entire graphs, or individual subgraphs/nodes
-- Ability to execute singular batches of data
-- Ability to pause graph execution
-- Basic nodes for filtering, loading, and saving outputs
-- Node grouping and subflows
-- Autosaving and shareable serialized workflow files
-- Registers node code changes without needing a restart
-- Monitorable system CPU and GPU resource usage
-- Monitorable worker queue sizes for optimal worker scaling
-- Human-in-the-loop prompting for interactivity and manual control during DAG execution
-- Can switch to threaded processing per client session for demoing apps to multiple simulataneous users
-- (BETA) Third Party Plugins *
+* ​​Graph-based visual editor to experiment and create complex ML workflows
+* Caches outputs and only re-executes parts of the workflow that changes between executions
+* UI monitoring components for logs and outputs per node
+* Custom buildable nodes with Python via OOP and functional patterns
+* Automatic batching for Pytorch tensors
+* Multiprocessing I/O to and from disk and network
+* Customizable multiprocessing functions
+* Ability to execute entire graphs, or individual subgraphs/nodes
+* Ability to execute singular batches of data
+* Ability to pause graph execution
+* Basic nodes for filtering, loading, and saving outputs
+* Node grouping and subflows
+* Autosaving and shareable serialized workflow files
+* Registers node code changes without needing a restart
+* Monitorable system CPU and GPU resource usage
+* Monitorable worker queue sizes for optimal worker scaling
+* Human-in-the-loop prompting for interactivity and manual control during DAG execution
+* Can switch to threaded processing per client session for demoing apps to multiple simultaneous users
+* (BETA) **Now with Ray!** Build all-code workflows and scale pipelines on remote machines
+* (BETA) Third Party Plugins *
 
 \* We plan on adding documentation for the community to build plugins, but for now, an example can be seen at
 [example_plugin](example_plugin) and
 [graphbook-huggingface](https://github.com/graphbookai/graphbook-huggingface)
-
-### Planned Features
-- A `graphbook run` command to execute workflows in a CLI
-- All-code workflows, so users never have to leave their IDE
-- Remote subgraphs for scaling workflows on other Graphbook services
-- And many optimizations for large data processing workloads
 
 ### Supported OS
 The following operating systems are supported in order of most to least recommended:

@@ -21,4 +21,6 @@ Reference
     decorators
     params
     prompts
+    ray
+    logging
     utils

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { useAPIMessage } from '../../hooks/API';
+import { useAPIMessageEffect } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { getGlobalRunningFile } from '../../hooks/RunState';
 import { Node } from './Node';
@@ -37,7 +37,7 @@ export function Subflow({ id, data, selected }) {
         });
     }, [filename, subscribedNodes, setRecordCount]);
 
-    useAPIMessage('stats', updateStats);
+    useAPIMessageEffect('stats', updateStats);
 
     const [inputs, outputs, parameters] = useMemo(() => {
         const inputs: Pin[] = [];

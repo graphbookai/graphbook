@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
 import { Card, Flex, Button, Tabs, theme, Empty } from 'antd';
 import { ControlOutlined, CaretRightOutlined } from '@ant-design/icons';
@@ -35,6 +35,7 @@ export type NodeProps = {
     isCollapsed: boolean;
     tabs?: any;
     isRunnable?: boolean;
+    defaultTab?: string;
 }
 
 export function Node({ id, style, name, inputs, parameters, outputs, selected, errored, isCollapsed, tabs, ...props }: NodeProps) {
@@ -70,6 +71,15 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
             label: showLabel ? d.label : undefined,
         }));
     }, [tabs, settings]);
+
+    useEffect(() => {
+        if (props.defaultTab) {
+            const tabIndex = tabs.findIndex(tab => props.defaultTab === tab.label);
+            if (tabIndex !== -1) {
+                setTabShown(tabIndex);
+            }
+        }
+    }, [props.defaultTab])
 
     const onSelectionChange = useCallback(({ nodes }) => {
         const parentId = getNode(id)?.parentId;
@@ -128,12 +138,12 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
                     }
                     {
                         isRunnable &&
-                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'stopped' || !API} />
+                        <Button shape="circle" icon={<CaretRightOutlined />} size={"small"} onClick={run} disabled={runState !== 'finished' || !API} />
                     }
                 </Flex>
                 {
                     !isCollapsed && tabs.length > 0 &&
-                    <Tabs items={tabList} defaultActiveKey={tabs[tabShown]?.label || 'Params'} onTabClick={onTabClick} />
+                    <Tabs items={tabList} defaultActiveKey={props.defaultTab || 'Params'} onTabClick={onTabClick} />
                 }
                 <div style={{ position: 'relative' }}>
                     <ContentDefault
@@ -258,11 +268,10 @@ function ContentOverlay({ children }) {
     }
 
     const overlayStyle = {
-        background: 'white',
         width: '100%',
         maxWidth: '400px',
         maxHeight: '400px',
-        zIndex: 5,
+        zIndex: 1,
         overflow: 'auto'
     };
 

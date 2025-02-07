@@ -1,18 +1,22 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, Union, Optional
 import importlib
 import shutil
 import subprocess
 import os
 import platform
 import threading
+import traceback
+import queue
+import asyncio
 from torch import Tensor
-from numpy import ndarray
 from PIL import Image
 from .note import Note
+from abc import abstractmethod
 
 
 MP_WORKER_TIMEOUT = 5.0
+
 
 def is_batchable(obj: Any) -> bool:
     return isinstance(obj, list) or isinstance(obj, Tensor)
@@ -142,8 +146,6 @@ def transform_json_log(log: Any) -> Any:
         return f"(bytes of length {len(log)})"
     if isinstance(log, Tensor):
         return f"(Tensor of shape {log.shape})"
-    if isinstance(log, ndarray):
-        return f"(ndarray of shape {log.shape})"
     if isinstance(log, Image.Image):
         return f"(PIL Image of size {log.size})"
     if (
@@ -158,7 +160,7 @@ def transform_json_log(log: Any) -> Any:
     return "(Not JSON serializable)"
 
 
-def image(path_or_pil: str | Image.Image) -> dict:
+def image(path_or_pil: Union[str, Image.Image]) -> dict:
     """
     A simple helper function to create a Graphbook-recognizable image object.
     A path to an image file or a PIL Image object is supported for rendering in the UI.
@@ -166,10 +168,11 @@ def image(path_or_pil: str | Image.Image) -> dict:
     If shared memory is disabled, PIL Image objects will not be rendered in the UI.
 
     Args:
-        path_or_pil (str | Image.Image): A path to an image file or a PIL Image object.
+        path_or_pil (Union[str, Image.Image]): A path to an image file or a PIL Image object.
     """
     assert isinstance(path_or_pil, str) or isinstance(path_or_pil, Image.Image)
     return {"type": "image", "value": path_or_pil}
+
 
 class ExecutionContext:
     _storage = threading.local()
@@ -189,3 +192,93 @@ class ExecutionContext:
     def get(cls, key: str, default: Any = None) -> Any:
         return cls.get_context().get(key, default)
 
+
+class TaskLoop:
+    def __init__(
+        self,
+        interval_seconds: float = MP_WORKER_TIMEOUT,
+        close_event: Optional[asyncio.Event] = None,
+    ):
+        self._stop_event = close_event or asyncio.Event()
+        self._interval = interval_seconds
+        self._task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+    @abstractmethod
+    async def loop(self) -> None:
+        """Override this method with the work to be done periodically"""
+        pass
+
+    async def _run(self):
+        while not self._stop_event.is_set():
+            try:
+                await self.loop()
+            except Exception as e:
+                print(f"Error in worker loop: {e}")
+                traceback.print_exc()
+            await asyncio.sleep(self._interval)
+
+    def start(self):
+        """Start the worker in the current event loop"""
+        try:
+            self._loop = asyncio.get_event_loop()
+            self._task = self._loop.create_task(self._run())
+        except:
+            traceback.print_exc()
+
+    async def stop(self):
+        """Stop the worker"""
+        if self._task:
+            self._stop_event.set()
+            await self._task
+
+
+class QueueTaskLoop(TaskLoop):
+    def __init__(
+        self,
+        queue: queue.Queue,
+        interval_seconds: float = MP_WORKER_TIMEOUT,
+        close_event: Optional[asyncio.Event] = None,
+    ):
+        super().__init__(interval_seconds, close_event)
+        self.queue = queue
+
+    @abstractmethod
+    def loop(self, work: dict) -> None:
+        """Override this method with the work to be done periodically"""
+        raise NotImplementedError
+
+    async def _run(self):
+        while not self._stop_event.is_set():
+            try:
+                work = await self._loop.run_in_executor(
+                    None, self.queue.get, True, self._interval
+                )
+                self.loop(work)
+            except queue.Empty:
+                pass
+            except asyncio.exceptions.CancelledError:
+                self._stop_event.set()
+                return
+            except RuntimeError:
+                self._stop_event.set()
+                return
+            except Exception as e:
+                if RAY_AVAILABLE and isinstance(e, RAY_UTIL_QUEUE.Empty):
+                    pass
+                else:
+                    traceback.print_exc()
+                    raise Exception(f"MultiGraphViewManager Error: {e}")
+
+
+try:
+    import ray
+    import ray.util.queue
+
+    RAY_AVAILABLE = True
+    RAY = ray
+    RAY_UTIL_QUEUE = ray.util.queue
+except ImportError:
+    RAY_AVAILABLE = False
+    RAY = None
+    RAY_UTIL_QUEUE = None

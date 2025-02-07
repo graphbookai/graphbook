@@ -10,27 +10,28 @@ import ReactFlow, {
     useReactFlow
 } from 'reactflow';
 import { Button, Flex, Space, theme } from 'antd';
-import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined } from '@ant-design/icons';
-import { Graph, layoutDAG } from '../graph.ts';
-import { SearchNode } from './SearchNode.tsx';
-import { Step } from './Nodes/Step.tsx';
-import { Group, groupIfPossible } from './Nodes/Group.tsx';
-import { getHandle, evalDragData } from '../utils.ts';
-import { Resource } from './Nodes/Resource.jsx';
-import { Export } from './Nodes/Export.tsx';
-import { NodeContextMenu, PaneContextMenu } from './ContextMenu.tsx';
-import { useAPI, useAPIMessage } from '../hooks/API.ts';
-import { useRunState } from '../hooks/RunState.ts';
-import { GraphStore } from '../graphstore.ts';
-import { NodeConfig } from './NodeConfig.tsx';
-import { Subflow } from './Nodes/Subflow.tsx';
-import { Monitor } from './Monitor.tsx';
-import { useNotificationInitializer, useNotification } from '../hooks/Notification.ts';
-import { SerializationErrorMessages } from './Errors.tsx';
-import { useFilename } from '../hooks/Filename.ts';
+import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Graph, layoutDAG } from '../../graph.ts';
+import { SearchNode } from '../SearchNode.tsx';
+import { Step } from '../Nodes/Step.tsx';
+import { Group, groupIfPossible } from '../Nodes/Group.tsx';
+import { getHandle, evalDragData } from '../../utils.ts';
+import { Resource } from '../Nodes/Resource.js';
+import { Export } from '../Nodes/Export.tsx';
+import { NodeContextMenu, PaneContextMenu } from '../ContextMenu.tsx';
+import { useAPI, useAPIMessageEffect } from '../../hooks/API.ts';
+import { useRunState } from '../../hooks/RunState.ts';
+import { GraphStore } from '../../graphstore.ts';
+import { NodeConfig } from '../NodeConfig.tsx';
+import { Subflow } from '../Nodes/Subflow.tsx';
+import { Monitor } from '../Monitor.tsx';
+import { useNotificationInitializer, useNotification } from '../../hooks/Notification.ts';
+import { SerializationErrorMessages } from '../Errors.tsx';
+import { useFilename } from '../../hooks/Filename.ts';
 import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
-import { ActiveOverlay } from './ActiveOverlay.tsx';
-import { Docs } from './Docs.tsx';
+import { ActiveOverlay } from '../ActiveOverlay.tsx';
+import { Docs } from '../Docs.tsx';
+import { NotFoundFlow } from './NotFoundFlow.tsx';
 
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -56,18 +57,12 @@ type PaneMenu = {
     left: number;
 };
 
-export default function Flow({ filename }) {
-    const { token } = useToken();
+export default function FlowInitializer({ filename }) {
     const API = useAPI();
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
-    const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
-    const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
-    const [runState, _] = useRunState();
-    const graphStore = useRef<GraphStore | null>(null);
-    const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
-    const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const [edges, setEdges] = useState<Edge[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const notFound = useRef(false);
 
     useEffect(() => {
         const loadGraph = async () => {
@@ -75,18 +70,51 @@ export default function Flow({ filename }) {
                 /* Setting to empty so that Reactflow's internal edge rendering system is refreshed */
                 setNodes([]);
                 setEdges([]);
+                setIsLoading(true);
 
-                const [nodes, edges] = await onLoadGraph(filename, API);
-                setNodes(nodes);
-                setEdges(edges);
-                graphStore.current = new GraphStore(filename, API!, nodes, edges);
+                try {
+                    const [nodes, edges] = await onLoadGraph(filename, API);
+                    setNodes(nodes);
+                    setEdges(edges);
+                } catch {
+                    notFound.current = true;
+                    return;
+                } finally {
+                    setIsLoading(false);
+                }
             }
         };
 
-        graphStore.current = null;
         loadGraph();
-
     }, [API, filename]);
+
+    if (isLoading) {
+        return (
+            <Flex style={{ height: '100%', width: '100%' }} justify='center' align='middle'>
+                <LoadingOutlined style={{fontSize: 32}} />
+            </Flex>
+        );
+    }
+
+    if (notFound.current) {
+        return <NotFoundFlow />;
+    }
+
+    return <Flow initialNodes={nodes} initialEdges={edges} filename={filename} />;
+}
+
+function Flow({ initialNodes, initialEdges, filename }) {
+    const { token } = useToken();
+    const API = useAPI();
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
+    const [paneMenu, setPaneMenu] = useState<PaneMenu | null>(null);
+    const [searchMenu, setSearchMenu] = useState<PaneMenu | null>(null);
+    const [runState, _] = useRunState();
+    const graphStore = useRef<GraphStore | null>(new GraphStore(filename, API!, nodes, edges));
+    const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
+    const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
     useEffect(() => {
         const searchListener = (e) => {
@@ -117,7 +145,7 @@ export default function Flow({ filename }) {
     }, [reactFlowInstance]);
 
     const onNodesChangeCallback = useCallback((changes) => {
-        if (runState !== 'stopped') {
+        if (runState !== 'finished') {
             const newChanges = changes.filter(change => change.type !== 'remove');
             if (newChanges.length !== changes.length) {
                 notificationCtrl.error({
@@ -133,7 +161,7 @@ export default function Flow({ filename }) {
     }, [runState]);
 
     const onEdgesChangeCallback = useCallback((changes) => {
-        if (runState !== 'stopped') {
+        if (runState !== 'finished') {
             const newChanges = changes.filter(change => change.type !== 'remove');
             if (newChanges.length !== changes.length) {
                 notificationCtrl.error({
@@ -304,7 +332,7 @@ export default function Flow({ filename }) {
             return;
         }
 
-        const searchNodes = (catalogue, name, category) => {
+        const searchNodes = (catalogue, name, category='') => {
             const categories = category === '' ? [] : category.split('/');
             let collection = catalogue;
             for (let i = 0; i < categories.length; i++) {
@@ -317,7 +345,6 @@ export default function Flow({ filename }) {
         };
 
         const updatedNodes = await API.getNodes();
-        console.log(updatedNodes.steps);
 
         setNodes(nodes => {
             const mergedNodes = nodes.map(node => {
@@ -354,7 +381,7 @@ export default function Flow({ filename }) {
         });
     }, [setNodes, API]);
 
-    useAPIMessage('node_updated', nodeUpdatedCallback);
+    useAPIMessageEffect('node_updated', nodeUpdatedCallback);
 
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
@@ -421,13 +448,13 @@ export default function Flow({ filename }) {
 
 function ControlRow() {
     const size = 'large';
-    const [runState, runStateShouldChange] = useRunState();
     const API = useAPI();
     const nodes = useNodes();
     const edges = useEdges();
     const { setNodes } = useReactFlow();
     const notification = useNotification();
     const filename = useFilename();
+    const [runState, runStateShouldChange] = useRunState();
 
     const run = useCallback(async () => {
         if (!API) {
@@ -468,13 +495,15 @@ function ControlRow() {
         setNodes(newNodes);
     }, [nodes, edges, setNodes]);
 
+    const isRunning = useMemo(() => runState === 'running' || runState === 'changing', [runState]);
+
     return (
         <div className="control-row">
             <Flex gap="small">
                 <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
-                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={runState !== 'stopped' || !API} />
+                <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={isRunning|| !API} />
                 {
-                    runState !== 'stopped' ? (
+                    isRunning ? (
                         <Button type="default" title="Pause" icon={<PauseOutlined />} size={size} onClick={pause} loading={runState === 'changing'} disabled={!API} />
                     ) : (
                         <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />
