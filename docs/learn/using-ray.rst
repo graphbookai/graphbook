@@ -153,6 +153,10 @@ Go ahead and run the DAG with ``python myapp.py``.
 You should begin to see that a name for your execution is generated, and Graphbook should invite you to configure the application in the UI.
 You can change the parameters of the nodes and monitor the performance of each node in the UI, and once you're ready, you can click the play button on the top right.
 
+.. image:: ../_static/ray-example.png
+    :alt: Example of a Ray App
+    :align: center
+
 Upon completion, you will see your output printed to the console.
 
 To keep the web app running after execution is finished, you can add the following code to the end of your script:
