@@ -130,7 +130,7 @@ Below is an example of usage:
     def flip(img):
         return T.RandomHorizontalFlip(p=1)(img)
 
-    img_path = "/media/sam/shared/orientation/000011.jpg"
+    img_path = "/path/to/image.png"
     img = load_image(img_path)
     ref = l.node("load_image", "loads an image")
     ref.log(img)
