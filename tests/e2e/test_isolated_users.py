@@ -7,6 +7,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 from .common import GraphbookController
 
+
 @pytest.fixture(scope="module")
 def server():
     # Start the graphbook server
@@ -26,11 +27,12 @@ def server():
     server_process.terminate()
     server_process.wait()
 
+
 @pytest.fixture(scope="module")
 def ctl():
     # Set up the web driver
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new") # Comment out when debugging
+    chrome_options.add_argument("--headless=new")  # Comment out when debugging
     chrome_options.add_argument("--disable-gpu")
     driver = webdriver.Chrome(
         options=chrome_options, service=ChromeService(ChromeDriverManager().install())
@@ -41,9 +43,9 @@ def ctl():
     # Close the web driver
     driver.quit()
 
+
 def test_run_example_workflow(server, ctl: GraphbookController):
     ctl.run()
-    time.sleep(15)
 
     src_count = ctl.get_output_count(ctl.get_node("8"), 0)
     assert src_count == 20000
@@ -51,10 +53,10 @@ def test_run_example_workflow(server, ctl: GraphbookController):
     out_a_count = ctl.get_output_count(ctl.get_node("3"), 0)
     out_b_count = ctl.get_output_count(ctl.get_node("3"), 1)
     assert out_a_count + out_b_count == 20000
-    
+
+
 def test_isolated_experiences(server, ctl: GraphbookController):
     ctl.run()
-    time.sleep(15)
     ctl.driver.get("http://localhost:8005")
 
     src_count = ctl.get_output_count(ctl.get_node("8"), 0)

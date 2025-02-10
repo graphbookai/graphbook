@@ -33,7 +33,7 @@ def server():
 def ctl():
     # Set up the web driver
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new") # Comment out when debugging
+    chrome_options.add_argument("--headless=new")  # Comment out when debugging
     chrome_options.add_argument("--disable-gpu")
     driver = webdriver.Chrome(
         options=chrome_options, service=ChromeService(ChromeDriverManager().install())
@@ -47,7 +47,6 @@ def ctl():
 
 def test_run_example_workflow(server, ctl: GraphbookController):
     ctl.run()
-    time.sleep(5)
 
     src_count = ctl.get_output_count(ctl.get_node("1"), 0)
     assert src_count == 10
