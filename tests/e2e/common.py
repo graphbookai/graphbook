@@ -4,11 +4,14 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium import webdriver
+import time
+import os
 
 
 class GraphbookController:
     def __init__(self, driver: webdriver.Chrome):
         self.driver = driver
+        self.num_screenshots = 0
 
     def run(self, block: bool = True, timeout: int = 60):
         """
@@ -26,7 +29,7 @@ class GraphbookController:
         if block:
             # Wait for run to start
             try:
-                WebDriverWait(self.driver, 5).until(
+                WebDriverWait(self.driver, 10).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, pause_selector))
                 )
             except TimeoutException:
@@ -61,3 +64,11 @@ class GraphbookController:
             return 0
 
         return int(scroll_number.get_attribute("title"))
+
+    def screenshot(self, prefix: str):
+        time.sleep(1)
+        os.makedirs("tests/outputs", exist_ok=True)
+        self.driver.save_screenshot(
+            f"tests/outputs/{prefix}_{self.num_screenshots}.png"
+        )
+        self.num_screenshots += 1
