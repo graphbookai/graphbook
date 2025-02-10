@@ -33,21 +33,22 @@ def server():
 def ctl():
     # Set up the web driver
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new") # Comment out when debugging
+    chrome_options.add_argument("--headless=new")  # Comment out when debugging
     chrome_options.add_argument("--disable-gpu")
     driver = webdriver.Chrome(
         options=chrome_options, service=ChromeService(ChromeDriverManager().install())
     )
     driver.implicitly_wait(10)
+    driver.set_window_size(1920, 1080)
     driver.get("http://localhost:8005")  # Navigate to the server address
     yield GraphbookController(driver)
     # Close the web driver
     driver.quit()
 
 
-def test_run_example_workflow(server, ctl: GraphbookController):
+def test_run_example_workflow(server, request, ctl: GraphbookController):
     ctl.run()
-    time.sleep(5)
+    ctl.screenshot(request.node.name)
 
     src_count = ctl.get_output_count(ctl.get_node("1"), 0)
     assert src_count == 10
