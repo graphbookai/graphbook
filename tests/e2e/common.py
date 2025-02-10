@@ -29,7 +29,7 @@ class GraphbookController:
         if block:
             # Wait for run to start
             try:
-                WebDriverWait(self.driver, 10).until(
+                WebDriverWait(self.driver, 15).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, pause_selector))
                 )
             except TimeoutException:
