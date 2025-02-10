@@ -37,6 +37,7 @@ class GraphbookController:
                 if not self.driver.find_elements(
                     By.CSS_SELECTOR, ".outputs .output sup.ant-scroll-number"
                 ):
+                    self.screenshot("run_error")
                     raise Exception(
                         "Run did not start, or this workflow isn't giving any outputs"
                     )
