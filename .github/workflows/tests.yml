@@ -50,6 +50,7 @@ jobs:
           echo "Downloaded web build to ${{ steps.download.outputs.download-path }}"
       - name: Run tests
         run: |
+          mkdir tests/outputs
           poetry run pytest -s | tee -a tests/outputs/tests.log
       - name: Upload test outputs
         if: always()
