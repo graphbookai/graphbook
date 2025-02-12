@@ -33,7 +33,7 @@ class ProcessorInterface:
 
     def handle_prompt_response(self, response: dict):
         raise NotImplementedError
-    
+
     def stop(self):
         raise NotImplementedError
 
@@ -151,9 +151,39 @@ class ClientPool(TaskLoop):
 
     async def add_client(self, ws: WebSocketResponse) -> Client:
         raise NotImplementedError
-    
-    async def remove_client(self, client: Client):
+
+    async def loop(self):
         raise NotImplementedError
+
+    def get_state_data(
+        self, view_manager: MultiGraphViewManager, client: Client
+    ) -> List[dict]:
+        states = view_manager.get_current_states(
+            client.state_idx, client.state_idx_global
+        )
+
+        for idx, data in states:
+            graph_id, type = data.get("graph_id"), data["type"]
+
+            if graph_id is None:
+                client.state_idx_global[type] = idx
+            else:
+                if graph_id not in client.state_idx:
+                    client.state_idx[graph_id] = {}
+                client.state_idx[graph_id][type] = idx
+
+        return_data = [data for _, data in states]
+        return return_data
+
+    async def remove_client(self, client: Client):
+        sid = client.sid
+        if sid in self.clients:
+            del self.clients[sid]
+        if sid in self.ws:
+            del self.ws[sid]
+        if sid in self.tmpdirs:
+            shutil.rmtree(self.tmpdirs[sid])
+            del self.tmpdirs[sid]
 
     def get(self, sid: str) -> Optional[Client]:
         return self.clients.get(sid, None)
@@ -181,15 +211,27 @@ class RayClientPool(ClientPool):
             sid, ws, view_manager=self.view_manager, proc_queue=self.proc_queue
         )
         print(f"{sid}: (non-interactive)")
-        client = RayClient(
-            sid, ws, view_manager=self.view_manager, proc_queue=self.proc_queue
-        )
         self.clients[sid] = client
         self.ws[sid] = ws
         await ws.send_json({"type": "sid", "data": sid})
         return client
 
+    async def loop(self):
+        view_manager: MultiGraphViewManager = self.view_manager
+        view_data = view_manager.get_current_view_data()
+        for client in list(self.clients.values()):
+            if client.ws.closed:
+                continue
+            state_data = self.get_state_data(view_manager, client)
+            try:
+                await asyncio.gather(
+                    *[client.ws.send_json(data) for data in [*view_data, *state_data]]
+                )
+            except Exception as e:
+                print(f"Error sending to client: {e}")
+
     def start(self):
+        super().start()
         self.view_manager.start()
 
     async def stop(self):
@@ -291,7 +333,9 @@ class AppClientPool(ClientPool):
             **self.web_processor_args,
             "custom_nodes_path": custom_nodes_path,
         }
-        self._create_dirs(**setup_paths, copy_dir="./workflow" if self.no_sample else None)
+        self._create_dirs(
+            **setup_paths, copy_dir="./workflow" if self.no_sample else None
+        )
         resources = self._create_resources(web_processor_args, custom_nodes_path)
 
         client = WebClient(sid, ws, **resources, setup_paths=setup_paths)
@@ -307,12 +351,6 @@ class AppClientPool(ClientPool):
 
         await ws.send_json({"type": "sid", "data": sid})
         return client
-
-    def get_all(self) -> List[Client]:
-        return list(self.clients.values())
-
-    def get_all_ws(self) -> Dict[str, WebSocketResponse]:
-        return self.ws
 
     # if stop_resources == True, will crash graphbook
     async def remove_client(self, client: WebClient, stop_resources: bool = False):
@@ -332,31 +370,6 @@ class AppClientPool(ClientPool):
         if sid in self.tmpdirs:
             shutil.rmtree(self.tmpdirs[sid])
             del self.tmpdirs[sid]
-
-    async def stop(self):
-        await super().stop()
-        for client in list(self.clients.values()):
-            await self.remove_client(client)
-
-    def get_state_data(
-        self, view_manager: MultiGraphViewManager, client: Client
-    ) -> List[dict]:
-        states = view_manager.get_current_states(
-            client.state_idx, client.state_idx_global
-        )
-
-        for idx, data in states:
-            graph_id, type = data.get("graph_id"), data["type"]
-
-            if graph_id is None:
-                client.state_idx_global[type] = idx
-            else:
-                if graph_id not in client.state_idx:
-                    client.state_idx[graph_id] = {}
-                client.state_idx[graph_id][type] = idx
-
-        return_data = [data for _, data in states]
-        return return_data
 
     async def loop(self):
         try:
@@ -379,6 +392,11 @@ class AppClientPool(ClientPool):
             print(f"ClientPool Error:")
             traceback.print_exc()
             raise
+
+    async def stop(self):
+        await super().stop()
+        for client in list(self.clients.values()):
+            await self.remove_client(client)
 
 
 class AppSharedClientPool(AppClientPool):
