@@ -91,7 +91,7 @@ class Server:
                 await ws.prepare(request)
             except Exception as e:
                 print(f"Error preparing websocket: {e}")
-                return ws
+                return web.HTTPBadRequest("Invalid WebSocket request")
             client = await self.client_pool.add_client(ws)
 
             def put_graph(req: dict):
@@ -163,7 +163,7 @@ class Server:
 
         @routes.get("/state/{step_id}/{pin_id}/{index}")
         async def get_output_note(request: web.Request) -> web.Response:
-            client = self.self.get_client(request)
+            client = self.get_client(request)
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
@@ -542,6 +542,9 @@ class AppServer(Server):
                 raise web.HTTPNotFound(text=f"Plugin {plugin_name} not found.")
             return web.FileResponse(plugin_location)
 
+    def get_client(self, request: web.Request) -> WebClient:
+        return super().get_client(request)
+
 
 def start_app(args):
     # The start method on some systems like Mac default to spawn
@@ -579,6 +582,14 @@ def start_app(args):
         host=args.host,
         port=args.port,
     )
+
+    def cleanup(*_):
+        close_event.set()
+        raise KeyboardInterrupt()
+
+    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, cleanup)
+
     try:
         asyncio.run(server.start(block=True))
     except KeyboardInterrupt:

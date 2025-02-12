@@ -69,7 +69,7 @@ class GraphbookController:
     def screenshot(self, prefix: str):
         time.sleep(1)
         os.makedirs("tests/outputs", exist_ok=True)
-        self.driver.save_screenshot(
-            f"tests/outputs/{prefix}_{self.num_screenshots}.png"
-        )
+        filename = f"tests/outputs/{prefix}_{self.num_screenshots}.png"
+        self.driver.save_screenshot(filename)
+        print(f"Screenshot saved to {filename}")
         self.num_screenshots += 1

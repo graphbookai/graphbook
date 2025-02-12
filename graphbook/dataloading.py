@@ -306,14 +306,17 @@ class Dataloader:
                     return
 
         if consumer_id is None:
-            for q in self._load_queues.values():
-                clear_queue(q)
-            for q in self._dump_queues.values():
-                clear_queue(q)
-            for q in self._load_result_queues.values():
-                clear_queue(q)
-            for q in self._dump_result_queues.values():
-                clear_queue(q)
+            try:
+                for q in self._load_queues.values():
+                    clear_queue(q)
+                for q in self._dump_queues.values():
+                    clear_queue(q)
+                for q in self._load_result_queues.values():
+                    clear_queue(q)
+                for q in self._dump_result_queues.values():
+                    clear_queue(q)
+            except FileNotFoundError:
+                pass
             self._load_queues = {}
             self._dump_queues = {}
             self._load_result_queues = {}
@@ -324,18 +327,21 @@ class Dataloader:
                 self._pending_load_results[i] = None
                 self._pending_dump_results[i] = None
         else:
-            if consumer_id in self._load_queues:
-                clear_queue(self._load_queues[consumer_id])
-            if consumer_id in self._dump_queues:
-                clear_queue(self._dump_queues[consumer_id])
-            if consumer_id in self._load_result_queues:
-                clear_queue(self._load_result_queues[consumer_id])
-            if consumer_id in self._dump_result_queues:
-                clear_queue(self._dump_result_queues[consumer_id])
-            if consumer_id in self._consumer_load_fn:
-                del self._consumer_load_fn[consumer_id]
-            if consumer_id in self._consumer_dump_fn:
-                del self._consumer_dump_fn[consumer_id]
+            try:
+                if consumer_id in self._load_queues:
+                    clear_queue(self._load_queues[consumer_id])
+                if consumer_id in self._dump_queues:
+                    clear_queue(self._dump_queues[consumer_id])
+                if consumer_id in self._load_result_queues:
+                    clear_queue(self._load_result_queues[consumer_id])
+                if consumer_id in self._dump_result_queues:
+                    clear_queue(self._dump_result_queues[consumer_id])
+                if consumer_id in self._consumer_load_fn:
+                    del self._consumer_load_fn[consumer_id]
+                if consumer_id in self._consumer_dump_fn:
+                    del self._consumer_dump_fn[consumer_id]
+            except FileNotFoundError:
+                pass
 
     def put_load(
         self, items: list, load_fn_params: dict, note_id: int, consumer_id: int

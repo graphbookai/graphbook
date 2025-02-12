@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TYPE_CHECKING
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
@@ -15,6 +15,9 @@ import shutil
 import traceback
 from .utils import TaskLoop, RAY
 
+if TYPE_CHECKING:
+    from graphbook.processing.ray_processor import RayStepHandler
+
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
@@ -29,6 +32,9 @@ class ProcessorInterface:
         raise NotImplementedError
 
     def handle_prompt_response(self, response: dict):
+        raise NotImplementedError
+    
+    def stop(self):
         raise NotImplementedError
 
 
@@ -59,7 +65,7 @@ class Client:
 
 
 class RayProcessorInterface:
-    def __init__(self, processor, proc_queue: mp.Queue):
+    def __init__(self, processor: "RayStepHandler", proc_queue: mp.Queue):
         self.processor = processor
         self.queue = proc_queue
 
@@ -123,9 +129,6 @@ class WebClient(Client):
     def exec(self, req: dict):
         self.processor.exec(req)
 
-    def get_processor(self):
-        return self.processor
-
     def get_node_hub(self) -> NodeHub:
         return self.node_hub
 
@@ -148,6 +151,12 @@ class ClientPool(TaskLoop):
 
     async def add_client(self, ws: WebSocketResponse) -> Client:
         raise NotImplementedError
+    
+    async def remove_client(self, client: Client):
+        raise NotImplementedError
+
+    def get(self, sid: str) -> Optional[Client]:
+        return self.clients.get(sid, None)
 
 
 class RayClientPool(ClientPool):
@@ -282,7 +291,7 @@ class AppClientPool(ClientPool):
             **self.web_processor_args,
             "custom_nodes_path": custom_nodes_path,
         }
-        self._create_dirs(**setup_paths, copy_dir="./workflow")
+        self._create_dirs(**setup_paths, copy_dir="./workflow" if self.no_sample else None)
         resources = self._create_resources(web_processor_args, custom_nodes_path)
 
         client = WebClient(sid, ws, **resources, setup_paths=setup_paths)
@@ -299,16 +308,14 @@ class AppClientPool(ClientPool):
         await ws.send_json({"type": "sid", "data": sid})
         return client
 
-    def get(self, sid: str) -> Optional[Client]:
-        return self.clients.get(sid, None)
-
     def get_all(self) -> List[Client]:
         return list(self.clients.values())
 
     def get_all_ws(self) -> Dict[str, WebSocketResponse]:
         return self.ws
 
-    async def remove_client(self, client: WebClient, stop_resources: bool = True):
+    # if stop_resources == True, will crash graphbook
+    async def remove_client(self, client: WebClient, stop_resources: bool = False):
         sid = client.sid
         await client.close()
         if stop_resources:

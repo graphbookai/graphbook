@@ -310,19 +310,19 @@ class WebInstanceProcessor:
                 break
             except Exception as e:
                 self.cleanup()
-                traceback.print_exc()
+                if not self.close_event.is_set():
+                    traceback.print_exc()
                 break
 
     def start(self):
         self.thread.start()
 
     def stop(self):
-        self.cmd_queue.close()
-        self.cmd_queue.join_thread()
         self.close_event.set()
         self.cleanup()
         if self.thread.is_alive():
-            self.thread.join()
+            # self.thread.join()
+            pass
 
     def exec(self, work: dict):
         self.cmd_queue.put(work)
