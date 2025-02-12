@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
 from pathlib import Path
-from graphbook.web import start_web
+from graphbook.web import start_app
 from graphbook import config
 
 DESCRIPTION = """
@@ -95,7 +95,7 @@ def main():
     if args.config:
         config.setup(args.config)
 
-    start_web(args)
+    start_app(args)
 
 
 if __name__ == "__main__":
