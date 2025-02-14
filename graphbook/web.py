@@ -10,10 +10,16 @@ from typing import Optional
 from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
-from .shm import MultiThreadedMemoryManager, RayMemoryManager
-from .clients import ClientPool, Client, WebClient
+from .shm import MultiThreadedMemoryManager, RayMemoryManager, ImageStorageInterface
+from .clients import (
+    AppSharedClientPool,
+    AppClientPool,
+    RayClientPool,
+    ClientPool,
+    Client,
+    WebClient,
+)
 from .plugins import setup_plugins
-from .logger import LogDirectoryReader
 import json
 import threading
 import time
@@ -39,20 +45,15 @@ async def cors_middleware(request: web.Request, handler):
     return response
 
 
-class GraphServer:
+class Server:
     def __init__(
         self,
-        web_processor_args: dict,
-        isolate_users: bool,
-        no_sample: bool,
         close_event: mp.Event,
-        setup_paths: Optional[dict] = None,
+        client_pool: ClientPool,
+        img_mem: ImageStorageInterface,
         web_dir: Optional[str] = None,
-        log_dir: Optional[str] = None,
         host: str = "0.0.0.0",
         port: int = 8005,
-        proc_queue: Optional[mp.Queue] = None,
-        view_queue: Optional[mp.Queue] = None,
     ):
         self.host = host
         self.port = port
@@ -70,39 +71,14 @@ class GraphServer:
         self.app = web.Application(
             client_max_size=max_upload_size, middlewares=middlewares
         )
-        self.plugins = setup_plugins()
-        self.plugin_steps, self.plugin_resources, self.web_plugins = self.plugins
-        node_plugins = (self.plugin_steps, self.plugin_resources)
-        self.is_editor_enabled = setup_paths is not None
-        self.img_mem = (
-            MultiThreadedMemoryManager if self.is_editor_enabled else RayMemoryManager
-        )
-        self.client_pool = ClientPool(
-            web_processor_args,
-            node_plugins,
-            isolate_users,
-            no_sample,
-            close_event,
-            log_dir=log_dir,
-            setup_paths=setup_paths,
-            proc_queue=proc_queue,
-            view_queue=view_queue,
-        )
+        self.img_mem = img_mem
+        self.client_pool = client_pool
 
         if not self.web_dir.is_dir():
             print(
                 f"Couldn't find web files inside {self.web_dir}. Will not serve web files."
             )
             self.web_dir = None
-
-        def get_client(request: web.Request) -> Client:
-            sid = request.headers.get("sid")
-            if sid is None:
-                raise web.HTTPUnauthorized()
-            client = self.client_pool.get(sid)
-            if client is None:
-                raise web.HTTPUnauthorized()
-            return client
 
         @routes.get("/ws")
         async def websocket_handler(request: web.Request, *_) -> web.WebSocketResponse:
@@ -115,7 +91,7 @@ class GraphServer:
                 await ws.prepare(request)
             except Exception as e:
                 print(f"Error preparing websocket: {e}")
-                return ws
+                return web.HTTPBadRequest("Invalid WebSocket request")
             client = await self.client_pool.add_client(ws)
 
             def put_graph(req: dict):
@@ -175,7 +151,7 @@ class GraphServer:
 
         @routes.post("/param_run/{id}")
         async def param_run(request: web.Request) -> web.Response:
-            client: Client = get_client(request)
+            client: Client = self.get_client(request)
             graph_id = request.match_info.get("id")
             data = await request.json()
             params = data.get("params", {})
@@ -187,7 +163,7 @@ class GraphServer:
 
         @routes.get("/state/{step_id}/{pin_id}/{index}")
         async def get_output_note(request: web.Request) -> web.Response:
-            client = get_client(request)
+            client = self.get_client(request)
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
@@ -202,305 +178,17 @@ class GraphServer:
 
             return web.json_response({"error": "Could not get output note."})
 
-        if self.is_editor_enabled:
-
-            @routes.get("/log/{graph_id}/{step_id}/{pin_id}/{index}")
-            async def get_log(request: web.Request) -> web.Response:
-                client: WebClient = get_client(request)
-                graph_id = request.match_info.get("graph_id")
-                step_id = request.match_info.get("step_id")
-                pin_id = request.match_info.get("pin_id")
-                index = int(request.match_info.get("index"))
-                logger = client.get_logger()
-                if not logger:
-                    res = None
-                else:
-                    res = logger.get_output_note(graph_id, step_id, pin_id, index)
-
-                if (
-                    res
-                    and res.get("step_id") == step_id
-                    and res.get("pin_id") == pin_id
-                    and res.get("index") == index
-                ):
-                    return web.json_response(res)
-
-                return web.json_response({"error": "Could not get output note."})
-
-            @routes.post("/prompt_response/{id}")
-            async def prompt_response(request: web.Request) -> web.Response:
-                client = get_client(request)
-                step_id = request.match_info.get("id")
-                data = await request.json()
-                response = data.get("response")
-                res = client.get_processor().handle_prompt_response(step_id, response)
-                return web.json_response({"ok": res})
-
-            @routes.post("/run")
-            async def run_all(request: web.Request) -> web.Response:
-                client: WebClient = get_client(request)
-                data = await request.json()
-                graph = data.get("graph", {})
-                resources = data.get("resources", {})
-                filename = data.get("filename", "")
-                client.exec(
-                    {
-                        "cmd": "run_all",
-                        "graph": graph,
-                        "resources": resources,
-                        "filename": filename,
-                    },
-                )
-                return web.json_response({"success": True})
-
-            @routes.get("/step_docstring/{name}")
-            async def get_step_docstring(request: web.Request):
-                client: WebClient = get_client(request)
-                name = request.match_info.get("name")
-                docstring = client.get_node_hub().get_step_docstring(name)
-                return web.json_response({"content": docstring})
-
-            @routes.get("/resource_docstring/{name}")
-            async def get_resource_docstring(request: web.Request):
-                client: WebClient = get_client(request)
-                name = request.match_info.get("name")
-                docstring = client.get_node_hub().get_resource_docstring(name)
-                return web.json_response({"content": docstring})
-
-            @routes.post("/run/{id}")
-            async def run(request: web.Request) -> web.Response:
-                client = get_client(request)
-                step_id = request.match_info.get("id")
-                data = await request.json()
-                graph = data.get("graph", {})
-                resources = data.get("resources", {})
-                filename = data.get("filename", "")
-                client.exec(
-                    {
-                        "cmd": "run",
-                        "graph": graph,
-                        "resources": resources,
-                        "step_id": step_id,
-                        "filename": filename,
-                    },
-                )
-                return web.json_response({"success": True})
-
-            @routes.post("/step/{id}")
-            async def step(request: web.Request) -> web.Response:
-                client = get_client(request)
-                step_id = request.match_info.get("id")
-                data = await request.json()
-                graph = data.get("graph", {})
-                resources = data.get("resources", {})
-                filename = data.get("filename", "")
-                client.exec(
-                    {
-                        "cmd": "step",
-                        "graph": graph,
-                        "resources": resources,
-                        "step_id": step_id,
-                        "filename": filename,
-                    },
-                )
-                return web.json_response({"success": True})
-
-            @routes.post("/pause")
-            async def pause(request: web.Request) -> web.Response:
-                client = get_client(request)
-                client.get_processor().pause()
-                return web.json_response({"success": True})
-
-            @routes.post("/clear")
-            @routes.post("/clear/{id}")
-            async def clear(request: web.Request) -> web.Response:
-                client: WebClient = get_client(request)
-                node_id = request.match_info.get("id")
-                client.exec({"cmd": "clear", "node_id": node_id})
-                return web.json_response({"success": True})
-
-            @routes.get("/nodes")
-            async def get_nodes(request: web.Request) -> web.Response:
-                client = get_client(request)
-                nodes = client.nodes()
-                return web.json_response(nodes)
-
-            @routes.get(r"/docs/{path:.+}")
-            async def get_docs(request: web.Request) -> web.Response:
-                client = get_client(request)
-                path = request.match_info.get("path", "")
-                docs_path = client.get_docs_path()
-                if docs_path is None:
-                    raise web.HTTPNotFound()
-
-                fullpath = docs_path.joinpath(path)
-                if fullpath.exists():
-                    with open(fullpath, "r") as f:
-                        file_contents = f.read()
-                        d = {"content": file_contents}
-                        return web.json_response(d)
-                else:
-                    return web.json_response(
-                        {"reason": "/%s: No such file or directory." % fullpath},
-                        status=404,
-                    )
-
-            @routes.get("/fs")
-            @routes.get(r"/fs/{path:.+}")
-            async def get(request: web.Request) -> web.Response:
-                client = get_client(request)
-                path = request.match_info.get("path", "")
-                client_path = client.get_root_path()
-                if client_path is None:
-                    raise web.HTTPNotFound()
-
-                fullpath = client_path.joinpath(path)
-                assert str(fullpath).startswith(
-                    str(client_path)
-                ), f"{fullpath} must be within {client_path}"
-
-                def handle_fs_tree(p: Path, fn: callable) -> dict:
-                    if Path.is_dir(p):
-                        p_data = fn(p)
-                        p_data["children"] = [
-                            handle_fs_tree(f, fn) for f in Path.iterdir(p)
-                        ]
-                        return p_data
-                    else:
-                        return fn(p)
-
-                def get_stat(path: Path) -> dict:
-                    stat = path.stat()
-                    rel_path = path.relative_to(fullpath)
-                    st = {
-                        "title": path.name,
-                        "path": str(rel_path),
-                        "path_from_cwd": str(fullpath.joinpath(rel_path)),
-                        "dirname": str(Path(rel_path).parent),
-                        "access_time": int(stat.st_atime),
-                        "modification_time": int(stat.st_mtime),
-                        "change_time": int(stat.st_ctime),
-                    }
-
-                    if not path.is_dir():
-                        st["size"] = int(stat.st_size)
-
-                    return st
-
-                if fullpath.exists():
-                    if request.query.get("stat", False):
-                        stats = handle_fs_tree(fullpath, get_stat)
-                        res = web.json_response(stats)
-                        res.headers["Content-Type"] = "application/json; charset=utf-8"
-                        return res
-
-                    if fullpath.is_dir():
-                        res = web.json_response(list(fullpath.iterdir()))
-                        res.headers["Content-Type"] = "application/json; charset=utf-8"
-                        return res
-                    else:
-                        r = request.headers.get("Range")
-                        m = (
-                            re.match(r"bytes=((\d+-\d+,)*(\d+-\d*))", r)
-                            if r is not None
-                            else None
-                        )
-                        if r is None or m is None:
-                            with open(fullpath, "r") as f:
-                                file_contents = f.read()
-                                d = {"content": file_contents}
-                                return web.json_response(d)
-                else:
-                    return web.json_response(
-                        {"reason": "/%s: No such file or directory." % path}, status=404
-                    )
-
-            @routes.put("/fs")
-            @routes.put(r"/fs/{path:.+}")
-            async def put(request: web.Request) -> web.Response:
-                client = get_client(request)
-                path = request.match_info.get("path", "")
-                client_path = client.get_root_path()
-                if client_path is None:
-                    raise web.HTTPNotFound()
-
-                fullpath = client_path.joinpath(path)
-                data = await request.json()
-                if request.query.get("mv"):
-                    topath = client_path.joinpath(request.query.get("mv"))
-                    os.rename(fullpath, topath)
-                    return web.json_response({}, status=200)
-
-                is_file = data.get("is_file", False)
-                file_contents = data.get("file_contents", "")
-                hash_key = data.get("hash_key", "")
-
-                if not is_file:
-                    os.mkdir(fullpath)
-                    return web.json_response({}, status=201)
-
-                encoding = data.get("encoding", "")
-                if encoding == "base64":
-                    file_contents = base64.b64decode(file_contents)
-
-                if fullpath.exists():
-                    with open(fullpath, "r") as f:
-                        current_hash = hashlib.md5(f.read().encode()).hexdigest()
-                        if current_hash != hash_key:
-                            print("Couldn't save file due to hash mismatch")
-                            return web.json_response(
-                                {"reason": "Hash mismatch."}, status=409
-                            )
-
-                with open(fullpath, "w") as f:
-                    f.write(file_contents)
-                    return web.json_response({}, status=201)
-
-            @routes.delete("/fs/{path:.+}")
-            async def delete(request: web.Request) -> web.Response:
-                client: WebClient = get_client(request)
-                path = request.match_info.get("path")
-                client_path = client.get_root_path()
-                if client_path is None:
-                    raise web.HTTPNotFound()
-
-                fullpath = client_path.joinpath(path)
-                if fullpath.exists():
-                    if fullpath.is_dir():
-                        try:
-                            fullpath.rmdir(fullpath)
-                            return web.json_response({"success": True}, status=204)
-                        except Exception as e:
-                            return web.json_response(
-                                {"reason": f"Error deleting directory {fullpath}: {e}"},
-                                status=400,
-                            )
-                    else:
-                        fullpath.unlink(True)
-                        return web.json_response({"success": True}, status=204)
-                else:
-                    return web.json_response(
-                        {"reason": f"No such file or directory {fullpath}."}, status=404
-                    )
-
-            @routes.get("/plugins")
-            async def get_plugins(request: web.Request) -> web.Response:
-                plugin_list = list(self.web_plugins.keys())
-                return web.json_response(plugin_list)
-
-            @routes.get("/plugins/{name}")
-            async def get_plugin(request: web.Request) -> web.Response:
-                plugin_name = request.match_info.get("name")
-                plugin_location = self.web_plugins.get(plugin_name)
-                if plugin_location is None:
-                    raise web.HTTPNotFound(text=f"Plugin {plugin_name} not found.")
-                return web.FileResponse(plugin_location)
+    def get_client(self, request: web.Request) -> Client:
+        sid = request.headers.get("sid")
+        if sid is None:
+            raise web.HTTPUnauthorized()
+        client = self.client_pool.get(sid)
+        if client is None:
+            raise web.HTTPUnauthorized()
+        return client
 
     async def start(self, block=False):
         self.app.router.add_routes(self.routes)
-        if self.web_plugins:
-            print("Loaded web plugins:")
-            print(self.web_plugins)
 
         if self.web_dir is not None:
             self.app.router.add_routes([web.static("/", self.web_dir)])
@@ -515,7 +203,350 @@ class GraphServer:
             await asyncio.sleep(999999999)
 
 
-def start_web(args):
+class AppServer(Server):
+    def __init__(
+        self,
+        web_processor_args: dict,
+        isolate_users: bool,
+        no_sample: bool,
+        close_event: mp.Event,
+        setup_paths: Optional[dict] = None,
+        web_dir: Optional[str] = None,
+        log_dir: Optional[str] = None,
+        host: str = "0.0.0.0",
+        port: int = 8005,
+    ):
+        self.plugins = setup_plugins()
+        self.plugin_steps, self.plugin_resources, self.web_plugins = self.plugins
+        node_plugins = (self.plugin_steps, self.plugin_resources)
+        if isolate_users:
+            self.client_pool = AppClientPool(
+                close_event,
+                web_processor_args,
+                node_plugins,
+                no_sample,
+                setup_paths=setup_paths,
+                log_dir=log_dir,
+            )
+        else:
+            self.client_pool = AppSharedClientPool(
+                close_event,
+                web_processor_args,
+                node_plugins,
+                no_sample,
+                setup_paths=setup_paths,
+                log_dir=log_dir,
+            )
+        super().__init__(
+            close_event,
+            self.client_pool,
+            MultiThreadedMemoryManager,
+            web_dir,
+            host,
+            port,
+        )
+
+        if self.web_plugins:
+            print("Loaded web plugins:")
+            print(self.web_plugins)
+
+        @self.routes.get("/log/{graph_id}/{step_id}/{pin_id}/{index}")
+        async def get_log(request: web.Request) -> web.Response:
+            client: WebClient = self.get_client(request)
+            graph_id = request.match_info.get("graph_id")
+            step_id = request.match_info.get("step_id")
+            pin_id = request.match_info.get("pin_id")
+            index = int(request.match_info.get("index"))
+            logger = client.get_logger()
+            if not logger:
+                res = None
+            else:
+                res = logger.get_output_note(graph_id, step_id, pin_id, index)
+
+            if (
+                res
+                and res.get("step_id") == step_id
+                and res.get("pin_id") == pin_id
+                and res.get("index") == index
+            ):
+                return web.json_response(res)
+
+            return web.json_response({"error": "Could not get output note."})
+
+        @self.routes.post("/prompt_response/{id}")
+        async def prompt_response(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            response = data.get("response")
+            res = client.get_processor().handle_prompt_response(step_id, response)
+            return web.json_response({"ok": res})
+
+        @self.routes.post("/run")
+        async def run_all(request: web.Request) -> web.Response:
+            client: WebClient = self.get_client(request)
+            data = await request.json()
+            graph = data.get("graph", {})
+            resources = data.get("resources", {})
+            filename = data.get("filename", "")
+            client.exec(
+                {
+                    "cmd": "run_all",
+                    "graph": graph,
+                    "resources": resources,
+                    "filename": filename,
+                },
+            )
+            return web.json_response({"success": True})
+
+        @self.routes.get("/step_docstring/{name}")
+        async def get_step_docstring(request: web.Request):
+            client: WebClient = self.get_client(request)
+            name = request.match_info.get("name")
+            docstring = client.get_node_hub().get_step_docstring(name)
+            return web.json_response({"content": docstring})
+
+        @self.routes.get("/resource_docstring/{name}")
+        async def get_resource_docstring(request: web.Request):
+            client: WebClient = self.get_client(request)
+            name = request.match_info.get("name")
+            docstring = client.get_node_hub().get_resource_docstring(name)
+            return web.json_response({"content": docstring})
+
+        @self.routes.post("/run/{id}")
+        async def run(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            graph = data.get("graph", {})
+            resources = data.get("resources", {})
+            filename = data.get("filename", "")
+            client.exec(
+                {
+                    "cmd": "run",
+                    "graph": graph,
+                    "resources": resources,
+                    "step_id": step_id,
+                    "filename": filename,
+                },
+            )
+            return web.json_response({"success": True})
+
+        @self.routes.post("/step/{id}")
+        async def step(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            graph = data.get("graph", {})
+            resources = data.get("resources", {})
+            filename = data.get("filename", "")
+            client.exec(
+                {
+                    "cmd": "step",
+                    "graph": graph,
+                    "resources": resources,
+                    "step_id": step_id,
+                    "filename": filename,
+                },
+            )
+            return web.json_response({"success": True})
+
+        @self.routes.post("/pause")
+        async def pause(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            client.get_processor().pause()
+            return web.json_response({"success": True})
+
+        @self.routes.post("/clear")
+        @self.routes.post("/clear/{id}")
+        async def clear(request: web.Request) -> web.Response:
+            client: WebClient = self.get_client(request)
+            node_id = request.match_info.get("id")
+            client.exec({"cmd": "clear", "node_id": node_id})
+            return web.json_response({"success": True})
+
+        @self.routes.get("/nodes")
+        async def get_nodes(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            nodes = client.nodes()
+            return web.json_response(nodes)
+
+        @self.routes.get(r"/docs/{path:.+}")
+        async def get_docs(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            path = request.match_info.get("path", "")
+            docs_path = client.get_docs_path()
+            if docs_path is None:
+                raise web.HTTPNotFound()
+
+            fullpath = docs_path.joinpath(path)
+            if fullpath.exists():
+                with open(fullpath, "r") as f:
+                    file_contents = f.read()
+                    d = {"content": file_contents}
+                    return web.json_response(d)
+            else:
+                return web.json_response(
+                    {"reason": "/%s: No such file or directory." % fullpath},
+                    status=404,
+                )
+
+        @self.routes.get("/fs")
+        @self.routes.get(r"/fs/{path:.+}")
+        async def get(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            path = request.match_info.get("path", "")
+            client_path = client.get_root_path()
+            if client_path is None:
+                raise web.HTTPNotFound()
+
+            fullpath = client_path.joinpath(path)
+            assert str(fullpath).startswith(
+                str(client_path)
+            ), f"{fullpath} must be within {client_path}"
+
+            def handle_fs_tree(p: Path, fn: callable) -> dict:
+                if Path.is_dir(p):
+                    p_data = fn(p)
+                    p_data["children"] = [
+                        handle_fs_tree(f, fn) for f in Path.iterdir(p)
+                    ]
+                    return p_data
+                else:
+                    return fn(p)
+
+            def get_stat(path: Path) -> dict:
+                stat = path.stat()
+                rel_path = path.relative_to(fullpath)
+                st = {
+                    "title": path.name,
+                    "path": str(rel_path),
+                    "path_from_cwd": str(fullpath.joinpath(rel_path)),
+                    "dirname": str(Path(rel_path).parent),
+                    "access_time": int(stat.st_atime),
+                    "modification_time": int(stat.st_mtime),
+                    "change_time": int(stat.st_ctime),
+                }
+
+                if not path.is_dir():
+                    st["size"] = int(stat.st_size)
+
+                return st
+
+            if fullpath.exists():
+                if request.query.get("stat", False):
+                    stats = handle_fs_tree(fullpath, get_stat)
+                    res = web.json_response(stats)
+                    res.headers["Content-Type"] = "application/json; charset=utf-8"
+                    return res
+
+                if fullpath.is_dir():
+                    res = web.json_response(list(fullpath.iterdir()))
+                    res.headers["Content-Type"] = "application/json; charset=utf-8"
+                    return res
+                else:
+                    r = request.headers.get("Range")
+                    m = (
+                        re.match(r"bytes=((\d+-\d+,)*(\d+-\d*))", r)
+                        if r is not None
+                        else None
+                    )
+                    if r is None or m is None:
+                        with open(fullpath, "r") as f:
+                            file_contents = f.read()
+                            d = {"content": file_contents}
+                            return web.json_response(d)
+            else:
+                return web.json_response(
+                    {"reason": "/%s: No such file or directory." % path}, status=404
+                )
+
+        @self.routes.put("/fs")
+        @self.routes.put(r"/fs/{path:.+}")
+        async def put(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            path = request.match_info.get("path", "")
+            client_path = client.get_root_path()
+            if client_path is None:
+                raise web.HTTPNotFound()
+
+            fullpath = client_path.joinpath(path)
+            data = await request.json()
+            if request.query.get("mv"):
+                topath = client_path.joinpath(request.query.get("mv"))
+                os.rename(fullpath, topath)
+                return web.json_response({}, status=200)
+
+            is_file = data.get("is_file", False)
+            file_contents = data.get("file_contents", "")
+            hash_key = data.get("hash_key", "")
+
+            if not is_file:
+                os.mkdir(fullpath)
+                return web.json_response({}, status=201)
+
+            encoding = data.get("encoding", "")
+            if encoding == "base64":
+                file_contents = base64.b64decode(file_contents)
+
+            if fullpath.exists():
+                with open(fullpath, "r") as f:
+                    current_hash = hashlib.md5(f.read().encode()).hexdigest()
+                    if current_hash != hash_key:
+                        print("Couldn't save file due to hash mismatch")
+                        return web.json_response(
+                            {"reason": "Hash mismatch."}, status=409
+                        )
+
+            with open(fullpath, "w") as f:
+                f.write(file_contents)
+                return web.json_response({}, status=201)
+
+        @self.routes.delete("/fs/{path:.+}")
+        async def delete(request: web.Request) -> web.Response:
+            client: WebClient = self.get_client(request)
+            path = request.match_info.get("path")
+            client_path = client.get_root_path()
+            if client_path is None:
+                raise web.HTTPNotFound()
+
+            fullpath = client_path.joinpath(path)
+            if fullpath.exists():
+                if fullpath.is_dir():
+                    try:
+                        fullpath.rmdir(fullpath)
+                        return web.json_response({"success": True}, status=204)
+                    except Exception as e:
+                        return web.json_response(
+                            {"reason": f"Error deleting directory {fullpath}: {e}"},
+                            status=400,
+                        )
+                else:
+                    fullpath.unlink(True)
+                    return web.json_response({"success": True}, status=204)
+            else:
+                return web.json_response(
+                    {"reason": f"No such file or directory {fullpath}."}, status=404
+                )
+
+        @self.routes.get("/plugins")
+        async def get_plugins(request: web.Request) -> web.Response:
+            plugin_list = list(self.web_plugins.keys())
+            return web.json_response(plugin_list)
+
+        @self.routes.get("/plugins/{name}")
+        async def get_plugin(request: web.Request) -> web.Response:
+            plugin_name = request.match_info.get("name")
+            plugin_location = self.web_plugins.get(plugin_name)
+            if plugin_location is None:
+                raise web.HTTPNotFound(text=f"Plugin {plugin_name} not found.")
+            return web.FileResponse(plugin_location)
+
+    def get_client(self, request: web.Request) -> WebClient:
+        return super().get_client(request)
+
+
+def start_app(args):
     # The start method on some systems like Mac default to spawn
     if not args.spawn and mp.get_start_method() == "spawn":
         mp.set_start_method("fork", force=True)
@@ -539,18 +570,8 @@ def start_web(args):
         p.daemon = True
         p.start()
 
-    def cleanup():
-        close_event.set()
-
-    def signal_handler(*_):
-        cleanup()
-        raise KeyboardInterrupt()
-
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-
     log_dir = args.log_dir if not args.isolate_users else None
-    server = GraphServer(
+    server = AppServer(
         web_processor_args,
         args.isolate_users,
         args.no_sample,
@@ -561,25 +582,30 @@ def start_web(args):
         host=args.host,
         port=args.port,
     )
+
+    def cleanup(*_):
+        close_event.set()
+        raise KeyboardInterrupt()
+
+    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, cleanup)
+
     try:
         asyncio.run(server.start(block=True))
     except KeyboardInterrupt:
-        cleanup()
+        close_event.set()
 
 
 def async_start(host, port, proc_queue=None, view_queue=None):
     def _fn(close_event):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        server = GraphServer(
-            {},
-            isolate_users=False,
-            no_sample=True,
+        server = Server(
             close_event=close_event,
+            client_pool=RayClientPool(close_event, proc_queue, view_queue),
+            img_mem=RayMemoryManager,
             host=host,
             port=port,
-            proc_queue=proc_queue,
-            view_queue=view_queue,
         )
 
         try:

@@ -215,9 +215,11 @@ class TaskLoop:
             try:
                 await self.loop()
             except Exception as e:
-                print(f"Error in worker loop: {e}")
                 traceback.print_exc()
-            await asyncio.sleep(self._interval)
+            try:
+                await asyncio.sleep(self._interval)
+            except Exception as e:
+                traceback.print_exc()
 
     def start(self):
         """Start the worker in the current event loop"""
@@ -265,7 +267,7 @@ class QueueTaskLoop(TaskLoop):
                 return
             except Exception as e:
                 if RAY_AVAILABLE and isinstance(e, RAY_UTIL_QUEUE.Empty):
-                    pass
+                    await asyncio.sleep(self._interval)
                 else:
                     traceback.print_exc()
                     raise Exception(f"MultiGraphViewManager Error: {e}")
