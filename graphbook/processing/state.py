@@ -8,7 +8,7 @@ from ..viewer import ViewManagerInterface
 from ..plugins import setup_plugins
 from ..utils import transform_json_log
 from .. import nodes
-from graphbook.serialization import Graph, GraphResourceWrapper, GraphStepWrapper
+from graphbook.serialization import Graph, GraphResourceWrapper, GraphStepWrapper, get_py_as_graph
 import importlib, importlib.util, inspect
 import os
 import hashlib
@@ -282,7 +282,8 @@ class GraphState:
         self._step_states = step_states
         self._step_graph = step_graph
         
-    def update_state_py(self, graph: Graph, params: dict):
+    def update_state_py(self, filename: str, params: dict):
+        graph = get_py_as_graph(filename)
         # First, create resources that the steps depend on
         resource_values = {}
         dict_resources = {}

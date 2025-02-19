@@ -85,7 +85,7 @@ class Graph:
         self.id += 1
         return n
 
-    def serialize(self):
+    def serialize(self) -> dict:
         G = {}
         for node in self.nodes:
             try:
@@ -108,18 +108,19 @@ class Graph:
         def decorator(serialized_func):
             serialized_func()
             module = serialized_func.__globals__
-            module["_GRAPHBOOK_WORKFLOW_"] = self.serialize()
+            module["_GRAPHBOOK_WORKFLOW_"] = self
 
         return decorator
 
 
-def get_py_as_workflow(filepath: str, custom_nodes_path: str):
-    import sys
+def get_py_as_workflow(filepath: str) -> dict:
+    return get_py_as_graph(filepath).serialize()
 
+
+def get_py_as_graph(filepath: str) -> Graph:
     module_spec = importlib.util.spec_from_file_location("transient_module", filepath)
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
-    sys.path = sys.path[1:]
     return module.__dict__["_GRAPHBOOK_WORKFLOW_"]
 
 

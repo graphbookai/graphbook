@@ -263,12 +263,11 @@ class WebInstanceProcessor:
 
     def try_update_state(self, work: dict) -> bool:
         try:
-            if work["filename"].endswith(".py"):
-                self.graph_state.update_state_py() #TODO
+            filename: str = work["filename"]
+            if filename.endswith(".py"):
+                self.graph_state.update_state_py(filename, work["params"])
             else:
-                self.graph_state.update_state(
-                    work["graph"], work["resources"]
-                )
+                self.graph_state.update_state(work["graph"], work["resources"])
             return True
         except NodeInstantiationError as e:
             traceback.print_exc()

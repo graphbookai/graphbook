@@ -27,6 +27,7 @@ import time
 import atexit
 import traceback
 
+
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
@@ -108,7 +109,7 @@ class Server:
                         "edges": edges,
                     }
                     json.dump(serialized, f)
-                    
+
             def put_graph_v2(req: dict):
                 filename = req["filename"]
                 nodes = req["nodes"]
@@ -130,7 +131,7 @@ class Server:
                                 put_graph(req)
                             if req["api"] == "graph" and req["cmd"] == "put_graph_v2":
                                 put_graph_v2(req)
-                                
+
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         print("ws connection closed with exception %s" % ws.exception())
             finally:
@@ -309,7 +310,7 @@ class AppServer(Server):
             name = request.match_info.get("name")
             docstring = client.get_node_hub().get_resource_docstring(name)
             return web.json_response({"content": docstring})
-        
+
         @self.routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
             client: WebClient = self.get_client(request)
@@ -364,7 +365,7 @@ class AppServer(Server):
                 },
             )
             return web.json_response({"success": True})
-        
+
         @self.routes.post("/py_run/{filename}")
         async def py_run_all(request: web.Request) -> web.Response:
             client: WebClient = self.get_client(request)
@@ -454,24 +455,22 @@ class AppServer(Server):
                     status=404,
                 )
 
-
         @self.routes.get(r"/workflow/{filepath:.+}")
         async def get_workflow(request: web.Request) -> web.Response:
             client = self.get_client(request)
             filepath = request.match_info.get("filepath", None)
             root_path = client.get_root_path()
             filepath = root_path.joinpath(filepath)
-    
+
             if filepath is None:
                 raise web.HTTPBadRequest(text="No file path provided.")
             try:
-                custom_nodes_path = client.get_custom_nodes_path()
-                workflow = get_py_as_workflow(filepath, custom_nodes_path)
+                workflow = get_py_as_workflow(filepath)
                 return web.json_response(workflow)
             except Exception as e:
                 traceback.print_exc()
                 raise web.HTTPServerError(text="Couldn't load workflow: " + str(e))
-            
+
         @self.routes.get("/fs")
         @self.routes.get(r"/fs/{path:.+}")
         async def get(request: web.Request) -> web.Response:
