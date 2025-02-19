@@ -296,6 +296,20 @@ class AppServer(Server):
             res = client.get_processor().handle_prompt_response(step_id, response)
             return web.json_response({"ok": res})
 
+        @self.routes.get("/step_docstring/{name}")
+        async def get_step_docstring(request: web.Request):
+            client: WebClient = self.get_client(request)
+            name = request.match_info.get("name")
+            docstring = client.get_node_hub().get_step_docstring(name)
+            return web.json_response({"content": docstring})
+
+        @self.routes.get("/resource_docstring/{name}")
+        async def get_resource_docstring(request: web.Request):
+            client: WebClient = self.get_client(request)
+            name = request.match_info.get("name")
+            docstring = client.get_node_hub().get_resource_docstring(name)
+            return web.json_response({"content": docstring})
+        
         @self.routes.post("/run")
         async def run_all(request: web.Request) -> web.Response:
             client: WebClient = self.get_client(request)
@@ -312,20 +326,6 @@ class AppServer(Server):
                 },
             )
             return web.json_response({"success": True})
-
-        @self.routes.get("/step_docstring/{name}")
-        async def get_step_docstring(request: web.Request):
-            client: WebClient = self.get_client(request)
-            name = request.match_info.get("name")
-            docstring = client.get_node_hub().get_step_docstring(name)
-            return web.json_response({"content": docstring})
-
-        @self.routes.get("/resource_docstring/{name}")
-        async def get_resource_docstring(request: web.Request):
-            client: WebClient = self.get_client(request)
-            name = request.match_info.get("name")
-            docstring = client.get_node_hub().get_resource_docstring(name)
-            return web.json_response({"content": docstring})
 
         @self.routes.post("/run/{id}")
         async def run(request: web.Request) -> web.Response:
@@ -361,6 +361,55 @@ class AppServer(Server):
                     "resources": resources,
                     "step_id": step_id,
                     "filename": filename,
+                },
+            )
+            return web.json_response({"success": True})
+        
+        @self.routes.post("/py_run/{filename}")
+        async def py_run_all(request: web.Request) -> web.Response:
+            client: WebClient = self.get_client(request)
+            filename = request.match_info.get("filename")
+            data = await request.json()
+            params = data.get("params")
+            client.exec(
+                {
+                    "cmd": "py_run_all",
+                    "filename": filename,
+                    "params": params,
+                },
+            )
+            return web.json_response({"success": True})
+
+        @self.routes.post("/py_run/{filename}/{id}")
+        async def py_run(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            filename = request.match_info.get("filename")
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            params = data.get("params")
+            client.exec(
+                {
+                    "cmd": "py_run",
+                    "step_id": step_id,
+                    "filename": filename,
+                    "params": params,
+                },
+            )
+            return web.json_response({"success": True})
+
+        @self.routes.post("/py_step/{filename}/{id}")
+        async def py_step(request: web.Request) -> web.Response:
+            client = self.get_client(request)
+            filename = request.match_info.get("filename")
+            step_id = request.match_info.get("id")
+            data = await request.json()
+            params = data.get("params")
+            client.exec(
+                {
+                    "cmd": "py_step",
+                    "step_id": step_id,
+                    "filename": filename,
+                    "params": params,
                 },
             )
             return web.json_response({"success": True})

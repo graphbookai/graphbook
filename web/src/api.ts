@@ -327,6 +327,18 @@ export class ServerAPI {
         return await this.post(`param_run/${graphId}`, { params });
     }
 
+    public async pyRunAll(pyfile: string, params: any) {
+        return await this.post(`py_run/${pyfile}`, { params });
+    }
+
+    public async pyRun(pyfile: string, stepId: string, params: any) {
+        return await this.post(`py_run/${pyfile}/${stepId}`, { params });
+    }
+
+    public async pyStep(pyfile: string, stepId: string, params: any) {
+        return await this.post(`py_step/${pyfile}/${stepId}`, { params });
+    }
+
     /**
      * File API
      */

@@ -261,11 +261,14 @@ class WebInstanceProcessor:
         ]
         self.dataloader.start(consumer_ids, consumer_load_fn, consumer_dump_fn)
 
-    def try_update_state(self, local_graph: dict) -> bool:
+    def try_update_state(self, work: dict) -> bool:
         try:
-            self.graph_state.update_state(
-                local_graph["graph"], local_graph["resources"]
-            )
+            if work["filename"].endswith(".py"):
+                self.graph_state.update_state_py() #TODO
+            else:
+                self.graph_state.update_state(
+                    work["graph"], work["resources"]
+                )
             return True
         except NodeInstantiationError as e:
             traceback.print_exc()
@@ -280,18 +283,19 @@ class WebInstanceProcessor:
             if not self.try_update_state(work):
                 return
 
-            if work["cmd"] == "run_all":
+            cmd: str = work["cmd"]
+            if cmd == "run_all" or cmd == "py_run_all":
                 self.run()
-            elif work["cmd"] == "run":
+            elif cmd == "run" or cmd == "py_run":
                 self.run(work["step_id"])
-            elif work["cmd"] == "step":
+            elif cmd == "step" or cmd == "py_step":
                 self.step(work["step_id"])
         finally:
             self.set_is_running(False)
 
     def start_loop(self):
         ExecutionContext.update(dataloader=self.dataloader)
-        exec_cmds = ["run_all", "run", "step"]
+        exec_cmds = ["run_all", "run", "step", "py_run_all", "py_run", "py_step"]
         while not self.close_event.is_set():
             try:
                 work = self.cmd_queue.get(timeout=MP_WORKER_TIMEOUT)

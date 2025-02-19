@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Menu } from 'antd';
 import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { keyRecursively, uniqueIdFrom } from '../utils.ts';
-import { Graph } from '../graph.ts';
+import { Graph, getNodeParams } from '../graph.ts';
 import { useRunState } from '../hooks/RunState.ts';
 import { useAPI } from '../hooks/API.ts';
 import { useNotification } from '../hooks/Notification.ts';
@@ -86,18 +86,23 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
+                
+                if (filename.endsWith('.py')) {
+                    API.pyRun(filename, node.id, getNodeParams(nodes));
+                } else {
+                    const edges = getEdges();
+                    const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                    if (errors.length > 0) {
+                        notification.error({
+                            key: 'invalid-graph',
+                            message: 'Invalid Graph',
+                            description: <SerializationErrorMessages errors={errors} />,
+                            duration: 3,
+                        })
+                        return;
+                    }
+                    API.run(graph, resources, node.id, filename);
                 }
-                API.run(graph, resources, node.id, filename);
                 runStateShouldChange();
             }
         },
@@ -107,18 +112,22 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
             action: async () => {
                 const { getNodes, getEdges } = reactFlowInstance;
                 const nodes = getNodes();
-                const edges = getEdges();
-                const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-                if (errors.length > 0) {
-                    notification.error({
-                        key: 'invalid-graph',
-                        message: 'Invalid Graph',
-                        description: <SerializationErrorMessages errors={errors} />,
-                        duration: 3,
-                    })
-                    return;
+                if (filename.endsWith('.py')) {
+                    API.pyStep(filename, node.id, getNodeParams(nodes));
+                } else {
+                    const edges = getEdges();
+                    const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+                    if (errors.length > 0) {
+                        notification.error({
+                            key: 'invalid-graph',
+                            message: 'Invalid Graph',
+                            description: <SerializationErrorMessages errors={errors} />,
+                            duration: 3,
+                        })
+                        return;
+                    }
+                    API.step(graph, resources, node.id, filename);
                 }
-                API.step(graph, resources, node.id, filename);
                 runStateShouldChange();
             }
         },

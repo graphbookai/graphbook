@@ -785,3 +785,15 @@ export function layoutDAG(
         position: { x: nodes.get(node.id)?.x || 0, y: nodes.get(node.id)?.y || 0 }
     }));
 }
+
+export function getNodeParams(nodes: Node[]) {
+    return nodes.reduce((acc, node: any) => {
+        const params = Object.entries<any>(node.data.parameters).reduce((acc, [key, param]) => {
+            acc[key] = param.value;
+            return acc;
+        }, {});
+
+        acc[node.id] = params;
+        return acc;
+    }, {});
+}

@@ -11,7 +11,7 @@ import ReactFlow, {
 } from 'reactflow';
 import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined, LoadingOutlined } from '@ant-design/icons';
-import { Graph, layoutDAG } from '../../graph.ts';
+import { Graph, layoutDAG, getNodeParams } from '../../graph.ts';
 import { SearchNode } from '../SearchNode.tsx';
 import { Step } from '../Nodes/Step.tsx';
 import { Group, groupIfPossible } from '../Nodes/Group.tsx';
@@ -390,62 +390,6 @@ function Flow({ initialNodes, initialEdges, filename }) {
         return true;
     }, [reactFlowInstance]);
 
-    const nodeUpdatedCallback = useCallback(async () => {
-        if (!API) {
-            return;
-        }
-
-        const searchNodes = (catalogue, name, category='') => {
-            const categories = category === '' ? [] : category.split('/');
-            let collection = catalogue;
-            for (let i = 0; i < categories.length; i++) {
-                collection = collection?.children?.[categories[i]];
-            }
-            if (!collection) {
-                return null;
-            }
-            return collection[name];
-        };
-
-        const updatedNodes = await API.getNodes();
-
-        setNodes(nodes => {
-            const mergedNodes = nodes.map(node => {
-                const updatedNodeData = (
-                    node.type === 'step' ?
-                        searchNodes(updatedNodes.steps, node.data.name, node.data.category) :
-                        searchNodes(updatedNodes.resources, node.data.name, node.data.category)
-                );
-                if (updatedNodeData) {
-                    // Create a new parameters object by keeping only the common parameters between the old and new
-                    const newParameters = Object.keys(updatedNodeData.parameters).reduce((acc, key) => {
-                        if (node.data.parameters.hasOwnProperty(key)) {
-                            acc[key] = node.data.parameters[key];
-                        } else {
-                            acc[key] = updatedNodeData.parameters[key];
-                        }
-                        return acc;
-                    }, {});
-
-                    return {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            ...updatedNodeData,
-                            parameters: {
-                                ...newParameters,
-                            },
-                        },
-                    };
-                }
-                return node;
-            });
-            return mergedNodes
-        });
-    }, [setNodes, API]);
-
-    useAPIMessageEffect('node_updated', nodeUpdatedCallback);
-
     const lineColor1 = token.colorBorder;
     const lineColor2 = token.colorFill;
 
@@ -523,24 +467,16 @@ function ControlRow() {
         if (!API) {
             return;
         }
-        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-        if (errors.length > 0) {
-            notification.error({
-                key: 'invalid-graph',
-                message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors} />,
-                duration: 3,
-            })
-            return;
-        }
-        API.runAll(graph, resources, filename);
+
+        API.pyRunAll(filename, getNodeParams(nodes));
         runStateShouldChange();
     }, [API, nodes, edges, notification, filename]);
 
     const pause = useCallback(() => {
-        if (!API) {
+        if (!API) { 
             return;
         }
+
         API.pause();
         runStateShouldChange();
     }, [API]);
