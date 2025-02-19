@@ -63,16 +63,16 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
         setFiles(files.children);
         setFilesRoot(filesRoot);
 
-        if (!selectedWorkflow) {
-            const anyJson = files.children.find((item) => {
-                const filename = item.path;
-                return filename.slice(-5) === '.json';
-            });
-            if (anyJson) {
-                setWorkflow(anyJson.path);
-                setSelectedWorkflow(anyJson.path);
-            }
-        }
+        // if (!selectedWorkflow) {
+        //     const anyJson = files.children.find((item) => {
+        //         const filename = item.path;
+        //         return filename.slice(-5) === '.json';
+        //     });
+        //     if (anyJson) {
+        //         setWorkflow(anyJson.path);
+        //         setSelectedWorkflow(anyJson.path);
+        //     }
+        // }
     }, [API, selectedWorkflow]);
 
     useEffect(() => {
@@ -113,10 +113,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
             onBeginEdit(null);
             return;
         }
-        if (filename.slice(-3) == '.py') {
-            console.log("Attempting to open", filename)
-            onBeginEdit({ name: filename });
-        } else if (filename.slice(-5) === '.json') {
+        if (filename.slice(-3) == '.py' || filename.slice(-5) === '.json') {
             setExecution(null);
             setWorkflow(filename);
             setSelectedWorkflow(filename);
@@ -274,7 +271,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
     }, [searchValue, files, addingState, renamingState]);
 
     const contextMenuItems = useMemo(() => {
-        return [
+        const items = [
             {
                 key: 'rename',
                 label: 'Rename',
@@ -284,7 +281,14 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
                 label: 'Delete',
             }
         ];
-    }, []);
+        if (contextMenu?.filename.endsWith('.py')) {
+            items.push({
+                key: 'edit',
+                label: 'Edit',
+            });
+        }
+        return items;
+    }, [contextMenu]);
 
     const onContextMenuClick = useCallback(({ key }) => {
         if (contextMenu) {

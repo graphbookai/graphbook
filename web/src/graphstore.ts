@@ -21,9 +21,9 @@ type GraphState = {
 };
 
 export class GraphStore {
-    private graphState: GraphState;
-    private filename: string;
-    private API: ServerAPI;
+    protected graphState: GraphState;
+    protected filename: string;
+    protected API: ServerAPI;
 
     constructor(filename: string, API: ServerAPI, nodes: Node[], edges: Edge[]) {
         this.filename = filename;
@@ -52,7 +52,7 @@ export class GraphStore {
         }
     }
 
-    private putGraph(nodes, edges) {
+    protected putGraph(nodes, edges) {
         const storedNodes = nodes.map(node => {
             const storedNode = { ...node, data: { ...node.data } };
             delete storedNode.data.properties;
@@ -100,5 +100,32 @@ export class GraphStore {
         }
 
         return false;
+    }
+}
+
+export class PyGraphStore extends GraphStore {
+    constructor(filename: string, API: ServerAPI, nodes: Node[], edges: Edge[]) {
+        super(filename, API, nodes, edges);
+    }
+
+    protected putGraph(nodes, edges) {
+        const storedNodes = nodes.map(node => {
+            const storedNode = { ...node, data: { ...node.data } };
+            delete storedNode.data.properties;
+            delete storedNode.data.key;
+            delete storedNode.selected;
+            delete storedNode.dragging;
+            delete storedNode.positionAbsolute;
+            delete storedNode.width;
+            delete storedNode.height;
+            return storedNode;
+        });
+        const storedEdges = edges.map(edge => {
+            const storedEdge = { ...edge, data: { ...edge.data } };
+            delete storedEdge.data.properties;
+            return storedEdge;
+        });
+        console.log("Put graph", storedNodes, storedEdges);
+        this.API.putGraphV2(this.filename, storedNodes, storedEdges);
     }
 }

@@ -231,7 +231,7 @@ export class ServerAPI {
                 return await response.json();
             }
         } catch (e) {
-            console.error(`POST request error: ${e}`);
+            console.error(`GET request error: ${e}`);
             throw e;
         }
     }
@@ -351,6 +351,14 @@ export class ServerAPI {
         return await this.get(`fs/${filepath}`);
     }
 
+    // New
+    public async getWorkflow(filepath: string) {
+        if (filepath.endsWith('.py')) {
+            return await this.get(`workflow/${filepath}`);
+        }
+        return null;
+    }
+
     public async rmFile(filepath) {
         return await this.delete(`fs/${filepath}`);
     }
@@ -394,6 +402,20 @@ export class ServerAPI {
             edges: edges
         }));
     }
+
+    public putGraphV2(filename: string, nodes: Node[], edges: Edge[]) {
+        if (!this.isWebSocketOpen()) {
+            return;
+        }
+        this.websocket?.send(JSON.stringify({
+            api: "graph",
+            cmd: "put_graph_v2",
+            filename: filename,
+            nodes: nodes,
+            edges: edges
+        }));
+    }
+
 
     /**
      * Image/Media API

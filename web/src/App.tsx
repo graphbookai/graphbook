@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import FlowInitializer from './components/Flows/Flow.tsx';
+import PyFlowInitializer from './components/Flows/PyFlow.tsx';
 import ReadOnlyFlow from './components/Flows/ReadOnlyFlow.tsx';
 import { CodeEditor } from './components/Editor/CodeEditor';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -82,7 +83,9 @@ function View() {
             return (
                 <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                     {codeEditorView}
-                    <FlowInitializer filename={flowFile.name} />
+                    {
+                        flowFile.name.endsWith('.json') ? <FlowInitializer filename={flowFile.name} /> : <PyFlowInitializer filename={flowFile.name} />
+                    }
                 </div>
             );
         }

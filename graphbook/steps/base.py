@@ -83,7 +83,6 @@ class Step:
     def __init__(self, item_key=None):
         self.id = None
         self.item_key = item_key
-        self.children = {"out": []}
 
     def set_context(self, **context):
         """
@@ -93,19 +92,6 @@ class Step:
             **context: The context to set
         """
         ExecutionContext.update(**context)
-
-    def set_child(self, child: Step, slot_name: str = "out"):
-        """
-        Sets a child step
-
-        Args:
-            child (Step): child step
-            slot_name (str): slot to bind the child to
-        """
-        if slot_name not in self.children:
-            self.children[slot_name] = []
-        if child not in self.children[slot_name]:
-            self.children[slot_name].append(child)
 
     def log(self, message: str, type: str = "info"):
         """
