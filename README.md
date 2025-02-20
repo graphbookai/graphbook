@@ -126,12 +126,13 @@ The following operating systems are supported in order of most to least recommen
 Visit the [docs](https://docs.graphbook.ai) to learn more on how to create custom nodes and workflows with Graphbook.
 
 ## Examples
-We continually post examples of workflows and custom nodes in our [examples repo](https://github.com/graphbookai/graphbook-examples).
+See plugin and workflow examples here in [this folder](/examples).
 
 ## Collaboration
-Graphbook is in active development and very much welcomes contributors. This is a guide on how to run Graphbook in development mode. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.
+Graphbook is in active development and very much welcomes contributors. If you would like to be actively involved in making Graphbook great, join our [discord](https://discord.gg/XukMUDmjnt).
 
 ### Run Graphbook in Development Mode
+This is a guide on how to run Graphbook in development mode. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.
 You can use any other virtual environment solution, but it is highly adviced to use [poetry](https://python-poetry.org/docs/) since our dependencies are specified in poetry's format.
 1. Clone the repo and `cd graphbook`
 1. `poetry install --with dev`
