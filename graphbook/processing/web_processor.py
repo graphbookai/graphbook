@@ -35,6 +35,7 @@ class WebInstanceProcessor:
         view_manager_queue: mp.Queue,
         continue_on_failure: bool,
         copy_outputs: bool,
+        workflow_path: Path,
         custom_nodes_path: Path,
         spawn: bool,
         num_workers: int = 1,
@@ -42,6 +43,7 @@ class WebInstanceProcessor:
         self.cmd_queue = mp.Queue()
         self.view_manager = MultiGraphViewManagerInterface(view_manager_queue)
         self.viewer = None
+        self.workflow_path = workflow_path
         self.graph_state = GraphState(custom_nodes_path)
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
@@ -263,7 +265,7 @@ class WebInstanceProcessor:
 
     def try_update_state(self, work: dict) -> bool:
         try:
-            filename: str = work["filename"]
+            filename: str = str(self.workflow_path / work["filename"])
             if filename.endswith(".py"):
                 self.graph_state.update_state_py(filename, work["params"])
             else:

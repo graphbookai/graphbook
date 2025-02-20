@@ -320,8 +320,10 @@ class GraphState:
                 resource_values[resource_id] = curr_resource_value
                 resource_has_changed[resource_id] = False
             else:
-                if curr_resource_value is not None:
+                if curr_resource is not None:
                     del self._dict_resources[resource_id]
+                if curr_resource_value is not None:
+                    del self._resource_values[resource_id]
                 try:
                     resource: Resource = resource_class(**p)
                     resource_values[resource_id] = resource.value()
@@ -368,6 +370,7 @@ class GraphState:
             else:
                 try:
                     step = step_class(**p)
+                    step.id = step_id
                 except Exception as e:
                     raise NodeInstantiationError(str(e), step_id, step_name)
                 steps[step_id] = step
@@ -385,18 +388,15 @@ class GraphState:
             step_graph["child"][step_id] = set()
 
         # Next, connect the steps
-        for step_id, step_data in graph.items():
-            child_node = steps[step_id]
-            for input in step_data["inputs"]:
-                node = input["node"]
-                slot = input["slot"]
-                parent_node = steps[node]
+        for step in graph.get_steps():
+            child_node = step
+            for slot, parent_node in step.deps:
                 step_graph["parent"][child_node.id].add(parent_node.id)
                 step_graph["child"][parent_node.id].add(child_node.id)
                 # Note: Two objects with non-overlapping lifetimes may have the same id() value.
                 # But in this case, the below child_node object is not overlapping because at
                 # this point, any previous nodes in the graph are still in self._steps
-                queues[parent_node.id].add_consumer(id(child_node), slot)
+                queues[parent_node.id].add_consumer(id(steps[child_node.id]), slot)
 
         # Remove consumers from parents that are not children
         for step_id in steps:

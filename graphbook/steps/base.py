@@ -200,16 +200,6 @@ class Step:
             for k in output_keys
         }
 
-    def __str__(self):
-        def get_str(step, indent):
-            s = f"{' ' * indent}({step.id}) {type(step).__name__}\n"
-            for child in step.children.values():
-                for c in child:
-                    s += get_str(c, indent + 2)
-            return s
-
-        return get_str(self, 0)
-
 
 class SourceStep(Step):
     """

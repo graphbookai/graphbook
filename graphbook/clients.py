@@ -13,6 +13,7 @@ import os
 import asyncio
 import shutil
 import traceback
+import sys
 from .utils import TaskLoop, RAY
 
 if TYPE_CHECKING:
@@ -259,6 +260,7 @@ class AppClientPool(ClientPool):
         self.log_dir = log_dir
         self.plugins = plugins
         self.no_sample = no_sample
+        sys.path.append(str(self.setup_paths["workflow_dir"]))
 
     def _create_resources(
         self, web_processor_args: dict, custom_nodes_path: Optional[str] = None
@@ -266,6 +268,7 @@ class AppClientPool(ClientPool):
         view_queue = mp.Queue()
         processor_args = {
             **web_processor_args,
+            "workflow_path": Path(self.setup_paths["workflow_dir"]),
             "custom_nodes_path": custom_nodes_path,
             "view_manager_queue": view_queue,
         }

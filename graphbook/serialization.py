@@ -20,14 +20,15 @@ class GraphNodeWrapper:
         return self.node
 
     def param(self, key: str, arg: Any):
-        if isinstance(arg, GraphNodeWrapper):
-            arg = arg.id
         self.params[key] = arg
 
     def serialize(self):
         params = deepcopy(getattr(self.node, "Parameters", {}))
         for key, value in self.params.items():
-            params[key]["value"] = value
+            if isinstance(value, GraphNodeWrapper):
+                params[key]["value"] = value.id
+            else:
+                params[key]["value"] = value
         return {
             "name": self.node.__name__,
             "parameters": params,
