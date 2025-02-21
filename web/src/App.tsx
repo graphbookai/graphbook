@@ -58,10 +58,6 @@ function View() {
     const [codeEditor, setCodeEditor] = useState<{ name: string } | null>(null);
     const [flowFile, setFlowFile] = useState<FlowFile | null>(null);
 
-    const onBeginEdit = useCallback((val) => {
-        setCodeEditor(val);
-    }, []);
-
     const codeEditorView = useMemo(() => {
         if (codeEditor) {
             return <CodeEditor name={codeEditor.name} closeEditor={() => setCodeEditor(null)} />;
@@ -84,7 +80,7 @@ function View() {
                 <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                     {codeEditorView}
                     {
-                        flowFile.name.endsWith('.json') ? <FlowInitializer filename={flowFile.name} /> : <PyFlowInitializer filename={flowFile.name} />
+                        flowFile.name.endsWith('.json') ? <FlowInitializer filename={flowFile.name} /> : <PyFlowInitializer key={flowFile.name} filename={flowFile.name} />
                     }
                 </div>
             );
@@ -103,6 +99,10 @@ function View() {
         setGlobalFilename(filename);
     }, []);
 
+    const setEditCode = useCallback((filename: string) => {
+        setCodeEditor({ name: filename });
+    }, []);
+
     return (
         <Layout style={{ height: '100vh' }}>
             <Header style={{ height: '40px', background: colorBgContainer, borderBottom: `1px solid ${colorBorder}` }}>
@@ -111,7 +111,7 @@ function View() {
             <Content style={{ height: '100%' }}>
                 <Layout style={{ width: '100vw', height: '100%' }}>
                     <Sider width={300} style={{ background: colorBgContainer }}>
-                        <LeftPanel setWorkflow={setFile} setExecution={setReadonlyFile} onBeginEdit={onBeginEdit} />
+                        <LeftPanel setWorkflow={setFile} setExecution={setReadonlyFile} onBeginEdit={setEditCode} />
                     </Sider>
                     {mainView}
                 </Layout>

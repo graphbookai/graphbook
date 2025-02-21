@@ -655,8 +655,7 @@ export function layoutDAG(
     defaultNodeHeight = 100,
     horizontalSpacing = 50,
     verticalSpacing = 50,
-    centerX = 400,
-    centerY = 200,
+    margin = 200,
 ): Node[] {
     const nodes = new Map(inputNodes.map(node => [node.id, {
         id: node.id,
@@ -764,14 +763,11 @@ export function layoutDAG(
             totalHeight = Math.max(totalHeight, currentY - verticalSpacing);
         }
 
-        // Center nodes
-        const totalWidth = currentX - horizontalSpacing;
-        const offsetFromCenterY = centerY - (totalHeight / 2);
-        const offsetFromCenterX = centerX - (totalWidth / 2);
+        // Apply margin
         for (const [_, layer] of layerNodes) {
             for (const node of layer) {
-                node.y += offsetFromCenterY;
-                node.x += offsetFromCenterX;
+                node.y += margin;
+                node.x += margin;
             }
         }
     }

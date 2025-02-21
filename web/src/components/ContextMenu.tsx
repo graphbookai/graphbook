@@ -9,7 +9,15 @@ import { useNotification } from '../hooks/Notification.ts';
 import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
 
-export function NodeContextMenu({ nodeId, top, left, close }) {
+type NodeContextMenuProps = {
+    nodeId: string;
+    top: number;
+    left: number;
+    close: () => void;
+    canEditGraph?: boolean;
+}
+
+export function NodeContextMenu({ nodeId, top, left, close, canEditGraph }: NodeContextMenuProps) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
     const [runState, runStateShouldChange] = useRunState();
@@ -26,37 +34,39 @@ export function NodeContextMenu({ nodeId, top, left, close }) {
                 API.clear(node.id);
             }
         },
-        {
-            name: 'Duplicate',
-            disabled: () => runState !== 'finished',
-            action: () => {
-                const { setNodes } = reactFlowInstance;
-                const position = {
-                    x: node.position.x + 50,
-                    y: node.position.y + 50,
-                };
+        ...(canEditGraph ?
+            [{
+                name: 'Duplicate',
+                disabled: () => runState !== 'finished',
+                action: () => {
+                    const { setNodes } = reactFlowInstance;
+                    const position = {
+                        x: node.position.x + 50,
+                        y: node.position.y + 50,
+                    };
 
-                setNodes(nodes => {
-                    const copy = { ...node } as any;
-                    delete copy.id;
-                    return Graph.addNode({
-                        ...copy,
-                        selected: false,
-                        dragging: false,
-                        position
-                    }, nodes);
-                });
-            }
-        },
-        {
-            name: 'Delete',
-            disabled: () => runState !== 'finished',
-            action: () => {
-                const { setNodes, setEdges } = reactFlowInstance;
-                setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
-                setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
-            }
-        },
+                    setNodes(nodes => {
+                        const copy = { ...node } as any;
+                        delete copy.id;
+                        return Graph.addNode({
+                            ...copy,
+                            selected: false,
+                            dragging: false,
+                            position
+                        }, nodes);
+                    });
+                }
+            },
+            {
+                name: 'Delete',
+                disabled: () => runState !== 'finished',
+                action: () => {
+                    const { setNodes, setEdges } = reactFlowInstance;
+                    setNodes((nodes) => nodes.filter((n) => n.id !== node.id));
+                    setEdges((edges) => edges.filter((e) => e.source !== node.id && e.target !== node.id));
+                } 
+            }] : []
+        ),
         {
             name: () => node.data.isCollapsed ? 'Uncollapse' : 'Collapse',
             action: () => {

@@ -103,6 +103,9 @@ export class GraphStore {
     }
 }
 
+/**
+ * Currently, shouldn't be used. Very experimental.
+ */
 export class PyGraphStore extends GraphStore {
     constructor(filename: string, API: ServerAPI, nodes: Node[], edges: Edge[]) {
         super(filename, API, nodes, edges);
@@ -125,7 +128,7 @@ export class PyGraphStore extends GraphStore {
             delete storedEdge.data.properties;
             return storedEdge;
         });
-        console.log("Put graph", storedNodes, storedEdges);
+
         this.API.putGraphV2(this.filename, storedNodes, storedEdges);
     }
 }

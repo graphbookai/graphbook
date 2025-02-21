@@ -20,7 +20,7 @@ from .clients import (
     WebClient,
 )
 from .plugins import setup_plugins
-from .serialization import get_py_as_workflow, serialize_workflow_as_py
+from .serialization import get_py_as_workflow, serialize_workflow_as_py, NoGraphFound
 import json
 import threading
 import time
@@ -129,6 +129,8 @@ class Server:
                             req = msg.json()
                             if req["api"] == "graph" and req["cmd"] == "put_graph":
                                 put_graph(req)
+                            
+                            # Currently, shouldn't be used. Very experimental.
                             if req["api"] == "graph" and req["cmd"] == "put_graph_v2":
                                 put_graph_v2(req)
 
@@ -459,14 +461,16 @@ class AppServer(Server):
         async def get_workflow(request: web.Request) -> web.Response:
             client = self.get_client(request)
             filepath = request.match_info.get("filepath", None)
-            root_path = client.get_root_path()
-            filepath = root_path.joinpath(filepath)
-
             if filepath is None:
                 raise web.HTTPBadRequest(text="No file path provided.")
+            
+            root_path = client.get_root_path()
+            filepath = str(root_path.joinpath(filepath))
             try:
                 workflow = get_py_as_workflow(filepath)
                 return web.json_response(workflow)
+            except NoGraphFound:
+                raise web.HTTPNotFound()
             except Exception as e:
                 traceback.print_exc()
                 raise web.HTTPServerError(text="Couldn't load workflow: " + str(e))

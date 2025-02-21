@@ -114,6 +114,10 @@ class Graph:
         return decorator
 
 
+class NoGraphFound(Exception):
+    pass
+
+
 def get_py_as_workflow(filepath: str) -> dict:
     return get_py_as_graph(filepath).serialize()
 
@@ -122,7 +126,11 @@ def get_py_as_graph(filepath: str) -> Graph:
     module_spec = importlib.util.spec_from_file_location("transient_module", filepath)
     module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(module)
-    return module.__dict__["_GRAPHBOOK_WORKFLOW_"]
+    try:
+        workflow = module.__dict__["_GRAPHBOOK_WORKFLOW_"]
+        return workflow
+    except KeyError:
+        raise NoGraphFound(filepath)
 
 
 def serialize_workflow_as_py(
