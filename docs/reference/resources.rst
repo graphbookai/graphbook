@@ -15,3 +15,4 @@ Resources
 
 .. automodule:: graphbook.resources
    :members:
+   :show-inheritance:

@@ -8,6 +8,7 @@ import json
 import os
 import os.path as osp
 import traceback
+from graphbook.processing.web_processor import WebInstanceProcessor
 
 
 class GraphNodeWrapper:
@@ -20,6 +21,13 @@ class GraphNodeWrapper:
         return self.node
 
     def param(self, key: str, arg: Any):
+        """
+        Sets a parameter on the node
+        
+        Args:
+            key (str): The parameter key
+            arg (Any): The parameter value
+        """
         self.params[key] = arg
 
     def serialize(self):
@@ -39,12 +47,27 @@ class GraphNodeWrapper:
 
 
 class GraphStepWrapper(GraphNodeWrapper):
+    """
+    A wrapper class around a step node that allows for binding dependencies and setting parameters.
+    Do not create this directly, use the `Graph.step` method instead.
+    
+    Args:
+        node (Step): The step node to wrap
+        id (str): The unique identifier for the node
+    """
     def __init__(self, node: steps.Step, id: str):
         self.node = node
         self.deps: List[Tuple[str, GraphStepWrapper]] = []
         super().__init__(node, id)
 
-    def bind(self, key: str, tgt: "GraphStepWrapper"):
+    def bind(self, tgt: "GraphStepWrapper", key="out"):
+        """
+        Binds this step to the output of another step
+        
+        Args:
+            tgt (GraphStepWrapper): The target step to bind to
+            key (str): The output key on the target step to bind to
+        """
         self.deps.append((key, tgt))
 
     def serialize(self):
@@ -58,6 +81,14 @@ class GraphStepWrapper(GraphNodeWrapper):
 
 
 class GraphResourceWrapper(GraphNodeWrapper):
+    """
+    A wrapper class around a resource node that allows for setting parameters.
+    Do not create this directly, use the `Graph.resource` method instead.
+    
+    Args:
+        node (Resource): The resource node to wrap
+        id (str): The unique identifier for the node
+    """
     def __init__(self, node: resources.Resource, id: str):
         self.node = node
         super().__init__(node, id)
@@ -70,23 +101,48 @@ class GraphResourceWrapper(GraphNodeWrapper):
 
 
 class Graph:
+    """
+    Creates a new graph object that can be used to define a workflow.
+    Use the `step` and `resource` methods to add nodes to the graph.
+    """
     def __init__(self):
         self.id = 0
         self.nodes: List[GraphNodeWrapper] = []
 
     def step(self, n: steps.Step) -> GraphStepWrapper:
+        """
+        Creates a new step node in the graph
+
+        Args:
+            n (Step): The step to add to the graph
+
+        Returns:
+            GraphStepWrapper: A wrapper around the step node that can be used to bind step dependencies and parameters
+        """
         n = GraphStepWrapper(n, id=str(self.id))
         self.nodes.append(n)
         self.id += 1
         return n
 
     def resource(self, n: resources.Resource) -> GraphResourceWrapper:
+        """
+        Creates a new resource node in the graph
+        
+        Args:
+            n (Resource): The resource to add to the graph
+            
+        Returns:
+            GraphResourceWrapper: A wrapper around the resource node that can have parameters set
+        """
         n = GraphResourceWrapper(n, id=str(self.id))
         self.nodes.append(n)
         self.id += 1
         return n
 
     def serialize(self) -> dict:
+        """
+        Serializes the graph into a dictionary for the frontend
+        """
         G = {}
         for node in self.nodes:
             try:
@@ -96,16 +152,20 @@ class Graph:
                 traceback.print_exc()
         return G
 
-    def get_resources(self):
+    def get_resources(self) -> List[GraphResourceWrapper]:
+        """Returns all resources in the graph"""
         return [n for n in self.nodes if isinstance(n, GraphResourceWrapper)]
 
-    def get_steps(self):
+    def get_steps(self) -> List[GraphStepWrapper]:
+        """Returns all steps in the graph"""
         return [n for n in self.nodes if isinstance(n, GraphStepWrapper)]
 
-    def run(self):
-        pass
-
     def __call__(self, *args, **kwargs):
+        """
+        Use this decorator to decorate a function that defines the workflow.
+        The function should contain calls to the `step` and `resource` methods to define the workflow.
+        Use the `bind` and `param` methods on the step and resource nodes to define dependencies and parameters.
+        """
         def decorator(serialized_func):
             serialized_func()
             module = serialized_func.__globals__
@@ -243,7 +303,7 @@ def serialize_workflow_as_py(
                 inputs = node.get("inputs", [])
                 for input in inputs:
                     f.write(
-                        f"{t}step_{node_id}.bind('{input['pin']}', {vars[input['node']]})"
+                        f"{t}step_{node_id}.bind({vars[input['node']]}, '{input['pin']}')"
                     )
                     f.write("\n")
 

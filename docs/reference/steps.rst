@@ -15,12 +15,15 @@ Steps
 
 .. autoclass:: graphbook.steps.Step
     :members:
+    :show-inheritance:
 
 .. autoclass:: graphbook.steps.BatchStep
     :members:
+    :show-inheritance:
 
 .. autoclass:: graphbook.steps.PromptStep
     :members:
+    :show-inheritance:
 
 .. seealso::
     
@@ -28,6 +31,8 @@ Steps
 
 .. autoclass:: graphbook.steps.SourceStep
     :members:
+    :show-inheritance:
 
 .. autoclass:: graphbook.steps.GeneratorSourceStep
     :members:
+    :show-inheritance:

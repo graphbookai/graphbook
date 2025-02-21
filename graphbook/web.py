@@ -129,7 +129,7 @@ class Server:
                             req = msg.json()
                             if req["api"] == "graph" and req["cmd"] == "put_graph":
                                 put_graph(req)
-                            
+
                             # Currently, shouldn't be used. Very experimental.
                             if req["api"] == "graph" and req["cmd"] == "put_graph_v2":
                                 put_graph_v2(req)
@@ -463,7 +463,7 @@ class AppServer(Server):
             filepath = request.match_info.get("filepath", None)
             if filepath is None:
                 raise web.HTTPBadRequest(text="No file path provided.")
-            
+
             root_path = client.get_root_path()
             filepath = str(root_path.joinpath(filepath))
             try:
