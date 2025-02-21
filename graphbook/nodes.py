@@ -1,6 +1,6 @@
 from typing import Tuple, Optional
-from . import steps, resources
-from .doc2md import convert_to_md
+from graphbook import steps, resources
+from graphbook.doc2md import convert_to_md
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from pathlib import Path
@@ -10,8 +10,8 @@ import hashlib
 import os
 import inspect
 import traceback
-from .decorators import get_steps, get_resources
-from .viewer import MultiGraphViewManager
+from graphbook.decorators import get_steps, get_resources
+from graphbook.viewer import MultiGraphViewManager
 
 
 BUILT_IN_STEPS = [
@@ -145,6 +145,7 @@ class NodeHub:
                 "outputs": getattr(v, "Outputs", ["out"]),
                 "category": getattr(v, "Category", ""),
                 "doc": v.__doc__.strip() if v.__doc__ else "",
+                "module": v.__module__,
             }
             for k, v in self.get_steps().items()
         }
@@ -154,6 +155,7 @@ class NodeHub:
                 "parameters": getattr(v, "Parameters", {}),
                 "category": getattr(v, "Category", ""),
                 "doc": v.__doc__.strip() if v.__doc__ else "",
+                "module": v.__module__,
             }
             for k, v in self.get_resources().items()
         }

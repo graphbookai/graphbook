@@ -17,6 +17,7 @@ Reference
 
     steps
     resources
+    graphs
     notes
     decorators
     params

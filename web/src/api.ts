@@ -231,7 +231,7 @@ export class ServerAPI {
                 return await response.json();
             }
         } catch (e) {
-            console.error(`POST request error: ${e}`);
+            console.error(`GET request error: ${e}`);
             throw e;
         }
     }
@@ -327,6 +327,18 @@ export class ServerAPI {
         return await this.post(`param_run/${graphId}`, { params });
     }
 
+    public async pyRunAll(pyfile: string, params: any) {
+        return await this.post(`py_run/${pyfile}`, { params });
+    }
+
+    public async pyRun(pyfile: string, stepId: string, params: any) {
+        return await this.post(`py_run/${pyfile}/${stepId}`, { params });
+    }
+
+    public async pyStep(pyfile: string, stepId: string, params: any) {
+        return await this.post(`py_step/${pyfile}/${stepId}`, { params });
+    }
+
     /**
      * File API
      */
@@ -349,6 +361,14 @@ export class ServerAPI {
 
     public async getFile(filepath) {
         return await this.get(`fs/${filepath}`);
+    }
+
+    // New
+    public async getWorkflow(filepath: string) {
+        if (filepath.endsWith('.py')) {
+            return await this.get(`workflow/${filepath}`);
+        }
+        return null;
     }
 
     public async rmFile(filepath) {
@@ -394,6 +414,20 @@ export class ServerAPI {
             edges: edges
         }));
     }
+
+    public putGraphV2(filename: string, nodes: Node[], edges: Edge[]) {
+        if (!this.isWebSocketOpen()) {
+            return;
+        }
+        this.websocket?.send(JSON.stringify({
+            api: "graph",
+            cmd: "put_graph_v2",
+            filename: filename,
+            nodes: nodes,
+            edges: edges
+        }));
+    }
+
 
     /**
      * Image/Media API
