@@ -1,5 +1,5 @@
 import React from 'react';
-import { Flex, Image, theme, Typography, Space } from 'antd';
+import { Flex, Typography, theme } from 'antd';
 import ReactJson from '@microlink/react-json-view';
 import { EmptyTab } from './Empty';
 
