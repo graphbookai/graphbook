@@ -5,9 +5,8 @@ import { useFilename } from '../../hooks/Filename';
 import { getMergedLogs, getMediaPath } from '../../utils';
 import { useSettings } from '../../hooks/Settings';
 import { usePrompt, Prompt } from '../../hooks/Prompts';
-import ReactJson from '@microlink/react-json-view';
 import type { LogEntry, ImageRef } from '../../utils';
-import { Node, EmptyTab } from './Node';
+import { Node } from './Node';
 import Icon, {
     PictureOutlined,
     FileTextOutlined,
@@ -21,13 +20,12 @@ import Icon, {
     ZoomInOutlined
 } from '@ant-design/icons';
 import { Prompt as PromptWidget } from './widgets/Prompts';
+import { Braces, Click } from '../../svg';
+import { DataView, QuickViewEntry } from './tabs/DataView';
+import { EmptyTab } from './tabs/Empty';
 
 const { useToken } = theme;
 const { Text } = Typography;
-
-type QuickViewEntry = {
-    [key: string]: any;
-};
 
 export function Step({ id, data, selected }) {
     const { name, parameters, inputs, outputs, isCollapsed } = data;
@@ -109,35 +107,6 @@ export function Step({ id, data, selected }) {
             tabs={tabs}
             defaultTab={data.properties?.defaultTab}
         />
-    );
-}
-
-function DataView({ data }) {
-    const globalTheme = theme.useToken().theme;
-    const values = Object.entries<QuickViewEntry>(data).sort((a, b) => a[0].localeCompare(b[0]))
-
-    return (
-        <Flex vertical>
-            {
-                Object.keys(data).length === 0 ?
-                    <EmptyTab /> :
-                    values.map(([key, value]) => {
-                        return (
-                            <Flex key={key} vertical>
-                                <Text style={{ fontSize: '.6em', fontWeight: 'bold' }}>{key}</Text>
-                                <ReactJson
-                                    style={{ fontSize: '0.6em' }}
-                                    theme={globalTheme.id === 0 ? "rjv-default" : "monokai"}
-                                    name={false}
-                                    displayDataTypes={false}
-                                    indentWidth={2}
-                                    src={value}
-                                />
-                            </Flex>
-                        );
-                    })
-            }
-        </Flex>
     );
 }
 
@@ -240,7 +209,7 @@ function ImagesView({ data }) {
                     <Flex>
                         {
                             value.map((image, i) => (
-                                <Image 
+                                <Image
                                     key={i}
                                     src={getMediaPath(settings, image)}
                                     height={settings.quickviewImageHeight}
@@ -298,18 +267,3 @@ function PromptView({ nodeId, prompt, setSubmitted }) {
         </div>
     );
 }
-
-const Braces = () => (
-    <svg width="1em" height="1em" fill="currentColor" viewBox="0 0 24 24">
-        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4a2 2 0 0 0-2 2v3a2 3 0 0 1-2 3a2 3 0 0 1 2 3v3a2 2 0 0 0 2 2M17 4a2 2 0 0 1 2 2v3a2 3 0 0 0 2 3a2 3 0 0 0-2 3v3a2 2 0 0 1-2 2"></path>
-    </svg>
-);
-
-const Click = () => (
-    <svg width="1em" height="1em" viewBox="0 0 24 24" style={{ margin: '2px 0 0 0', display: 'block' }}>
-        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
-            <path d="M8 13V4.5a1.5 1.5 0 0 1 3 0V12m0-.5v-2a1.5 1.5 0 0 1 3 0V12m0-1.5a1.5 1.5 0 0 1 3 0V12"></path>
-            <path d="M17 11.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2h.208a6 6 0 0 1-5.012-2.7L7 19q-.468-.718-3.286-5.728a1.5 1.5 0 0 1 .536-2.022a1.87 1.87 0 0 1 2.28.28L8 13M5 3L4 2m0 5H3m11-4l1-1m0 4h1"></path>
-        </g>
-    </svg>
-);

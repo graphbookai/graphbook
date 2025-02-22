@@ -26,9 +26,6 @@ class Viewer:
     def get_event_name(self):
         return self.event_name
 
-    def handle_outputs(self, node_id: str, outputs: dict):
-        pass
-
     def handle_start(self, node_id: str):
         pass
 
@@ -53,11 +50,10 @@ class DataViewer(Viewer):
         self.last_outputs: Dict[str, dict] = {}
         self.filename = None
 
-    def handle_outputs(self, node_id: str, output: dict):
+    def handle_output(self, node_id: str, pin: str, output: Any):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        new_entries = {k: v[-1] for k, v in output.items() if len(v) > 0}
-        self.last_outputs[node_id] |= new_entries
+        self.last_outputs[node_id] |= {pin: output}
 
     def set_filename(self, filename: str):
         if filename != self.filename:
@@ -95,16 +91,13 @@ class NodeStatsViewer(Viewer):
 
     def handle_queue_size(self, node_id: str, sizes: dict):
         self.queue_sizes[node_id] = sizes
+        if node_id in self.start_times:
+            self.record_rate[node_id] = self.get_total_queue_size(node_id) / (
+                time.time() - self.start_times[node_id]
+            )
 
     def get_total_queue_size(self, node_id: str):
         return sum(self.queue_sizes[node_id].values())
-
-    def handle_outputs(self, node_id: str, outputs: dict):
-        if node_id not in self.start_times:
-            return
-        self.record_rate[node_id] = self.get_total_queue_size(node_id) / (
-            time.time() - self.start_times[node_id]
-        )
 
     def handle_time(self, node_id: str, time: float):
         self.total_execution_time += time
@@ -215,6 +208,7 @@ class MultiGraphViewManager(QueueTaskLoop):
         self.node_stats_viewers: Dict[str, NodeStatsViewer] = {}
         self.log_viewers: Dict[str, NodeLogsViewer] = {}
         self.prompt_viewers: Dict[str, PromptViewer] = {}
+        self.data_viewers: Dict[str, DataViewer] = {}
         self.viewers: Dict[str, List[Viewer]] = {}
         self.graph_states: Dict[str, Dict[str, StateEntry]] = {}
         self.global_states: Dict[str, StateEntry] = {}
@@ -230,11 +224,12 @@ class MultiGraphViewManager(QueueTaskLoop):
         self.node_stats_viewers[graph_id] = NodeStatsViewer()
         self.log_viewers[graph_id] = NodeLogsViewer()
         self.prompt_viewers[graph_id] = PromptViewer()
+        self.data_viewers[graph_id] = DataViewer()
         self.viewers[graph_id] = [
             self.node_stats_viewers[graph_id],
             self.log_viewers[graph_id],
             self.prompt_viewers[graph_id],
-            DataViewer(),
+            self.data_viewers[graph_id],
         ]
         self.graph_states[graph_id] = {}
 
@@ -242,16 +237,13 @@ class MultiGraphViewManager(QueueTaskLoop):
         del self.viewers[graph_id]
         del self.graph_states[graph_id]
 
-    def handle_outputs(self, graph_id: str, node_id: str, outputs: dict):
-        if len(outputs) == 0:
+    def handle_output(self, graph_id: str, node_id: str, pin: str, output: Any):
+        if graph_id not in self.data_viewers:
             return
-        if graph_id not in self.viewers:
-            return
-        for viewer in self.viewers[graph_id]:
-            viewer.handle_outputs(node_id, outputs)
+        self.data_viewers[graph_id].handle_output(node_id, pin, output)
 
     def handle_time(self, graph_id: str, node_id: str, time: float):
-        if graph_id not in self.viewers:
+        if graph_id not in self.node_stats_viewers:
             return
         self.node_stats_viewers[graph_id].handle_time(node_id, time)
 
@@ -355,8 +347,8 @@ class MultiGraphViewManager(QueueTaskLoop):
                 return
             if work["cmd"] == "handle_new_graph":
                 self.handle_new_graph(work["graph_id"])
-            elif work["cmd"] == "handle_outputs":
-                self.handle_outputs(work["graph_id"], work["node_id"], work["outputs"])
+            elif work["cmd"] == "handle_output":
+                self.handle_output(work["graph_id"], work["node_id"], work["pin"], work["output"])
             elif work["cmd"] == "handle_queue_size":
                 self.handle_queue_size(work["graph_id"], work["node_id"], work["size"])
             elif work["cmd"] == "handle_time":
@@ -394,15 +386,14 @@ class ViewManagerInterface:
     def handle_new_graph(self):
         self.queue.put({"cmd": "handle_new_graph", "graph_id": self.graph_id})
 
-    def handle_outputs(self, node_id: str, outputs: dict):
-        if len(outputs) == 0:
-            return
+    def handle_output(self, node_id: str, pin: str, output: Any):
         self.queue.put(
             {
-                "cmd": "handle_outputs",
+                "cmd": "handle_output",
                 "graph_id": self.graph_id,
                 "node_id": node_id,
-                "outputs": outputs,
+                "pin": pin,
+                "output": output,
             }
         )
 

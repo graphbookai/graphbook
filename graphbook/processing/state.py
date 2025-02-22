@@ -286,7 +286,7 @@ class GraphState:
         graph = get_py_as_graph(filename)
         # First, create resources that the steps depend on
         resource_values = {}
-        dict_resources = {}
+        resources = {}
         resource_has_changed = {}
 
         def set_resource_value(resource: GraphResourceWrapper):
@@ -310,7 +310,7 @@ class GraphState:
             # Overwrite params from values in the UI
             p.update(resource_params)
 
-            curr_resource = self._dict_resources.get(resource_id)
+            curr_resource = self._dict_resources.get(resource_id) # Actual resource object
             curr_resource_value = self._resource_values.get(resource_id)
             if (
                 isinstance(curr_resource, resource_class)
@@ -329,7 +329,7 @@ class GraphState:
                     resource_values[resource_id] = resource.value()
                 except Exception as e:
                     raise NodeInstantiationError(str(e), resource_id, resource_name)
-                dict_resources[resource_id] = resource
+                resources[resource_id] = resource
                 resource_has_changed[resource_id] = True
 
         for resource in graph.get_resources():
@@ -346,11 +346,12 @@ class GraphState:
             step_name = step_class.__name__
             step_params = params.get(step_id)
             p = {}
-            step_input_has_changed = False
+            step_input_has_changed = step_params != self._dict_graph.get(step_id)
             for p_key, p_value in step.params.items():
                 if isinstance(p_value, GraphResourceWrapper):
-                    p[p_key] = resource_values[p_value.id]
-                    step_input_has_changed |= resource_has_changed[p_value.id]
+                    resource = p_value
+                    p[p_key] = resource_values[resource.id]
+                    step_input_has_changed |= resource_has_changed[resource.id]
                 else:
                     p[p_key] = p_value
             # Overwrite params from values in the UI
@@ -418,9 +419,10 @@ class GraphState:
         }
 
         # Update current graph and resource state
+        self._dict_graph = params # Used to track changes in params
         self._steps = steps
         self._queues = queues
-        self._dict_resources = dict_resources
+        self._dict_resources = resources # Actual resource objects
         self._resource_values = resource_values
         self._step_states = step_states
         self._step_graph = step_graph
@@ -468,7 +470,13 @@ class GraphState:
         self._step_states[step_id].add(StepState.EXECUTED)
         self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
         self.view_manager.handle_queue_size(step_id, self._queues[step_id].dict_sizes())
-        self.view_manager.handle_outputs(step_id, transform_json_log(outputs))
+        for pin, output in outputs.items():
+            if len(output) == 0:
+                continue
+            self.view_manager.handle_output(step_id, pin, transform_json_log(output[-1]))
+            
+    def get_resource_values(self) -> dict:
+        return self._resource_values
 
     def clear_outputs(self, node_id: Optional[str] = None):
         if node_id is None:

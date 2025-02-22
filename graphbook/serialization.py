@@ -8,7 +8,6 @@ import json
 import os
 import os.path as osp
 import traceback
-from graphbook.processing.web_processor import WebInstanceProcessor
 
 
 class GraphNodeWrapper:

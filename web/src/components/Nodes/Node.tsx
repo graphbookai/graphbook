@@ -163,20 +163,6 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
     );
 }
 
-export type EmptyTabProps = {
-    description?: string;
-};
-
-export function EmptyTab({ description }: EmptyTabProps) {
-    return (
-        <Empty
-            style={{ fontSize: 8 }}
-            imageStyle={{ height: 40 }}
-            description={description}
-        />
-    );
-}
-
 function ContentDefault({ id, inputs, parameters, outputs, isCollapsed, shown }) {
     const collapsed = useMemo(() => !shown || isCollapsed, [shown, isCollapsed]);
     const [inputEntries, outputEntries] = useMemo(() => {
