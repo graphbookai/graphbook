@@ -22,9 +22,9 @@ import Icon, {
 import { Prompt as PromptWidget } from './widgets/Prompts';
 import { Braces, Click } from '../../svg';
 import { DataView, QuickViewEntry } from './tabs/DataView';
+import { LogsView } from './tabs/LogsView';
 import { EmptyTab } from './tabs/Empty';
 
-const { useToken } = theme;
 const { Text } = Typography;
 
 export function Step({ id, data, selected }) {
@@ -41,9 +41,9 @@ export function Step({ id, data, selected }) {
         setQuickViewData(msg);
     });
 
-    useAPINodeMessageEffect('logs', id, filename, useCallback((newEntries) => {
+    useAPINodeMessageEffect('logs', id, filename, (newEntries) => {
         setLogsData(prev => getMergedLogs(prev, newEntries));
-    }, [setLogsData]));
+    });
 
     useAPINodeMessageEffect('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});
@@ -107,53 +107,6 @@ export function Step({ id, data, selected }) {
             tabs={tabs}
             defaultTab={data.properties?.defaultTab}
         />
-    );
-}
-
-function LogsView({ data }) {
-    const { token } = useToken();
-    const bottomRef = useRef<HTMLDivElement>(null);
-    const shouldScrollToBottom = true;
-
-    useEffect(() => {
-        if (shouldScrollToBottom) {
-            bottomRef.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: 'instant' });
-        }
-    }, [shouldScrollToBottom, data]);
-
-    const bg = useCallback((i) => {
-        return i % 2 === 0 ? token.colorBgBase : token.colorBgLayout;
-    }, [token]);
-
-    const textOf = useCallback((t) => {
-        if (typeof t === 'string') {
-            return t;
-        }
-        return JSON.stringify(t);
-    }, []);
-
-    return (
-        data.length === 0 ?
-            <EmptyTab description='No logs' /> :
-            <Flex vertical>
-                {
-                    data.map((log, i) => {
-                        const { msg } = log;
-                        const style: React.CSSProperties = {
-                            backgroundColor: bg(i),
-                            margin: '1px 0',
-                            fontSize: '.6em',
-                            lineHeight: 1,
-                            borderLeft: `2px solid ${token.colorBorder}`,
-                            padding: '1px 0 1px 4px'
-                        };
-                        return (
-                            <Text key={i} style={style}>{textOf(msg)}</Text>
-                        );
-                    })
-                }
-                <div ref={bottomRef} />
-            </Flex>
     );
 }
 

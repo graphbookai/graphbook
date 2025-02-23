@@ -6,7 +6,7 @@ from ..resources import Resource
 from ..decorators import get_steps, get_resources
 from ..viewer import ViewManagerInterface
 from ..plugins import setup_plugins
-from ..utils import transform_json_log
+from ..utils import transform_json_log, ExecutionContext
 from .. import nodes
 from graphbook.serialization import Graph, GraphResourceWrapper, GraphStepWrapper, get_py_as_graph
 import importlib, importlib.util, inspect
