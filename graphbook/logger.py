@@ -117,7 +117,7 @@ class LogStates:
             step_id, {"out": len(self.steps_outputs[step_id])}
         )
         outputs = transform_json_log(outputs)
-        self.viewer.handle_outputs(step_id, outputs)
+        self.viewer.handle_output(step_id, "out", outputs["out"])
 
 
 class LogDirectoryReader(TaskLoop):

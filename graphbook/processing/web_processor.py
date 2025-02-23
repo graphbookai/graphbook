@@ -195,6 +195,9 @@ class WebInstanceProcessor:
         return False
 
     def run(self, step_id: str = None):
+        resource_values = self.graph_state.get_resource_values()
+        for resource_id, value in resource_values.items():
+            self.viewer.handle_output(resource_id, "resource", transform_json_log(value))
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
             self.viewer.handle_start(step.id)
@@ -219,6 +222,9 @@ class WebInstanceProcessor:
                 self.try_execute_step_event(step, "on_end")
 
     def step(self, step_id: str = None):
+        resource_values = self.graph_state.get_resource_values()
+        for resource_id, value in resource_values.items():
+            self.viewer.handle_output(resource_id, "resource", transform_json_log(value))
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
             self.viewer.handle_start(step.id)

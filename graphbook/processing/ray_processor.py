@@ -319,8 +319,11 @@ class RayExecutionState:
             self.steps_outputs[step_id].enqueue(label, notes)
 
         self.viewer.handle_queue_size(step_id, self.steps_outputs[step_id].sizes())
-        outputs = transform_json_log(outputs)
-        self.viewer.handle_outputs(step_id, outputs)
+        for pin, output in outputs.items():
+            if len(output) == 0:
+                continue
+            
+            self.viewer.handle_output(step_id, pin, transform_json_log(output[-1]))
 
 
 class DictionaryArrays:
