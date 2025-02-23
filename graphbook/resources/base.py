@@ -20,11 +20,11 @@ class Resource:
         """
         ExecutionContext.update(**context)
 
-    def log(self):
+    def log(self, msg, type="info"):
         """
         Logs the value of the resource.
         """
-        log(self.val)
+        log(msg, type)
 
     def value(self):
         return self.val

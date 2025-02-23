@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Node } from './Node';
 import { useAPINodeMessageEffect } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
@@ -24,6 +24,17 @@ export function Resource({ id, data, selected }) {
         setLogsData(prev => getMergedLogs(prev, newEntries));
     });
 
+    useEffect(() => {
+        for (const log of logsData) {
+            if (log.type === 'error') {
+                setErrored(true);
+                return;
+            }
+        }
+
+        setErrored(false);
+    }, [logsData]);
+
     const tabs = useMemo(() => {
         const t = [{
             label: 'Data',
@@ -47,7 +58,7 @@ export function Resource({ id, data, selected }) {
             parameters={parameters}
             outputs={[{id: "resource", label: "", isResource: true}]}
             selected={selected}
-            errored={false}
+            errored={errored}
             isCollapsed={isCollapsed}
             tabs={tabs}
         />
