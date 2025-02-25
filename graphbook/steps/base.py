@@ -674,7 +674,7 @@ class Split(Step):
         self.fn = transform_function_string(split_fn)
 
     def forward_note(self, note) -> str:
-        split_result = self.fn(note=note)
+        split_result = self.fn(note)
         if split_result:
             return "A"
         return "B"
