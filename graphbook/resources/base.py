@@ -1,4 +1,5 @@
 from ..utils import ExecutionContext
+from ..steps.base import log
 
 class Resource:
     """
@@ -18,6 +19,12 @@ class Resource:
             **context: The context to set
         """
         ExecutionContext.update(**context)
+
+    def log(self, msg, type="info"):
+        """
+        Logs the value of the resource.
+        """
+        log(msg, type)
 
     def value(self):
         return self.val

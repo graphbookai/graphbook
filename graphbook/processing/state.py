@@ -6,9 +6,9 @@ from ..resources import Resource
 from ..decorators import get_steps, get_resources
 from ..viewer import ViewManagerInterface
 from ..plugins import setup_plugins
-from ..utils import transform_json_log
+from ..utils import transform_json_log, ExecutionContext
 from .. import nodes
-from graphbook.serialization import Graph, GraphResourceWrapper, GraphStepWrapper, get_py_as_graph
+from graphbook.serialization import GraphResourceWrapper, get_py_as_graph
 import importlib, importlib.util, inspect
 import os
 import hashlib
@@ -170,7 +170,9 @@ class GraphState:
                 if curr_resource is not None:
                     del curr_resource, self._dict_resources[resource_id]
                 try:
-                    resource = resource_hub[resource_name](**p)
+                    ExecutionContext.update(node_id=resource_id, node_name=resource_name)
+                    self.view_manager.handle_start(resource_id)
+                    resource: Resource = resource_hub[resource_name](**p)
                     resource_values[resource_id] = resource.value()
                 except KeyError:
                     raise NodeInstantiationError(
@@ -325,6 +327,8 @@ class GraphState:
                 if curr_resource_value is not None:
                     del self._resource_values[resource_id]
                 try:
+                    ExecutionContext.update(node_id=resource_id, node_name=resource_name)
+                    self.view_manager.handle_start(resource_id)
                     resource: Resource = resource_class(**p)
                     resource_values[resource_id] = resource.value()
                 except Exception as e:

@@ -3,7 +3,7 @@ import { useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflo
 import { Card, Flex, Button, Tabs, theme, Empty } from 'antd';
 import { ControlOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget, isWidgetType } from './widgets/Widgets';
-import { Graph } from '../../graph';
+import { Graph, getNodeParams } from '../../graph';
 import { useRunState } from '../../hooks/RunState';
 import { useAPI } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
@@ -103,17 +103,22 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
         if (!API) {
             return;
         }
-        const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
-        if (errors.length > 0) {
-            notification.error({
-                key: 'invalid-graph',
-                message: 'Invalid Graph',
-                description: <SerializationErrorMessages errors={errors} />,
-                duration: 3,
-            })
-            return;
+        if (filename.endsWith('.json')) {
+            const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
+            if (errors.length > 0) {
+                notification.error({
+                    key: 'invalid-graph',
+                    message: 'Invalid Graph',
+                    description: <SerializationErrorMessages errors={errors} />,
+                    duration: 3,
+                })
+                return;
+            }
+            API.run(graph, resources, id, filename);
+        } else {
+            const params = getNodeParams(nodes);
+            API.pyRun(filename, id, params);
         }
-        API.run(graph, resources, id, filename);
         runStateShouldChange();
     }, [nodes, edges, API, notification, filename]);
 

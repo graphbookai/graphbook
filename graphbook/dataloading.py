@@ -75,8 +75,8 @@ def load_loop(
     num_queues = len(consumer_ids)
     cycle = rank % num_queues
 
-    try:
-        while not close_event.is_set() and not fail_event.is_set():
+    while not close_event.is_set() and not fail_event.is_set():
+        try:
             pending_item = pending_load_results[rank]
             if pending_item is not None:
                 pending_for, pending_item = pending_item
@@ -103,9 +103,9 @@ def load_loop(
                     else:
                         pending_load_results[rank] = (consumer_id, pending_item)
                 cycle = (cycle + 1) % num_queues
-    except KeyboardInterrupt:
-        print(f"Exiting {rank}")
-        pass
+        except KeyboardInterrupt:
+            print(f"(Load): Exiting worker {rank}")
+            break
 
 
 def dump_loop(
@@ -121,8 +121,8 @@ def dump_loop(
     consumer_ids = list(dump_queues.keys())
     num_queues = len(consumer_ids)
     cycle = rank % num_queues
-    try:
-        while not close_event.is_set() and not fail_event.is_set():
+    while not close_event.is_set() and not fail_event.is_set():
+        try:
             pending_item = pending_dump_results[rank]
             if pending_item is not None:
                 pending_for, pending_item = pending_item
@@ -149,9 +149,9 @@ def dump_loop(
                     else:
                         pending_dump_results[rank] = (consumer_id, pending_item)
                 cycle = (cycle + 1) % num_queues
-    except KeyboardInterrupt:
-        print(f"Exiting {rank}")
-        pass
+        except KeyboardInterrupt:
+            print(f"(Dump): Exiting worker {rank}")
+            break
 
 
 class Dataloader:
