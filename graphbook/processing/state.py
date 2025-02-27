@@ -1,6 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Tuple, List, Iterator, Set, Optional, Union
-from ..note import Note
+from typing import Dict, Tuple, List, Iterator, Set, Optional, Union, Any
 from ..steps import Step, PromptStep, StepOutput as Outputs
 from ..resources import Resource
 from ..decorators import get_steps, get_resources
@@ -508,7 +507,7 @@ class GraphState:
             elif node_id in self._dict_resources:
                 del self._resource_values[node_id], self._dict_resources[node_id]
 
-    def get_input(self, step: Step) -> Note:
+    def get_input(self, step: Step) -> Any:
         num_parents = len(self._step_graph["parent"][step.id])
         i = 0
         while i < num_parents:
@@ -524,7 +523,7 @@ class GraphState:
         step_id = step.id if isinstance(step, Step) else step
         return state in self._step_states[step_id]
 
-    def get_output_note(self, step_id: str, pin_id: str, index: int) -> dict:
+    def get_output(self, step_id: str, pin_id: str, index: int) -> dict:
         step_queue = self._queues.get(step_id)
         entry = {"step_id": step_id, "pin_id": pin_id, "index": index, "data": None}
         if step_queue is None:
@@ -534,8 +533,8 @@ class GraphState:
             return entry
         if index >= len(internal_list):
             return entry
-        note = internal_list[index]
-        entry.update(data=note.items)
+        data = internal_list[index]
+        entry.update(data=data)
         return entry
 
     def handle_prompt_response(self, step_id: str, response: dict) -> bool:
@@ -587,7 +586,7 @@ class MultiConsumerStateDictionaryQueue:
             k: v for k, v in self._consumer_subs.items() if k in consumer_ids
         }
 
-    def enqueue(self, key: str, records: List[Note]):
+    def enqueue(self, key: str, records: List[Any]):
         if not key in self._dict:
             self._dict[key] = []
         idx = len(self._dict[key])

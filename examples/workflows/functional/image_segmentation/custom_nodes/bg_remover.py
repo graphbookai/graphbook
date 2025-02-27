@@ -1,5 +1,4 @@
 from graphbook import step, resource, param, batch, event
-from graphbook import Note
 from transformers import AutoModelForImageSegmentation
 import torchvision.transforms.functional as F
 import torch.nn.functional
@@ -68,20 +67,20 @@ def init_output_dir(ctx, **kwargs):
 @param("output_dir", type="string")
 @torch.no_grad()
 def remove_background(
-    self, tensors: List[torch.Tensor], items: List[dict], notes: List[Note]
+    self, tensors: List[torch.Tensor], items: List[dict], data: List[dict]
 ):
     """
     The background remover step uses the input model to remove the background from images.
 
     Args:
         batch_size (int): The batch size for the model.
-        item_key (str): The key to use for the image in the input Note.
+        item_key (str): The key to use for the image in the input dict.
         model (AutoModelForImageSegmentation): The model to use for background removal.
         output_dir (str): The directory to save the output images.
     """
 
-    def get_output_path(note, input_path):
-        return osp.join(self.output_dir, note["name"], osp.basename(input_path))
+    def get_output_path(data, input_path):
+        return osp.join(self.output_dir, data["name"], osp.basename(input_path))
 
     og_sizes = [t.shape[1:] for t in tensors]
 
@@ -111,13 +110,13 @@ def remove_background(
         ).cpu()
         for image, og_size in zip(result, og_sizes)
     ]
-    paths = [get_output_path(note, input["value"]) for input, note in zip(items, notes)]
+    paths = [get_output_path(data, input["value"]) for input, d in zip(items, data)]
     removed_bg = list(zip(resized, paths))
-    for path, note in zip(paths, notes):
-        masks = note["masks"]
+    for path, d in zip(paths, data):
+        masks = d["masks"]
         if masks is None:
             masks = []
         masks.append({"value": path, "type": "image"})
-        note["masks"] = masks
+        d["masks"] = masks
 
     return removed_bg

@@ -1,4 +1,4 @@
-from graphbook import Note, step, batch, param, event
+from graphbook import step, batch, param, event
 import torch
 import torchvision.transforms.functional as F
 from PIL import Image
@@ -27,7 +27,7 @@ def init_classifier(ctx, **kwargs):
 @param("image_processor", type="resource")
 @torch.no_grad()
 def pokemon_classifier(
-    ctx, tensors: List[torch.Tensor], items: List[dict], notes: List[Note]
+    ctx, tensors: List[torch.Tensor], items: List[dict], data: List[dict]
 ):
     """
     The PokemonClassifier step uses the input Vision Transformer model and image processor to classify incoming images of Pokemon.
@@ -35,17 +35,17 @@ def pokemon_classifier(
     Args:
         tensors (List[torch.Tensor]): A list of tensors containing the images to classify.
         items (List[dict]): A list of dictionaries containing the items to classify.
-        notes (List[Note]): A list of notes containing the notes to classify.
+        data (List[Any]): A list containing the data to classify.
     """
     extracted = ctx.image_processor(
         images=tensors, do_rescale=False, return_tensors="pt"
     )
     extracted = extracted.to("cuda")
     predicted_id = ctx.model(**extracted).logits.argmax(-1)
-    for t, item, note in zip(predicted_id, items, notes):
+    for t, item, d in zip(predicted_id, items, data):
         item["prediction"] = ctx.model.config.id2label[t.item()]
         ctx.log(f"Predicted {item['value']} as {item['prediction']}")
-        if item["prediction"] == note["name"]:
+        if item["prediction"] == d["name"]:
             ctx.tp += 1
         ctx.num_samples += 1
     if ctx.num_samples > 0:

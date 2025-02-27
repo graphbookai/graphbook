@@ -1,5 +1,4 @@
 from graphbook.steps import Step
-from graphbook import Note
 import random
 
 
@@ -19,10 +18,10 @@ class MyFirstStep(Step):
         super().__init__()
         self.prob = prob
 
-    def on_after_items(self, note: Note) -> Note:
-        self.log(note["message"])
+    def on_data(self, data: dict) -> dict:
+        self.log(data["message"])
 
-    def forward_note(self, note: Note) -> str:
+    def route(self, data: dict) -> str:
         if random.random() < self.prob:
             return "A"
         return "B"
@@ -33,10 +32,10 @@ from graphbook.steps import SourceStep
 
 class MyFirstSource(SourceStep):
     """
-    This is a custom source step that creates 10 notes with the same message.
+    This is a custom source step that creates 10 Python dicts with the same message.
     
     Args:
-        message (str): The message to be used in the notes
+        message (str): The message to be used in the dict
     """
     RequiresInput = False
     Parameters = {"message": {"type": "string", "default": "Hello, World!"}}
@@ -48,7 +47,7 @@ class MyFirstSource(SourceStep):
         self.message = message
 
     def load(self):
-        return {"message": [Note({"message": self.message}) for _ in range(10)]}
+        return {"message": [{"message": self.message} for _ in range(10)]}
 
-    def forward_note(self, note: Note) -> str:
+    def route(self, data: dict) -> str:
         return "message"

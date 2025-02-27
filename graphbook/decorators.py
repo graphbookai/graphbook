@@ -185,15 +185,15 @@ def step(name, event: Optional[str] = None):
     Args:
         name (str): The name of the step including the category
         event (str): The event that the function should be called on.
-            Default is ``on_note``, ``on_item_batch`` if it is a BatchStep, and ``load`` if it is a SourceStep.
+            Default is ``on_data``, ``on_item_batch`` if it is a BatchStep, and ``load`` if it is a SourceStep.
 
     Examples:
         .. highlight:: python
         .. code-block:: python
 
             @step("Custom/Simple/MyStep")
-            def my_step(ctx, note):
-                note["value"] = 42
+            def my_step(ctx, data):
+                data["value"] = 42
     """
 
     def decorator(func):
@@ -212,7 +212,7 @@ def step(name, event: Optional[str] = None):
             factory.event(event, func)
         else:
             if factory.BaseClass == steps.Step:
-                factory.event("on_note", func)
+                factory.event("on_data", func)
             elif factory.BaseClass == steps.BatchStep:
                 factory.event("on_item_batch", func)
             elif factory.BaseClass == steps.PromptStep:
@@ -259,15 +259,15 @@ def param(
 
             @step("SimpleStep")
             @param("value", "number", default=42, description="The value to set")
-            def my_step(ctx, note):
-                note["value"] = ctx.value
+            def my_step(ctx, data):
+                data["value"] = ctx.value
 
             @step("Foo")
             @param("param1", "string", default="foo")
             @param("param2", "function")
-            def my_step(ctx, note):
-                note["value"] += ctx.param1
-                note["processed"] = ctx.param2(note["value"])
+            def my_step(ctx, data):
+                data["value"] += ctx.param1
+                data["processed"] = ctx.param2(data["value"])
     """
 
     def decorator(func):
@@ -301,9 +301,9 @@ def event(event: str, event_fn: callable):
             @step("StatefulStep")
             @event("__init__", init)
             @event("on_clear", on_clear)
-            def my_step(ctx, note):
+            def my_step(ctx, data):
                 ctx.num_processed += 1
-                note["num_processed"] = ctx.num_processed
+                data["num_processed"] = ctx.num_processed
     """
 
     def decorator(func):
@@ -318,10 +318,10 @@ def event(event: str, event_fn: callable):
 def source(is_generator=True):
     """
     Marks a step function as a SourceStep.
-    Use this decorator if this step requires no input step and creates Notes to be processed by the rest of the graph.
+    Use this decorator if this step requires no input step and loads data to be processed by the rest of the graph.
 
     Args:
-        is_generator (bool): Whether the assigned function is a generator function. Default is true. This means that the function is expected to yield Notes.
+        is_generator (bool): Whether the assigned function is a generator function. Default is true. This means that the function is expected to have yield statements.
 
     Examples:
         .. highlight:: python
@@ -330,12 +330,12 @@ def source(is_generator=True):
             @step("LoadData")
             @source()
             @param("path", "string", description="The path to the data")
-            def my_data(ctx, note):
+            def my_data(ctx):
                 files = os.listdir(ctx.path)
                 for file in files:
                     file = os.path.join(ctx.path, file)
                     with open(file) as f:
-                        yield Note({"data": f.read()})
+                        yield {"out": {"data": f.read()}}
     """
 
     def decorator(func):
@@ -360,10 +360,10 @@ def output(*outputs: List[str]):
         .. highlight:: python
         .. code-block:: python
 
-            @step("Custom/MyStep", event="forward_note")
+            @step("Custom/MyStep", event="route")
             @output("Good", "Bad")
-            def evaluate(ctx, note):
-                if note["value"] > 0:
+            def evaluate(ctx, data):
+                if data["value"] > 0:
                     return "Good"
                 else:
                     return "Bad"
@@ -386,7 +386,7 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
 
     Args:
         batch_size (int): The default batch size to use when batching data.
-        item_key (str): The expected key in the Note to use for batching. Will be used to find the value of the item to batch.
+        item_key (str): The expected key in the input data to use for batching. Will be used to find the value of the item to batch.
         load_fn (callable): A function to load the data. This function should take the context and an item and return the loaded data.
         dump_fn (callable): A function to dump the data. This function should take the context and the data and return the dumped data.
 
@@ -406,9 +406,9 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
             @step("ModelTask")
             @batch(load_fn=load_fn, dump_fn=dump_fn)
             @param("model", "resource")
-            def task(ctx, note):
-                prediction = ctx.model(note["value"])
-                note["prediction"] = prediction
+            def task(ctx, data):
+                prediction = ctx.model(data["value"])
+                data["prediction"] = prediction
     """
 
     def decorator(func):
@@ -467,10 +467,10 @@ def prompt(get_prompt: callable = None):
     """
     Marks a function as a step that is capable of prompting the user.
     This is useful for interactive workflows where data labeling, model evaluation, or any other human input is required.
-    Events ``get_prompt(ctx, note: Note)`` and ``on_prompt_response(ctx, note: Note, response: Any)`` are required to be implemented.
+    Events ``get_prompt(ctx, data: Any)`` and ``on_prompt_response(ctx, data: Any, response: Any)`` are required to be implemented.
     The decorator accepts the ``get_prompt`` function that returns a prompt to display to the user.
     If nothing is passed as an argument, a ``bool_prompt`` will be used by default.
-    If the function returns **None** on any given note, no prompt will be displayed for that note allowing for conditional prompts based on the note's content.
+    If the function returns **None** on any given data, no prompt will be displayed for it allowing for conditional prompts.
     Available prompts are located in the ``graphbook.prompts`` module.
     The function that this decorator decorates is ``on_prompt_response`` and will be called when a response to a prompt is obtained from a user.
     Once the prompt is handled, the execution lifecycle of the Step will proceed, normally.
@@ -482,21 +482,21 @@ def prompt(get_prompt: callable = None):
         .. highlight:: python
         .. code-block:: python
 
-            def dog_or_cat(ctx, note: Note):
-                return selection_prompt(note, choices=["dog", "cat"], show_images=True)
+            def dog_or_cat(ctx, data: Any):
+                return selection_prompt(data, choices=["dog", "cat"], show_images=True)
 
 
             @step("Prompts/Label")
             @prompt(dog_or_cat)
-            def label_images(ctx, note: Note, response: str):
-                note["label"] = response
+            def label_images(ctx, data: Any, response: str):
+                data["label"] = response
 
 
-            def corrective_prompt(ctx, note: Note):
-                if note["prediction_confidence"] < 0.65:
+            def corrective_prompt(ctx, data: Any):
+                if data["prediction_confidence"] < 0.65:
                     return bool_prompt(
-                        note,
-                        msg=f"Model prediction ({note['pred']}) was uncertain. Is its prediction correct?",
+                        data,
+                        msg=f"Model prediction ({data['pred']}) was uncertain. Is its prediction correct?",
                         show_images=True,
                     )
                 else:
@@ -505,16 +505,16 @@ def prompt(get_prompt: callable = None):
 
             @step("Prompts/CorrectModelLabel")
             @prompt(corrective_prompt)
-            def correct_model_labels(ctx, note: Note, response: bool):
+            def correct_model_labels(ctx, data: Any, response: bool):
                 if response:
                     ctx.log("Model is correct!")
-                    note["label"] = note["pred"]
+                    data["label"] = data["pred"]
                 else:
                     ctx.log("Model is incorrect!")
-                    if note["pred"] == "dog":
-                        note["label"] = "cat"
+                    if data["pred"] == "dog":
+                        data["label"] = "cat"
                     else:
-                        note["label"] = "dog"
+                        data["label"] = "dog"
     """
     def decorator(func):
         def set_prompt(factory: StepClassFactory):

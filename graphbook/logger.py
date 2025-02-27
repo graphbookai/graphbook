@@ -235,7 +235,7 @@ class LogDirectoryReader(TaskLoop):
         self.observer.join()
         super().stop()
 
-    def get_output_note(self, graph_id, step_id, pin_id, index):
+    def get_output(self, graph_id, step_id, pin_id, index):
         return {
             "step_id": step_id,
             "pin_id": pin_id,

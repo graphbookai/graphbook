@@ -1,6 +1,5 @@
 from graphbook.steps import BatchStep
 from graphbook.resources import Resource
-from graphbook import Note
 from transformers import AutoModelForImageSegmentation
 import torchvision.transforms.functional as F
 import torch.nn.functional
@@ -41,7 +40,7 @@ class RemoveBackground(BatchStep):
     
     Args:
         batch_size (int): The batch size for the model.
-        item_key (str): The key to use for the image in the input Note.
+        item_key (str): The key to use for the image in the input dict.
         model (AutoModelForImageSegmentation): The model to use for background removal.
         output_dir (str): The directory to save the output images.
     """
@@ -99,12 +98,12 @@ class RemoveBackground(BatchStep):
         img = F.to_pil_image(t)
         img.save(output_path)
 
-    def get_output_path(self, note, input_path):
-        return osp.join(self.output_dir, note["name"], osp.basename(input_path))
+    def get_output_path(self, d: dict, input_path):
+        return osp.join(self.output_dir, d["name"], osp.basename(input_path))
 
     @torch.no_grad()
     def on_item_batch(
-        self, tensors: List[torch.Tensor], items: List[dict], notes: List[Note]
+        self, tensors: List[torch.Tensor], items: List[dict], data: List[dict]
     ):
         og_sizes = [t.shape[1:] for t in tensors]
 
@@ -135,15 +134,15 @@ class RemoveBackground(BatchStep):
             for image, og_size in zip(result, og_sizes)
         ]
         paths = [
-            self.get_output_path(note, input["value"])
-            for input, note in zip(items, notes)
+            self.get_output_path(d, input["value"])
+            for input, d in zip(items, data)
         ]
         removed_bg = list(zip(resized, paths))
-        for path, note in zip(paths, notes):
-            masks = note["masks"]
+        for path, d in zip(paths, data):
+            masks = d["masks"]
             if masks is None:
                 masks = []
             masks.append({"value": path, "type": "image"})
-            note["masks"] = masks
+            d["masks"] = masks
 
         return removed_bg

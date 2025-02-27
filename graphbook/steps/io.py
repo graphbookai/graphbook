@@ -1,10 +1,10 @@
-from .base import Step, SourceStep, Note, StepOutput
+from .base import Step, SourceStep, StepOutput
 import json
 
 
 class LoadJSONL(SourceStep):
     """
-    Loads input JSONL file and returns a list of Note objects.
+    Loads input JSONL file and returns a list of dict objects.
 
     Args:
         jsonl_path (str): Path to the JSONL file.
@@ -27,13 +27,12 @@ class LoadJSONL(SourceStep):
     def load(self) -> StepOutput:
         with open(self.jsonl_path, "r") as f:
             data = [json.loads(line) for line in f][self.start_from :]
-        notes = [Note(entry) for entry in data]
-        return {"out": notes}
+        return {"out": data}
 
 
 class DumpJSONL(Step):
     """
-    Writes Note objects as individual JSONs into a JSONL file.
+    Writes dict objects as individual JSONs into a JSONL file.
 
     Args:
         jsonl_path (str): Path to the JSONL file.
@@ -52,8 +51,7 @@ class DumpJSONL(Step):
         super().__init__()
         self.jsonl_path = jsonl_path
 
-    def on_after_item(self, note: Note):
+    def on_after_item(self, data: dict):
         with open(self.jsonl_path, "a") as f:
-            note_entry = note.items
-            json.dump(note_entry, f)
+            json.dump(data, f)
             f.write("\n")

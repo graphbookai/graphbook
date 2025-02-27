@@ -1,7 +1,13 @@
 import json
+import warnings
+
+warnings.simplefilter("default", DeprecationWarning)
 
 class Note:
     """
+    **DEPRECATED**: This class is deprecated and will be removed in a future version of Graphbook.
+    Use regular Python dictionaries instead.
+
     The unit that passes through workflow steps. A Note contains a dictionary of items related to the note.
 
     Args:
@@ -15,6 +21,10 @@ class Note:
     """
 
     def __init__(self, items: dict = {}):
+        warnings.warn(
+            "Note is deprecated and will be removed in a future version of Graphbook. Use regular Python dictionaries instead.",
+            DeprecationWarning,
+        )
         self.items = items
 
     def __setitem__(self, key: str, value: str):

@@ -117,8 +117,8 @@ function ImagesView({ data }) {
 
     const imageEntries = useMemo(() => {
         let entries: { [key: string]: ImageRef[] } = {};
-        values.forEach(([outputKey, note]) => {
-            Object.entries(note).forEach(([key, item]) => {
+        values.forEach(([outputKey, data]) => {
+            Object.entries(data).forEach(([key, item]) => {
                 let imageItems: any = [];
                 if (Array.isArray(item)) {
                     imageItems = item.filter(item => item.type?.slice(0, 5) === 'image');

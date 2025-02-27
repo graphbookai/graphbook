@@ -22,7 +22,7 @@ BUILT_IN_STEPS = [
     steps.GeneratorSourceStep,
     steps.AsyncStep,
     steps.Split,
-    steps.SplitNotesByItems,
+    steps.SplitByItems,
     steps.SplitItemField,
     steps.Copy,
 ]
@@ -36,7 +36,7 @@ BUILT_IN_RESOURCES = [
 
 default_exported_steps = {
     "Split": steps.Split,
-    "SplitNotesByItems": steps.SplitNotesByItems,
+    "SplitByItems": steps.SplitByItems,
     "SplitItemField": steps.SplitItemField,
     "Copy": steps.Copy,
     "DumpJSONL": steps.DumpJSONL,

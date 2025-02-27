@@ -6,12 +6,12 @@ from typing import (
     Generator,
     List,
     Tuple,
+    Any,
 )
 import logging
 from dataclasses import dataclass
 from ..steps import StepOutput as Outputs
 from ..utils import MP_WORKER_TIMEOUT, transform_json_log
-from ..note import Note
 from typing import List
 import ray
 import ray._raylet
@@ -29,7 +29,7 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 step_output_err_res = (
-    "Step output must be a dictionary, and dict values must be lists of notes."
+    "Step output must be a dictionary, and dict values must be lists."
 )
 
 
@@ -194,30 +194,22 @@ class RayStepHandler:
 
     def prepare_inputs(
         self, dummy_input, step_id: str, *bind_args: List[Tuple[str, dict]]
-    ) -> Optional[List[Note]]:
-        all_notes = []
+    ) -> Optional[List[Any]]:
+        all_datas = []
         for i in range(0, len(bind_args), 2):
             bind_key, outputs = bind_args[i], bind_args[i + 1]
-            notes = outputs.get(bind_key)
-            if notes is None:
+            datas = outputs.get(bind_key)
+            if datas is None:
                 raise ValueError(f"[{step_id}] Couldn't get outputs at {bind_key}")
-            for note in outputs[bind_key]:
-                if not isinstance(note, Note):
-                    # log
-                    print(
-                        f"{step_output_err_res} Output was not a Note.",
-                        "error",
-                    )
-                    return None
-            all_notes.extend(outputs[bind_key])
-        return all_notes
+            all_datas.extend(outputs[bind_key])
+        return all_datas
 
     def handle_outputs(self, step_id: str, outputs: Outputs):
         self.graph_state.handle_images(outputs)
         self.graph_state.handle_outputs(step_id, outputs)
         return outputs
 
-    def get_output_note(self, step_id, pin_id, index):
+    def get_output(self, step_id, pin_id, index):
         return {
             "step_id": step_id,
             "pin_id": pin_id,
@@ -278,8 +270,8 @@ class RayExecutionState:
         self.params = params
 
     def get_iterator(self, step_id: str, label: str):
-        for note in self.steps_outputs[step_id][label]:
-            yield note
+        for data in self.steps_outputs[step_id][label]:
+            yield data
 
     def handle_images(self, outputs: Outputs):
         def try_add_image(item):
@@ -298,8 +290,10 @@ class RayExecutionState:
                     try_add_image(val)
 
         for output in outputs.values():
-            for note in output:
-                for item in note.items.values():
+            for data in output:
+                if not isinstance(data, dict):
+                    continue
+                for item in data.values():
                     if isinstance(item, list):
                         for i in item:
                             try_add_image(i)
@@ -315,8 +309,8 @@ class RayExecutionState:
         if step_id in self.handled_steps:
             return
         self.handled_steps.add(step_id)
-        for label, notes in outputs.items():
-            self.steps_outputs[step_id].enqueue(label, notes)
+        for label, datas in outputs.items():
+            self.steps_outputs[step_id].enqueue(label, datas)
 
         self.viewer.handle_queue_size(step_id, self.steps_outputs[step_id].sizes())
         for pin, output in outputs.items():
@@ -330,10 +324,10 @@ class DictionaryArrays:
     def __init__(self):
         self._dict: Dict[str, list] = {}
 
-    def enqueue(self, label: str, notes: List[Note]):
+    def enqueue(self, label: str, outputs: List[Any]):
         if label not in self._dict:
             self._dict[label] = []
-        self._dict[label].extend(notes)
+        self._dict[label].extend(outputs)
 
     def __getitem__(self, label: str):
         return self._dict[label]

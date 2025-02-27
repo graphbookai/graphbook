@@ -12,8 +12,7 @@ from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from .state import GraphState, StepState, NodeInstantiationError
 from ..viewer import MultiGraphViewManagerInterface
 from ..shm import MultiThreadedMemoryManager
-from ..note import Note
-from typing import List, Optional
+from typing import List, Optional, Any
 from pathlib import Path
 import queue
 import multiprocessing as mp
@@ -23,9 +22,7 @@ import time
 import copy
 from PIL import Image
 
-step_output_err_res = (
-    "Step output must be a dictionary, and dict values must be lists of notes."
-)
+step_output_err_res = "Step output must be a dictionary, and dict values must be lists."
 
 
 class WebInstanceProcessor:
@@ -69,8 +66,10 @@ class WebInstanceProcessor:
                     try_add_image(val)
 
         for output in outputs.values():
-            for note in output:
-                for item in note.items.values():
+            for data in output:
+                if not isinstance(data, dict):
+                    continue
+                for item in data.values():
                     if isinstance(item, list):
                         for i in item:
                             try_add_image(i)
@@ -78,7 +77,7 @@ class WebInstanceProcessor:
                         try_add_image(item)
 
     def exec_step(
-        self, step: Step, input: Optional[Note] = None, flush: bool = False
+        self, step: Step, input: Optional[Any] = None, flush: bool = False
     ) -> Optional[StepOutput]:
         ExecutionContext.update(node_id=step.id)
         ExecutionContext.update(node_name=step.__class__.__name__)
@@ -113,14 +112,6 @@ class WebInstanceProcessor:
                 if not isinstance(v, list):
                     outputs[k] = [v]
 
-            if not all(
-                [all(isinstance(v, Note) for v in out) for out in outputs.values()]
-            ):
-                log(
-                    f"{step_output_err_res} List values did not all contain Notes.",
-                    "error",
-                )
-                return None
             self.handle_images(outputs)
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
@@ -197,7 +188,9 @@ class WebInstanceProcessor:
     def run(self, step_id: str = None):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.viewer.handle_output(resource_id, "resource", transform_json_log(value))
+            self.viewer.handle_output(
+                resource_id, "resource", transform_json_log(value)
+            )
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
             self.viewer.handle_start(step.id)
@@ -224,7 +217,9 @@ class WebInstanceProcessor:
     def step(self, step_id: str = None):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.viewer.handle_output(resource_id, "resource", transform_json_log(value))
+            self.viewer.handle_output(
+                resource_id, "resource", transform_json_log(value)
+            )
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
             self.viewer.handle_start(step.id)
@@ -341,8 +336,8 @@ class WebInstanceProcessor:
     def get_worker_queue_sizes(self):
         return self.dataloader.get_all_sizes()
 
-    def get_output_note(self, step_id: str, pin_id: str, index: int) -> Optional[Note]:
-        output = self.graph_state.get_output_note(step_id, pin_id, index)
+    def get_output(self, step_id: str, pin_id: str, index: int) -> Optional[Any]:
+        output = self.graph_state.get_output(step_id, pin_id, index)
         return transform_json_log(output)
 
     def handle_prompt_response(self, step_id: str, response: str) -> bool:
