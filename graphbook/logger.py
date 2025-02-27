@@ -117,7 +117,8 @@ class LogStates:
             step_id, {"out": len(self.steps_outputs[step_id])}
         )
         outputs = transform_json_log(outputs)
-        self.viewer.handle_output(step_id, "out", outputs["out"])
+        if len(outputs["out"]) > 0:
+            self.viewer.handle_output(step_id, "out", outputs["out"][-1])
 
 
 class LogDirectoryReader(TaskLoop):
@@ -348,7 +349,7 @@ class DAGStreamReader:
 class DAGNodeRef:
     """
     Reference to a DAG node capable of logging images.
-    
+
     Args:
         id: Unique identifier for the node
         name: Name of the node
@@ -503,7 +504,9 @@ class DAGLogger:
         Returns:
             DAGNodeRef: Reference to the node
         """
-        node = DAGNodeRef(str(self.id_idx), name, doc, self.filepath, self.lock, *back_refs)
+        node = DAGNodeRef(
+            str(self.id_idx), name, doc, self.filepath, self.lock, *back_refs
+        )
         self._write_node(
             str(self.id_idx),
             name=name,
@@ -560,7 +563,12 @@ class TransformsLogger(DAGLogger):
             img = transforms(img)
     """
 
-    def __init__(self, name: Optional[str] = None, log_dir: Optional[str] = "logs", log_every: int = 1):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        log_dir: Optional[str] = "logs",
+        log_every: int = 1,
+    ):
         super().__init__(name, log_dir)
         self.log_every = log_every
 
