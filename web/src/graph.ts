@@ -1,7 +1,7 @@
 import { uniqueIdFrom, getHandle, Parameter, parseDictWidgetValue } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
-import type { Node, Edge, NodeChange as ReactflowNodeChange, EdgeChange as ReactflowEdgeChange, NodeResetChange } from 'reactflow';
+import type { Node, Edge, NodeChange as ReactflowNodeChange, EdgeChange as ReactflowEdgeChange, NodeResetChange, ReactFlowInstance } from 'reactflow';
 
 export const SERIALIZATION_ERROR = {
     INPUT_RESOLVE: 'Failed to resolve step input',
@@ -653,13 +653,17 @@ export type DAGNodeConn = [string, string, string, string];
 
 export class DAG {
     public filename: string;
+    private reactflow: ReactFlowInstance;
     private nodes: Map<string, DAGNode>;
     private nodeArray: DAGNode[];
     private connections: Map<string, DAGNodeConn>;
     private callbacks: Function[];
 
-    constructor(filename: string, nodes: Node[] = [], edges: Edge[] = []) {
+    constructor(filename: string, reactflow: ReactFlowInstance | null = null, nodes: Node[] = [], edges: Edge[] = []) {
         this.filename = filename;
+        if (reactflow) {
+            this.reactflow = reactflow;
+        }
         this.nodes = new Map();
         this.connections = new Map();
         this.callbacks = [];
@@ -687,6 +691,10 @@ export class DAG {
         }
     }
 
+    private getReactFlowNodes(): Node[] {
+        return this.nodeArray.map(node => node.ref);
+    }
+
     public addNodesChangedCallback(callback) {
         this.callbacks.push(callback);
     }
@@ -702,6 +710,14 @@ export class DAG {
     public addNode(node: Node): void {
         this.nodes.set(node.id, new DAGNode(node, this));
         this.nodeArray = Array.from(this.nodes.values());
+        this.callbacks.forEach(cb => cb());
+
+    }
+
+    public deleteNode(nodeId: string): void {
+        this.nodes.delete(nodeId);
+        this.nodeArray = Array.from(this.nodes.values());
+        this.reactflow.setNodes(this.getReactFlowNodes());
         this.callbacks.forEach(cb => cb());
 
     }

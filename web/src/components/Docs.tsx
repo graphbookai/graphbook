@@ -44,6 +44,10 @@ export function Docs({ helpString }: { helpString?: string }) {
     const [workflowDoc, setWorkflowDoc] = useState(initialDocStr);
 
     useEffect(() => {
+        console.log("Nodes:", nodes);
+    }, [nodes]);
+
+    useEffect(() => {
         const loadDocs = async () => {
             if (!API || !filename) {
                 return;
@@ -74,7 +78,6 @@ export function Docs({ helpString }: { helpString?: string }) {
             return;
         }
 
-        console.log('Nodes:', nodes);
         const n = nodes;
         const uniqueNodeNames = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.name));
         const uniqueNodes: DAGNode[] = [...uniqueNodeNames].map(name => n.find(n => n.name === name)) as DAGNode[];

@@ -17,7 +17,7 @@ type NodeContextMenuProps = {
     canEditGraph?: boolean;
 }
 
-export function NodeContextMenu({ nodeId, top, left, close, canEditGraph }: NodeContextMenuProps) {
+export function NodeContextMenu({ nodeId, top, left, close, canEditGraph = true }: NodeContextMenuProps) {
     const reactFlowInstance = useReactFlow();
     const node = useMemo(() => reactFlowInstance.getNode(nodeId), [nodeId]);
     const [runState, runStateShouldChange] = useRunState();
