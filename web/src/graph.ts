@@ -1,7 +1,7 @@
 import { uniqueIdFrom, getHandle, Parameter, parseDictWidgetValue } from './utils';
 import { API } from './api';
 import type { ServerAPI } from './api';
-import type { Node, Edge } from 'reactflow';
+import type { Node, Edge, NodeChange as ReactflowNodeChange, EdgeChange as ReactflowEdgeChange, NodeResetChange } from 'reactflow';
 
 export const SERIALIZATION_ERROR = {
     INPUT_RESOLVE: 'Failed to resolve step input',
@@ -518,20 +518,50 @@ export const Graph = {
 
 // Modern DAG Model for abstraction of internal nodes and edges.
 // Goal is to make this become completely used and replace other APIs in the future.
-type DAGHandle = {
-    type: "step" | "resource",
-    connectedTo: DAGNode[],
-    inner?: boolean,
-};
 
-class DAGNode {
+
+export class DAGHandle {
+    private owningNode: DAGNode;
+    private owningDAG: DAG;
+    private pin: string;
+    private isInner: boolean;
+    type: string;
+    constructor(owningNode: DAGNode, pin: string, type: string, isInner: boolean) {
+        this.owningNode = owningNode;
+        this.owningDAG = owningNode.owningDAG;
+        this.pin = pin;
+        this.type = type;
+        this.isInner = isInner;
+    }
+
+    public isConnected(node: DAGNode, pin: string): boolean {
+        return this.owningDAG.isConnected(this.owningNode.ref.id, this.pin, node.ref.id, pin);
+    }
+
+    // public connect(node: DAGNode, pin: string): void {
+    //     this.owningDAG.connect(this.owningNode.ref.id, this.pin, node.ref.id, pin);
+    // }
+
+    public getType(): string {
+        return this.owningNode.ref.type!;
+    }
+}
+
+export class DAGNode {
+    owningDAG: DAG;
     ref: Node;
     inputs: Map<string, DAGHandle>;
     outputs: Map<string, DAGHandle>;
-    constructor(node: Node) {
+    name: string;
+    type: string;
+
+    constructor(node: Node, owningDAG: DAG) {
+        this.owningDAG = owningDAG;
         this.inputs = new Map();
         this.outputs = new Map();
         this.ref = node;
+        this.type = node.type!;
+        this.name = node.data.name;
         this.setup();
     }
 
@@ -539,35 +569,39 @@ class DAGNode {
         const { inputs, parameters, outputs } = this.ref.data;
         if (this.ref.type === 'step') {
             inputs.forEach(() => {
-                this.inputs["in"] = { type: "step", connectedTo: [] };
+                this.inputs["in"] = new DAGHandle(this, "in", "step", false);
             });
             Object.entries<Parameter>(parameters).forEach(([key, param]) => {
-                this.inputs[key] = { type: "resource", connectedTo: [] };
+                if (param.type === "resource") {
+                    this.inputs[key] = new DAGHandle(this, key, "resource", false);
+                }
             });
             outputs.forEach(key => {
-                this.outputs[key] = { type: "step", connectedTo: [] };
+                this.outputs[key] = new DAGHandle(this, key, "step", false);
             });
         } else if (this.ref.type === 'resource') {
             Object.entries<Parameter>(parameters).forEach(([key, param]) => {
-                this.inputs[key] = { type: 'resource', connectedTo: [] };
+                if (param.type === "resource") {
+                    this.inputs[key] = new DAGHandle(this, key, "resource", false);
+                }
             });
-            this.outputs['resource'] = { type: 'resource', connectedTo: [] };
+            this.outputs['resource'] = new DAGHandle(this, 'resource', 'resource', false);
         } else if (this.ref.type === 'group') {
             const { inputs, outputs } = this.ref.data.exports;
             inputs.forEach(input => {
-                this.inputs[input.id] = { type: input.type, inner: false, connectedTo: [] };
-                this.outputs[`${input.id}_inner`] = { type: input.type, inner: true, connectedTo: [] };
+                this.inputs[input.id] = new DAGHandle(this, input.id, input.type, false);
+                this.outputs[`${input.id}_inner`] = new DAGHandle(this, `${input.id}_inner`, input.type, true);
             });
             outputs.forEach(output => {
-                this.outputs[output.id] = { type: output.type, inner: false, connectedTo: [] };
-                this.inputs[`${output.id}_inner`] = { type: output.type, inner: true, connectedTo: [] };
+                this.outputs[output.id] = new DAGHandle(this, output.id, output.type, false);
+                this.inputs[`${output.id}_inner`] = new DAGHandle(this, `${output.id}_inner`, output.type, true);
             });
 
         } else if (this.ref.type === 'export') {
             if (this.ref.data.exportType === 'input') {
-                this.outputs["in"] = { type: this.ref.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                this.outputs["in"] = new DAGHandle(this, "in", this.ref.data.isResource ? "resource" : "step", false);
             } else {
-                this.inputs["out"] = { type: this.ref.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                this.inputs["out"] = new DAGHandle(this, "out", this.ref.data.isResource ? "resource" : "step", false);
             }
         } else if (this.ref.type === 'subflow') {
             const { nodes } = this.ref.data.properties;
@@ -578,9 +612,9 @@ class DAGNode {
                 for (const node of nodes) {
                     if (node.type === 'export') {
                         if (node.data?.exportType === 'input') {
-                            this.inputs[String(numInputs++)] = { type: node.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                            this.inputs[String(numInputs++)] = new DAGHandle(this, String(numInputs), this.ref.data.isResource ? "resource" : "step", false);
                         } else {
-                            this.outputs[String(numOutputs++)] = { type: node.data.isResource ? 'resource' : 'step', connectedTo: [] };
+                            this.outputs[String(numOutputs++)] = new DAGHandle(this, String(numOutputs), this.ref.data.isResource ? "resource" : "step", false);
                         }
                     }
                 }
@@ -609,28 +643,97 @@ class DAGNode {
     public connectOutput(pin: string, node: DAGNode): void {
         this.outputs[pin].connectedTo.push(node);
     }
+
+    public getOutputs(pin: string): DAGHandle {
+        return this.outputs[pin];
+    }
 }
 
-export class DAG {
-    private nodes: Map<string, DAGNode>;
+export type DAGNodeConn = [string, string, string, string];
 
-    constructor() {
+export class DAG {
+    public filename: string;
+    private nodes: Map<string, DAGNode>;
+    private nodeArray: DAGNode[];
+    private connections: Map<string, DAGNodeConn>;
+    private callbacks: Function[];
+
+    constructor(filename: string, nodes: Node[] = [], edges: Edge[] = []) {
+        this.filename = filename;
         this.nodes = new Map();
+        this.connections = new Map();
+        this.callbacks = [];
+        this.initialize(nodes, edges);
     }
 
-    public update(nodes, edges) {
-        this.nodes.clear();
-        nodes.forEach(node => {
-            this.nodes.set(node.id, new DAGNode(node));
-        });
-        edges.forEach(edge => {
-            const sourceNode = this.nodes.get(edge.source);
-            const targetNode = this.nodes.get(edge.target);
-            if (sourceNode && targetNode) {
-                sourceNode.connectOutput(edge.sourceHandle, targetNode);
-                targetNode.connectInput(edge.targetHandle, sourceNode);
-            }
-        });
+    private edgeId(sourceId, sourcePin, targetId, targetPin): string {
+        //reactflow__edge-7resource-1model
+        return `reactflow__edge-${sourceId}${sourcePin}-${targetId}${targetPin}`;
+    }
+
+    private edgeIdBy4(edge: DAGNodeConn): string {
+        return this.edgeId(edge[0], edge[1], edge[2], edge[3]);
+    }
+
+    private initialize(nodes: Node[], edges: Edge[]) {
+        for (const node of nodes) {
+            this.nodes.set(node.id, new DAGNode(node, this));
+        }
+        this.nodeArray = Array.from(this.nodes.values());
+        for (const edge of edges) {
+            const e: DAGNodeConn = [edge.source, edge.sourceHandle!, edge.target, edge.targetHandle!];
+            this.connections.set(this.edgeIdBy4(e), e);
+            // this.edges.set(edge.id, e);
+        }
+    }
+
+    public addNodesChangedCallback(callback) {
+        this.callbacks.push(callback);
+    }
+
+    public removeNodesChangedCallback(callback) {
+        this.callbacks = this.callbacks.filter(cb => cb !== callback);
+    }
+    public updatePositions(draggedNodes: Node[]) {
+        // console.log(draggedNodes);
+        console.log(this.connections);
+    }
+
+    public addNode(node: Node): void {
+        this.nodes.set(node.id, new DAGNode(node, this));
+        this.nodeArray = Array.from(this.nodes.values());
+        this.callbacks.forEach(cb => cb());
+
+    }
+
+    public onDeleteNode(nodeId: string): void {
+        this.nodes.delete(nodeId);
+        this.nodeArray = Array.from(this.nodes.values());
+        this.callbacks.forEach(cb => cb());
+    }
+
+    public onConnect(sourceId: string, sourcePin: string, targetId: string, targetPin: string): void {
+        const e: DAGNodeConn = [sourceId, sourcePin, targetId, targetPin];
+        const edgeId = this.edgeIdBy4(e);
+        this.connections.set(edgeId, e);
+        console.log(this.connections);
+    }
+
+    public onDisconnect(sourceId: string, sourcePin: string, targetId: string, targetPin: string): void {
+        const e: DAGNodeConn = [sourceId, sourcePin, targetId, targetPin];
+        const edgeId = this.edgeIdBy4(e);
+        this.connections.delete(edgeId);
+        console.log(this.connections);
+    }
+
+    public isConnected(sourceId: string, sourcePin: string, targetId: string, targetPin: string): boolean {
+        // return this.connections.get(sourceId)?.get(sourcePin)?.includes([targetId, targetPin]) || false;
+        const edgeId = this.edgeId(sourceId, sourcePin, targetId, targetPin);
+        return this.connections.has(edgeId);
+    }
+
+    public getNodes(): DAGNode[] {
+        return this.nodeArray;
     }
 }
 

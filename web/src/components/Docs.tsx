@@ -3,10 +3,13 @@ import { Divider, Flex, Typography, Collapse, theme } from "antd";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { useFilename } from "../hooks/Filename";
 import { useAPI } from "../hooks/API";
-import { useNodes } from "reactflow";
+// import { useNodes } from "reactflow";
 import type { CollapseProps } from "antd/lib/collapse";
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw'
+// import { useDAG } from "../hooks/DAG";
+import { useDAG, useNodes } from "../hooks/DAG";
+import type { DAGNode } from "../graph";
 const { useToken } = theme;
 const { Text } = Typography;
 
@@ -33,6 +36,7 @@ export function Docs({ helpString }: { helpString?: string }) {
     const [hidden, setHidden] = useState(false);
     const [nodeDocs, setNodeDocs] = useState<NodeDoc[]>([]);
     const [windowHeight, setWindowHeight] = useState(0);
+    // const dag = useDAG();
     const nodes = useNodes();
     const API = useAPI();
     const filename = useFilename();
@@ -64,13 +68,16 @@ export function Docs({ helpString }: { helpString?: string }) {
     }, []);
 
     useEffect(() => {
+        // const nodes = dag.getNodes();
+
         if (!nodes || !API) {
             return;
         }
 
-        const n = nodes as any[];
-        const uniqueNodeNames = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.data.name));
-        const uniqueNodes = [...uniqueNodeNames].map(name => n.find(n => n.data.name === name));
+        console.log('Nodes:', nodes);
+        const n = nodes;
+        const uniqueNodeNames = new Set(n.filter(n => n.type === 'step' || n.type === 'resource').map(n => n.name));
+        const uniqueNodes: DAGNode[] = [...uniqueNodeNames].map(name => n.find(n => n.name === name)) as DAGNode[];
 
         if (uniqueNodes.length === nodeDocs.length) {
             return;
@@ -79,8 +86,8 @@ export function Docs({ helpString }: { helpString?: string }) {
         const currentNodeDocs = uniqueNodes.map(n => {
             return {
                 type: n.type,
-                name: n.data.name,
-                content: n.data.properties?.doc,
+                name: n.name,
+                content: n.ref.data.properties?.doc,
             };
         });
         setNodeDocs(currentNodeDocs);
@@ -109,7 +116,7 @@ export function Docs({ helpString }: { helpString?: string }) {
         };
 
         loadNodeExtraDocs();
-    }, [nodes, API]);
+    }, [nodes]);
 
     const containerStyle: React.CSSProperties = useMemo(() => ({
         padding: '5px 10px',

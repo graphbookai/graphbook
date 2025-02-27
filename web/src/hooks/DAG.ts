@@ -1,27 +1,45 @@
 import { useState, useEffect } from 'react';
-import { DAG } from '../graph';
-import type { Node, Edge } from 'reactflow';
+import { DAG, DAGNode } from '../graph';
 
-let globalDAG: DAG = new DAG();
-let localSetters: Function[] = [];
-export function updateDAG(nodes: Node[], edges: Edge[]) {
-    globalDAG.update(nodes, edges);
 
-    for (const setter of localSetters) {
-        setter(globalDAG);
-    }
+let globalDAG: DAG = new DAG('');
+let dagUsers: Function[] = [];
+let nodesUsers: Function[] = [];
+
+function onNodesChange() {
+    nodesUsers.forEach((setter) => setter(globalDAG.getNodes()));
+}
+
+export function setDAG(dag: DAG) {
+    globalDAG = dag;
+    dagUsers.forEach((setter) => setter(globalDAG));
+    dag.addNodesChangedCallback(onNodesChange);
 }
 
 export function useDAG(): DAG {
     const [_, setDAG] = useState(globalDAG);
 
     useEffect(() => {
-        localSetters.push(setDAG);
+        dagUsers.push(setDAG);
 
         return () => {
-            localSetters = localSetters.filter((setter) => setter !== setDAG);
+            dagUsers = dagUsers.filter((setter) => setter !== setDAG);
         }
     }, []);
 
     return globalDAG;
+}
+
+export function useNodes(): DAGNode[] {
+    const [_, setNodes] = useState<DAGNode[]>([]);
+
+    useEffect(() => {
+        nodesUsers.push(setNodes);
+
+        return () => {
+            nodesUsers = nodesUsers.filter((setter) => setter !== setNodes);
+        }
+    }, []);
+
+    return globalDAG.getNodes();
 }

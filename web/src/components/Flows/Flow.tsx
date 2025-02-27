@@ -7,11 +7,12 @@ import ReactFlow, {
     addEdge,
     useNodes,
     useEdges,
-    useReactFlow
+    useReactFlow,
+    Connection
 } from 'reactflow';
 import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined, LoadingOutlined } from '@ant-design/icons';
-import { Graph, layoutDAG } from '../../graph.ts';
+import { DAG, Graph, layoutDAG } from '../../graph.ts';
 import { SearchNode } from '../SearchNode.tsx';
 import { Step } from '../Nodes/Step.tsx';
 import { Group, groupIfPossible } from '../Nodes/Group.tsx';
@@ -32,6 +33,7 @@ import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
 import { ActiveOverlay } from '../ActiveOverlay.tsx';
 import { Docs } from '../Docs.tsx';
 import { NotFoundFlow } from './NotFoundFlow.tsx';
+import { setDAG } from '../../hooks/DAG.ts';
 
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -115,6 +117,7 @@ function Flow({ initialNodes, initialEdges, filename }) {
     const graphStore = useRef<GraphStore | null>(new GraphStore(filename, API!, nodes, edges));
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
+    const dag = useRef<DAG | null>(null);
 
     useEffect(() => {
         const searchListener = (e) => {
@@ -139,6 +142,12 @@ function Flow({ initialNodes, initialEdges, filename }) {
         export: Export,
         subflow: Subflow,
     }), []);
+
+    useEffect(() => {
+        const newDAG = new DAG(filename, initialNodes, initialEdges);
+        setDAG(newDAG);
+        dag.current = newDAG;
+    }, [filename, initialNodes, initialEdges]);
 
     const onInitReactFlow = useCallback((instance) => {
         reactFlowInstance.current = instance;
@@ -176,16 +185,22 @@ function Flow({ initialNodes, initialEdges, filename }) {
         onEdgesChange(changes);
     }, [runState]);
 
-    const onConnect = useCallback((params) => {
-        const targetNode = nodes.find(n => n.id === params.target);
-        const sourceNode = nodes.find(n => n.id === params.source);
+    const onConnect = useCallback((params: Connection) => {
+        const p = {
+            source: params.source!,
+            target: params.target!,
+            sourceHandle: params.sourceHandle!,
+            targetHandle: params.targetHandle!,
+        };
+        const targetNode = nodes.find(n => n.id === p.target);
+        const sourceNode = nodes.find(n => n.id === p.source);
         if (!targetNode || !sourceNode) {
             return;
         }
-        const targetHandle = getHandle(targetNode, params.targetHandle, true);
-        const sourceHandle = getHandle(sourceNode, params.sourceHandle, false);
+        const targetHandle = getHandle(targetNode, p.targetHandle, true);
+        const sourceHandle = getHandle(sourceNode, p.sourceHandle, false);
         const edge = {
-            ...params,
+            ...p,
             data: {
                 properties: {
                     targetHandle,
@@ -194,8 +209,11 @@ function Flow({ initialNodes, initialEdges, filename }) {
                 }
             }
         };
+        if (dag.current) {
+            dag.current.onConnect(p.source, p.sourceHandle, p.target, p.targetHandle);
+        }
         setEdges((eds) => addEdge(edge, eds));
-    }, [setEdges, edges, nodes]);
+    }, [setEdges, nodes]);
 
     const onNodesDelete = useCallback((deletedNodes) => {
         const deletedNodesMap = {};
@@ -211,13 +229,26 @@ function Flow({ initialNodes, initialEdges, filename }) {
                 }
             }
         });
-    }, []);
+        for (const node of deletedNodes) {
+            if (dag.current) {
+                dag.current.onDeleteNode(node.id);
+            }
+        }
+    }, [nodes]);
+
+    const onEdgesDelete = useCallback((deletedEdges) => {
+        if (dag.current) {
+            for (const edge of deletedEdges) {
+                dag.current.onDisconnect(edge.source, edge.sourceHandle, edge.target, edge.targetHandle);
+            }
+        }
+    }, [dag]);
 
     useEffect(() => {
         if (graphStore.current) {
             graphStore.current.update(nodes, edges);
         }
-    }, [nodes, edges, graphStore]);
+    }, [filename, nodes, edges, graphStore]);
 
     const handleMouseClickComp = useCallback(() => {
         setSearchMenu(null);
@@ -391,8 +422,11 @@ function Flow({ initialNodes, initialEdges, filename }) {
         if (graphStore.current) {
             graphStore.current.updateNodePositions(updatedNodes);
         }
+        if (dag.current) {
+            dag.current.updatePositions(draggedNodes);
+        }
         setNodes(updatedNodes);
-    }, [nodes]);
+    }, [nodes, dag]);
 
     return (
         <div style={{ height: '100%', width: '100%' }}>
@@ -420,6 +454,7 @@ function Flow({ initialNodes, initialEdges, filename }) {
                     isValidConnection={isValidConnection}
                     onNodeDragStop={onNodeDragStop}
                     onNodesDelete={onNodesDelete}
+                    onEdgesDelete={onEdgesDelete}
                     preventScrolling={true}
                 >
                     {notificationCtxt}
