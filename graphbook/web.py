@@ -93,7 +93,7 @@ class Server:
                 await ws.prepare(request)
             except Exception as e:
                 print(f"Error preparing websocket: {e}")
-                return web.HTTPBadRequest("Invalid WebSocket request")
+                raise web.HTTPBadRequest("Invalid WebSocket request")
             client = await self.client_pool.add_client(ws)
 
             def put_graph(req: dict):
