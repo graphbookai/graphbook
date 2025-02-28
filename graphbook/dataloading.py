@@ -14,16 +14,16 @@ def do_load(
 ) -> Tuple[bool, Any]:
 
     try:
-        item, index, note_id, params = work_queue.get(False)
+        item, index, obj_id, params = work_queue.get(False)
     except queue.Empty:
         return True, None
 
     try:
         output = load_fn(item, **params)
         result = (output, index)
-        to_return = (result, note_id)
+        to_return = (result, obj_id)
     except Exception as e:
-        to_return = (None, note_id)
+        to_return = (None, obj_id)
         print(f"Worker Error loading {item}:")
         traceback.print_exc()
         return False, None
@@ -39,11 +39,11 @@ def do_dump(
     work_queue: mp.Queue, result_queue: mp.Queue, dump_fn: callable
 ) -> Tuple[bool, Any]:
     try:
-        data, note_id = work_queue.get(False)
+        data, obj_id = work_queue.get(False)
     except queue.Empty:
         return True, None
 
-    to_return = note_id
+    to_return = obj_id
     try:
         dump_fn(*data)
     except Exception as e:
@@ -344,11 +344,11 @@ class Dataloader:
                 pass
 
     def put_load(
-        self, items: list, load_fn_params: dict, note_id: int, consumer_id: int
+        self, items: list, load_fn_params: dict, obj_id: int, consumer_id: int
     ):
         for i, item in enumerate(items):
             self._load_queues[consumer_id].put(
-                (item, i, note_id, load_fn_params), block=False
+                (item, i, obj_id, load_fn_params), block=False
             )
 
     def get_load(self, consumer_id):
@@ -356,33 +356,33 @@ class Dataloader:
             return None
         try:
             try:
-                result, note_id = self._load_result_queues[consumer_id].get(False)
+                result, obj_id = self._load_result_queues[consumer_id].get(False)
             except FileNotFoundError:
                 return None
             if result is None:
-                return None, note_id
+                return None, obj_id
             out, index = result
-            return (out, index), note_id
+            return (out, index), obj_id
         except queue.Empty:
             return None
 
     def put_dump(
         self,
         data: Any,
-        note_id: int,
+        obj_id: int,
         consumer_id: int,
     ):
-        self._dump_queues[consumer_id].put((data, note_id), block=False)
+        self._dump_queues[consumer_id].put((data, obj_id), block=False)
 
     def get_dump(self, consumer_id):
         if consumer_id not in self._dump_result_queues:
             return None
         try:
             try:
-                note_id = self._dump_result_queues[consumer_id].get(False)
+                obj_id = self._dump_result_queues[consumer_id].get(False)
             except FileNotFoundError:
                 return None
-            return note_id
+            return obj_id
         except queue.Empty:
             return None
 

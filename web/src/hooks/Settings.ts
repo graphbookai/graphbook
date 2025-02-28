@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const MONITOR_DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
+const MONITOR_DATA_COLUMNS = ['stats', 'logs', 'data', 'images'];
 const defaultPort = window.location.port === '' ? '' : `:${window.location.port}`;
 let settings = {
     theme: "Light",

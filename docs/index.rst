@@ -70,9 +70,9 @@ Graphbook takes care of this by setting up worker processes that can perform bot
 2. Batching
 =================
 
-To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Our units of data, which we call :ref:`Notes` (which are basically just Python dicts), can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the Note.
+To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Each entity that flows in a pipeline can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the entity.
 
-Thus, we have a specific batching process that allows our nodes to load and batch along an individual property within a Note while still holding a reference to that belonging Note.
+Thus, we have a specific batching process that allows our nodes to load and batch along an individual property within a Python dict while still holding a reference to that belonging dict.
 
 3. Fast, Easy Iteration
 =========================

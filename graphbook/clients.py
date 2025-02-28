@@ -23,7 +23,7 @@ DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
 
 class ProcessorInterface:
-    def get_output_note(self, step_id: str, pin_id: str, index: int) -> dict:
+    def get_output(self, step_id: str, pin_id: str, index: int) -> dict:
         raise NotImplementedError
 
     def pause(self):
@@ -70,8 +70,8 @@ class RayProcessorInterface:
         self.processor = processor
         self.queue = proc_queue
 
-    def get_output_note(self, step_id: str, pin_id: str, index: int):
-        return RAY.get(self.processor.get_output_note.remote(step_id, pin_id, index))
+    def get_output(self, step_id: str, pin_id: str, index: int):
+        return RAY.get(self.processor.get_output.remote(step_id, pin_id, index))
 
     def pause(self):
         raise NotImplementedError("RayProcessor does not support pause")

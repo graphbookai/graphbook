@@ -1,41 +1,39 @@
 import torch
-from graphbook import Note, step, source, param, event
+from graphbook import step, source, param, event
 
 
 @step("GenerateTensors")
 @source()
-@param("num_notes", type="number", default=1000)
+@param("amount", type="number", default=1000)
 def generate_tensors(ctx):
     """
-    Generates some fake data in the Notes containing tensors and labels.
+    Generates Python dicts containing tensors and labels.
 
     Args:
-        num_notes (int): Number of Notes to generate
+        num (int): Amount to generate
     """
-    num_notes = ctx.num_notes
-    for _ in range(num_notes):
-        yield Note(
-            {"tensor": torch.randn(10, 10), "label": torch.randint(0, 10, (1,)).item()}
-        )
+    amount = ctx.amount
+    for _ in range(amount):
+        yield {"tensor": torch.randn(10, 10), "label": torch.randint(0, 10, (1,)).item()}
 
 
 @step("CalcMean")
-def calc_mean(ctx, note):
+def calc_mean(ctx, data):
     """
-    Calculates the mean of the tensor in the Note.
-    Will add a new key **"mean"** to the Note.
+    Calculates the mean of the tensor.
+    Will add a new key **"mean"** to the dict.
     """
-    tensor = note["tensor"]
+    tensor = data["tensor"]
     mean = tensor.mean().item()
-    note["mean"] = mean
+    data["mean"] = mean
 
 
 @step("Transform")
 @param("scale", type="number", default=1)
 @param("shift", type="number", default=0)
-def transform(ctx, note):
+def transform(ctx, data):
     """
-    Applies a linear transformation to the tensor in the Note.
+    Applies a linear transformation to the tensor.
     Will replace the tensor with the transformed tensor.
 
     Args:
@@ -44,7 +42,7 @@ def transform(ctx, note):
     """
     scale = ctx.scale
     shift = ctx.shift
-    note["tensor"] = note["tensor"] * scale + shift
+    data["tensor"] = data["tensor"] * scale + shift
 
 
 def calc_running_mean_init(ctx):
@@ -59,12 +57,12 @@ def report_running_mean(ctx):
 @step("CalcRunningMean")
 @event("__init__", calc_running_mean_init)
 @event("on_end", report_running_mean)
-def calc_running_mean(ctx, note):
+def calc_running_mean(ctx, data):
     """
-    A stateful step that calculates the running mean of the tensors in the Notes.
+    A stateful step that calculates the running mean of the tensors in the Datas.
     Will log the running mean at the end of the workflow execution.
     """
-    tensor = note["tensor"]
+    tensor = data["tensor"]
     mean = tensor.mean().item()
     ctx.running_mean = (ctx.running_mean * ctx.count + mean) / (ctx.count + 1)
     ctx.count += 1

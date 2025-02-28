@@ -7,7 +7,7 @@
 Load Images
 ###########
 
-Graphbook will attempt to look for images inside of output notes in an workflow and automatically render those images in the web UI.
+Graphbook will attempt to look for images inside of output data in an workflow and automatically render those images in the web UI.
 In this guide, we will properly load a source of images into our data processing pipelines, so that Graphbook can render them.
 Essentially, this is made possible with the help of the :func:`graphbook.utils.image` function.
 
@@ -21,13 +21,13 @@ Load by File Paths
 
 .. tab-set::
     
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/image_source.py
 
             import os.path
-            from graphbook import Note, step, source, param, utils
+            from graphbook import step, source, param, utils
 
             @step("ImageSource")
             @source()
@@ -46,7 +46,7 @@ Load by File Paths
 
             import os.path
             from graphbook.steps import GeneratorSourceStep
-            from graphbook import Note, utils
+            from graphbook import utils
 
             class ImageSource(GeneratorSourceStep):
                 RequiresInput = False
@@ -82,31 +82,30 @@ If you have a PIL Image object, you can similarly use :func:`graphbook.utils.ima
 Load without Generators
 =======================
 
-Alternatively, if you don't want to use generators (with the ``yield`` keyword), you can use ``@source(False)`` or :class:`graphbook.steps.SourceStep` to return all of the notes at once.
+Alternatively, if you don't want to use generators (with the ``yield`` keyword), you can use ``@source(False)`` or :class:`graphbook.steps.SourceStep` to return all of the data at once.
 This is not recommended for large datasets because it will load all of the data in one step causing a bottleneck in your workflow.
 
 .. tab-set::
     
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/image_source.py
 
             import os.path
-            from graphbook import Note, step, source, param, utils
+            from graphbook import step, source, param, utils
 
             @step("ImageSource")
             @source(False)
             @param("img_path", "string", default="path/to/images")
             def image_source(ctx: Step):
-                notes = { "out": [] }
+                images = { "out": [] }
                 for root, dirs, files in os.walk(ctx.img_path):
                     for file in files:
-                        note = Note({
+                        images["out"].append({
                             "img": utils.image(os.path.join(root, file))
                         })
-                        notes["out"].append(note)
-                return notes
+                return images
 
     .. tab-item:: class
 
@@ -115,7 +114,7 @@ This is not recommended for large datasets because it will load all of the data 
 
             import os.path
             from graphbook.steps import SourceStep
-            from graphbook import Note, utils
+            from graphbook import utils
 
             class ImageSource(SourceStep):
                 RequiresInput = False
@@ -128,14 +127,13 @@ This is not recommended for large datasets because it will load all of the data 
                     self.img_path = img_path
 
                 def load(self):
-                    notes = { "out": [] }
+                    images = { "out": [] }
                     for root, dirs, files in os.walk(self.img_path):
                         for file in files:
-                            note = Note({
+                            images["out"].append({
                                 "img": utils.image(os.path.join(root, file))
                             })
-                            notes["out"].append(note)
-                    return notes
+                    return images
 
 Arrays of Images
 ================

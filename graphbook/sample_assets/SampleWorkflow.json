@@ -82,7 +82,7 @@
                 "parameters": {
                     "val": {
                         "type": "function",
-                        "value": "def split_fn(note):\n  return note[\"mean\"] > 0"
+                        "value": "def split_fn(note):\n  return data[\"mean\"] > 0"
                     }
                 },
                 "category": "Util",
@@ -136,7 +136,7 @@
             "data": {
                 "name": "GenerateTensors",
                 "parameters": {
-                    "num_notes": {
+                    "amount": {
                         "type": "number",
                         "default": 1000,
                         "required": true,

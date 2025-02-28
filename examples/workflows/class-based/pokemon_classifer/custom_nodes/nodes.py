@@ -1,6 +1,5 @@
 from graphbook.steps import BatchStep, SourceStep
 from graphbook.resources import Resource
-from graphbook import Note
 import os
 import os.path as osp
 from transformers import ViTForImageClassification, ViTImageProcessor
@@ -16,7 +15,7 @@ class PokemonClassifier(BatchStep):
 
     Args:
         batch_size (int): The batch size for the model.
-        item_key (str): The key to use for the image in the input Note.
+        item_key (str): The key to use for the image in the input.
         model (ViTForImageClassification): The Vision Transformer model to use for classification.
         image_processor (ViTImageProcessor): The image processor to use for the model
     """
@@ -60,17 +59,17 @@ class PokemonClassifier(BatchStep):
 
     @torch.no_grad()
     def on_item_batch(
-        self, tensors: List[torch.Tensor], items: List[dict], notes: List[Note]
+        self, tensors: List[torch.Tensor], items: List[dict], pokemons: List[dict]
     ):
         extracted = self.image_processor(
             images=tensors, do_rescale=False, return_tensors="pt"
         )
         extracted = extracted.to("cuda")
         predicted_id = self.model(**extracted).logits.argmax(-1)
-        for t, item, note in zip(predicted_id, items, notes):
+        for t, item, pokemon in zip(predicted_id, items, pokemons):
             item["prediction"] = self.model.config.id2label[t.item()]
             self.log(f"Predicted {item['value']} as {item['prediction']}")
-            if item["prediction"] == note["name"]:
+            if item["prediction"] == pokemon["name"]:
                 self.tp += 1
             self.num_samples += 1
         if self.num_samples > 0:
@@ -97,19 +96,17 @@ class LoadImageDataset(SourceStep):
     def load(self):
         subdirs = os.listdir(self.image_dir)
 
-        def create_note(subdir):
+        def create_dict(subdir):
             image_dir = osp.join(self.image_dir, subdir)
-            return Note(
-                {
+            return {
                     "name": subdir,
                     "image": [
                         {"value": osp.join(image_dir, img), "type": "image"}
                         for img in os.listdir(image_dir)
                     ],
                 }
-            )
 
-        return {"out": [create_note(subdir) for subdir in subdirs]}
+        return {"out": [create_dict(subdir) for subdir in subdirs]}
 
 
 class ViTForImageClassificationResource(Resource):

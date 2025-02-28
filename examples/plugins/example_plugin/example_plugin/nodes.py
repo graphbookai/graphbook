@@ -9,7 +9,7 @@ class SimpleStep(steps.Step):
     def __init__(self):
         super().__init__()
 
-    def on_item(self, item, note):
+    def on_item(self, item, data):
         self.log(item)
 
 class SimpleResource(resources.Resource):

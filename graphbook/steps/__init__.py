@@ -1,5 +1,6 @@
 from .base import (
     Step,
+    StepOutput,
     SourceStep,
     GeneratorSourceStep,
     BatchStep,
@@ -7,7 +8,7 @@ from .base import (
     StepOutput,
     AsyncStep,
     Split,
-    SplitNotesByItems,
+    SplitByItems,
     SplitItemField,
     Copy,
     log,
@@ -16,6 +17,7 @@ from .io import LoadJSONL, DumpJSONL
 
 __all__ = [
     "Step",
+    "StepOutput",
     "SourceStep",
     "GeneratorSourceStep",
     "BatchStep",
@@ -23,7 +25,7 @@ __all__ = [
     "StepOutput",
     "AsyncStep",
     "Split",
-    "SplitNotesByItems",
+    "SplitByItems",
     "SplitItemField",
     "Copy",
     "LoadJSONL",

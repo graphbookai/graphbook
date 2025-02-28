@@ -179,12 +179,12 @@ class Server:
             return web.json_response({"success": True})
 
         @routes.get("/state/{step_id}/{pin_id}/{index}")
-        async def get_output_note(request: web.Request) -> web.Response:
+        async def get_output(request: web.Request) -> web.Response:
             client = self.get_client(request)
             step_id = request.match_info.get("step_id")
             pin_id = request.match_info.get("pin_id")
             index = int(request.match_info.get("index"))
-            res = client.get_processor().get_output_note(step_id, pin_id, index)
+            res = client.get_processor().get_output(step_id, pin_id, index)
             if (
                 res
                 and res.get("step_id") == step_id
@@ -193,7 +193,7 @@ class Server:
             ):
                 return web.json_response(res)
 
-            return web.json_response({"error": "Could not get output note."})
+            return web.json_response({"error": "Could not get output."})
 
     def get_client(self, request: web.Request) -> Client:
         sid = request.headers.get("sid")
@@ -278,7 +278,7 @@ class AppServer(Server):
             if not logger:
                 res = None
             else:
-                res = logger.get_output_note(graph_id, step_id, pin_id, index)
+                res = logger.get_output(graph_id, step_id, pin_id, index)
 
             if (
                 res
@@ -288,7 +288,7 @@ class AppServer(Server):
             ):
                 return web.json_response(res)
 
-            return web.json_response({"error": "Could not get output note."})
+            return web.json_response({"error": "Could not get output."})
 
         @self.routes.post("/prompt_response/{id}")
         async def prompt_response(request: web.Request) -> web.Response:

@@ -15,25 +15,25 @@ Inside of your custom nodes directory, create a new Python file called `my_first
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_first_nodes.py
 
-            from graphbook import Note, step, param, output, event
+            from graphbook import step, param, output, event
             import random
 
-            def forward_note(note: Note, prob: float) -> str:
+            def route(data: dict, prob: float) -> str:
                 if random.random() < prob:
                     return "A"
                 return "B"
 
             @step("Custom/MyFirstStep") # Category/Name
             @param("prob", type="resource")
-            @event("forward_note", forward_note)
+            @event("route", route)
             @output("A", "B")
-            def my_first_step(ctx, note: float):
-                ctx.log(note['message'])
+            def my_first_step(ctx, data: float):
+                ctx.log(data['message'])
 
     .. tab-item:: class
 
@@ -41,8 +41,7 @@ Inside of your custom nodes directory, create a new Python file called `my_first
             :caption: custom_nodes/my_first_nodes.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-            import random
+                        import random
 
             class MyFirstStep(Step):
                 RequiresInput = True
@@ -57,10 +56,10 @@ Inside of your custom nodes directory, create a new Python file called `my_first
                     super().__init__()
                     self.prob = prob
 
-                def on_note(self, note: Note):
-                    self.log(note['message'])
+                def on_data(self, data: dict):
+                    self.log(data['message'])
 
-                def forward_note(self, note: Note) -> str:
+                def route(self, data: dict) -> str:
                     if random.random() < self.prob:
                         return "A"
                     return "B"
@@ -98,12 +97,12 @@ Create a new file in the same directory called `my_first_source.py` and add the 
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_first_source.py
 
-            from graphbook import Note, step, param, output
+            from graphbook import step, param, output
             import random
 
             @step("Custom/MyFirstSource")
@@ -120,8 +119,7 @@ Create a new file in the same directory called `my_first_source.py` and add the 
             :caption: custom_nodes/my_first_source.py
 
             from graphbook.steps import SourceStep
-            from graphbook import Note
-
+            
             class MyFirstSource(SourceStep):
                 RequiresInput = False
                 Parameters = {
@@ -141,10 +139,10 @@ Create a new file in the same directory called `my_first_source.py` and add the 
                         "message": [Note({"message": self.message}) for _ in range(10)]
                     }
 
-                def forward_note(self, note: Note) -> str:
+                def route(self, data: dict) -> str:
                     return "message"
 
-This source step generates 10 notes with the message "Hello, World!" by default.
+This source step generates 10 Python dicts with the message "Hello, World!" by default.
 You can change the message in the web UI because we made the message a parameter.
 Also, if you do not specify any outputs with ``@output()``, Graphbook will automatically give the step 1 output slot named "out".
 

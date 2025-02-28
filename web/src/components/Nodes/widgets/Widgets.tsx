@@ -391,39 +391,42 @@ type InputNumberProps = {
 
 function InputNumber({ onChange, label, value, placeholder, description, required }: InputNumberProps) {
     const { token } = useToken();
-    const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
-    const [focusedStyle, setFocusedStyle] = useState(defaultFocusedStyle);
+    const [isFocused, setIsFocused] = useState(false);
 
-    const inputStyle = {
-        backgroundColor: token.colorBgContainer,
-        color: token.colorText,
-    };
-    const labelStyle = {
-        backgroundColor: token.colorBgContainer
-    }
+    const styles = useMemo(() => {
+        return {
+            container: {
+                border: `1px solid ${isFocused ? token.colorInfoActive : token.colorBorder}`
+            },
+            input: {
+                backgroundColor: token.colorBgContainer,
+                color: token.colorText,
+            },
+            label: {
+                backgroundColor: token.colorBgContainer
+            }
+        }
+    }, [token, isFocused]);
+
     const handleChange = (e) => {
         onChange(Number(e.target.value));
     };
     const onInputFocus = useCallback((isFocused) => {
-        if (isFocused) {
-            setFocusedStyle({ border: `1px solid ${token.colorInfoActive}` });
-        } else {
-            setFocusedStyle(defaultFocusedStyle);
-        }
+        setIsFocused(isFocused);
     }, []);
 
     return (
-        <div style={focusedStyle} className="input-container">
+        <div style={styles.container} className="input-container">
             {label &&
                 <RemovableTooltip title={getDescStr(required, description)}>
-                    <Text style={labelStyle}>{label}</Text>
+                    <Text style={styles.label}>{label}</Text>
                 </RemovableTooltip>
             }
             <input
                 onFocus={() => onInputFocus(true)}
                 onBlur={() => onInputFocus(false)}
                 onChange={handleChange}
-                style={inputStyle}
+                style={styles.input}
                 className="input"
                 type="number"
                 value={value || 0}
@@ -445,41 +448,43 @@ type InputProps = {
 
 function Input({ onChange, label, value, placeholder, style, description, required }: InputProps) {
     const { token } = useToken();
-    const defaultFocusedStyle = { border: `1px solid ${token.colorBorder}` };
-    const [focusedStyle, setFocusedStyle] = useState(defaultFocusedStyle)
+    const [isFocused, setIsFocused] = useState(false);
 
-    const inputStyle = {
-        backgroundColor: token.colorBgContainer,
-        color: token.colorText,
-        ...style,
-    };
-    const labelStyle = {
-        backgroundColor: token.colorBgContainer
-    }
+    const styles = useMemo(() => {
+        return {
+            container: {
+                border: `1px solid ${isFocused ? token.colorInfoActive : token.colorBorder}`
+            },
+            input: {
+                backgroundColor: token.colorBgContainer,
+                color: token.colorText,
+            },
+            label: {
+                backgroundColor: token.colorBgContainer
+            }
+        }
+    }, [token, isFocused]);
+
     const handleChange = (e) => {
         onChange(e.target.value);
     };
 
     const onInputFocus = useCallback((isFocused) => {
-        if (isFocused) {
-            setFocusedStyle({ border: `1px solid ${token.colorInfoActive}` });
-        } else {
-            setFocusedStyle(defaultFocusedStyle);
-        }
+        setIsFocused(isFocused);
     }, []);
 
     return (
-        <div style={focusedStyle} className="input-container">
+        <div style={styles.container} className="input-container">
             {label &&
                 <RemovableTooltip title={getDescStr(required, description)}>
-                    <Text style={labelStyle}>{label}</Text>
+                    <Text style={styles.label}>{label}</Text>
                 </RemovableTooltip>
             }
             <input
                 onFocus={() => onInputFocus(true)}
                 onBlur={() => onInputFocus(false)}
                 onChange={handleChange}
-                style={inputStyle}
+                style={styles.input}
                 className="input"
                 type="text"
                 value={value || ''}

@@ -239,10 +239,10 @@ class GraphbookActorWrapper:
 
                 dummy_input = self._set_init_params.bind(**kwargs)
                 dummy_input = self._patched_init_method.bind(dummy_input)
-                input_notes = step_handler.prepare_inputs.bind(
+                input = step_handler.prepare_inputs.bind(
                     dummy_input, node_id, *bind_args
                 )
-                outputs = self.all.bind(input_notes)
+                outputs = self.all.bind(input)
                 outputs = step_handler.handle_outputs.bind(node_id, outputs)
                 setattr(outputs, "_graphbook_bound_actor", actor_handle)
 

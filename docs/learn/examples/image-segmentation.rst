@@ -48,8 +48,7 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
 .. code-block:: python
 
     from graphbook.steps import BatchStep, SourceStep
-    from graphbook import Note
-    import torchvision.transforms.functional as F
+        import torchvision.transforms.functional as F
     import torch.nn.functional
     import torch
     from typing import List
@@ -111,12 +110,12 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
             img = F.to_pil_image(t)
             img.save(output_path)
 
-        def get_output_path(self, note, input_path):
-            return osp.join(self.output_dir, note["name"], osp.basename(input_path))
+        def get_output_path(self, data, input_path):
+            return osp.join(self.output_dir, data["name"], osp.basename(input_path))
 
         @torch.no_grad()
         def on_item_batch(
-            self, tensors: List[torch.Tensor], items: List[dict], notes: List[Note]
+            self, tensors: List[torch.Tensor], items: List[dict], data: List[dict]
         ):
             og_sizes = [t.shape[1:] for t in tensors]
 
@@ -147,16 +146,16 @@ Then, create a new BatchStep class that uses the RMBG-1.4 model to remove the ba
                 for image, og_size in zip(result, og_sizes)
             ]
             paths = [
-                self.get_output_path(note, input["value"])
-                for input, note in zip(items, notes)
+                self.get_output_path(d, input["value"])
+                for input, d in zip(items, data)
             ]
             removed_bg = list(zip(resized, paths))
-            for path, note in zip(paths, notes):
-                masks = note["masks"]
+            for path, d in zip(paths, data):
+                masks = d["masks"]
                 if masks is None:
                     masks = []
                 masks.append({"value": path, "type": "image"})
-                note["masks"] = masks
+                d["masks"] = masks
 
             return removed_bg
 

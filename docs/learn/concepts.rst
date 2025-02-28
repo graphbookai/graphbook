@@ -9,40 +9,21 @@ Workflows
 
 A Graphbook **workflow** is a directed acyclic graph (DAG) that acts as a data processing pipeline well-suited for ML inference.
 The nodes are the building blocks of the workflow and can be one of two types: :ref:`step<Steps>` and :ref:`resource<Resources>`.
-The edges are the connections between the nodes and represent the flow of :ref:`notes<Notes>` between them where each step processes the note in a way that is defined by custom Python code.
+The edges are the connections between the nodes and represent the flow of data between them where each step processes data in a way that is defined by custom Python code.
 The workflow can be visualized and monitored by anyone with access to the Graphbook web UI.
 
 .. image:: /_static/concepts/executed_workflow.png
     :alt: Example Workflow
     :align: center
 
-.. _Notes:
-
-Notes
-*****
-
-The **note** is the atomical unit of data that flows through a Graphbook workflow. A note simply holds a dictionary which encapsulates certain information about the thing that is being processed. We call them notes because they hold small units of information. For example, we can have notes for all of the world's cars where each note stores information about a car’s model, manufacturer, price, and images of that car. 
-
-.. code-block:: python
-    :caption: Example Note
-
-    from graphbook import Note, utils
-
-    note = Note({
-        "model": "Model S",
-        "manufacturer": "Tesla",
-        "price": 79999,
-        "images": [utils.image("image1.jpg"), utils.image("image2.jpg")]
-    })
-
 .. _Steps:
 
 Steps
 *****
 
-A **step** node defines a body of functional logic that executes when a note passes through it.
-Steps are fed notes as input and respond with 0 or more notes at each of its output slots.
-With multiple output slots, a step can be used to route or filter notes to different parts of the graph.
+A **step** node defines a body of functional logic that executes when an object passes through it.
+Steps are fed any type of input data and respond with 0 or more objects at each of its output slots.
+With multiple output slots, a step can be used to route or filter data to different parts of the graph.
 Steps are stateful because they contain cached results stored inside of an output queue for the steps that depend on them.
 Each instance of a step is coupled with a special type of queue that stores the results of the step's execution for consumption by other steps.
 Steps can be implemented as a function (with decorators) or as a class inheriting a base Step class.
@@ -50,15 +31,15 @@ The functional way is recommended because it is more concise and less error pron
 In addition to that, steps can be implemented as stateful purposely because they are normal class instances in Python that can contain members even if they are implemented the functional way.
 The following are examples of some of the things that a step can do:
 
-* Act as a source of notes, where it loads them from an external source or creates them from another format such as a CSV file. See :func:`graphbook.source`.
-* Load and batch data belonging to a series of notes in parallel via our :ref:`custom multiprocessing method<Workers>` and feed them as inputs to ML models. See :func:`graphbook.batch`.
+* Act as a source, where it loads them from an external source or creates them from another format such as a CSV file. See :func:`graphbook.source`.
+* Load and batch data in parallel via our :ref:`custom multiprocessing method<Workers>` and feed them as inputs to ML models. See :func:`graphbook.batch`.
 * Save the results of the ML model to disk in parallel via our custom multiprocessing method.
-* Filter notes based on certain conditions. See :class:`graphbook.steps.Split`.
+* Filter data based on certain conditions. See :class:`graphbook.steps.Split`.
 * Prompt users in the web UI for dynamic, manual control or other forms of human feedback during graph execution. See :func:`graphbook.prompt`.
 
 .. tab-set::
     
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: Example Step Called ImageSource
@@ -69,12 +50,14 @@ The following are examples of some of the things that a step can do:
             def image_source(ctx: Step):
                 for root, dirs, files in os.walk(ctx.img_path):
                     for file in files:
-                        yield Note({
-                            "img": {
-                                "type": "image",
-                                "value": os.path.join(root, file)
+                        yield {
+                            "out": {
+                                "img": {
+                                    "type": "image",
+                                    "value": os.path.join(root, file)
+                                }
                             }
-                        })
+                        }
 
     .. tab-item:: class
 
@@ -94,12 +77,14 @@ The following are examples of some of the things that a step can do:
                 def load(self):
                     for root, dirs, files in os.walk(self.img_path):
                         for file in files:
-                            yield Note({
-                                "img": {
-                                    "type": "image",
-                                    "value": os.path.join(root, file)
+                            yield {
+                                "out": {
+                                    "img": {
+                                        "type": "image",
+                                        "value": os.path.join(root, file)
+                                    }
                                 }
-                            })
+                            }
 
 .. _Resources:
 
@@ -113,7 +98,7 @@ A **resource** simply holds static information as a Python variable that is mean
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: Example Resource Called ImageClassifier
@@ -204,12 +189,12 @@ The logic behind the workers is detailed in the following steps (1-6):
     After the worker has finished processing the item, it will enqueue the result in its respective result queue.
 #.
     The consumer nodes will then dequeue the results from their consumer queues and process them in their correct lifecycle method.
-    Completed load items will be delivered to ``on_item_batch(results: List[any], items: List[any], notes: List[Note])`` where results, items, and notes are in order; i.e. ``results[i]`` corresponds to input ``items[i]`` and belonging to note ``notes[i]``.
-    The size of the results, items, and notes lists will be equal to the batch size (or less if the batch size is not met).
+    Completed load items will be delivered to ``on_item_batch(results: List[any], items: List[any], data: List[dict])`` where results, items, and data are in order; i.e. ``results[i]`` corresponds to input ``items[i]`` and belonging to data ``data[i]``.
+    The size of the results, items, and data lists will be equal to the batch size (or less if the batch size is not met).
     Completed dumped items will not be delivered to any lifecycle method.
-    However, the BatchStep will still search for completed dumped items and keep track of which note they belong to.
-    If all dumped items from a note are completed, then the note is considered finished and can be delivered to the next Step for processing.
-    We do this because if a following Step depends on the saving of a particular item from that note, then that step will execute too soon.
+    However, the BatchStep will still search for completed dumped items and keep track of which data they belong to.
+    If all dumped items from are completed, then the data is considered finished and can be delivered to the next Step for processing.
+    We do this because if a following Step depends on the saving of a particular item from that data, then that step will execute too soon.
 
 Worker Performance Visualization
 =================================================

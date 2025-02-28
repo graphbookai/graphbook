@@ -26,8 +26,7 @@ Create a new Source Step that loads the images and their labels:
 .. code-block:: python
 
     from graphbook.steps import SourceStep
-    from graphbook import Note
-    import os
+        import os
     import os.path as osp
 
     class LoadImageDataset(SourceStep):
@@ -48,22 +47,21 @@ Create a new Source Step that loads the images and their labels:
         def load(self):
             subdirs = os.listdir(self.image_dir)
 
-            def create_note(subdir):
+            def create_dict(subdir):
                 image_dir = osp.join(self.image_dir, subdir)
-                return Note(
-                    {
+                return {
                         "name": subdir,
                         "image": [
                             {"value": osp.join(image_dir, img), "type": "image"}
                             for img in os.listdir(image_dir)
                         ],
                     }
-                )
+                
 
-            return {"out": [create_note(subdir) for subdir in subdirs]}
+            return {"out": [create_dict(subdir) for subdir in subdirs]}
 
 Make sure to change the default image path to where you extracted the Pokemon image dataset.
-The above node will load all the images from the dataset and output them as a list of notes containing the Pokemon's name and a list of images.
+The above node will load all the images from the dataset and output them as a list of dicts containing the Pokemon's name and a list of images.
 Notice how each image is structured.
 It contains a ``value`` and a ``type``.
 This is important for the UI to know how to fetch and render the image.
@@ -120,17 +118,17 @@ Let's create the below BatchStep class that uses this model to classify the imag
 
         @torch.no_grad()
         def on_item_batch(
-            self, tensors: List[torch.Tensor], items: List[dict], notes: List[Note]
+            self, tensors: List[torch.Tensor], items: List[dict], data: List[dict]
         ):
             extracted = self.image_processor(
                 images=tensors, do_rescale=False, return_tensors="pt"
             )
             extracted = extracted.to("cuda") # Remove this if you do not have an Nvidia GPU
             predicted_id = self.model(**extracted).logits.argmax(-1)
-            for t, item, note in zip(predicted_id, items, notes):
+            for t, item, d in zip(predicted_id, items, data):
                 item["prediction"] = self.model.config.id2label[t.item()]
                 self.log(f"Predicted {item['value']} as {item['prediction']}")
-                if item["prediction"] == note["name"]:
+                if item["prediction"] == d["name"]:
                     self.tp += 1
                 self.num_samples += 1
             if self.num_samples > 0:
@@ -171,8 +169,8 @@ Add a new Function (Add Resource > Util > Function) and write the following code
 
 .. code-block:: python
 
-    def my_favorite_pokemon(note: Note) -> bool:
-        return note["name"] in ["Pikachu", "Charmander", "Bulbasaur"]
+    def my_favorite_pokemon(data: dict) -> bool:
+        return data["name"] in ["Pikachu", "Charmander", "Bulbasaur"]
 
 Now, connect the nodes together like so:
 

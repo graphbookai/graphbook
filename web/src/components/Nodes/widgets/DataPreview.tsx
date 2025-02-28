@@ -10,7 +10,7 @@ type QuickViewEntry = {
     [key: string]: any;
 };
 
-export function NotePreview({ data, showImages }: { data: QuickViewEntry, showImages: boolean }) {
+export function DataPreview({ data, showImages }: { data: QuickViewEntry, showImages: boolean }) {
     const globalTheme = theme.useToken().theme;
 
     if (!showImages) {
