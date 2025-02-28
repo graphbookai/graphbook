@@ -142,7 +142,7 @@ Create a new file in the same directory called `my_first_source.py` and add the 
                 def route(self, data: dict) -> str:
                     return "message"
 
-This source step generates 10 notes with the message "Hello, World!" by default.
+This source step generates 10 Python dicts with the message "Hello, World!" by default.
 You can change the message in the web UI because we made the message a parameter.
 Also, if you do not specify any outputs with ``@output()``, Graphbook will automatically give the step 1 output slot named "out".
 
