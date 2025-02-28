@@ -1,11 +1,9 @@
 from typing import List, Dict, Tuple, Any, Optional
 import queue
-from torch import set_num_threads
-import torch.multiprocessing as mp
+import multiprocessing as mp
 import traceback
 from .utils import MP_WORKER_TIMEOUT
 
-set_num_threads(1)
 MAX_RESULT_QUEUE_SIZE = 32
 
 

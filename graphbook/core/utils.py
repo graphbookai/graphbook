@@ -9,18 +9,22 @@ import threading
 import traceback
 import queue
 import asyncio
-from torch import Tensor
 from PIL import Image
 from .note import Note
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+
+try:
+    from torch import Tensor
+except ImportError:
+    Tensor = None
 
 
 MP_WORKER_TIMEOUT = 5.0
 
 
 def is_batchable(obj: Any) -> bool:
-    return isinstance(obj, list) or isinstance(obj, Tensor)
+    return isinstance(obj, list) or (Tensor is not None and isinstance(obj, Tensor))
 
 
 def transform_function_string(func_str: str):
@@ -145,7 +149,7 @@ def transform_json_log(log: Any) -> Any:
         return [transform_json_log(v) for v in log]
     if isinstance(log, bytes):
         return f"(bytes of length {len(log)})"
-    if isinstance(log, Tensor):
+    if Tensor is not None and isinstance(log, Tensor):
         return f"(Tensor of shape {log.shape})"
     if isinstance(log, Image.Image):
         return f"(PIL Image of size {log.size})"

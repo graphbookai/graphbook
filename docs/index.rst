@@ -23,7 +23,6 @@ Features
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
 * Custom buildable nodes with Python via OOP and functional patterns
-* Automatic batching for Pytorch tensors
 * Multiprocessing I/O to and from disk and network
 * Customizable multiprocessing functions
 * Ability to execute entire graphs, or individual subgraphs/nodes

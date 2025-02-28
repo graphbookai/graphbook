@@ -1,8 +1,6 @@
 from typing import List, Tuple, Iterator, Union, Optional, Dict, Any, Sequence, Callable
 from io import BufferedReader, BytesIO
 from PIL import Image
-from torch import Tensor
-from torchvision.transforms.functional import to_pil_image
 from pathlib import Path
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
@@ -10,16 +8,22 @@ from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterfac
 from graphbook.utils import TaskLoop, transform_json_log
 from graphbook.shm import MultiThreadedMemoryManager
 from graphbook.steps import StepOutput as Outputs
-from torchvision.transforms.v2 import Transform as TransformV2, Compose as ComposeV2
-from torchvision.transforms import Compose
 from multiprocessing import Lock
-import pyarrow as pa
 import json
 import struct
 import queue
 import asyncio
 import os
 import uuid
+
+try:
+    import pyarrow as pa
+    from torch import Tensor
+    from torchvision.transforms.functional import to_pil_image
+    from torchvision.transforms.v2 import Transform as TransformV2, Compose as ComposeV2
+    from torchvision.transforms import Compose
+except ImportError:
+    raise ImportError("pyarrow, torch, and torchvision are required for graphbook.logger. Try installing them e.g. `pip install graphbook[logging]`")
 
 # Graphbook Log File Format:
 # --------------------------

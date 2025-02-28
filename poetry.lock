@@ -2002,6 +2002,7 @@ babel = ">=2.9"
 colorama = {version = ">=0.4.5", markers = "sys_platform == \"win32\""}
 docutils = ">=0.18.1,<0.22"
 imagesize = ">=1.3"
+importlib-metadata = {version = ">=4.8", markers = "python_version < \"3.10\""}
 Jinja2 = ">=3.0"
 packaging = ">=21.0"
 Pygments = ">=2.14"
@@ -2696,7 +2697,11 @@ enabler = ["pytest-enabler (>=2.2)"]
 test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more-itertools", "pytest (>=6,!=8.1.*)", "pytest-ignore-flaky"]
 type = ["pytest-mypy"]
 
+[extras]
+logging = ["pyarrow", "torch", "torchvision"]
+ray = ["ray"]
+
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "0cdf10de1e1ceaa014df7425f69aabfc55e6db9484660b27a7791610b2934aa8"
+content-hash = "db01966d8624c68695861b042d69918471c8e3f255965f81bd3712c125894da2"
