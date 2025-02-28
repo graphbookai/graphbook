@@ -16,12 +16,12 @@ To parallelize dumping, we still need to use the decorator :func:`graphbook.batc
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/batch_steps.py
 
-            from graphbook import Note, step, batch
+            from graphbook import step, batch
             from PIL import Image
             from typing import List
             import torch
@@ -35,7 +35,7 @@ To parallelize dumping, we still need to use the decorator :func:`graphbook.batc
             @step("LoadImages")
             @batch(8, "image_paths", dump_fn=save_image, load_fn=convert_to_tensor)
             @staticmethod
-            def on_load_images(tensors: List[torch.Tensor], items: List[dict], notes: List[Note]):
+            def on_load_images(tensors: List[torch.Tensor], items: List[dict], data: List[dict]):
                 # Generate images
                 ...
 
@@ -51,8 +51,7 @@ To parallelize dumping, we still need to use the decorator :func:`graphbook.batc
         .. code-block:: python
 
             from graphbook.steps import BatchStep
-            from graphbook import Note
-            from PIL import Image
+                        from PIL import Image
             from typing import List
             import torch
             import torchvision.transforms.functional as F
@@ -75,7 +74,7 @@ To parallelize dumping, we still need to use the decorator :func:`graphbook.batc
                     image.save(output_path)
 
                 @staticmethod
-                def on_item_batch(tensors: List[torch.Tensor], items: List[dict], notes: List[Note]):
+                def on_item_batch(tensors: List[torch.Tensor], items: List[dict], data: List[dict]):
                     # Generate images
                     ...
 

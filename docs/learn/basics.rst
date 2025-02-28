@@ -65,17 +65,17 @@ Inside of your custom nodes directory, create a new Python file called `my_first
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_first_nodes.py
 
-            from graphbook import Note, step, param, output, event
+            from graphbook import step, param, output, event
             import random
 
             @step("MyStep")
-            def my_first_step(ctx, note: Note):
-                note["message"] = "Hello, World!"
+            def my_first_step(ctx, data: dict):
+                data["message"] = "Hello, World!"
 
     .. tab-item:: class
 
@@ -83,7 +83,6 @@ Inside of your custom nodes directory, create a new Python file called `my_first
             :caption: custom_nodes/my_first_nodes.py
 
             from graphbook.steps import Step
-            from graphbook import Note
             import random
 
             class MyStep(Step):
@@ -95,13 +94,13 @@ Inside of your custom nodes directory, create a new Python file called `my_first
                     super().__init__()
                     self.prob = prob
 
-                def on_note(self, note: Note):
-                    note["message"] = "Hello, World!"
+                def on_data(self, data: dict):
+                    data["message"] = "Hello, World!"
 
 In the above, we did the following:
 
 #. We named our step "MyStep"
-#. We defined a method called ``my_first_step`` which is called upon receiving a note. This method simply adds a key called "message" to the note with the value "Hello, World!".
+#. We defined a method called ``my_first_step`` which simply sets "message" with "Hello, World!" inside the incoming dict.
 
 If you're building steps the recommended way, you can observe that the step also has a context ``ctx``.
 This is essentially the ``self`` object (the underlying class instance) since all steps are just classes that inherit from the base class :class:`graphbook.steps.Step`.
@@ -122,12 +121,12 @@ You can create a source step by using the :func:`graphbook.source` decorator or 
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_first_source.py
 
-            from graphbook import Note, step, source
+            from graphbook step, source
             import json
 
             @step("MySource")
@@ -136,7 +135,7 @@ You can create a source step by using the :func:`graphbook.source` decorator or 
                 with open("path/to/data.json") as f:
                     data = json.load(f)
                     for item in data:
-                        yield Note(item)
+                        yield item
 
     .. tab-item:: class
 
@@ -144,8 +143,7 @@ You can create a source step by using the :func:`graphbook.source` decorator or 
             :caption: custom_nodes/my_first_source.py
 
             from graphbook.steps import GeneratorSourceStep
-            from graphbook import Note
-
+            
             class MySource(GeneratorSourceStep):
                 RequiresInput = False
                 Parameters = {}
@@ -158,7 +156,7 @@ You can create a source step by using the :func:`graphbook.source` decorator or 
                     with open("path/to/data.json") as f:
                         data = json.load(f)
                         for item in data:
-                            yield Note(item)
+                            yield item
 
 .. seealso::
 
@@ -180,17 +178,17 @@ Multiple parameters can be used at the same time:
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
-            from graphbook import Note, step, param
+            from graphbook import step, param
 
             @step("MyStep")
             @param("message", type="string", default="Hello, World!")
             @param("offset", type="number", default=0)
-            def my_step(ctx, note: Note):
+            def my_step(ctx, data: dict):
                 my_message = ctx.message
                 my_offset = ctx.offset
 
@@ -200,8 +198,7 @@ Multiple parameters can be used at the same time:
             :caption: custom_nodes/my_steps.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-
+            
             class MyStep(Step):
                 RequiresInput = True
                 Parameters = {
@@ -233,8 +230,8 @@ Sometimes, you want to cast the parameter to a specific type or pass it into a c
 
     @step("MyStep")
     @param("dimension", type="number", default=0, cast_as=int)
-    def my_step(ctx, note: Note):
-        mean = note["tensor"].mean(dim=ctx.dimension)
+    def my_step(ctx, data: dict):
+        mean = data["tensor"].mean(dim=ctx.dimension)
 
 If your parameter is of type "function", you don't need to cast it when using decorators.
 The Python function automatically gets interpreted using :func:`graphbook.utils.transform_function_string`.
@@ -243,31 +240,31 @@ The Python function automatically gets interpreted using :func:`graphbook.utils.
 
     @step("MyStep")
     @param("custom_fn", type="function")
-    def my_step(ctx, note: Note):
-        ctx.custom_fn(note["value"])
+    def my_step(ctx, data: dict):
+        ctx.custom_fn(data["value"])
 
 Outputs
 =======
 
-Steps can have multiple outputs for routing notes to different steps or branches of the graph.
+Steps can have multiple outputs for routing data to different steps or branches of the graph.
 By default, a step has one output slot named "out".
 You can add more output slots by using the :func:`graphbook.output` decorator or by adding to the list called ``Outputs`` in the class-based nodes.
-Then, you may route a note based on overriding the method :meth:`graphbook.steps.Step.forward_note`.
+Then, you may route data based on overriding the method :meth:`graphbook.steps.Step.route`.
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
-            from graphbook import Note, step, output
+            from graphbook import step, output
 
             @step("MyStep")
             @output("good", "junk")
             @param("threshold", type="number", default=0.5)
-            def my_step(ctx, note: Note):
-                if note['value'] > ctx.threshold:
+            def my_step(ctx, data: dict):
+                if data['value'] > ctx.threshold:
                     return "good"
                 return "junk"
 
@@ -277,8 +274,7 @@ Then, you may route a note based on overriding the method :meth:`graphbook.steps
             :caption: custom_nodes/my_steps.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-
+            
             class MyStep(Step):
                 RequiresInput = True
                 Parameters = {
@@ -293,8 +289,8 @@ Then, you may route a note based on overriding the method :meth:`graphbook.steps
                     super().__init__()
                     self.threshold = threshold
 
-                def forward_note(self, note: Note) -> str:
-                    if note['value'] > self.threshold:
+                def route(self, data: dict) -> str:
+                    if data['value'] > self.threshold:
                         return "good"
                     return "junk"
 
@@ -307,28 +303,28 @@ Events
 
 Events are methods that are called at specific points in the lifecycle of a step.
 You can add events to your steps by using the :func:`graphbook.event` decorator or by just overriding the base class methods.
-The event that is decorated by default is the method :meth:`graphbook.steps.Step.on_note`, but this is different depending on the type of step that is inherited.
+The event that is decorated by default is the method :meth:`graphbook.steps.Step.on_data`, but this is different depending on the type of step that is inherited.
 For example, batch steps (:class:`graphbook.steps.BatchStep`) will override :meth:`graphbook.steps.BatchStep.on_item_batch` by default.
 Using :func:`graphbook.event` is an easy way to override a method.
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
-            from graphbook import Note, step, event
+            from graphbook import step, event
 
-            def forward_note(ctx, note: Note) -> str:
-                if note['value'] > 0.5:
+            def route(ctx, data: dict) -> str:
+                if data['value'] > 0.5:
                     return "good"
                 return "junk"
 
             @step("MyStep")
-            @event("forward_note", forward_note)
-            def my_step(ctx, note: Note): # on_note
-                ctx.log(note)
+            @event("route", route)
+            def my_step(ctx, data: dict): # on_data
+                ctx.log(data)
 
     .. tab-item:: class
 
@@ -336,8 +332,7 @@ Using :func:`graphbook.event` is an easy way to override a method.
             :caption: custom_nodes/my_steps.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-
+            
             class MyStep(Step):
                 RequiresInput = True
                 Parameters = {}
@@ -346,11 +341,11 @@ Using :func:`graphbook.event` is an easy way to override a method.
                 def __init__(self):
                     super().__init__()
 
-                def on_note(self, note: Note):
-                    self.log(note)
+                def on_data(self, data: dict):
+                    self.log(data)
 
-                def forward_note(self, note: Note) -> str:
-                    if note['value'] > 0.5:
+                def route(self, data: dict) -> str:
+                    if data['value'] > 0.5:
                         return "good"
                     return "junk"
 
@@ -358,16 +353,16 @@ You can also decorate functions with :func:`graphbook.step` multiple times to de
 
 .. code-block:: python
 
-    @step("MyStep") # on_note
-    def my_step(ctx, note: Note):
+    @step("MyStep") # on_data
+    def my_step(ctx, data: dict):
         ...
 
     @step("MyStep", event="__init__")
     def my_step_init(ctx):
         ...
 
-    @step("MyStep", event="forward_note")
-    def my_step_forward(ctx, note: Note):
+    @step("MyStep", event="route")
+    def my_step_forward(ctx, data: dict):
         ...
 
     @step("MyStep", event="on_clear")
@@ -381,12 +376,12 @@ You can also decorate functions with :func:`graphbook.step` multiple times to de
 Resources
 =========
 
-Resources are not part of the flow of notes but can hold Python objects such as PyTorch models that can be used by other steps.
+Resources are not part of the flow of data but can hold Python objects such as PyTorch models that can be used by other steps.
 You can create a resource node by using the :func:`graphbook.resource` decorator or by inheriting from the class :class:`graphbook.steps.Resource`.
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_first_resource.py
@@ -420,14 +415,14 @@ You can access this resource in your step by setting a parameter that accepts a 
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
             @step("MyStep")
             @param("model", type="resource")
-            def my_step(ctx, note: Note):
+            def my_step(ctx, data: dict):
                 model = ctx.model
                 ...
 
@@ -447,7 +442,7 @@ You can access this resource in your step by setting a parameter that accepts a 
                         super().__init__()
                         self.model = model
     
-                    def on_note(self, note: Note) -> str:
+                    def on_data(self, data: dict) -> str:
                         model = self.model
                         ...
 
@@ -455,7 +450,7 @@ Resources can also have parameters.
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_first_resource.py
@@ -501,13 +496,13 @@ You can organize your steps and resources better by assigning them to different 
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
             @step("Custom/MyStep")
-            def my_step(ctx, note: Note):
+            def my_step(ctx, data: dict):
                 ...
 
     .. tab-item:: class
@@ -524,16 +519,16 @@ Categories can be multi-leveled with more forward slashes.
 
 .. tab-set::
     
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
 
             @step("Custom/Filtering/A")
-            def a(ctx, note: Note):
+            def a(ctx, data: dict):
                 ...
 
             @step("Custom/Producer/B")
-            def b(ctx, note: Note):
+            def b(ctx, data: dict):
                 ...
 
     .. tab-item:: class
@@ -561,9 +556,9 @@ Categories can be multi-leveled with more forward slashes.
         # Not OK
 
         @step("Custom/Filtering/A")
-        def a(ctx, note: Note):
+        def a(ctx, data: dict):
             ...
 
         @step("Custom/Producer/A") # Will override the previous step
-        def b(ctx, note: Note):
+        def b(ctx, data: dict):
             ...

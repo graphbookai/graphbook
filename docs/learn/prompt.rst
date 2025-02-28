@@ -21,23 +21,23 @@ For example, you can ask users if an image is a dog and assign a label based on 
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/prompted_nodes.py
 
-            from graphbook import step, prompt, Note
+            from graphbook import step, prompt
             from graphbook.prompts import bool_prompt
 
             @staticmethod
-            def is_dog(note: Note):
-                return bool_prompt(note, msg="Is this a dog?", show_images=True)
+            def is_dog(data: dict):
+                return bool_prompt(data, msg="Is this a dog?", show_images=True)
 
             @step("Prompts/CatVsDog")
             @prompt(is_dog)
             @staticmethod
-            def label_images(note: Note, response: str):
-                note["label"] = "dog" if response "Yes" else "cat"
+            def label_images(data: dict, response: str):
+                data["label"] = "dog" if response "Yes" else "cat"
 
     .. tab-item:: class
 
@@ -55,11 +55,11 @@ For example, you can ask users if an image is a dog and assign a label based on 
                 def __init__(self):
                     super().__init__()
 
-                def get_prompt(self, note: Note): # Override
-                    return bool_prompt(note, show_images=True)
+                def get_prompt(self, data: dict): # Override
+                    return bool_prompt(data, show_images=True)
                 
-                def on_prompt_response(self, note: Note, response: Any): # Override
-                    note["label"] = "dog" if response == "Yes" else "cat"
+                def on_prompt_response(self, data: dict, response: Any): # Override
+                    data["label"] = "dog" if response == "Yes" else "cat"
 
 
 The function that is decorated is called when a response is received from the prompt.
@@ -73,27 +73,27 @@ You can also prompt users for multiple options with the :func:`graphbook.prompts
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/prompted_nodes.py
 
-            from graphbook import step, prompt, Note
+            from graphbook import step, prompt
             from graphbook.prompts import selection_prompt
 
             @staticmethod
-            def select_option(note: Note):
+            def select_option(data: dict):
                 return selection_prompt(
-                    note,
+                    data,
                     msg="Select an option",
                     options=["airplane", "bicycle", "car", "train", "junk data"],
                 )
 
             @step("Prompts/Vehicles")
             @prompt(select_option)
-            def select_option(ctx, note: Note, response: str):
+            def select_option(ctx, data: dict, response: str):
                 ctx.log("Selected option: ", response)
-                note["label"] = response
+                data["label"] = response
 
     .. tab-item:: class
 
@@ -111,47 +111,47 @@ You can also prompt users for multiple options with the :func:`graphbook.prompts
                 def __init__(self):
                     super().__init__()
 
-                def get_prompt(self, note: Note): # Override
+                def get_prompt(self, data: dict): # Override
                     return selection_prompt(
-                        note,
+                        data,
                         msg="Select an option",
                         options=["airplane", "bicycle", "car", "train", "junk data"],
                     )
                 
-                def on_prompt_response(self, note: Note, response: Any): # Override
+                def on_prompt_response(self, data: dict, response: Any): # Override
                     self.log("Selected option: ", response)
-                    note["label"] = response
+                    data["label"] = response
 
 Conditional Prompts
 ===================
 
-You can also conditionally prompt users based on the data inside of the note.
+You can also conditionally prompt users based on the data inside of the data.
 For example, you can prompt users only if the model is not confident about the prediction based on its logits
 or by some other metric.
-To not prompt the user on a given note, all you have to do is return ``None``.
+To not prompt the user on a given data, all you have to do is return ``None``.
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/prompted_nodes.py
 
-            from graphbook import step, prompt, Note
+            from graphbook import step, prompt
             from graphbook.prompts import bool_prompt
 
             @staticmethod
-            def is_dog(note: Note):
-                if note["model_confidence"] < 0.8:
-                    return bool_prompt(note, msg=f"Model predicted {note['label']}. Is this correct?", show_images=True)
+            def is_dog(data: dict):
+                if data["model_confidence"] < 0.8:
+                    return bool_prompt(data, msg=f"Model predicted {data['label']}. Is this correct?", show_images=True)
                 return None
 
             @step("Prompts/ConditionalCatVsDog")
             @prompt(is_dog)
             @staticmethod
-            def label_images(note: Note, response: str):
+            def label_images(data: dict, response: str):
                 if response == "No":
-                    note["label"] = "dog" if note["label"] == "cat" else "cat"
+                    data["label"] = "dog" if data["label"] == "cat" else "cat"
 
     .. tab-item:: class
 
@@ -169,11 +169,11 @@ To not prompt the user on a given note, all you have to do is return ``None``.
                 def __init__(self):
                     super().__init__()
 
-                def get_prompt(self, note: Note): # Override
-                    if note["model_confidence"] < 0.8:
-                        return bool_prompt(note, msg=f"Model predicted {note['label']}. Is this correct?", show_images=True)
+                def get_prompt(self, data: dict): # Override
+                    if data["model_confidence"] < 0.8:
+                        return bool_prompt(data, msg=f"Model predicted {data['label']}. Is this correct?", show_images=True)
                     return None
                 
-                def on_prompt_response(self, note: Note, response: Any): # Override
+                def on_prompt_response(self, data: dict, response: Any): # Override
                     if response == "No":
-                        note["label"] = "dog" if note["label"] == "cat" else "cat"
+                        data["label"] = "dog" if data["label"] == "cat" else "cat"

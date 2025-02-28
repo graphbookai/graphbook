@@ -15,30 +15,30 @@ You can document your nodes by writing a docstring right beneath the function he
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/documented_nodes.py
 
             from graphbook import step, param, output, Note
 
-            @step("Filter", event="forward_note")
+            @step("Filter", event="route")
             @param("threshold", type="number", default=0.5)
             @output("good", "junk")
-            def filter(ctx, note: Note):
+            def filter(ctx, data: dict):
                 """
-                Filter notes based on a threshold value.
+                Filter based on a threshold value.
 
                 Parameters:
-                    threshold (number): The threshold value to filter notes.
+                    threshold (number): The threshold value to filter.
 
                 Outputs:
-                    good (list): Notes that pass the threshold.
-                    junk (list): Notes that fail the threshold.
+                    good (list): Elements that pass the threshold.
+                    junk (list): Elements that fail the threshold.
                 """
-                if note['value'] > ctx.threshold:
-                        return { "good": [note] }
-                    return { "junk": [note] }
+                if data['value'] > ctx.threshold:
+                        return { "good": [data] }
+                    return { "junk": [data] }
 
     .. tab-item:: class
 
@@ -46,8 +46,7 @@ You can document your nodes by writing a docstring right beneath the function he
             :caption: custom_nodes/documented_nodes.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-
+            
             class Filter(Step):
                 RequiresInput = True
                 Parameters = {
@@ -60,28 +59,28 @@ You can document your nodes by writing a docstring right beneath the function he
                 Category = ""
                 def __init__(self, threshold):
                     """
-                    Filter notes based on a threshold value.
+                    Filter based on a threshold value.
 
                     Parameters:
-                        threshold (number): The threshold value to filter notes.
+                        threshold (number): The threshold value to filter.
 
                     Outputs:
-                        good (list): Notes that pass the threshold.
-                        junk (list): Notes that fail the threshold.
+                        good (list): Elements that pass the threshold.
+                        junk (list): Elements that fail the threshold.
                     """
                     super().__init__()
                     self.threshold = threshold
 
-                def forward_note(self, note: Note) -> str:
-                    if note['value'] > self.threshold:
-                        return { "good": [note] }
-                    return { "junk": [note] }
+                def route(self, data: dict) -> str:
+                    if data['value'] > self.threshold:
+                        return { "good": [data] }
+                    return { "junk": [data] }
 
 Similarly, for resources:
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/documented_nodes.py

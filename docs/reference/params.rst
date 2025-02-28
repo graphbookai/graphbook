@@ -37,19 +37,19 @@ Below shows an example for string and number parameters. Multiple parameters can
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
-            from graphbook import Note, step, param
+            from graphbook import step, param
 
             @step("MyStep")
             @param("message", type="string", default="Hello, World!")
             @param("offset", type="number", default=0)
-            def my_step(ctx, note: Note):
-                note["message"] = ctx.message
-                note["offset"] = ctx.offset
+            def my_step(ctx, data: dict):
+                data["message"] = ctx.message
+                data["offset"] = ctx.offset
 
     .. tab-item:: class
 
@@ -57,8 +57,7 @@ Below shows an example for string and number parameters. Multiple parameters can
             :caption: custom_nodes/my_steps.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-
+            
             class MyStep(Step):
                 RequiresInput = True
                 Parameters = {
@@ -78,24 +77,24 @@ Below shows an example for string and number parameters. Multiple parameters can
                     self.message = message
                     self.offset = offset
 
-                def on_note(self, note: Note) -> str:
-                    note["message"] = self.message
-                    note["offset"] = self.offset
+                def on_data(self, data: dict) -> str:
+                    data["message"] = self.message
+                    data["offset"] = self.offset
 
 Below shows an example for a list of strings:
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
-            from graphbook import Note, step, param
+            from graphbook import step, param
 
             @step("MyStep")
             @param("cars", type="list[string]", default=["car", "truck"])
-            def my_step(ctx, note: Note):
+            def my_step(ctx, data: dict):
                 # Access from ctx.cars
                 ...
 
@@ -105,8 +104,7 @@ Below shows an example for a list of strings:
             :caption: custom_nodes/my_steps.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-
+            
             class MyStep(Step):
                 RequiresInput = True
                 Parameters = {
@@ -125,12 +123,12 @@ Below shows an example for a dictionary:
 
 .. tab-set::
 
-    .. tab-item:: function (recommended)
+    .. tab-item:: function
 
         .. code-block:: python
             :caption: custom_nodes/my_steps.py
 
-            from graphbook import Note, step, param
+            from graphbook import step, param
 
             @step("MyStep")
             @param("car", type="dict", default={
@@ -139,7 +137,7 @@ Below shows an example for a dictionary:
                 "price": 25000,
                 "in_stock": True
             })
-            def my_step(ctx, note: Note):
+            def my_step(ctx, data: dict):
                 # Access from ctx.car
                 ...
 
@@ -149,8 +147,7 @@ Below shows an example for a dictionary:
             :caption: custom_nodes/my_steps.py
 
             from graphbook.steps import Step
-            from graphbook import Note
-
+            
             class MyStep(Step):
                 RequiresInput = True
                 Parameters = {
@@ -170,5 +167,5 @@ Below shows an example for a dictionary:
                     super().__init__()
                     self.car = car
 
-                def on_note(self, note: Note):
+                def on_data(self, data: dict):
                     ...

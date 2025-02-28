@@ -110,7 +110,7 @@ def remove_background(
         ).cpu()
         for image, og_size in zip(result, og_sizes)
     ]
-    paths = [get_output_path(data, input["value"]) for input, d in zip(items, data)]
+    paths = [get_output_path(d, input["value"]) for input, d in zip(items, data)]
     removed_bg = list(zip(resized, paths))
     for path, d in zip(paths, data):
         masks = d["masks"]

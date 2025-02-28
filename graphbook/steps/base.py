@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING, Optional
+from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING, Optional, Union
 from ..utils import (
     transform_function_string,
     convert_dict_values_to_list,
@@ -151,7 +151,7 @@ class Step:
     
     def forward_note(self, data: Any) -> str:
         """
-        Deprecated. Use ``route`` instead.
+        Deprecated. Use :meth:`graphbook.steps.Step.route` instead.
         """
         warnings.warn(
             "forward_note is deprecated and will be removed in a future version of Graphbook. Use ``route`` instead.",
@@ -159,9 +159,9 @@ class Step:
         )
         return self.route(data)
 
-    def route(self, data: Any) -> Optional[StepOutput]:
+    def route(self, data: Any) -> Union[str, StepOutput, None]:
         """
-        Routes the item of data. Must return the corresponding output key or a dictionary of the form :ref:`graphbook.steps.base.StepOutput`.
+        Routes the item of data. Must return the corresponding output key or a dictionary of the form :data:`graphbook.steps.StepOutput`.
         Is called after *on_after_item()*.
 
         Args:
@@ -171,22 +171,26 @@ class Step:
             A string that the data is associated with, or if multiple are being processed at a time, a StepOutput may be used.
             
         Example:
+            The below examples assume that this step has two output pins, "dog" and "cat":
+
             .. highlight:: python
             .. code-block:: python
 
-                if data["is_dog"]:
-                    return "dog"
-                return "cat"
+                def route(self, data: dict) -> str:
+                    if data["is_dog"]:
+                        return "dog"
+                    return "cat"
                 
             .. highlight:: python
             .. code-block:: python
             
-                dog_images = data["dog"]
-                cat_images = data["cat"]
-                return {
-                    "dog": dog_images,
-                    "cat": cat_images,
-                }
+                def route(self, data: dict) -> StepOutput:
+                    dog_images = data["dog"]
+                    cat_images = data["cat"]
+                    return {
+                        "dog": dog_images,
+                        "cat": cat_images,
+                    }
         """
         return "out"
 

@@ -102,9 +102,9 @@ To assemble the DAG, you can add the following code to ``myapp.py``:
             super().__init__()
             self.value = value
 
-        def on_note(self, note):
-            note["tensor"] += self.value
-            gb.log(f'New value: {note["tensor"]}') # You may log as normal
+        def on_data(self, data: dict):
+            data["tensor"] += self.value
+            gb.log(f'New value: {data["tensor"]}') # You may log as normal
 
     # Initialize the nodes
     tensors = GetTensors.remote()

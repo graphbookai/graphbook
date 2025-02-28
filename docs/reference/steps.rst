@@ -17,6 +17,8 @@ Steps
     :members:
     :show-inheritance:
 
+.. autodata:: graphbook.steps.StepOutput
+
 .. autoclass:: graphbook.steps.BatchStep
     :members:
     :show-inheritance:

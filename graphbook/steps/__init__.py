@@ -1,5 +1,6 @@
 from .base import (
     Step,
+    StepOutput,
     SourceStep,
     GeneratorSourceStep,
     BatchStep,
@@ -16,6 +17,7 @@ from .io import LoadJSONL, DumpJSONL
 
 __all__ = [
     "Step",
+    "StepOutput",
     "SourceStep",
     "GeneratorSourceStep",
     "BatchStep",

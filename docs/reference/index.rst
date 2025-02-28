@@ -1,6 +1,6 @@
 .. meta::
-   :description: Graphbook Reference Documentation for notes, decorators, steps, resources, and utils.
-   :twitter:description: Graphbook Reference Documentation for notes, decorators, steps, resources, and utils.
+   :description: Graphbook Reference Documentation
+   :twitter:description: Graphbook Reference Documentation
 
 Reference
 #########

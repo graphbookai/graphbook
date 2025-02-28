@@ -35,7 +35,7 @@ def pokemon_classifier(
     Args:
         tensors (List[torch.Tensor]): A list of tensors containing the images to classify.
         items (List[dict]): A list of dictionaries containing the items to classify.
-        data (List[Any]): A list containing the data to classify.
+        data (List[dict]): A list containing the data to classify.
     """
     extracted = ctx.image_processor(
         images=tensors, do_rescale=False, return_tensors="pt"
