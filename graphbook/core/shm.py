@@ -4,7 +4,6 @@ import uuid
 from io import BytesIO
 from PIL import Image
 from typing import Dict
-from graphbook.utils import RAY
 
 
 class ImageStorageInterface:
@@ -143,29 +142,5 @@ class MultiThreadedMemoryManager(ImageStorageInterface):
             return None
 
         img_buffer = BytesIO()
-        image.save(img_buffer, format=image.format or "PNG")
-        return img_buffer.getvalue()
-
-
-class RayMemoryManager(ImageStorageInterface):
-    """
-    For retrieving images from a Ray actor.
-    """
-
-    _ray = RAY
-    _processor = None
-
-    @classmethod
-    def add_image(cls, pil_image):
-        raise NotImplementedError(
-            "RayMemoryManager doesn't support add_image. Images are stored in _graphbook_RayStepHandler Actor"
-        )
-
-    @classmethod
-    def get_image(cls, image_id: str):
-        if cls._processor is None:
-            cls._processor = cls._ray.get_actor("_graphbook_RayStepHandler")
-        img_buffer = BytesIO()
-        image = cls._ray.get(cls._processor.get_image.remote(image_id))
         image.save(img_buffer, format=image.format or "PNG")
         return img_buffer.getvalue()

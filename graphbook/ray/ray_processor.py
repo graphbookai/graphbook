@@ -9,10 +9,6 @@ from typing import (
     Any,
 )
 import logging
-from dataclasses import dataclass
-from ..steps import StepOutput as Outputs
-from ..utils import MP_WORKER_TIMEOUT, transform_json_log
-from typing import List
 import ray
 import ray._raylet
 from ray.actor import ActorHandle
@@ -21,9 +17,11 @@ from ray.dag import DAGNode
 from ray.dag.class_node import ClassMethodNode
 from contextlib import contextmanager
 from copy import deepcopy
-from graphbook.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
-from graphbook.steps import Step
+from dataclasses import dataclass
 from PIL import Image
+from graphbook.core.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
+from graphbook.core.steps import Step, StepOutput
+from graphbook.core.utils import MP_WORKER_TIMEOUT, transform_json_log
 
 
 logger = logging.getLogger(__name__)
@@ -204,7 +202,7 @@ class RayStepHandler:
             all_datas.extend(outputs[bind_key])
         return all_datas
 
-    def handle_outputs(self, step_id: str, outputs: Outputs):
+    def handle_outputs(self, step_id: str, outputs: StepOutput):
         self.graph_state.handle_images(outputs)
         self.graph_state.handle_outputs(step_id, outputs)
         return outputs
@@ -273,7 +271,7 @@ class RayExecutionState:
         for data in self.steps_outputs[step_id][label]:
             yield data
 
-    def handle_images(self, outputs: Outputs):
+    def handle_images(self, outputs: StepOutput):
         def try_add_image(item):
             if isinstance(item, dict):
                 if item.get("shm_id") is not None:
@@ -303,7 +301,7 @@ class RayExecutionState:
     def get_image(self, image_id: str):
         return ray.get(self.images.get(image_id, None))
 
-    def handle_outputs(self, step_id: str, outputs: Outputs):
+    def handle_outputs(self, step_id: str, outputs: StepOutput):
         assert step_id in self.steps_outputs, f"Step {step_id} not initialized"
         assert self.viewer is not None, "Viewer not initialized"
         if step_id in self.handled_steps:

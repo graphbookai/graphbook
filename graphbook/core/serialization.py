@@ -1,6 +1,4 @@
 from typing import List, Tuple, Dict, Any
-import graphbook.steps as steps
-import graphbook.resources as resources
 import importlib.util
 from copy import deepcopy
 import re
@@ -8,6 +6,8 @@ import json
 import os
 import os.path as osp
 import traceback
+import graphbook.core.steps as steps
+import graphbook.core.resources as resources
 
 
 class GraphNodeWrapper:

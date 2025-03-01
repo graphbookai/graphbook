@@ -10,11 +10,10 @@ from typing import Optional
 from aiohttp import web
 from pathlib import Path
 from .media import create_media_server
-from .shm import MultiThreadedMemoryManager, RayMemoryManager, ImageStorageInterface
+from .shm import MultiThreadedMemoryManager, ImageStorageInterface
 from .clients import (
     AppSharedClientPool,
     AppClientPool,
-    RayClientPool,
     ClientPool,
     Client,
     WebClient,
@@ -680,14 +679,14 @@ def start_app(args):
         close_event.set()
 
 
-def async_start(host, port, proc_queue=None, view_queue=None):
-    def _fn(close_event):
+def async_start(host, port, close_event, img_storage=None, client_pool=None):
+    def _fn():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         server = Server(
             close_event=close_event,
-            client_pool=RayClientPool(close_event, proc_queue, view_queue),
-            img_mem=RayMemoryManager,
+            client_pool=client_pool,
+            img_mem=img_storage,
             host=host,
             port=port,
         )
@@ -698,8 +697,6 @@ def async_start(host, port, proc_queue=None, view_queue=None):
         finally:
             pass
 
-    close_event = mp.Event()
-
     def shutdown():
         close_event.set()
 
@@ -707,7 +704,7 @@ def async_start(host, port, proc_queue=None, view_queue=None):
 
     thread = threading.Thread(
         target=_fn,
-        args=(close_event,),
+        args=(),
         daemon=True,
     )
     thread.start()

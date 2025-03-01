@@ -3,20 +3,22 @@ from ray.dag import DAGNode
 import ray.actor
 import ray.util.queue
 from typing import (
-    Any,
     Optional,
     TypeVar,
 )
-from graphbook.processing.ray_processor import (
+from .ray_processor import (
     RayStepHandler,
     execute,
     GraphbookTaskContext,
     graphbook_task_context,
     create_graph_execution,
 )
-from graphbook.steps import Step, SourceStep, PromptStep, GeneratorSourceStep, BatchStep
-from graphbook.resources import Resource
-import graphbook.web
+from .ray_img import RayMemoryManager
+from .ray_client import RayClientPool
+from graphbook.core.steps import Step, SourceStep, PromptStep, GeneratorSourceStep, BatchStep
+from graphbook.core.resources import Resource
+import graphbook.core.web
+import multiprocessing as mp
 import logging
 import uuid
 
@@ -46,11 +48,13 @@ def init(*, host="0.0.0.0", port=8005) -> None:
         view_queue = ray.util.queue.Queue()
         cmd_queue = ray.util.queue.Queue()
         step_handler = RayStepHandler.remote(cmd_queue, view_queue)
-        graphbook.web.async_start(
+        close_event = mp.Event()
+        graphbook.core.web.async_start(
             host=host,
             port=port,
-            proc_queue=cmd_queue,
-            view_queue=view_queue,
+            close_event=close_event,
+            img_storage=RayMemoryManager,
+            client_pool=RayClientPool(close_event=close_event, proc_queue=cmd_queue, view_queue=view_queue),
         )
 
 

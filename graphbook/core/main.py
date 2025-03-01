@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import argparse
 from pathlib import Path
-from graphbook.web import start_app
-from graphbook import config
+from graphbook.core.web import start_app
+from graphbook.core import config
 
 DESCRIPTION = """
 Graphbook | ML Workflow Framework

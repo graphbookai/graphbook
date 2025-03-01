@@ -1,18 +1,18 @@
 from __future__ import annotations
 from typing import Dict, Tuple, List, Iterator, Set, Optional, Union, Any
-from ..steps import Step, PromptStep, StepOutput as Outputs
-from ..resources import Resource
-from ..decorators import get_steps, get_resources
-from ..viewer import ViewManagerInterface
-from ..plugins import setup_plugins
-from ..utils import transform_json_log, ExecutionContext
-from .. import nodes
-from graphbook.serialization import GraphResourceWrapper, get_py_as_graph
 import importlib, importlib.util, inspect
 import os
 import hashlib
 from enum import Enum
 from pathlib import Path
+from graphbook.core.steps import Step, PromptStep, StepOutput
+from graphbook.core.resources import Resource
+from graphbook.core.decorators import get_steps, get_resources
+from graphbook.core.viewer import ViewManagerInterface
+from graphbook.core.plugins import setup_plugins
+from graphbook.core.utils import transform_json_log, ExecutionContext
+from graphbook.core.serialization import GraphResourceWrapper, get_py_as_graph
+from graphbook.core import nodes
 
 
 class NodeInstantiationError(Exception):
@@ -467,7 +467,7 @@ class GraphState:
             dfs(step_id)
         return ordered_steps[::-1]
 
-    def handle_outputs(self, step_id: str, outputs: Outputs):
+    def handle_outputs(self, step_id: str, outputs: StepOutput):
         for label, records in outputs.items():
             self._queues[step_id].enqueue(label, records)
         self._step_states[step_id].add(StepState.EXECUTED)

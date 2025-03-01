@@ -4,7 +4,6 @@ from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
 from .nodes import NodeHub
 from .viewer import MultiGraphViewManager
-from .logger import LogDirectoryReader
 import tempfile
 import os.path as osp
 from pathlib import Path
@@ -14,10 +13,13 @@ import asyncio
 import shutil
 import traceback
 import sys
-from .utils import TaskLoop, RAY
+from .utils import TaskLoop
 
-if TYPE_CHECKING:
-    from graphbook.processing.ray_processor import RayStepHandler
+try:
+    from graphbook.logging import LogDirectoryReader
+except ImportError:
+    LogDirectoryReader = None
+
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
@@ -65,37 +67,6 @@ class Client:
         await self.ws.close()
 
 
-class RayProcessorInterface:
-    def __init__(self, processor: "RayStepHandler", proc_queue: mp.Queue):
-        self.processor = processor
-        self.queue = proc_queue
-
-    def get_output(self, step_id: str, pin_id: str, index: int):
-        return RAY.get(self.processor.get_output.remote(step_id, pin_id, index))
-
-    def pause(self):
-        raise NotImplementedError("RayProcessor does not support pause")
-
-    def get_queue(self):
-        return self.queue
-
-
-class RayClient(Client):
-    def __init__(
-        self,
-        sid: str,
-        ws: WebSocketResponse,
-        view_manager: MultiGraphViewManager,
-        proc_queue: mp.Queue,
-    ):
-        processor = RAY.get_actor("_graphbook_RayStepHandler")
-        self.processor_interface = RayProcessorInterface(processor, proc_queue)
-        super().__init__(sid, ws, view_manager, self.processor_interface)
-
-    def get_processor(self) -> RayProcessorInterface:
-        return self.processor_interface
-
-
 class WebClient(Client):
     def __init__(
         self,
@@ -105,7 +76,7 @@ class WebClient(Client):
         node_hub: NodeHub,
         view_manager: MultiGraphViewManager,
         setup_paths: dict,
-        log_handler: Optional[LogDirectoryReader] = None,
+        log_handler=None,
     ):
         super().__init__(sid, ws, view_manager, processor)
         self.processor = processor
@@ -133,7 +104,7 @@ class WebClient(Client):
     def get_node_hub(self) -> NodeHub:
         return self.node_hub
 
-    def get_logger(self) -> Optional[LogDirectoryReader]:
+    def get_logger(self):
         return self.log_handler
 
 
@@ -190,56 +161,6 @@ class ClientPool(TaskLoop):
         return self.clients.get(sid, None)
 
 
-class RayClientPool(ClientPool):
-    def __init__(
-        self,
-        close_event: mp.Event,
-        proc_queue: Optional[mp.Queue] = None,
-        view_queue: Optional[mp.Queue] = None,
-        options: dict = DEFAULT_CLIENT_OPTIONS,
-    ):
-        super().__init__(close_event, options)
-        self.proc_queue = proc_queue
-        self.view_queue = view_queue
-        self.view_manager = MultiGraphViewManager(
-            view_queue, close_event=self.close_event
-        )
-
-    async def add_client(self, ws: WebSocketResponse) -> Client:
-        sid = uuid.uuid4().hex
-
-        client = RayClient(
-            sid, ws, view_manager=self.view_manager, proc_queue=self.proc_queue
-        )
-        print(f"{sid}: (non-interactive)")
-        self.clients[sid] = client
-        self.ws[sid] = ws
-        await ws.send_json({"type": "sid", "data": sid})
-        return client
-
-    async def loop(self):
-        view_manager: MultiGraphViewManager = self.view_manager
-        view_data = view_manager.get_current_view_data()
-        for client in list(self.clients.values()):
-            if client.ws.closed:
-                continue
-            state_data = self.get_state_data(view_manager, client)
-            try:
-                await asyncio.gather(
-                    *[client.ws.send_json(data) for data in [*view_data, *state_data]]
-                )
-            except Exception as e:
-                print(f"Error sending to client: {e}")
-
-    def start(self):
-        super().start()
-        self.view_manager.start()
-
-    async def stop(self):
-        await super().stop()
-        self.view_manager.stop()
-
-
 class AppClientPool(ClientPool):
     def __init__(
         self,
@@ -276,7 +197,7 @@ class AppClientPool(ClientPool):
         view_manager = MultiGraphViewManager(view_queue, processor, self.close_event)
         node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
         log_handler = None
-        if self.log_dir:
+        if self.log_dir and LogDirectoryReader is not None:
             log_handler = LogDirectoryReader(
                 self.log_dir, view_queue, close_event=self.close_event
             )

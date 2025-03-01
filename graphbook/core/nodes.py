@@ -1,6 +1,4 @@
 from typing import Tuple, Optional
-from graphbook import steps, resources
-from graphbook.doc2md import convert_to_md
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from pathlib import Path
@@ -10,8 +8,10 @@ import hashlib
 import os
 import inspect
 import traceback
-from graphbook.decorators import get_steps, get_resources
-from graphbook.viewer import MultiGraphViewManager
+from graphbook.core import steps, resources
+from graphbook.core.doc2md import convert_to_md
+from graphbook.core.decorators import get_steps, get_resources
+from graphbook.core.viewer import MultiGraphViewManager
 
 
 BUILT_IN_STEPS = [
