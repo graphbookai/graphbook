@@ -18,14 +18,14 @@ license = "MIT"
 homepage = "https://graphbook.ai"
 documentation = "https://docs.graphbook.ai"
 repository = "https://github.com/graphbookai/graphbook"
-packages = [
-    { include = "*", from = "graphbook/core", to = "graphbook" },
-    { include = "graphbook/logging" },
-    { include = "graphbook/ray" }
-]
+# packages = [
+#     { include = "*", from = "graphbook/core", to = "graphbook" },
+#     { include = "graphbook/logging" },
+#     { include = "graphbook/ray" }
+# ]
 
 [tool.poetry.scripts]
-graphbook = "graphbook.main:main"
+graphbook = "graphbook.graphbook:main"
 
 [tool.poetry.dependencies]
 python = "^3.9"

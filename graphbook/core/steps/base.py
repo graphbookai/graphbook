@@ -151,7 +151,7 @@ class Step:
     
     def forward_note(self, data: Any) -> str:
         """
-        Deprecated. Use :meth:`graphbook.steps.Step.route` instead.
+        Deprecated. Use :meth:`graphbook.core.steps.Step.route` instead.
         """
         warnings.warn(
             "forward_note is deprecated and will be removed in a future version of Graphbook. Use ``route`` instead.",
@@ -161,7 +161,7 @@ class Step:
 
     def route(self, data: Any) -> Union[str, StepOutput, None]:
         """
-        Routes the item of data. Must return the corresponding output key or a dictionary of the form :data:`graphbook.steps.StepOutput`.
+        Routes the item of data. Must return the corresponding output key or a dictionary of the form :data:`graphbook.core.steps.StepOutput`.
         Is called after *on_after_item()*.
 
         Args:

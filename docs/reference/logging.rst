@@ -1,5 +1,5 @@
 Logging
 #######
 
-.. automodule:: graphbook.logger
+.. automodule:: graphbook.logging
    :members:

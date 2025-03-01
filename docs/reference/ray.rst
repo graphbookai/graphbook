@@ -9,12 +9,12 @@ Ray
 
     This section contains detailed reference documentation for working with the Ray API in Graphbook.
 
-.. autofunction:: graphbook.init
+.. autofunction:: graphbook.ray.init
 
-.. autofunction:: graphbook.run
+.. autofunction:: graphbook.ray.run
 
-.. autofunction:: graphbook.run_async
+.. autofunction:: graphbook.ray.run_async
 
-.. autofunction:: graphbook.is_graphbook_ray_initialized
+.. autofunction:: graphbook.ray.is_graphbook_ray_initialized
 
-.. autodecorator:: graphbook.remote
+.. autodecorator:: graphbook.ray.remote

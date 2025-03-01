@@ -1,4 +1,4 @@
-from .ray_api import (
+from graphbook.ray.ray_api import (
     init,
     remote,
     run,

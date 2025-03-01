@@ -6,9 +6,9 @@ from typing import Optional
 import asyncio
 import uuid
 import multiprocessing as mp
-from graphbook.clients import Client
-from graphbook.viewer import MultiGraphViewManager
-from graphbook.clients import ClientPool
+from graphbook.core.clients import Client
+from graphbook.core.viewer import MultiGraphViewManager
+from graphbook.core.clients import ClientPool
 from aiohttp.web import WebSocketResponse
 
 

@@ -1,5 +1,5 @@
-from graphbook.steps import BatchStep, SourceStep
-from graphbook.resources import Resource
+from graphbook.core.steps import BatchStep, SourceStep
+from graphbook.core.resources import Resource
 import os
 import os.path as osp
 from transformers import ViTForImageClassification, ViTImageProcessor

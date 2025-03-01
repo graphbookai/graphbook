@@ -9,6 +9,6 @@ Graphs
 
     This section contains detailed reference documentation for writing Graphbook graphs in Python.
 
-.. automodule:: graphbook.serialization
+.. autoclass:: graphbook.Graph
     :members:
     :show-inheritance:

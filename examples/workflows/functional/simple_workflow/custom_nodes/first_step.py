@@ -1,4 +1,4 @@
-from graphbook.steps import Step
+from graphbook.core.steps import Step
 from graphbook import step, event, output, param
 import random
 

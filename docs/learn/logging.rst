@@ -28,14 +28,14 @@ See :meth:`graphbook.steps.Step.log` if you want to log textual information asso
 Torchvision Transforms
 ======================
 
-To log torchvision transforms, you can use :class:`graphbook.logger.TransformsLogger`.
+To log torchvision transforms, you can use :class:`graphbook.logging.torch.TransformsLogger`.
 By passing your ``transforms.Compose`` object into the logger, you can log the images at each step of the transform and view them in Graphbook.
 
 .. code-block:: python
     :caption: transforms.py
     :emphasize-added: 1,14,15
 
-    from graphbook.logger import TransformsLogger
+    from graphbook.logging.torch import TransformsLogger
     import torchvision.transforms as transforms
     from PIL import Image
 
@@ -73,7 +73,7 @@ Example:
     :caption: train.py
     :emphasize-added: 1,15,16
 
-    from graphbook.logger import TransformsLogger
+    from graphbook.logging.torch import TransformsLogger
     import torchvision.transforms as transforms
     from torch.utils.data import DataLoader
     from PIL import Image
@@ -104,7 +104,7 @@ Example:
 Low-Level API
 =============
 
-If you want to have full control of the logging capabilities that Graphbook provides, you can use the :class:`graphbook.logger.DAGLogger` class.
+If you want to have full control of the logging capabilities that Graphbook provides, you can use the :class:`graphbook.logging.DAGLogger` class.
 Setting up the graph and logging the images requires manual setup of the nodes and references, but allows for more flexibility.
 Below is an example of usage:
 

@@ -1,5 +1,5 @@
 from graphbook import step, source, param
-from graphbook.steps import Step
+from graphbook.core.steps import Step
 
 
 @step("Custom/MyFirstSource")
