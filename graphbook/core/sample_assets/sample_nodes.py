@@ -1,30 +1,30 @@
-import torch
+import random
 from graphbook import step, source, param, event
 
 
-@step("GenerateTensors")
+@step("GenerateNumbers")
 @source()
 @param("amount", type="number", default=1000)
-def generate_tensors(ctx):
+def generate_numbers(ctx):
     """
-    Generates Python dicts containing tensors and labels.
+    Generates Python dicts containing a list of random numbers
 
     Args:
         num (int): Amount to generate
     """
     amount = ctx.amount
     for _ in range(amount):
-        yield {"tensor": torch.randn(10, 10), "label": torch.randint(0, 10, (1,)).item()}
+        yield {"out": {"numbers": [random.randint(0, 10) for _ in range(4)]}}
 
 
 @step("CalcMean")
 def calc_mean(ctx, data):
     """
-    Calculates the mean of the tensor.
+    Calculates the mean of the list.
     Will add a new key **"mean"** to the dict.
     """
-    tensor = data["tensor"]
-    mean = tensor.mean().item()
+    numbers = data["numbers"]
+    mean = sum(numbers) / len(numbers)
     data["mean"] = mean
 
 
@@ -33,8 +33,8 @@ def calc_mean(ctx, data):
 @param("shift", type="number", default=0)
 def transform(ctx, data):
     """
-    Applies a linear transformation to the tensor.
-    Will replace the tensor with the transformed tensor.
+    Applies a linear transformation to the list of numbers.
+    Will replace the list of numbers with the new list that is transformed.
 
     Args:
         scale (float): Scale factor
@@ -42,7 +42,7 @@ def transform(ctx, data):
     """
     scale = ctx.scale
     shift = ctx.shift
-    data["tensor"] = data["tensor"] * scale + shift
+    data["numbers"] = [num * scale + shift for num in data["numbers"]]
 
 
 def calc_running_mean_init(ctx):
@@ -59,10 +59,9 @@ def report_running_mean(ctx):
 @event("on_end", report_running_mean)
 def calc_running_mean(ctx, data):
     """
-    A stateful step that calculates the running mean of the tensors in the Datas.
+    A stateful step that calculates the running mean.
     Will log the running mean at the end of the workflow execution.
     """
-    tensor = data["tensor"]
-    mean = tensor.mean().item()
+    mean = data["mean"]
     ctx.running_mean = (ctx.running_mean * ctx.count + mean) / (ctx.count + 1)
     ctx.count += 1

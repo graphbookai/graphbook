@@ -134,7 +134,7 @@
                 "y": 196
             },
             "data": {
-                "name": "GenerateTensors",
+                "name": "GenerateNumbers",
                 "parameters": {
                     "amount": {
                         "type": "number",
@@ -149,7 +149,7 @@
                     "out"
                 ],
                 "category": "",
-                "label": "GenerateTensors",
+                "label": "GenerateNumbers",
                 "isCollapsed": false
             }
         }

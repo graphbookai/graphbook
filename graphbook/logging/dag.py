@@ -21,7 +21,7 @@ try:
     from torch import Tensor
     from torchvision.transforms.functional import to_pil_image
 except ImportError:
-    raise ImportError("pyarrow, torch, and torchvision are required for graphbook.logger. Try installing them e.g. `pip install graphbook[logging]`")
+    raise ImportError("pyarrow is required for graphbook.logger. You can install e.g. `pip install graphbook[logging]`")
 
 # Graphbook Log File Format:
 # --------------------------

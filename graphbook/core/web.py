@@ -61,7 +61,8 @@ class Server:
         self.close_event = close_event
         self.web_dir = web_dir
         if self.web_dir is None:
-            self.web_dir = Path(__file__).parent.joinpath("web")
+            installed_package_dir = Path(__file__).parent.parent
+            self.web_dir = installed_package_dir.joinpath("web")
         else:
             self.web_dir = Path(self.web_dir)
         routes = web.RouteTableDef()

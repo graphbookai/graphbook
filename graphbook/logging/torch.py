@@ -1,12 +1,12 @@
 from typing import List, Union, Optional, Sequence, Callable
 from torchvision.transforms import Compose
-from graphbook.logging.logger import DAGLogger, DAGNodeRef, CallableNode
+from graphbook.logging.dag import DAGLogger, DAGNodeRef, CallableNode
 
 try:
     from torchvision.transforms.v2 import Transform as TransformV2, Compose as ComposeV2
     from torchvision.transforms import Compose
 except ImportError:
-    raise ImportError("torch and torchvision are required for graphbook.logging.TransformsLogger. Try installing them e.g. `pip install graphbook[logging]`")
+    raise ImportError("torch and torchvision are required for graphbook.logging.TransformsLogger. Try installing them e.g. `pip install torch torchvision`")
 
 
 class TransformsLogger(DAGLogger):
