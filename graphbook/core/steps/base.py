@@ -126,7 +126,7 @@ class Step:
 
     def on_after_item(self, data: Any):
         """
-        Executes upon receiving a Data and after processing items
+        Executes after processing items
 
         Args:
             data (Any): The data input
@@ -499,7 +499,7 @@ class BatchStep(AsyncStep):
         The class must have a dump_fn method that takes in the output data and returns a string path to the dumped data.
 
         Args:
-            data (Data): The Data input
+            data (Any): The data input
             item_key (str): The item key to dump
             output (Any): The output data to dump
         """

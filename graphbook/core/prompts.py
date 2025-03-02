@@ -36,7 +36,7 @@ def bool_prompt(
     Prompt the user with a yes/no for binary questions.
     
     Args:
-        data (Data): The current data that triggered the prompt.
+        data (Any): The current data that triggered the prompt.
         msg (str): An informative message or inquiry to display to the user.
         style (str): The style of the bool prompt. Can be "yes/no" or "switch".
         default (bool): The default bool value.
