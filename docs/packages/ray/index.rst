@@ -1,15 +1,11 @@
+Ray
+###
+
 .. meta::
     :description: Learn how to make scalable AI/ML applications with node parameters, monitoring, and performance visualizations using Ray DAGs and Graphbook.
     :twitter:description: Learn how to make scalable AI/ML applications with node parameters, monitoring, and performance visualizations using Ray DAGs and Graphbook.
 
-.. _Ray: https://github.com/ray-project/ray
-
 .. _repo: https://github.com/graphbookai/graphbook
-
-.. _Ray_Learn:
-
-Ray and All-Code DAGs
-######################
 
 .. rst-class:: lead
 
@@ -18,7 +14,7 @@ Ray and All-Code DAGs
 .. warning::
     This feature is currently in beta. Please report any issues to the repo_.
 
-Ray_ is a distributed computing framework that allows you to scale your workflows across multiple machines.
+`Ray <https://github.com/ray-project/ray>`_ is a distributed computing framework that allows you to scale your workflows across multiple machines.
 You can build Ray DAGs in Python code using Graphbook's API which provides a wrapper around each node, so that your applications can have the following capabilities:
 
 * **Node Parameters**: Define parameters for each node and configure them in the UI
@@ -153,7 +149,7 @@ Go ahead and run the DAG with ``python myapp.py``.
 You should begin to see that a name for your execution is generated, and Graphbook should invite you to configure the application in the UI.
 You can change the parameters of the nodes and monitor the performance of each node in the UI, and once you're ready, you can click the play button on the top right.
 
-.. image:: ../_static/ray-example.png
+.. image:: /_static/ray-example.png
     :alt: Example of a Ray App
     :align: center
 
@@ -278,3 +274,8 @@ Current Limitations
     
     * **Workflow Documentation**: is not yet supported. Node documentation is still supported.
 
+
+.. toctree::
+    :hidden:
+
+    reference/index

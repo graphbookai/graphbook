@@ -7,7 +7,7 @@ Prompts
 
 .. rst-class:: lead
 
-    Here is a detailed reference of all of the available user prompts available in Graphbook for enabling human-in-the-loop and user feedback.
+    The detailed reference of all of the available user prompts available in Graphbook for enabling human-in-the-loop and user feedback.
 
 .. tip::
 

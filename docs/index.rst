@@ -57,7 +57,7 @@ In developing ML workflows for AI applications, a number of problems arise.
 
 .. seealso::
 
-    :doc:`learn/concepts`
+    :doc:`packages/core/concepts`
 
 1. Multiprocessing
 ====================
@@ -111,7 +111,8 @@ Graphbook is completely free and open source and can be deployed anywhere. We of
    :hidden:
 
    installing
-   learn/index
-   reference/index
+   packages/core/index
+   packages/logging/index
+   packages/ray/index
    examples
    contributing

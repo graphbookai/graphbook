@@ -6,7 +6,7 @@ Hello World
 ###########
 
 This guide will walk you through creating your first Graphbook workflow.
-If you have already followed :ref:`Basics`, you should be familiar with the basics of Graphbook, and we recommend that you skip this section.
+If you have already followed :ref:`Core`, you should be familiar with the basics of Graphbook, and we recommend that you skip this section.
 
 Create a Step
 =============

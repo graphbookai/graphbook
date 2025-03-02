@@ -1,9 +1,9 @@
 .. meta::
-   :description: Graphbook Reference Documentation
-   :twitter:description: Graphbook Reference Documentation
+   :description: Graphbook Core API Reference Documentation
+   :twitter:description: Graphbook Core API Reference Documentation
 
-Reference
-#########
+API Reference
+#############
 
 .. rst-class:: lead
 
@@ -22,6 +22,4 @@ Reference
     decorators
     params
     prompts
-    ray
-    logging
     utils

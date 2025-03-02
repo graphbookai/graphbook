@@ -24,17 +24,15 @@ Steps
 A **step** node defines a body of functional logic that executes when an object passes through it.
 Steps are fed any type of input data and respond with 0 or more objects at each of its output slots.
 With multiple output slots, a step can be used to route or filter data to different parts of the graph.
-Steps are stateful because they contain cached results stored inside of an output queue for the steps that depend on them.
-Each instance of a step is coupled with a special type of queue that stores the results of the step's execution for consumption by other steps.
+Each step contains cached results stored inside of an output queue for the steps that depend on them.
 Steps can be implemented as a function (with decorators) or as a class inheriting a base Step class.
-The functional way is recommended because it is more concise and less error prone.
 In addition to that, steps can be implemented as stateful purposely because they are normal class instances in Python that can contain members even if they are implemented the functional way.
 The following are examples of some of the things that a step can do:
 
-* Act as a source, where it loads them from an external source or creates them from another format such as a CSV file. See :func:`graphbook.source`.
+* Act as a source, where it loads data from an external source such as a CSV file or S3 bucket. See :func:`graphbook.source`.
 * Load and batch data in parallel via our :ref:`custom multiprocessing method<Workers>` and feed them as inputs to ML models. See :func:`graphbook.batch`.
 * Save the results of the ML model to disk in parallel via our custom multiprocessing method.
-* Filter data based on certain conditions. See :class:`graphbook.steps.Split`.
+* Filter data based on certain conditions. See :meth:`graphbook.steps.Step.route`.
 * Prompt users in the web UI for dynamic, manual control or other forms of human feedback during graph execution. See :func:`graphbook.prompt`.
 
 .. tab-set::

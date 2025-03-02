@@ -2,18 +2,23 @@
     :description: Learn how to log your images and visualize your image pipelines with Graphbook.
     :twitter:description: Learn how to log your images and visualize your image pipelines with Graphbook.
 
+.. _Logging:
+
+Logging
+#######
+
+.. rst-class:: lead
+
+    Log your images and visualize your ML apps with Graphbook!
+
+
 .. _Transforms: https://pytorch.org/vision/stable/transforms.html
 
 .. _repo: https://github.com/graphbookai/graphbook
 
-.. _Logging_Learn:
 
 Log Your Image Pipelines
-########################
-
-.. rst-class:: lead
-
-    Log your images and visualize your image pipelines with Graphbook!
+========================
 
 .. warning::
     This feature is currently in beta. Please report any issues to the repo_.
@@ -62,7 +67,7 @@ To view your image logs, start graphbook (simply by running ``graphbook`` in you
 This will open the Graphbook UI in your browser, where you can view your image logs.
 You should see ``my_transforms.log`` underneath **Executions** on the bottom left. Click on it to view the images:
 
-.. image:: ../_static/logging-pipelines.png
+.. image:: /_static/logging-pipelines.png
     :alt: Example of logging image pipelines
     :align: center
 
@@ -144,3 +149,9 @@ Below is an example of usage:
 
     flip_ref = l.node("flip", "horizontally flips the image", ref)
     flip_ref.log(flip(img))
+
+
+.. toctree::
+    :hidden:
+
+    reference/index

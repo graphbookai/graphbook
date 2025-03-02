@@ -18,10 +18,10 @@ import uuid
 
 try:
     import pyarrow as pa
-    from torch import Tensor
-    from torchvision.transforms.functional import to_pil_image
 except ImportError:
-    raise ImportError("pyarrow is required for graphbook.logger. You can install e.g. `pip install graphbook[logging]`")
+    raise ImportError(
+        "pyarrow is required for graphbook.logger. You can install e.g. `pip install graphbook[logging]`"
+    )
 
 # Graphbook Log File Format:
 # --------------------------
@@ -351,6 +351,7 @@ class DAGStreamReader:
 class DAGNodeRef:
     """
     Reference to a DAG node capable of logging images.
+    You should not create this directly, but instead use the :meth:`graphbook.logging.DAGLogger.node` to create one.
 
     Args:
         id: Unique identifier for the node
@@ -377,22 +378,18 @@ class DAGNodeRef:
         self.lock = lock
         self.back_refs = back_refs
 
-    def log(self, pil_or_tensor: Union[Image.Image, Tensor]):
+    def log(self, image: Image.Image):
         """
         Logs an image to the DAG.
 
         Args:
-            pil_or_tensor: PIL Image or Tensor to log
+            pil_or_tensor: PIL Image
         """
-        buf = BytesIO()
-        if isinstance(pil_or_tensor, Image.Image):
-            pil_or_tensor.save(buf, format="PNG")
-        elif isinstance(pil_or_tensor, Tensor):
-            pil: Image.Image = to_pil_image(pil_or_tensor)
-            pil.save(buf, format="PNG")
-        else:
-            raise TypeError("Input should be a PIL Image or a Tensor.")
+        if not isinstance(image, Image.Image):
+            raise TypeError("Input should be a PIL Image.")
 
+        buf = BytesIO()
+        image.save(buf, format="PNG")
         self._write_log(buf)
 
     def _write_log(self, buf: BytesIO):

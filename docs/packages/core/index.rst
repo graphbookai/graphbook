@@ -1,15 +1,25 @@
-.. meta::
-    :description: Discover the basics. Learn how to create your first workflow in Graphbook.
-    :twitter:description: Discover the basics. Learn how to create your first workflow in Graphbook.
+.. _Core:
 
-.. _Basics:
+Core
+####
 
-Basics
-######
+.. rst-class:: lead
 
-If you haven't already, make sure to install Graphbook by following the installation :ref:`guide<Installing>`.
-Once Graphbook is installed, execute ``graphbook`` in a directory that you want to create your workflows in.
-Also, because workflow files are serialized as **.json** files, it is recommended to track your workflows and custom nodes in a version control system like Git.
+    Introducing Graphbook Core, the package that provides the basics to building ML apps. 
+
+
+Graphbook Core contains the basic building blocks for building ML applications in Graphbook.
+It provides an API for building custom nodes (i.e., steps and resources) for building observable, interactive, and scalable ML applications.
+
+Getting Started
+===============
+
+To get started, make sure Graphbook is installed (e.g ``pip install graphbook``). See :ref:`Installing` for more installation options.
+
+
+Workflow files can be written as **.json** or **.py** files, so it's recommended to track your workflow files and custom nodes in a version control system like Git.
+Inside of an empty directory, you can begin like so:
+
 
 .. code-block:: console
 
@@ -18,7 +28,7 @@ Also, because workflow files are serialized as **.json** files, it is recommende
     $ git init
     $ graphbook
 
-Executing ``graphbook`` should automatically create a directory called `workflow` containing two subdirectories called `custom_nodes` and `docs` like so:
+Executing ``graphbook`` starts the Graphbook server and automatically creates the directory structure as follows:
 
 ::
 
@@ -29,6 +39,9 @@ Executing ``graphbook`` should automatically create a directory called `workflow
 
 All of your custom nodes should be located inside of `workflow/custom_nodes`.
 Graphbook is tracking that directory for any files ending with **.py** and will automatically detect classes that inherit from **Step** or **Resource** and functions defined and decorated with **@step** or **@resource**.
+
+Navigate to http://localhost:8005 in your browser to start building ML workflows.
+
 
 Workflows
 =========
@@ -55,7 +68,7 @@ Go into the Graphbook UI (http://localhost:8005), and create a new workflow by a
     Graphbook needs the .json file to be structured specifically to properly serialize the graph and will create the file with such structure if you create it through the UI.
 
 This is where you can create your workflows.
-When you modify you workflow, the changes are automatically saved to the **.json** file.
+When you modify your workflow, the changes are automatically saved to the **.json** file.
 It is recommended to regularly commit the **.json** file to your version control system.
 
 Steps
@@ -562,3 +575,12 @@ Categories can be multi-leveled with more forward slashes.
         @step("Custom/Producer/A") # Will override the previous step
         def b(ctx, data: dict):
             ...
+
+
+.. toctree::
+    :hidden:
+
+    concepts
+    guides/index
+    examples/index
+    reference/index

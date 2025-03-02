@@ -6,8 +6,8 @@
             "id": "1",
             "type": "step",
             "position": {
-                "x": 430.5,
-                "y": 122
+                "x": 756,
+                "y": 200
             },
             "data": {
                 "name": "CalcMean",
@@ -27,8 +27,8 @@
             "id": "2",
             "type": "step",
             "position": {
-                "x": 430.5,
-                "y": 227
+                "x": 956,
+                "y": 315
             },
             "data": {
                 "name": "CalcRunningMean",
@@ -48,8 +48,8 @@
             "id": "3",
             "type": "step",
             "position": {
-                "x": 634.5,
-                "y": 122
+                "x": 956,
+                "y": 200
             },
             "data": {
                 "name": "Split",
@@ -74,28 +74,28 @@
             "id": "4",
             "type": "resource",
             "position": {
-                "x": 15.5,
-                "y": 122
+                "x": 553.2901813434452,
+                "y": 334.28631892901365
             },
             "data": {
                 "name": "Function",
                 "parameters": {
                     "val": {
                         "type": "function",
-                        "value": "def split_fn(note):\n  return data[\"mean\"] > 0"
+                        "value": "def split_fn(data):\n  return data[\"mean\"] > 5"
                     }
                 },
                 "category": "Util",
                 "label": "Function",
-                "isCollapsed": true
+                "isCollapsed": false
             }
         },
         {
             "id": "7",
             "type": "step",
             "position": {
-                "x": 233.5,
-                "y": 105
+                "x": 556,
+                "y": 200
             },
             "data": {
                 "name": "Transform",
@@ -130,8 +130,8 @@
             "id": "8",
             "type": "step",
             "position": {
-                "x": 15.5,
-                "y": 196
+                "x": 200,
+                "y": 328
             },
             "data": {
                 "name": "GenerateNumbers",
@@ -182,20 +182,20 @@
             "id": "reactflow__edge-7out-1in"
         },
         {
-            "source": "7",
-            "sourceHandle": "out",
-            "target": "2",
-            "targetHandle": "in",
-            "data": {},
-            "id": "reactflow__edge-7out-2in"
-        },
-        {
             "source": "8",
             "sourceHandle": "out",
             "target": "7",
             "targetHandle": "in",
             "data": {},
             "id": "reactflow__edge-8out-7in"
+        },
+        {
+            "source": "1",
+            "sourceHandle": "out",
+            "target": "2",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-1out-2in"
         }
     ]
 }

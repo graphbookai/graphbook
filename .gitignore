@@ -26,8 +26,6 @@ node_modules
 dist
 dist-ssr
 *.local
-/graphbook/web
-
 
 # Editor directories and files
 .vscode/*

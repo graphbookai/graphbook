@@ -1,12 +1,47 @@
 from typing import List, Union, Optional, Sequence, Callable
 from torchvision.transforms import Compose
 from graphbook.logging.dag import DAGLogger, DAGNodeRef, CallableNode
+from pathlib import Path
 
 try:
+    from PIL import Image
+    from torch import Tensor
+    from torchvision.transforms.functional import to_pil_image
     from torchvision.transforms.v2 import Transform as TransformV2, Compose as ComposeV2
     from torchvision.transforms import Compose
 except ImportError:
-    raise ImportError("torch and torchvision are required for graphbook.logging.TransformsLogger. Try installing them e.g. `pip install torch torchvision`")
+    raise ImportError(
+        "torch and torchvision are required for graphbook.logging.TransformsLogger. Try installing them e.g. `pip install torch torchvision`"
+    )
+
+
+class TensorDAGNodeRef(DAGNodeRef):
+    """
+    Inherits from DAGNodeRef and adds the ability to log PIL images or tensors.
+    You should not create this directly, but instead use the :meth:`graphbook.logging.TransformsLogger.node` to create one.
+    """
+
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        doc: str,
+        filepath: Path,
+        lock,
+        *back_refs: List["TensorDAGNodeRef"]
+    ):
+        super().__init__(id, name, doc, filepath, lock, *back_refs)
+
+    def log(self, pil_or_tensor: Union[Image.Image, Tensor]):
+        """
+        Logs a PIL image or tensor to the node in the associated DAG.
+
+        Args:
+            pil_or_tensor: The PIL image or tensor to log.
+        """
+        if isinstance(pil_or_tensor, Tensor):
+            pil_or_tensor = to_pil_image(pil_or_tensor)
+        return super().log(pil_or_tensor)
 
 
 class TransformsLogger(DAGLogger):
@@ -61,7 +96,34 @@ class TransformsLogger(DAGLogger):
             last_ref = node
         return Compose(new_sequence)
 
-    def _handle_single(self, t: Callable, back_refs: List[DAGNodeRef]):
+    def node(
+        self, name: str, doc: str, *back_refs: List[TensorDAGNodeRef]
+    ) -> TensorDAGNodeRef:
+        """
+        Creates a new node in the DAG that can log PIL images or tensors.
+
+        Args:
+            name: Name of the node
+            doc: Description of the node
+            back_refs: List of back references to other nodes
+
+        Returns:
+            TensorDAGNodeRef: The reference to the new node
+        """
+        node = TensorDAGNodeRef(
+            str(self.id_idx), name, doc, self.filepath, self.lock, *back_refs
+        )
+        self._write_node(
+            str(self.id_idx),
+            name=name,
+            doc=doc,
+            back_refs=[ref.id for ref in back_refs],
+        )
+        self.nodes.append(node)
+        self.id_idx += 1
+        return node
+
+    def _handle_single(self, t: Callable, back_refs: List[TensorDAGNodeRef]):
         name = t.__class__.__name__
         doc = t.__doc__ if t.__doc__ is not None else ""
         return self.node(name, doc, *back_refs)

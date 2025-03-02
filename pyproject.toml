@@ -18,14 +18,9 @@ license = "MIT"
 homepage = "https://graphbook.ai"
 documentation = "https://docs.graphbook.ai"
 repository = "https://github.com/graphbookai/graphbook"
-# packages = [
-#     { include = "*", from = "graphbook/core", to = "graphbook" },
-#     { include = "graphbook/logging" },
-#     { include = "graphbook/ray" }
-# ]
 
 [tool.poetry.scripts]
-graphbook = "graphbook.graphbook:main"
+graphbook = "graphbook.core.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -63,10 +58,10 @@ optional = true
 
 [tool.poetry.group.peer.dependencies]
 ray = "^2.41.0"
+pyarrow = "^19.0.0"
 torch = "^2.0.0"
 torchvision = "^0.18.1"
-pyarrow = "^19.0.0"
 
 [tool.poetry.extras]
 ray = ["ray"]
-logging = ["torch", "torchvision", "pyarrow"]
+logging = ["pyarrow"]

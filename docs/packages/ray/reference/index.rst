@@ -2,8 +2,8 @@
     :description: Graphbook Reference Documentation for the Ray API to build distributable Ray Applications.
     :twitter:description: Graphbook Reference Documentation for the Ray API to build distributable Ray Applications.
 
-Ray
-###
+API Reference
+#############
 
 .. rst-class:: lead
 
