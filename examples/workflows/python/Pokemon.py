@@ -24,7 +24,7 @@ This workflow uses a *convolutional neural network (CNN)* to classify incoming P
     resource_5 = g.resource(ViTImageProcessorResource)
 
     # Setup parameters
-    step_0.param('image_dir', "/media/sam/shared/alternative/pokemon")
+    step_0.param('image_dir', "/data/pokemon")
     step_1.param('batch_size', 8)
     step_1.param('item_key', "image")
     step_1.param('model', resource_4)
