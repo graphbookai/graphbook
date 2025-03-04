@@ -54,7 +54,8 @@ Keep in mind that when working with Graphbook, the development cycle in building
 
 #. **Assemble in Graphbook**
 
-    Assemble an ML workflow in the Graphbook web UI with your own processing nodes
+    Assemble an ML workflow in the Graphbook web UI with your own processing nodes.
+    Note: as of v0.12.0, you can also create workflows in Python. See :ref:`Python Workflows`.
 
 #. **Execute**
 
@@ -390,7 +391,7 @@ Resources
 =========
 
 Resources are not part of the flow of data but can hold Python objects such as PyTorch models that can be used by other steps.
-You can create a resource node by using the :func:`graphbook.resource` decorator or by inheriting from the class :class:`graphbook.steps.Resource`.
+You can create a resource node by using the :func:`graphbook.resource` decorator or by inheriting from the class :class:`graphbook.resources.Resource`.
 
 .. tab-set::
 
@@ -411,7 +412,7 @@ You can create a resource node by using the :func:`graphbook.resource` decorator
         .. code-block:: python
             :caption: custom_nodes/my_first_resource.py
 
-            from graphbook.steps import Resource
+            from graphbook.resources import Resource
             import torch
 
             class MyModel(Resource):

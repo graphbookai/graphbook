@@ -11,4 +11,14 @@ Graphs
 
 .. autoclass:: graphbook.Graph
     :members:
+
+.. autoclass:: graphbook.core.serialization.GraphNodeWrapper
+    :members:
+
+.. autoclass:: graphbook.core.serialization.GraphStepWrapper
+    :members:
+    :show-inheritance:
+
+.. autoclass:: graphbook.core.serialization.GraphResourceWrapper
+    :members:
     :show-inheritance:

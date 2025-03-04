@@ -14,6 +14,7 @@ Guides
 .. toctree::
     :caption: In this section
 
+    python-workflows
     load-images
     prompt
     filter

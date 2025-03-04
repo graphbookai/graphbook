@@ -11,6 +11,14 @@ import graphbook.core.resources as resources
 
 
 class GraphNodeWrapper:
+    """
+    Base class for step and resource nodes returned by the Graph class.
+    Do not create this directly, use the `Graph.step` or `Graph.resource` methods instead.
+    
+    Args:
+        node (type): The node to wrap
+        id (str): The unique identifier for the node
+    """
     def __init__(self, node: type, id: str):
         self.id = id
         self.params: Dict[str, Any] = {}
@@ -60,15 +68,15 @@ class GraphStepWrapper(GraphNodeWrapper):
         self.deps: List[Tuple[str, GraphStepWrapper]] = []
         super().__init__(node, id)
 
-    def bind(self, tgt: "GraphStepWrapper", key="out"):
+    def bind(self, src: "GraphStepWrapper", key="out"):
         """
         Binds this step to the output of another step
 
         Args:
-            tgt (GraphStepWrapper): The target step to bind to
-            key (str): The output key on the target step to bind to
+            src (GraphStepWrapper): The source step to bind to
+            key (str): The output key on the source step to bind to
         """
-        self.deps.append((key, tgt))
+        self.deps.append((key, src))
 
     def serialize(self):
         step_deps = self.deps
@@ -215,6 +223,10 @@ def serialize_workflow_as_py(
     filepath: str,
     unresolved_modules="custom_nodes",
 ):
+    """
+    Not in use due to instability.
+    Can result in incosistencies with styling/formatting and the resolution of imported modules.
+    """
     def check_node(node):
         if node.get("type") not in ["step", "resource"]:
             raise ValueError(
