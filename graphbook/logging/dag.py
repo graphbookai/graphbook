@@ -1,4 +1,4 @@
-from typing import List, Tuple, Iterator, Union, Optional, Dict, Any, Callable
+from typing import List, Tuple, Iterator, Optional, Dict, Any, Callable
 from io import BufferedReader, BytesIO
 from PIL import Image
 from pathlib import Path
@@ -7,7 +7,7 @@ from watchdog.observers import Observer
 from graphbook.core.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from graphbook.core.utils import TaskLoop, transform_json_log
 from graphbook.core.shm import MultiThreadedMemoryManager
-from graphbook.core.steps import StepOutput as Outputs
+from graphbook.core.steps import StepOutput
 from multiprocessing import Lock
 import json
 import struct
@@ -19,9 +19,10 @@ import uuid
 try:
     import pyarrow as pa
 except ImportError:
-    raise ImportError(
-        "pyarrow is required for graphbook.logger. You can install e.g. `pip install graphbook[logging]`"
+    print(
+        "pyarrow is required for graphbook.logging. You can install all required dependencies with `pip install graphbook[logging]`"
     )
+    exit(1)
 
 # Graphbook Log File Format:
 # --------------------------
@@ -108,7 +109,7 @@ class LogStates:
                 self.steps_outputs[step_id] = []
                 self.viewer.handle_queue_size(step_id, {"out": 0})
 
-    def handle_outputs(self, step_id: str, outputs: Outputs):
+    def handle_outputs(self, step_id: str, outputs: StepOutput):
         assert step_id in self.steps_outputs, f"Step {step_id} not initialized"
         assert self.viewer is not None, "Viewer not initialized"
 

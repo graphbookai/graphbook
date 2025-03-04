@@ -16,22 +16,30 @@ Logging
 
 .. _repo: https://github.com/graphbookai/graphbook
 
+Graphbook allows you to log and monitor your image transformation outputs during training or inference.
+For example, you may find that this is useful for debugging and visualizing your data augmentations during vision-based training with PyTorch.
 
-Log Your Image Pipelines
-========================
+**Important:** This feature should not be confused with the logging feature that exists for :ref:`Graphbook Workflows <Workflows>`.
+See :meth:`graphbook.steps.Step.log` if you want to log textual information associated with specific nodes in your Graphbook Pipelines.
+
+Getting Started
+===============
 
 .. warning::
     This feature is currently in beta. Please report any issues to the repo_.
 
-Graphbook allows you to log images and monitor your image pipeline outputs.
-Compatible with the `torchvision.transforms <https://pytorch.org/vision/stable/transforms.html>`_ library, Graphbook will log each transform output.
-This is useful for debugging and visualizing your data augmentations during vision-based training with PyTorch.
+To get started, install Graphbook along with the graphbook.logging dependencies with:
 
-**Important:** This feature should not be confused with the logging feature that exists for *Graphbook Pipelines*.
-See :meth:`graphbook.steps.Step.log` if you want to log textual information associated with specific nodes in your Graphbook Pipelines.
+.. code-block:: console
+
+    $ pip install graphbook[logging]
+
 
 Torchvision Transforms
 ======================
+
+Compatible with the `torchvision.transforms <https://pytorch.org/vision/stable/transforms.html>`_ library, Graphbook will log each transform output.
+This is useful for debugging and visualizing your data augmentations during vision-based training with PyTorch.
 
 To log torchvision transforms, you can use :class:`graphbook.logging.torch.TransformsLogger`.
 By passing your ``transforms.Compose`` object into the logger, you can log the images at each step of the transform and view them in Graphbook.

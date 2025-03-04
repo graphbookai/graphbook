@@ -1,7 +1,15 @@
-import ray
-from ray.dag import DAGNode
+try:
+    import ray
+except ImportError:
+    raise ImportError(
+        "ray is required for graphbook.ray. You can install all required dependencies with `pip install graphbook[ray]`"
+    )
+
+
 import ray.actor
 import ray.util.queue
+from ray.dag import DAGNode
+
 from typing import (
     Optional,
     TypeVar,

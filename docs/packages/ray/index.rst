@@ -11,9 +11,6 @@ Ray
 
     Build distributable Ray Apps with Graphbook!
 
-.. warning::
-    This feature is currently in beta. Please report any issues to the repo_.
-
 `Ray <https://github.com/ray-project/ray>`_ is a distributed computing framework that allows you to scale your workflows across multiple machines.
 You can build Ray DAGs in Python code using Graphbook's API which provides a wrapper around each node, so that your applications can have the following capabilities:
 
@@ -25,6 +22,18 @@ You can build Ray DAGs in Python code using Graphbook's API which provides a wra
 
 Although using Ray can make your applications more scalable, there are some limitations to be aware of. See :ref:`Ray_Limitations`.
 
+Getting Started
+===============
+
+.. warning::
+    This feature is currently in beta. Please report any issues to the repo_.
+
+To get started, install Graphbook along with the graphbook.ray dependencies with:
+
+.. code-block:: console
+
+    $ pip install graphbook[ray]
+
 Source Steps
 ============
 
@@ -35,7 +44,7 @@ The following should be a familiar example. We will create a source node that ge
     :caption: myapp.py
     :emphasize-added: 5,7
 
-    import graphbook as gb
+    import graphbook.ray as gb
     from graphbook.steps import Step, SourceStep
     import torch
 

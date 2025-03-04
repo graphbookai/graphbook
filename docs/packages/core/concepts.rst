@@ -3,9 +3,10 @@
 Concepts
 ########
 
+.. _Workflows:
 
 Workflows
-*********
+=========
 
 A Graphbook **workflow** is a directed acyclic graph (DAG) that acts as a data processing pipeline well-suited for ML inference.
 The nodes are the building blocks of the workflow and can be one of two types: :ref:`step<Steps>` and :ref:`resource<Resources>`.
@@ -19,7 +20,7 @@ The workflow can be visualized and monitored by anyone with access to the Graphb
 .. _Steps:
 
 Steps
-*****
+=====
 
 A **step** node defines a body of functional logic that executes when an object passes through it.
 Steps are fed any type of input data and respond with 0 or more objects at each of its output slots.
@@ -87,7 +88,7 @@ The following are examples of some of the things that a step can do:
 .. _Resources:
 
 Resources
-*********
+=========
 
 A **resource** simply holds static information as a Python variable that is meant to serve as a parameter to another resource or step node. A prime example of a resource is a model. 
 
@@ -128,7 +129,7 @@ A **resource** simply holds static information as a Python variable that is mean
 .. _How Nodes Are Reloaded:
 
 How Nodes Are Reloaded
-***********************
+======================
 
 In Graphbook, you can create custom Python-defined nodes inside of a tracked directory (typically called *custom_nodes*).
 In between graph executions, the state of the graph is stored in memory to support caching of outputs and to only re-execute parts of the graph that have changed.
@@ -148,7 +149,7 @@ Thus, it is best practice to separate your nodes into different files to avoid u
 .. _Workers:
 
 Workers
-********
+=======
 
 In order to maximize the utilization of the GPU during graph execution, we parallelize the preparation of inputs and outputs
 for each BatchStep (an extension of Step) across a number of workers.
@@ -160,7 +161,7 @@ The Graphbook worker implementation also accounts for graph changes.
 In between graph executions, the workers are restarted to register any code changes, and the queues along with its elements are retained and given to the new workers.
 
 Logic Details
-=============
+*************
 
 .. image:: /_static/concepts/graphbookworkersgraph.svg
     :alt: Example Graph
@@ -195,7 +196,7 @@ The logic behind the workers is detailed in the following steps (1-6):
     We do this because if a following Step depends on the saving of a particular item from that data, then that step will execute too soon.
 
 Worker Performance Visualization
-=================================================
+********************************
 
 Sometimes, we do not know exactly how many workers will be needed. For this reason, Graphbook will offer an auto-scaling feature that will automatically adjust the number of workers based on the workload. 
 For now, Graphbook offers a visualization about the performance of the workers that can indicate to the user when there are too many or too few workers, so that they can manually adjust the number of workers that they need.

@@ -11,3 +11,6 @@ API Reference
 
 .. automodule:: graphbook.logging
    :members:
+
+.. automodule:: graphbook.logging.torch
+   :members:

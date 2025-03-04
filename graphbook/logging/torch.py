@@ -1,24 +1,23 @@
 from typing import List, Union, Optional, Sequence, Callable
-from torchvision.transforms import Compose
 from graphbook.logging.dag import DAGLogger, DAGNodeRef, CallableNode
+from PIL import Image
 from pathlib import Path
 
 try:
-    from PIL import Image
     from torch import Tensor
     from torchvision.transforms.functional import to_pil_image
     from torchvision.transforms.v2 import Transform as TransformV2, Compose as ComposeV2
     from torchvision.transforms import Compose
 except ImportError:
     raise ImportError(
-        "torch and torchvision are required for graphbook.logging.TransformsLogger. Try installing them e.g. `pip install torch torchvision`"
+        "torch and torchvision are required for graphbook.logging.torch. Try installing them e.g. `pip install torch torchvision`"
     )
 
 
 class TensorDAGNodeRef(DAGNodeRef):
     """
     Inherits from DAGNodeRef and adds the ability to log PIL images or tensors.
-    You should not create this directly, but instead use the :meth:`graphbook.logging.TransformsLogger.node` to create one.
+    You should not create this directly, but instead use the :meth:`graphbook.logging.torch.TransformsLogger.node` to create one.
     """
 
     def __init__(
