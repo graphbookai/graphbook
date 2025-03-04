@@ -22,7 +22,7 @@ class GraphNodeWrapper:
     def param(self, key: str, arg: Any):
         """
         Sets a parameter on the node
-        
+
         Args:
             key (str): The parameter key
             arg (Any): The parameter value
@@ -49,11 +49,12 @@ class GraphStepWrapper(GraphNodeWrapper):
     """
     A wrapper class around a step node that allows for binding dependencies and setting parameters.
     Do not create this directly, use the `Graph.step` method instead.
-    
+
     Args:
         node (Step): The step node to wrap
         id (str): The unique identifier for the node
     """
+
     def __init__(self, node: steps.Step, id: str):
         self.node = node
         self.deps: List[Tuple[str, GraphStepWrapper]] = []
@@ -62,7 +63,7 @@ class GraphStepWrapper(GraphNodeWrapper):
     def bind(self, tgt: "GraphStepWrapper", key="out"):
         """
         Binds this step to the output of another step
-        
+
         Args:
             tgt (GraphStepWrapper): The target step to bind to
             key (str): The output key on the target step to bind to
@@ -83,11 +84,12 @@ class GraphResourceWrapper(GraphNodeWrapper):
     """
     A wrapper class around a resource node that allows for setting parameters.
     Do not create this directly, use the `Graph.resource` method instead.
-    
+
     Args:
         node (Resource): The resource node to wrap
         id (str): The unique identifier for the node
     """
+
     def __init__(self, node: resources.Resource, id: str):
         self.node = node
         super().__init__(node, id)
@@ -104,8 +106,10 @@ class Graph:
     Creates a new graph object that can be used to define a workflow.
     Use the `step` and `resource` methods to add nodes to the graph.
     """
+
     def __init__(self):
         self.id = 0
+        self.doc = None
         self.nodes: List[GraphNodeWrapper] = []
 
     def step(self, n: steps.Step) -> GraphStepWrapper:
@@ -126,10 +130,10 @@ class Graph:
     def resource(self, n: resources.Resource) -> GraphResourceWrapper:
         """
         Creates a new resource node in the graph
-        
+
         Args:
             n (Resource): The resource to add to the graph
-            
+
         Returns:
             GraphResourceWrapper: A wrapper around the resource node that can have parameters set
         """
@@ -137,6 +141,15 @@ class Graph:
         self.nodes.append(n)
         self.id += 1
         return n
+
+    def md(self, text: str):
+        """
+        Adds markdown documentation to demonstrate usage of the workflow
+
+        Args:
+            text (str): The markdown text to add
+        """
+        self.doc = text
 
     def serialize(self) -> dict:
         """
@@ -165,6 +178,7 @@ class Graph:
         The function should contain calls to the `step` and `resource` methods to define the workflow.
         Use the `bind` and `param` methods on the step and resource nodes to define dependencies and parameters.
         """
+
         def decorator(serialized_func):
             serialized_func()
             module = serialized_func.__globals__
@@ -178,7 +192,10 @@ class NoGraphFound(Exception):
 
 
 def get_py_as_workflow(filepath: str) -> dict:
-    return get_py_as_graph(filepath).serialize()
+    graph = get_py_as_graph(filepath)
+    G = graph.serialize()
+    doc = graph.doc
+    return {"G": G, "doc": doc}
 
 
 def get_py_as_graph(filepath: str) -> Graph:

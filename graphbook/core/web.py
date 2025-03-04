@@ -468,7 +468,7 @@ class AppServer(Server):
             filepath = str(root_path.joinpath(filepath))
             try:
                 workflow = get_py_as_workflow(filepath)
-                return web.json_response(workflow)
+                return web.json_response(workflow) # { G , doc }
             except NoGraphFound:
                 raise web.HTTPNotFound()
             except Exception as e:
