@@ -1,4 +1,4 @@
-from graphbook.steps import SourceStep
+from graphbook.core.steps import SourceStep
 import torchvision.transforms.functional as F
 import os
 import os.path as osp

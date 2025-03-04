@@ -1,5 +1,5 @@
-from graphbook.steps import BatchStep
-from graphbook.resources import Resource
+from graphbook.core.steps import BatchStep
+from graphbook.core.resources import Resource
 from transformers import AutoModelForImageSegmentation
 import torchvision.transforms.functional as F
 import torch.nn.functional

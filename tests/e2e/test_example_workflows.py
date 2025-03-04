@@ -14,8 +14,7 @@ def server():
     server_process = subprocess.Popen(
         [
             "python",
-            "-m",
-            "graphbook.main",
+            "graphbook/core/cli.py",
             "--web_dir",
             "web/dist",
             "--root_dir",

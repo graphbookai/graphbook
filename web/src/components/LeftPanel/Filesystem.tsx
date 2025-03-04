@@ -63,16 +63,16 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
         setFiles(files.children);
         setFilesRoot(filesRoot);
 
-        // if (!selectedWorkflow) {
-        //     const anyJson = files.children.find((item) => {
-        //         const filename = item.path;
-        //         return filename.slice(-5) === '.json';
-        //     });
-        //     if (anyJson) {
-        //         setWorkflow(anyJson.path);
-        //         setSelectedWorkflow(anyJson.path);
-        //     }
-        // }
+        if (!selectedWorkflow) {
+            const anyJson = files.children.find((item) => {
+                const filename = item.path;
+                return filename.slice(-5) === '.json';
+            });
+            if (anyJson) {
+                setWorkflow(anyJson.path);
+                setSelectedWorkflow(anyJson.path);
+            }
+        }
     }, [API, selectedWorkflow]);
 
     useEffect(() => {

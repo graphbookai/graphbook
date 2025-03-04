@@ -23,7 +23,6 @@ Features
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
 * Custom buildable nodes with Python via OOP and functional patterns
-* Automatic batching for Pytorch tensors
 * Multiprocessing I/O to and from disk and network
 * Customizable multiprocessing functions
 * Ability to execute entire graphs, or individual subgraphs/nodes
@@ -58,7 +57,7 @@ In developing ML workflows for AI applications, a number of problems arise.
 
 .. seealso::
 
-    :doc:`learn/concepts`
+    :doc:`packages/core/concepts`
 
 1. Multiprocessing
 ====================
@@ -112,7 +111,8 @@ Graphbook is completely free and open source and can be deployed anywhere. We of
    :hidden:
 
    installing
-   learn/index
-   reference/index
+   packages/core/index
+   packages/logging/index
+   packages/ray/index
    examples
    contributing

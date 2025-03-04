@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-from graphbook.serialization import convert_json_workflows_to_py
+from graphbook.core.serialization import convert_json_workflows_to_py
 
 
 def main():

@@ -1,5 +1,5 @@
-import graphbook.steps as steps
-import graphbook.resources as resources
+import graphbook.core.steps as steps
+import graphbook.core.resources as resources
 
 class SimpleStep(steps.Step):
     RequiresInput = True

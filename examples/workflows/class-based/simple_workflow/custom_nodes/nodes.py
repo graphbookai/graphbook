@@ -1,4 +1,4 @@
-from graphbook.steps import Step
+from graphbook.core.steps import Step
 import random
 
 
@@ -27,7 +27,7 @@ class MyFirstStep(Step):
         return "B"
 
 
-from graphbook.steps import SourceStep
+from graphbook.core.steps import SourceStep
 
 
 class MyFirstSource(SourceStep):
