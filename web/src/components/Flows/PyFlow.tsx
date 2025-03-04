@@ -33,11 +33,20 @@ type NodeMenu = {
     left: number;
 };
 
+const NoDocFound = `
+### No documentation found.
+
+To add documentation use the Graph.md method.
+
+See our Graphbook docs at https://docs.graphbook.ai
+`;
+
 export default function Flow({ filename }) {
     const { token } = useToken();
     const API = useAPI();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [doc, setDoc] = useState(null);
     const [nodeMenu, setNodeMenu] = useState<NodeMenu | null>(null);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
@@ -61,7 +70,8 @@ export default function Flow({ filename }) {
 
             const nodes: Node[] = [];
             const edges: Edge[] = [];
-            Object.entries<any>(graph).forEach(([nodeId, node]) => {
+            const { G, doc } = graph;
+            Object.entries<any>(G).forEach(([nodeId, node]) => {
                 Object.values<any>(node.parameters).forEach((param) => {
                     if (param.type !== "resource" && param.default !== undefined) {
                         param.value = param.default;
@@ -119,6 +129,7 @@ export default function Flow({ filename }) {
             notFound.current = false;
             setNodes(nodes);
             setEdges(edges);
+            setDoc(doc);
             setIsLoading(false);
         }
 
@@ -213,7 +224,7 @@ export default function Flow({ filename }) {
                             <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
                                 <ControlRow />
                             </div>
-                            <Docs />
+                            <Docs doc={doc || NoDocFound} />
                         </div>
                     </Space>
                     <Panel position='top-left'>

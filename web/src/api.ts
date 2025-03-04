@@ -363,7 +363,6 @@ export class ServerAPI {
         return await this.get(`fs/${filepath}`);
     }
 
-    // New
     public async getWorkflow(filepath: string) {
         if (filepath.endsWith('.py')) {
             return await this.get(`workflow/${filepath}`);
