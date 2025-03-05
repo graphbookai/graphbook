@@ -104,25 +104,11 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
     }, [files]);
 
     const onFileItemClick = useCallback((selectedKeys, { node }) => {
-        if (!node) {
-            onBeginEdit(null);
-            return;
-        }
         const filename = node.path;
-        if (!filename) {
-            onBeginEdit(null);
-            return;
-        }
-        if (filename.slice(-3) == '.py') {
-            console.log("Attempting to open", filename)
-            onBeginEdit({ name: filename });
-        } else if (filename.slice(-5) === '.json') {
+        if (filename.slice(-3) == '.py' || filename.slice(-5) === '.json') {
             setExecution(null);
             setWorkflow(filename);
             setSelectedWorkflow(filename);
-            onBeginEdit(null);
-        } else {
-            onBeginEdit(null);
         }
     }, []);
 
@@ -274,7 +260,7 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
     }, [searchValue, files, addingState, renamingState]);
 
     const contextMenuItems = useMemo(() => {
-        return [
+        const items = [
             {
                 key: 'rename',
                 label: 'Rename',
@@ -284,7 +270,14 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
                 label: 'Delete',
             }
         ];
-    }, []);
+        if (contextMenu?.filename.endsWith('.py')) {
+            items.push({
+                key: 'edit',
+                label: 'Edit',
+            });
+        }
+        return items;
+    }, [contextMenu]);
 
     const onContextMenuClick = useCallback(({ key }) => {
         if (contextMenu) {
@@ -292,6 +285,8 @@ export default function Filesystem({ setWorkflow, setExecution, onBeginEdit }) {
                 setRenamingState({ isRenaming: true, filename: contextMenu.filename });
             } else if (key === 'delete') {
                 onItemDelete(contextMenu.filename);
+            } else if (key === 'edit') {
+                onBeginEdit(contextMenu.filename);
             }
         }
 

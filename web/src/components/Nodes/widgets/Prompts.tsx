@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Typography, Flex, Button } from 'antd';
 import { usePluginWidgets } from '../../../hooks/Plugins';
-import { NotePreview } from './NotePreview';
+import { DataPreview } from './DataPreview';
 import { ListWidget, getWidgetLookup } from './Widgets';
 import { useAPI } from '../../../hooks/API';
 import type { Prompt } from '../../../hooks/Prompts';
@@ -58,7 +58,7 @@ export function Prompt({ nodeId, prompt, setSubmitted }) {
     return (
         <Flex className="prompt" vertical>
             <Text>Prompted:</Text>
-            <NotePreview data={prompt.note} showImages={prompt.showImages || false} />
+            <DataPreview data={prompt.data} showImages={prompt.showImages || false} />
             <Text>{prompt.msg}</Text>
             <WidgetPrompt type={prompt.type} options={prompt.options} value={value} onChange={onChange} />
             <Button loading={loading} className="prompt" type="primary" size="small" onClick={onSubmit}>Submit</Button>

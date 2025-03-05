@@ -44,7 +44,7 @@ import type { TableProps, StatisticProps, MenuProps } from "antd";
 
 const { Text } = Typography;
 const hideHeightThreshold = 20;
-const DATA_COLUMNS = ['stats', 'logs', 'notes', 'images'];
+const DATA_COLUMNS = ['stats', 'logs', 'data', 'images'];
 
 export function Monitor() {
     const [show, setShow] = useState(false);
@@ -215,11 +215,11 @@ function MonitorView({ selectedNodes, onResize }) {
                         if (column === 'logs') {
                             return <LogsView shouldScrollToBottom={settings.monitorLogsShouldScrollToBottom} data={record[column]} />;
                         }
-                        if (column === 'notes') {
-                            return <NotesView stepId={record.key} numNotes={record?.stats?.queue_size} />;
+                        if (column === 'data') {
+                            return <DataView stepId={record.key} count={record?.stats?.queue_size} />;
                         }
                         if (column === 'images') {
-                            return <NotesView stepId={record.key} numNotes={record?.stats?.queue_size} type='image' />;
+                            return <DataView stepId={record.key} count={record?.stats?.queue_size} type='image' />;
                         }
                         return <Text>{JSON.stringify(record[column], null, 2)}</Text>;
                     }
@@ -309,7 +309,7 @@ function StatsView({ data }) {
         <Space align="start" direction="vertical">
             {
                 data.record_rate &&
-                <Statistic title="Output Rate" value={Math.round(data.record_rate)} suffix="notes/s" />
+                <Statistic title="Output Rate" value={Math.round(data.record_rate)} suffix="it/s" />
             }
             {
                 data.execution !== undefined &&
@@ -370,16 +370,16 @@ function LogsView({ data, shouldScrollToBottom }) {
     );
 }
 
-type NotesViewType = 'default' | 'image';
-type NotesViewProps = {
+type DataViewType = 'default' | 'image';
+type DataViewProps = {
     stepId: string,
-    numNotes: { [key: string]: number },
-    type?: NotesViewType,
+    count: { [key: string]: number },
+    type?: DataViewType,
 };
-function NotesView({ stepId, numNotes, type }: NotesViewProps) {
+function DataView({ stepId, count, type }: DataViewProps) {
     const [currentIndex, setCurrentIndex] = useState({});
     const [currentImagePreview, setCurrentImagePreview] = useState('');
-    const [notes, setNotes] = useState({});
+    const [data, setData] = useState({});
     const API = useAPI();
     const usingToken = theme.useToken();
     const globalTheme = usingToken.theme;
@@ -388,12 +388,12 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
     const filename = useFilename();
 
     useEffect(() => {
-        if (!API || !numNotes) {
+        if (!API || !count) {
             return;
         }
         const initializeKey = async (key) => {
             const res = await (filename.endsWith('.log') ? API.getLog(filename, stepId, key, 0) : API.getState(stepId, key, 0));
-            setNotes((prev) => {
+            setData((prev) => {
                 return {
                     ...prev,
                     [key]: res
@@ -406,21 +406,21 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                 };
             });
         };
-        Object.keys(numNotes).forEach(key => {
+        Object.keys(count).forEach(key => {
             if (currentIndex[key] === undefined) {
                 initializeKey(key);
             }
         });
 
-    }, [numNotes, currentIndex, API, filename]);
+    }, [count, currentIndex, API, filename]);
 
     const onIndexChange = useCallback(async (key, index) => {
         if (!API) {
             return;
         }
-        index = Math.max(0, Math.min(index, numNotes[key] - 1));
+        index = Math.max(0, Math.min(index, count[key] - 1));
         const res = await (filename.endsWith('.log') ? API.getLog(filename, stepId, key, index) : API.getState(stepId, key, index));
-        setNotes((prev) => {
+        setData((prev) => {
             return {
                 ...prev,
                 [key]: res
@@ -432,7 +432,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                 [key]: index
             };
         });
-    }, [numNotes, API, filename]);
+    }, [count, API, filename]);
 
     const onDownloadImage = useCallback(() => {
         const url = currentImagePreview;
@@ -452,10 +452,11 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
             });
     }, [currentImagePreview]);
 
-    const noteViews = useMemo(() => {
+    const views = useMemo(() => {
         const views = {};
-        Object.entries<any>(notes).map(([pin, note]) => {
-            if (!note?.data) {
+        Object.entries<any>(data).map(([pin, d]) => {
+            const value = d?.data;
+            if (!value) {
                 views[pin] = <QuestionOutlined />;
             } else {
                 if (!type || type === 'default') {
@@ -473,7 +474,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                             name={false}
                             displayDataTypes={false}
                             indentWidth={2}
-                            src={note.data}
+                            src={value}
                         />
                     );
                 } else if (type === 'image') {
@@ -486,7 +487,7 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                         padding: '5px',
                     };
                     const imageEntries = {};
-                    Object.entries<any>(note.data).forEach(([key, value]) => {
+                    Object.entries<any>(value).forEach(([key, value]) => {
                         if (Array.isArray(value)) {
                             const im = value.filter((v) => v.type === 'image');
                             if (im.length > 0) {
@@ -564,9 +565,9 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
             }
         });
         return views;
-    }, [notes, globalTheme, currentImagePreview, settings]);
+    }, [data, globalTheme, currentImagePreview, settings]);
 
-    const noteCardStyle: React.CSSProperties = useMemo(() => {
+    const cardStyle: React.CSSProperties = useMemo(() => {
         return {
             minWidth: '400px',
             minHeight: '300px',
@@ -576,15 +577,15 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
     }, []);
 
     return (
-        numNotes ?
+        count ?
             <Space align="start">
                 {
-                    Object.entries<number>(numNotes).sort(([a], [b]) => a.localeCompare(b)).map(([pin, size]) => {
+                    Object.entries<number>(count).sort(([a], [b]) => a.localeCompare(b)).map(([pin, size]) => {
                         return (
                             <Space key={pin} direction="vertical" align="center">
                                 <Text>{pin}</Text>
-                                <Card style={noteCardStyle}>
-                                    {noteViews[pin]}
+                                <Card style={cardStyle}>
+                                    {views[pin]}
                                 </Card>
                                 <Space>
                                     <Button onClick={() => onIndexChange(pin, currentIndex[pin] - 1)} icon={<LeftOutlined />} shape='circle' />
@@ -599,6 +600,6 @@ function NotesView({ stepId, numNotes, type }: NotesViewProps) {
                     })
                 }
             </Space> :
-            <Empty description="No notes" />
+            <Empty description="No data" />
     )
 }

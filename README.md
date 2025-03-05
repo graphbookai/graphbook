@@ -78,7 +78,6 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
 * Custom buildable nodes with Python via OOP and functional patterns
-* Automatic batching for Pytorch tensors
 * Multiprocessing I/O to and from disk and network
 * Customizable multiprocessing functions
 * Ability to execute entire graphs, or individual subgraphs/nodes
@@ -137,7 +136,7 @@ You can use any other virtual environment solution, but it is highly adviced to 
 1. Clone the repo and `cd graphbook`
 1. `poetry install --with dev`
 1. `poetry shell`
-1. `python -m graphbook.main`
+1. `python graphbook/core/cli.py`
 1. `cd web`
 1. `deno install`
 1. `deno run dev`

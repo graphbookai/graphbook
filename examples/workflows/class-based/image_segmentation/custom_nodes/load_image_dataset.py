@@ -1,5 +1,4 @@
-from graphbook.steps import SourceStep
-from graphbook import Note
+from graphbook.core.steps import SourceStep
 import torchvision.transforms.functional as F
 import os
 import os.path as osp
@@ -25,16 +24,15 @@ class LoadImageDataset(SourceStep):
     def load(self):
         subdirs = os.listdir(self.image_dir)
 
-        def create_note(subdir):
+        def create_dict(subdir):
             image_dir = osp.join(self.image_dir, subdir)
-            return Note(
-                {
+            return {
                     "name": subdir,
                     "image": [
                         {"value": osp.join(image_dir, img), "type": "image"}
                         for img in os.listdir(image_dir)
                     ],
                 }
-            )
+            
 
-        return {"out": [create_note(subdir) for subdir in subdirs]}
+        return {"out": [create_dict(subdir) for subdir in subdirs]}

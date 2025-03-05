@@ -28,7 +28,7 @@ const getExampleStr = (name: string) => {
     return `For example, make a file named \`docs/${name}.md\` and add your documentation there.`;
 };
 
-export function Docs({ helpString }: { helpString?: string }) {
+export function Docs({ helpString, doc }: { helpString?: string, doc?: string }) {
     const { token } = useToken();
     const [hidden, setHidden] = useState(false);
     const [nodeDocs, setNodeDocs] = useState<NodeDoc[]>([]);
@@ -50,8 +50,12 @@ export function Docs({ helpString }: { helpString?: string }) {
             }
         };
 
-        loadDocs();
-    }, [API, filename]);
+        if (doc) {
+            setWorkflowDoc(doc);
+        } else {
+            loadDocs();
+        }
+    }, [API, filename, doc]);
 
     useLayoutEffect(() => {
         const updateWindowHeight = () => {

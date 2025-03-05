@@ -1,4 +1,4 @@
-from graphbook import Note, step, source, param
+from graphbook import step, source, param
 import os
 import os.path as osp
 
@@ -15,17 +15,15 @@ def load_image_dataset(ctx):
     """
     subdirs = os.listdir(ctx.image_dir)
 
-    def create_note(subdir):
+    def create_dict(subdir):
         image_dir = osp.join(ctx.image_dir, subdir)
-        return Note(
-            {
-                "name": subdir,
-                "image": [
-                    {"value": osp.join(image_dir, img), "type": "image"}
-                    for img in os.listdir(image_dir)
-                ],
-            }
-        )
+        return {
+            "name": subdir,
+            "image": [
+                {"value": osp.join(image_dir, img), "type": "image"}
+                for img in os.listdir(image_dir)
+            ],
+        }
 
     for subdir in subdirs:
-        yield create_note(subdir)
+        yield create_dict(subdir)

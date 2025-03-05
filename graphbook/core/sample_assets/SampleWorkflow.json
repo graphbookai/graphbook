@@ -1,0 +1,201 @@
+{
+    "version": "0",
+    "type": "workflow",
+    "nodes": [
+        {
+            "id": "1",
+            "type": "step",
+            "position": {
+                "x": 756,
+                "y": 200
+            },
+            "data": {
+                "name": "CalcMean",
+                "parameters": {},
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "CalcMean",
+                "isCollapsed": false
+            }
+        },
+        {
+            "id": "2",
+            "type": "step",
+            "position": {
+                "x": 956,
+                "y": 315
+            },
+            "data": {
+                "name": "CalcRunningMean",
+                "parameters": {},
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "CalcRunningMean",
+                "isCollapsed": false
+            }
+        },
+        {
+            "id": "3",
+            "type": "step",
+            "position": {
+                "x": 956,
+                "y": 200
+            },
+            "data": {
+                "name": "Split",
+                "parameters": {
+                    "split_fn": {
+                        "type": "resource"
+                    }
+                },
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "A",
+                    "B"
+                ],
+                "category": "Filtering",
+                "label": "Split",
+                "isCollapsed": false
+            }
+        },
+        {
+            "id": "4",
+            "type": "resource",
+            "position": {
+                "x": 553.2901813434452,
+                "y": 334.28631892901365
+            },
+            "data": {
+                "name": "Function",
+                "parameters": {
+                    "val": {
+                        "type": "function",
+                        "value": "def split_fn(data):\n  return data[\"mean\"] > 5"
+                    }
+                },
+                "category": "Util",
+                "label": "Function",
+                "isCollapsed": false
+            }
+        },
+        {
+            "id": "7",
+            "type": "step",
+            "position": {
+                "x": 556,
+                "y": 200
+            },
+            "data": {
+                "name": "Transform",
+                "parameters": {
+                    "scale": {
+                        "type": "number",
+                        "default": 1,
+                        "required": true,
+                        "description": "Multiplicative factor",
+                        "value": 1
+                    },
+                    "shift": {
+                        "type": "number",
+                        "default": 0,
+                        "required": true,
+                        "description": "Additive factor",
+                        "value": 0
+                    }
+                },
+                "inputs": [
+                    "in"
+                ],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "Transform",
+                "isCollapsed": false
+            }
+        },
+        {
+            "id": "8",
+            "type": "step",
+            "position": {
+                "x": 200,
+                "y": 328
+            },
+            "data": {
+                "name": "GenerateNumbers",
+                "parameters": {
+                    "amount": {
+                        "type": "number",
+                        "default": 1000,
+                        "required": true,
+                        "description": "Number of Notes to generate",
+                        "value": 20000
+                    }
+                },
+                "inputs": [],
+                "outputs": [
+                    "out"
+                ],
+                "category": "",
+                "label": "GenerateNumbers",
+                "isCollapsed": false
+            }
+        }
+    ],
+    "edges": [
+        {
+            "source": "4",
+            "sourceHandle": "resource",
+            "target": "3",
+            "targetHandle": "split_fn",
+            "data": {},
+            "id": "reactflow__edge-4resource-3split_fn",
+            "selected": false
+        },
+        {
+            "source": "1",
+            "sourceHandle": "out",
+            "target": "3",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-1out-3in",
+            "selected": false
+        },
+        {
+            "source": "7",
+            "sourceHandle": "out",
+            "target": "1",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-7out-1in"
+        },
+        {
+            "source": "8",
+            "sourceHandle": "out",
+            "target": "7",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-8out-7in"
+        },
+        {
+            "source": "1",
+            "sourceHandle": "out",
+            "target": "2",
+            "targetHandle": "in",
+            "data": {},
+            "id": "reactflow__edge-1out-2in"
+        }
+    ]
+}

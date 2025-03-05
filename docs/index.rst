@@ -23,7 +23,6 @@ Features
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
 * Custom buildable nodes with Python via OOP and functional patterns
-* Automatic batching for Pytorch tensors
 * Multiprocessing I/O to and from disk and network
 * Customizable multiprocessing functions
 * Ability to execute entire graphs, or individual subgraphs/nodes
@@ -58,7 +57,7 @@ In developing ML workflows for AI applications, a number of problems arise.
 
 .. seealso::
 
-    :doc:`learn/concepts`
+    :doc:`packages/core/concepts`
 
 1. Multiprocessing
 ====================
@@ -70,9 +69,9 @@ Graphbook takes care of this by setting up worker processes that can perform bot
 2. Batching
 =================
 
-To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Our units of data, which we call :ref:`Notes` (which are basically just Python dicts), can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the Note.
+To take full advantage of the parallel processing capabilities of our GPU, we want to batch our units of data to maximize efficiency of our workflows. This is done with Pytorch’s builtin Dataset and Dataloader class, which handles both the multiprocessing and batching of tensors, but our input data is not just tensors. Each entity that flows in a pipeline can be supplemented with properties such as attributes, annotations, and database IDs. While we process, we need to load and batch what goes onto our GPU while knowing about the entirety of the entity.
 
-Thus, we have a specific batching process that allows our nodes to load and batch along an individual property within a Note while still holding a reference to that belonging Note.
+Thus, we have a specific batching process that allows our nodes to load and batch along an individual property within a Python dict while still holding a reference to that belonging dict.
 
 3. Fast, Easy Iteration
 =========================
@@ -112,7 +111,8 @@ Graphbook is completely free and open source and can be deployed anywhere. We of
    :hidden:
 
    installing
-   learn/index
-   reference/index
+   packages/core/index
+   packages/logging/index
+   packages/ray/index
    examples
    contributing

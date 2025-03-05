@@ -8,7 +8,7 @@ let localSetters: Function[] = [];
 
 type PromptData = {
     "idx": number,
-    "note": object,
+    "data": object,
     "msg": string,
     "show_images": boolean,
     "def": any,
@@ -17,7 +17,7 @@ type PromptData = {
 };
 
 export type Prompt = {
-    "note": object,
+    "data": object,
     "msg": string,
     "showImages": boolean,
     "def": any,
@@ -26,7 +26,7 @@ export type Prompt = {
 };
 
 const dataToPrompt = (data: PromptData): Prompt => ({
-    note: data.note,
+    data: data.data,
     msg: data.msg,
     showImages: data.show_images,
     def: data.def,
