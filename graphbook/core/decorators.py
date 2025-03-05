@@ -96,11 +96,13 @@ class StepClassFactory(NodeClassFactory):
                 )
             else:
                 self.BaseClass.__init__(cls)
-            for key, value in kwargs.items():
-                if key in self.Parameters:
-                    cast_as = self.parameter_type_casts[key]
-                    if cast_as is not None:
-                        value = cast_as(value)
+            for key, param in self.Parameters.items():
+                value = kwargs.get(key) or param.get("default")
+                if value is None and param.get("required"):
+                    raise ValueError(f"Parameter {key} is required")
+                cast_as = self.parameter_type_casts[key]
+                if cast_as is not None:
+                    value = cast_as(value)
                 setattr(cls, key, value)
             init_event = self.events.get("__init__")
             if init_event:
@@ -127,11 +129,13 @@ class ResourceClassFactory(NodeClassFactory):
     def build(self):
         def __init__(cls, **kwargs):
             self.BaseClass.__init__(cls)
-            for key, value in kwargs.items():
-                if key in self.Parameters:
-                    cast_as = self.parameter_type_casts[key]
-                    if cast_as is not None:
-                        value = cast_as(value)
+            for key, param in self.Parameters.items():
+                value = kwargs.get(key) or param.get("default")
+                if value is None and param.get("required"):
+                    raise ValueError(f"Parameter {key} is required")
+                cast_as = self.parameter_type_casts[key]
+                if cast_as is not None:
+                    value = cast_as(value)
                 setattr(cls, key, value)
 
         cls_methods = {"__init__": __init__}

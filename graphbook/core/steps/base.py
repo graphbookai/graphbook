@@ -1,5 +1,15 @@
 from __future__ import annotations
-from typing import List, Dict, Tuple, Generator, Any, Literal, TYPE_CHECKING, Optional, Union
+from typing import (
+    List,
+    Dict,
+    Tuple,
+    Generator,
+    Any,
+    Literal,
+    TYPE_CHECKING,
+    Optional,
+    Union,
+)
 from ..utils import (
     transform_function_string,
     convert_dict_values_to_list,
@@ -148,7 +158,7 @@ class Step:
         Executes when a request to clear the step is made. This is useful for steps that have internal states that need to be reset.
         """
         pass
-    
+
     def forward_note(self, data: Any) -> str:
         """
         Deprecated. Use :meth:`graphbook.core.steps.Step.route` instead.
@@ -169,7 +179,7 @@ class Step:
 
         Returns:
             A string that the data is associated with, or if multiple are being processed at a time, a StepOutput may be used.
-            
+
         Example:
             The below examples assume that this step has two output pins, "dog" and "cat":
 
@@ -180,10 +190,10 @@ class Step:
                     if data["is_dog"]:
                         return "dog"
                     return "cat"
-                
+
             .. highlight:: python
             .. code-block:: python
-            
+
                 def route(self, data: dict) -> StepOutput:
                     dog_images = data["dog"]
                     cat_images = data["cat"]
@@ -200,12 +210,12 @@ class Step:
 
         if self.item_key is not None:
             get_method = getattr(data, "get", None)
-            assert get_method is not None, f"Item key is only for dictionary-like data. {type(data)} is not a dictionary."
-            
-            item = data.get(self.item_key, None)
             assert (
-                item is not None
-            ), f"Item key {self.item_key} not found in data."
+                get_method is not None
+            ), f"Item key is only for dictionary-like data. {type(data)} is not a dictionary."
+
+            item = data.get(self.item_key, None)
+            assert item is not None, f"Item key {self.item_key} not found in data."
             self.on_item(item, data)
 
         self.on_after_item(data)
@@ -219,21 +229,18 @@ class Step:
         return output
 
     def all(self, data: List[Any]) -> StepOutput:
-        step_outputs = []
-        if data is not None:
-            for d in data:
-                step_output = self(data)
-                if step_output is not None:
-                    step_outputs.append(step_output)
+        out: StepOutput = {}
+        if data is None:
+            return out
 
-        if len(step_outputs) == 0:
-            return {}
+        for d in data:
+            step_output = self(d)
+            for k, v in step_output.items():
+                if k not in out:
+                    out[k] = []
+                out[k].extend(v)
 
-        output_keys = step_outputs[0].keys()
-        return {
-            k: [data for step_output in step_outputs for data in step_output.get(k, [])]
-            for k in output_keys
-        }
+        return out
 
 
 class SourceStep(Step):
@@ -248,7 +255,7 @@ class SourceStep(Step):
     def load(self) -> StepOutput:
         """
         Function to load data. Must output a dictionary of outputs.
-        
+
         Example:
             .. highlight:: python
             .. code-block:: python
@@ -277,7 +284,7 @@ class GeneratorSourceStep(SourceStep):
     def load(self) -> Generator[StepOutput, None, None]:
         """
         Function to load data. Must output a generator that yields dictionary of outputs.
-        
+
         Example:
             .. highlight:: python
             .. code-block:: python
@@ -402,8 +409,10 @@ class BatchStep(AsyncStep):
         if data is None:
             return
         self.on_data(data)
-        
-        assert getattr(data, "get", None) is not None, f"BatchSteps can only accept dictionary-like data. {type(data)} is not a dictionary."
+
+        assert (
+            getattr(data, "get", None) is not None
+        ), f"BatchSteps can only accept dictionary-like data. {type(data)} is not a dictionary."
         items = data.get(self.item_key, None)
         if items is None:
             raise ValueError(f"Item key {self.item_key} not found in data.")
