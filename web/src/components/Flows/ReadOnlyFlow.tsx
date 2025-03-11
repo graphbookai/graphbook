@@ -25,8 +25,8 @@ import type { Node, Edge } from 'reactflow';
 import { NotFoundFlow } from './NotFoundFlow.tsx';
 
 const { useToken } = theme;
-const helpString = 
-`
+const helpString =
+    `
 <div align="center">
     <img src="https://github.com/graphbookai/graphbook/blob/main/docs/_static/graphbook.png?raw=true" alt="Graphbook Logo" height="64">
     <h1 style="margin: 0 0 10px 0">Welcome to Graphbook</h1>
@@ -63,7 +63,7 @@ export default function ReadOnlyFlow({ filename }) {
             const edges: Edge[] = [];
             Object.entries<any>(graphState).forEach(([nodeId, node]) => {
                 Object.values<any>(node.parameters).forEach((param) => {
-                    if (param.type !== "resource" && param.default !== undefined) {
+                    if (param.type !== "resource" && param.default !== undefined && param.value === undefined) {
                         param.value = param.default;
                     }
                 });
@@ -113,7 +113,7 @@ export default function ReadOnlyFlow({ filename }) {
                     console.error("Unsupported node type: ", node.type);
                 }
                 nodes.push(newNode);
-                
+
             });
             return [nodes, edges];
         }
@@ -136,9 +136,9 @@ export default function ReadOnlyFlow({ filename }) {
         }
         if (changes.every(change => change.type === 'dimensions')) {
             const mapping = new Map(changes.map(node => [node.id, node.dimensions]));
-            const updatedDimensionsNodes = nodes.map(node => ({...node, width: mapping.get(node.id)?.width, height: mapping.get(node.id)?.height}));
+            const updatedDimensionsNodes = nodes.map(node => ({ ...node, width: mapping.get(node.id)?.width, height: mapping.get(node.id)?.height }));
             const updatedPositionsNodes = layoutDAG(updatedDimensionsNodes, edges);
-            const positionChanges = updatedPositionsNodes.map(node => ({id: node.id, type: 'position', position: node.position, positionAbsolute: node.position}));
+            const positionChanges = updatedPositionsNodes.map(node => ({ id: node.id, type: 'position', position: node.position, positionAbsolute: node.position }));
             onNodesChange([...changes, ...positionChanges]);
             isDimensionsInitialized.current = true;
         }
@@ -171,7 +171,7 @@ export default function ReadOnlyFlow({ filename }) {
                             <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
                                 <ControlRow filename={filename} />
                             </div>
-                            <Docs helpString={helpString}/>
+                            <Docs helpString={helpString} />
                         </div>
                     </Space>
                     <Panel position='top-left'>
@@ -227,7 +227,7 @@ function ControlRow({ filename }) {
                 <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
                 {
                     runState === "initializing" &&
-                    <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} loading={isRunClicked}/>
+                    <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} loading={isRunClicked} />
                 }
             </Flex>
         </div>

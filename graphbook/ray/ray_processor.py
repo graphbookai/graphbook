@@ -19,16 +19,20 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from PIL import Image
+import traceback
 from graphbook.core.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from graphbook.core.steps import Step, StepOutput
 from graphbook.core.utils import MP_WORKER_TIMEOUT, transform_json_log
+from graphbook.core.processing.graph_processor import Executor
+from graphbook.core.serialization import Graph
+from .ray_img import RayMemoryManager
+from .ray_client import RayClientPool
+import ray.util.queue
 
 
 logger = logging.getLogger(__name__)
 
-step_output_err_res = (
-    "Step output must be a dictionary, and dict values must be lists."
-)
+step_output_err_res = "Step output must be a dictionary, and dict values must be lists."
 
 
 @dataclass
@@ -43,8 +47,6 @@ class GraphbookTaskContext:
     name: Optional[str] = None
     # ID of the current task.
     task_id: str = ""
-    # The context of catching exceptions.
-    catch_exceptions: bool = False
 
 
 _context: Optional[GraphbookTaskContext] = None
@@ -314,7 +316,7 @@ class RayExecutionState:
         for pin, output in outputs.items():
             if len(output) == 0:
                 continue
-            
+
             self.viewer.handle_output(step_id, pin, transform_json_log(output[-1]))
 
 
@@ -332,3 +334,92 @@ class DictionaryArrays:
 
     def sizes(self):
         return {k: len(v) for k, v in self._dict.items()}
+
+
+class RayExecutor(Executor):
+    """
+    Ray execution engine that runs Graphbook workflows using Ray.
+    """
+
+    def __init__(self):
+        """
+        Initialize the RayExecutor.
+
+        Args:
+            view_manager_queue (Optional[queue.Queue]): Queue for communicating with the view manager
+            continue_on_failure (bool): Whether to continue execution after a step fails
+        """
+        if not ray.is_initialized():
+            ray.init()
+
+        self.cmd_queue = ray.util.queue.Queue()
+        self.view_queue = ray.util.queue.Queue()
+
+        self.client_pool = RayClientPool(
+            proc_queue=self.cmd_queue,
+            view_queue=self.view_queue,
+        )
+
+        # Initialize the Ray step handler
+        self.handler = RayStepHandler.remote(self.cmd_queue, self.view_queue)
+
+    def get_client_pool(self):
+        return self.client_pool
+
+    def get_img_storage(self):
+        return RayMemoryManager
+
+    def run(self, graph: Graph, step_id: Optional[str] = None):
+        """
+        Execute the provided graph using Ray.
+
+        Args:
+            graph (Dict[str, Any]): The serialized graph to execute
+            step_id (Optional[str]): If provided, only run the specified step and its dependencies
+        """
+        try:
+            # Create a new execution context
+            context = GraphbookTaskContext(
+                name="memory_workflow",
+                task_id="main",
+            )
+
+            # Initialize the execution and get the Ray dag
+            dag = self._build_ray_dag(graph, step_id)
+
+            # Execute the dag
+            with graphbook_task_context(context):
+                # Start the execution
+                ray.get(self.handler.handle_start_execution.remote())
+
+                # Execute the workflow
+                execute(dag, context)
+
+                # End the execution
+                ray.get(self.handler.handle_end_execution.remote({}))
+
+        except Exception as e:
+            logger.error(f"Execution error: {type(e).__name__}: {str(e)}")
+            traceback.print_exc()
+            return None, None
+
+    def _build_ray_dag(
+        self, graph: Dict[str, Any], step_id: Optional[str] = None
+    ) -> DAGNode:
+        """
+        Build a Ray DAG from the serialized graph.
+
+        Args:
+            graph (Dict[str, Any]): The serialized graph
+            step_id (Optional[str]): If provided, only include the specified step and its dependencies
+
+        Returns:
+            DAGNode: The Ray DAG that can be executed
+        """
+        # In a real implementation, this would convert the graphbook graph to a Ray DAG
+        # For now, we'll just return a placeholder
+        # This method would need proper implementation based on ray_api.py
+        raise NotImplementedError(
+            "Building a Ray DAG from a serialized graph is not implemented. "
+            "The actual implementation would need to translate graphbook graphs to Ray tasks."
+        )

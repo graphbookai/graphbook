@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 import importlib.util
 from copy import deepcopy
 import re
@@ -8,17 +8,19 @@ import os.path as osp
 import traceback
 import graphbook.core.steps as steps
 import graphbook.core.resources as resources
+from graphbook.core.processing.graph_processor import Executor, DefaultExecutor
 
 
 class GraphNodeWrapper:
     """
     Base class for step and resource nodes returned by the Graph class.
     Do not create this directly, use the `Graph.step` or `Graph.resource` methods instead.
-    
+
     Args:
         node (type): The node to wrap
         id (str): The unique identifier for the node
     """
+
     def __init__(self, node: type, id: str):
         self.id = id
         self.params: Dict[str, Any] = {}
@@ -180,6 +182,40 @@ class Graph:
         """Returns all steps in the graph"""
         return [n for n in self.nodes if isinstance(n, GraphStepWrapper)]
 
+    def run(
+        self,
+        executor: Optional[Executor] = None,
+        step_id: Optional[str] = None,
+        start_web_server: bool = True,
+        host: str = "localhost",
+        port: int = 8005,
+    ) -> None:
+        """
+        Run the graph using the provided executor.
+
+        Args:
+            executor (Executor): The executor to use for running the graph
+            step_id (Optional[str]): If provided, only run the specified step and its dependencies
+            start_web_server (bool): If True, start a web server to monitor execution
+            host (str): Host for the web server (default: "localhost")
+            port (int): Port for the web server (default: 8005)
+        """
+        # Serialize the graph and pass it to the executor
+        if executor is None:
+            executor = DefaultExecutor()
+
+        client_pool = executor.get_client_pool()
+        img_storage = executor.get_img_storage()
+
+        # Start the web server if requested
+        if start_web_server and client_pool is not None and img_storage is not None:
+            from graphbook.core.web import async_start
+
+            # Start the web server
+            async_start(host, port, None, img_storage, client_pool)
+
+        executor.run(self, step_id)
+
     def __call__(self, *args, **kwargs):
         """
         Use this decorator to decorate a function that defines the workflow.
@@ -227,6 +263,7 @@ def serialize_workflow_as_py(
     Not in use due to instability.
     Can result in incosistencies with styling/formatting and the resolution of imported modules.
     """
+
     def check_node(node):
         if node.get("type") not in ["step", "resource"]:
             raise ValueError(
