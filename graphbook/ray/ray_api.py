@@ -232,6 +232,7 @@ class GraphbookActorWrapper:
         if node_id is None:
             node_id = str(self._id)
     
+        node_name = self._actor.__class__.__name__[len("ActorClass(") : -1]
         actor_handle: ray.actor.ActorHandle = self._actor._remote(
             **self._actor._default_options
         )
@@ -268,7 +269,7 @@ class GraphbookActorWrapper:
 
                 dummy_input = self._set_init_params.bind(**kwargs)
                 dummy_input = self._patched_init_method.bind(dummy_input)
-                dummy_input = self._set_context.bind(dummy_input, node_id, self.__class__.__name__)
+                dummy_input = self._set_context.bind(dummy_input, node_id, node_name)
                 input = step_handler.prepare_inputs.bind(
                     dummy_input, node_id, *bind_args
                 )
@@ -283,6 +284,7 @@ class GraphbookActorWrapper:
 
         dummy_input = actor_handle._set_init_params.bind(**kwargs)
         dummy_input = actor_handle._patched_init_method.bind(dummy_input)
+        dummy_input = actor_handle._set_context.bind(dummy_input, node_id, node_name)
         outputs = actor_handle._call_with_dummy.bind(dummy_input)
 
         if is_step:

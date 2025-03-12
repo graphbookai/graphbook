@@ -11,14 +11,12 @@ from graphbook.core.resources import Resource
 from .ray_img import RayMemoryManager
 from .ray_client import RayClientPool
 import ray.util.queue
-from typing import Optional, Any, List, Tuple, Dict
+from typing import Optional, Tuple, Dict
 from .ray_processor import (
-    RayStepHandler,
     execute,
     GraphbookTaskContext,
     graphbook_task_context,
 )
-from ray.dag import DAGNode
 import graphbook.ray.ray_api as ray_api
 from copy import deepcopy
 
@@ -59,7 +57,7 @@ class RayExecutor(Executor):
     def get_img_storage(self):
         return RayMemoryManager
 
-    def run(self, graph: Graph, step_id: Optional[str] = None):
+    def run(self, graph: Graph, name: str, step_id: Optional[str] = None):
         """
         Execute the provided graph using Ray.
 
@@ -69,25 +67,15 @@ class RayExecutor(Executor):
         """
         # Create a new execution context
         context = GraphbookTaskContext(
-            name="memory_workflow",
-            task_id="main",
+            name=name,
+            task_id=name,
         )
 
         # Initialize the execution and get the Ray dag
         leaf_nodes = self._build_ray_dag(graph, step_id)
 
-        # context_setup_refs = []
-        # for step_id, step_handler in steps.items():
-        #     context_setup = step_handler.set_context.remote(
-        #         node_id=step_id,
-        #         node_name=step_handler.__class__.__name__,
-        #     )
-        #     context_setup_refs.append(context_setup)
-
         # Execute the dag
         with graphbook_task_context(context):
-            # ray.wait(context_setup_refs)
-
             # Start the execution
             ray.get(
                 self.handler.handle_new_execution.remote(
@@ -97,7 +85,7 @@ class RayExecutor(Executor):
 
             final = self.handler.handle_end_execution.bind(*leaf_nodes)
             # Execute the workflow
-            return execute(final, context)
+            return ray.get(final.execute())
 
     def _build_ray_dag(
         self, graph: Graph, step_id: Optional[str] = None
@@ -150,6 +138,7 @@ class RayExecutor(Executor):
             setup_params_and_init(node)
 
         # Bind steps
+        step_outputs = {}
         for step in graph.get_steps():
             if len(step.deps) == 0:
                 continue
@@ -157,7 +146,7 @@ class RayExecutor(Executor):
             for output_slot, parent_step in step.deps:
                 args.append(output_slot)
                 args.append(step_handles[parent_step.id])
-            step_handles[step.id].bind(*args)
+            step_outputs[step.id] = step_handles[step.id].bind(*args)
         
         # Get the leaf nodes
         is_dependency = set()
@@ -172,7 +161,7 @@ class RayExecutor(Executor):
                 set_is_dependency(step)
 
         leaf_nodes = [
-            step_handles[step.id] for step in graph.get_steps() if step.id not in is_dependency
+            step_outputs[step.id] for step in graph.get_steps() if step.id not in is_dependency
         ]
 
         return leaf_nodes

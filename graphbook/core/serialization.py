@@ -1,11 +1,13 @@
-from typing import List, Tuple, Dict, Any, Optional
 import importlib.util
-from copy import deepcopy
 import re
 import json
 import os
 import os.path as osp
 import traceback
+import inspect
+from pathlib import Path
+from copy import deepcopy
+from typing import List, Tuple, Dict, Any, Optional
 import graphbook.core.steps as steps
 import graphbook.core.resources as resources
 from graphbook.core.processing.graph_processor import Executor, DefaultExecutor
@@ -119,6 +121,7 @@ class Graph:
 
     def __init__(self):
         self.id = 0
+        self.module_name = None
         self.doc = None
         self.nodes: List[GraphNodeWrapper] = []
 
@@ -214,7 +217,7 @@ class Graph:
             # Start the web server
             async_start(host, port, None, img_storage, client_pool)
 
-        executor.run(self, step_id)
+        executor.run(self, self.module_name, step_id)
 
     def __call__(self, *args, **kwargs):
         """
@@ -225,6 +228,7 @@ class Graph:
 
         def decorator(serialized_func):
             serialized_func()
+            self.module_name = Path(inspect.getfile(serialized_func)).name
             module = serialized_func.__globals__
             module["_GRAPHBOOK_WORKFLOW_"] = self
 

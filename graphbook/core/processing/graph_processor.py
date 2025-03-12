@@ -34,7 +34,7 @@ class Executor(abc.ABC):
     """
 
     @abc.abstractmethod
-    def run(self, graph: "Graph", step_id: Optional[str] = None):
+    def run(self, graph: "Graph", name: str, step_id: Optional[str] = None) -> None:
         """
         Execute the provided graph.
 
@@ -60,7 +60,6 @@ class DefaultExecutor(Executor):
 
     def __init__(
         self,
-        continue_on_failure: bool = False,
         copy_outputs: bool = True,
         num_workers: int = 1,
     ):
@@ -68,23 +67,16 @@ class DefaultExecutor(Executor):
         Initialize the DefaultExecutor.
 
         Args:
-            continue_on_failure (bool): Whether to continue execution after a step fails
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
         """
-        # Import here to avoid circular imports
-        from graphbook.core.processing.graph_processor import GraphProcessor
 
+        self.copy_outputs = copy_outputs
+        self.num_workers = num_workers
         self.view_manager_queue = mp.Queue()
 
-        self.processor = GraphProcessor(
-            self.view_manager_queue,
-            continue_on_failure,
-            copy_outputs,
-            num_workers,
-        )
         self.client_pool = SimpleClientPool(
-            self.processor.close_event, self.view_manager_queue, self.processor
+            mp.Event(), self.view_manager_queue, self.processor
         )
 
     def get_client_pool(self):
@@ -93,7 +85,7 @@ class DefaultExecutor(Executor):
     def get_img_storage(self):
         return MultiThreadedMemoryManager
 
-    def run(self, graph: "Graph", step_id: Optional[str] = None):
+    def run(self, graph: "Graph", name: str, step_id: Optional[str] = None):
         """
         Execute the provided graph.
 
@@ -101,8 +93,17 @@ class DefaultExecutor(Executor):
             graph (Dict[str, Any]): The serialized graph to execute
             step_id (Optional[str]): If provided, only run the specified step and its dependencies
         """
+        # Import here to avoid circular imports
+        from graphbook.core.processing.graph_processor import GraphProcessor
 
         try:
+
+            self.processor = GraphProcessor(
+                name,
+                self.view_manager_queue,
+                self.copy_outputs,
+                self.num_workers,
+            )
             # Execute the workflow directly
             self.processor.run(graph, step_id)
 
@@ -124,8 +125,8 @@ class GraphProcessor:
 
     def __init__(
         self,
+        name: str,
         view_manager_queue: mp.Queue,
-        continue_on_failure: bool = False,
         copy_outputs: bool = True,
         num_workers: int = 1,
     ):
@@ -133,17 +134,17 @@ class GraphProcessor:
         Initialize the GraphProcessor.
 
         Args:
-            continue_on_failure (bool): Whether to continue execution after a step fails
+            name (str): Name of the graph
+            view_manager_queue (mp.Queue): Queue for communicating with the view manager
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
         """
         self.close_event = mp.Event()
         self.view_manager_queue = view_manager_queue
-        self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
         self.view_manager = MultiGraphViewManagerInterface(self.view_manager_queue)
-        self.viewer = self.view_manager.new("memory_workflow")
+        self.viewer = self.view_manager.new(name)
 
         # Initialize state
         self.graph_state = GraphState(None)  # No custom nodes path needed
@@ -253,10 +254,7 @@ class GraphProcessor:
                         output = self.exec_step(step, input)
 
             if output is None:
-                if not self.continue_on_failure:
-                    return False
-                else:
-                    output = {}
+                return False
             else:
                 if not is_active:
                     is_active = any(len(v) > 0 for v in output.values())
