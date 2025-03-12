@@ -13,7 +13,6 @@ from .ray_client import RayClientPool
 import ray.util.queue
 from typing import Optional, Tuple, Dict
 from .ray_processor import (
-    execute,
     GraphbookTaskContext,
     graphbook_task_context,
 )
@@ -29,10 +28,6 @@ class RayExecutor(Executor):
     def __init__(self):
         """
         Initialize the RayExecutor.
-
-        Args:
-            view_manager_queue (Optional[queue.Queue]): Queue for communicating with the view manager
-            continue_on_failure (bool): Whether to continue execution after a step fails
         """
         if not ray.is_initialized():
             ray.init()

@@ -18,3 +18,5 @@ API Reference
 .. autofunction:: graphbook.ray.is_graphbook_ray_initialized
 
 .. autodecorator:: graphbook.ray.remote
+
+.. autoclass:: graphbook.ray.RayExecutor

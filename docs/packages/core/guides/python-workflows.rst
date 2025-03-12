@@ -11,7 +11,7 @@ Graphbook allows you to define your workflows in Python.
 This is more suited for advanced users who want to have more control over their workflows.
 When using a Python-defined workflow, users cannot make structural changes to the graph in the UI.
 However, they can still view the graph, adjust parameters, run the workflow, and monitor the results.
-Dragging nodes or making any parameters changes will not modify the underlying Python code.
+Any changes made to the graph in the UI will not edit the underlying Python code.
 
 Create a Graph
 ==============
@@ -59,7 +59,7 @@ To create a resource, use the :meth:`graphbook.Graph.resource` method.
 Set Parameters
 ==============
 
-To set parameters, use the :meth:`graphbook.GraphNodeWrapper.param` method.
+To set parameters, use the :meth:`graphbook.core.serialization.GraphNodeWrapper.param` method.
 All nodes, steps and resources, can accept parameters.
 
 .. code-block:: python
@@ -86,7 +86,7 @@ The order of configuration is as follows:
 Bind Steps
 ==========
 
-To bind steps to other steps, use the :meth:`graphbook.GraphStepWrapper.bind` method.
+To bind steps to other steps, use the :meth:`graphbook.core.serialization.GraphStepWrapper.bind` method.
 With this method, you can forward an output of one step to the input of another step.
 
 .. code-block:: python
