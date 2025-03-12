@@ -5,7 +5,7 @@ from graphbook.ray.ray_api import (
     run_async,
     is_graphbook_ray_initialized,
 )
-from graphbook.ray.ray_processor import RayExecutor
+from graphbook.ray.ray_executor import RayExecutor
 
 __all__ = [
     "init",

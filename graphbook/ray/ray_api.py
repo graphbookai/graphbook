@@ -9,6 +9,7 @@ except ImportError:
 import ray.actor
 import ray.util.queue
 from ray.dag import DAGNode
+from ray.dag import ClassMethodNode
 
 from typing import (
     Optional,
@@ -64,6 +65,15 @@ def init(*, host="0.0.0.0", port=8005) -> None:
             img_storage=RayMemoryManager,
             client_pool=RayClientPool(close_event=close_event, proc_queue=cmd_queue, view_queue=view_queue),
         )
+        
+def init_handler(cmd_queue, view_queue):
+    if not ray.is_initialized():
+        ray.init()
+
+    global step_handler
+    if not step_handler:
+        step_handler = RayStepHandler.remote(cmd_queue, view_queue)
+    return step_handler
 
 
 def is_graphbook_ray_initialized() -> bool:
@@ -123,7 +133,7 @@ def run_async(
 
         context_setup_refs.append(step_handler.handle_start_execution.remote())
         ray.wait(context_setup_refs)
-        final = step_handler.handle_end_execution.bind(dag)
+        final = step_handler.handle_end_execution.bind((dag,))
 
         return execute(final, context)
 
@@ -183,6 +193,9 @@ def _make_input_grapbook_class(cls):
             if issubclass(cls, Resource):
                 return self.value()
             return self.__call__(*args)
+        
+        def _set_context(self, dummy_input, node_id, node_name):
+            self.set_context(node_id=node_id, node_name=node_name)
 
     DerivedGraphbookRayClass.__name__ = cls.__name__
     DerivedGraphbookRayClass.__module__ = cls.__module__
@@ -192,9 +205,13 @@ def _make_input_grapbook_class(cls):
 
 
 class GraphbookActorWrapper:
+    _id: int = 0
+
     def __init__(self, actor, doc, *args, **kwargs):
         self._actor = actor
         self._doc = doc
+        self._id = GraphbookActorWrapper._id
+        GraphbookActorWrapper._id += 1
         return self._actor.__init__(self, *args, **kwargs)
 
     def __call__(self, *args, **kwargs):
@@ -207,14 +224,14 @@ class GraphbookActorWrapper:
     def bind():
         raise ValueError("Cannot bind right away, please call .remote() first.")
 
-    def remote(self, *args, **kwargs):
+    def remote(self, *args, node_id: Optional[str] = None, **kwargs):
         assert (
             len(args) == 0
         ), "To specify resources, use kwargs. (e.g. my_resource=MyResource.remote())"
         is_step = isinstance(self._actor, Step)
-        init_fn = step_handler.init_step if is_step else step_handler.init_resource
-        node_id = ray.get(init_fn.remote())
-
+        if node_id is None:
+            node_id = str(self._id)
+    
         actor_handle: ray.actor.ActorHandle = self._actor._remote(
             **self._actor._default_options
         )
@@ -223,7 +240,7 @@ class GraphbookActorWrapper:
         gb_context["doc"] = self._doc
         gb_context["node_id"] = node_id
         gb_context["resource_deps"] = {
-            k: str(v._parent_class_node._actor_id) for k, v in kwargs.items()
+            k: str(v._parent_class_node._actor_id) for k, v in kwargs.items() if isinstance(v, ClassMethodNode)
         }
         gb_context["step_deps"] = []
         setattr(actor_handle, "_graphbook_context", gb_context)
@@ -251,6 +268,7 @@ class GraphbookActorWrapper:
 
                 dummy_input = self._set_init_params.bind(**kwargs)
                 dummy_input = self._patched_init_method.bind(dummy_input)
+                dummy_input = self._set_context.bind(dummy_input, node_id, self.__class__.__name__)
                 input = step_handler.prepare_inputs.bind(
                     dummy_input, node_id, *bind_args
                 )
