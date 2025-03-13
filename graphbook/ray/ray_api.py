@@ -24,7 +24,13 @@ from .ray_processor import (
 )
 from .ray_img import RayMemoryManager
 from .ray_client import RayClientPool
-from graphbook.core.steps import Step, SourceStep, PromptStep, GeneratorSourceStep, BatchStep
+from graphbook.core.steps import (
+    Step,
+    SourceStep,
+    PromptStep,
+    GeneratorSourceStep,
+    BatchStep,
+)
 from graphbook.core.resources import Resource
 import graphbook.core.web
 import multiprocessing as mp
@@ -63,9 +69,12 @@ def init(*, host="0.0.0.0", port=8005) -> None:
             port=port,
             close_event=close_event,
             img_storage=RayMemoryManager,
-            client_pool=RayClientPool(close_event=close_event, proc_queue=cmd_queue, view_queue=view_queue),
+            client_pool=RayClientPool(
+                close_event=close_event, proc_queue=cmd_queue, view_queue=view_queue
+            ),
         )
-        
+
+
 def init_handler(cmd_queue, view_queue):
     if not ray.is_initialized():
         ray.init()
@@ -193,7 +202,7 @@ def _make_input_grapbook_class(cls):
             if issubclass(cls, Resource):
                 return self.value()
             return self.__call__(*args)
-        
+
         def _set_context(self, dummy_input, node_id, node_name):
             self.set_context(node_id=node_id, node_name=node_name)
 
@@ -210,6 +219,8 @@ class GraphbookActorWrapper:
     def __init__(self, actor, doc, *args, **kwargs):
         self._actor = actor
         self._doc = doc
+        self._options = {}
+        self._node_id = None
         self._id = GraphbookActorWrapper._id
         GraphbookActorWrapper._id += 1
         return self._actor.__init__(self, *args, **kwargs)
@@ -217,31 +228,32 @@ class GraphbookActorWrapper:
     def __call__(self, *args, **kwargs):
         return self._actor.__call__(self, *args, **kwargs)
 
-    def options(self, **kwargs):
-        self._actor = GraphbookActorWrapper(self._actor.options(self, **kwargs))
-        return self
+    def set_ray_options(self, **kwargs):
+        self._options = kwargs
+
+    def set_node_id(self, node_id):
+        self._node_id = node_id
 
     def bind():
         raise ValueError("Cannot bind right away, please call .remote() first.")
 
-    def remote(self, *args, node_id: Optional[str] = None, **kwargs):
-        assert (
-            len(args) == 0
-        ), "To specify resources, use kwargs. (e.g. my_resource=MyResource.remote())"
+    def remote(self, **kwargs):
         is_step = isinstance(self._actor, Step)
-        if node_id is None:
-            node_id = str(self._id)
-    
+        if self._node_id is None:
+            self._node_id = str(self._id)
+
         node_name = self._actor.__class__.__name__[len("ActorClass(") : -1]
-        actor_handle: ray.actor.ActorHandle = self._actor._remote(
-            **self._actor._default_options
-        )
+        actor_handle: ray.actor.ActorHandle = self._actor.options(
+            **self._options
+        ).remote()
         gb_context = {}
         gb_context["class"] = self._actor.__class__
         gb_context["doc"] = self._doc
-        gb_context["node_id"] = node_id
+        gb_context["node_id"] = self._node_id
         gb_context["resource_deps"] = {
-            k: str(v._parent_class_node._actor_id) for k, v in kwargs.items() if isinstance(v, ClassMethodNode)
+            k: str(v._parent_class_node._actor_id)
+            for k, v in kwargs.items()
+            if isinstance(v, ClassMethodNode)
         }
         gb_context["step_deps"] = []
         setattr(actor_handle, "_graphbook_context", gb_context)
@@ -249,22 +261,24 @@ class GraphbookActorWrapper:
         requires_input = is_step and not isinstance(self._actor, SourceStep)
         if requires_input:
 
+            node_id = self._node_id
+
             def bind(self, *bind_args):
                 assert (
                     len(bind_args) % 2 == 0
                 ), "Bind arguments must be pairs of bind_key and bind_obj"
 
-                gb_context["step_deps"] = [
-                    {
-                        "node": str(
-                            getattr(
-                                bind_args[i + 1], "_graphbook_bound_actor"
-                            )._ray_actor_id
-                        ),
-                        "pin": bind_args[i],
-                    }
-                    for i in range(0, len(bind_args), 2)
-                ]
+                # gb_context["step_deps"] = [
+                #     {
+                #         "node": str(
+                #             getattr(
+                #                 bind_args[i + 1], "_graphbook_bound_actor"
+                #             )._ray_actor_id
+                #         ),
+                #         "pin": bind_args[i],
+                #     }
+                #     for i in range(0, len(bind_args), 2)
+                # ]
                 setattr(actor_handle, "_graphbook_context", gb_context)
 
                 dummy_input = self._set_init_params.bind(**kwargs)
@@ -284,11 +298,13 @@ class GraphbookActorWrapper:
 
         dummy_input = actor_handle._set_init_params.bind(**kwargs)
         dummy_input = actor_handle._patched_init_method.bind(dummy_input)
-        dummy_input = actor_handle._set_context.bind(dummy_input, node_id, node_name)
+        dummy_input = actor_handle._set_context.bind(
+            dummy_input, self._node_id, node_name
+        )
         outputs = actor_handle._call_with_dummy.bind(dummy_input)
 
         if is_step:
-            outputs = step_handler.handle_outputs.bind(node_id, outputs)
+            outputs = step_handler.handle_outputs.bind(self._node_id, outputs)
             setattr(outputs, "_graphbook_bound_actor", actor_handle)
 
         return outputs
@@ -305,3 +321,37 @@ def remote(*args, **kwargs) -> GraphbookActorWrapper:
     gb_actor_class = GraphbookActorWrapper(actor_class, cls.__doc__)
 
     return gb_actor_class
+
+
+from graphbook.core.decorators import DecoratorFunction
+
+
+def options(**kwargs):
+    """
+    You may specify Ray options for the remote actor.
+    Ray allows you to seamlessly scale your applications from a laptop to a cluster, and this decorator will forward the given arguments to the Ray options for the remote actor.
+    See `Ray Resources <https://docs.ray.io/en/latest/ray-core/scheduling/resources.html>`_ and
+    `options <https://docs.ray.io/en/latest/ray-core/api/doc/ray.actor.ActorClass.options.html#ray.actor.ActorClass.options>`_ for more information.
+
+
+    Examples:
+        .. highlight:: python
+        .. code-block:: python
+
+            from graphbook import step
+            from graphbook.ray import options
+
+            @step("RayStep")
+            @options(num_cpus=2, num_gpus=1)
+            def my_ray_step(ctx, data):
+                # Process some data
+                data["value"] = predict(...)
+    """
+
+    def decorator(func):
+        def set_options(factory):
+            factory.Ray_Options = kwargs
+
+        return DecoratorFunction(func, set_options)
+
+    return decorator

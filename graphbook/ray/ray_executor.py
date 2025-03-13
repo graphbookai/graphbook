@@ -101,7 +101,12 @@ class RayExecutor(Executor):
         # Initialize step and resource actors
         step_handles = {}
         resource_handles = {}
+
         def setup_params_and_init(node: GraphNodeWrapper):
+            # > Only recurs through Resources
+            if node.id in resource_handles:
+                return
+
             P = deepcopy(getattr(node.get(), "Parameters", {}))
 
             # Set default parameters
@@ -116,16 +121,20 @@ class RayExecutor(Executor):
                     if p_value.id in resource_handles:
                         P[p_key] = resource_handles[p_value.id]
                     else:
-                        setup_params_and_init(p_value)
+                        setup_params_and_init(p_value)  # <
                         P[p_key] = resource_handles[p_value.id]
                 else:
                     P[p_key] = p_value
 
+            actor_options = getattr(node.get(), "Ray_Options", {})
             if isinstance(node, GraphStepWrapper):
-                step_handles[node.id] = step_actors[node.id].remote(node_id=node.id, **P)
+                step_actors[node.id].set_ray_options(**actor_options)
+                step_actors[node.id].set_node_id(node.id)
+                step_handles[node.id] = step_actors[node.id].remote(**P)
             else:
-                resource_handles[node.id] = resource_actors[node.id].remote(node_id=node.id, **P)
-
+                resource_actors[node.id].set_ray_options(**actor_options)
+                resource_actors[node.id].set_node_id(node.id)
+                resource_handles[node.id] = resource_actors[node.id].remote(**P)
 
         for node in graph.get_steps():
             setup_params_and_init(node)
@@ -134,15 +143,26 @@ class RayExecutor(Executor):
 
         # Bind steps
         step_outputs = {}
-        for step in graph.get_steps():
-            if len(step.deps) == 0:
-                continue
+
+        def setup_binds(step: GraphStepWrapper):
+            if step.id in step_outputs:
+                return
+
             args = []
             for output_slot, parent_step in step.deps:
+                if parent_step.id not in step_outputs:
+                    setup_binds(parent_step)
                 args.append(output_slot)
-                args.append(step_handles[parent_step.id])
-            step_outputs[step.id] = step_handles[step.id].bind(*args)
-        
+                args.append(step_outputs[parent_step.id])
+
+            if len(args) > 0:
+                step_outputs[step.id] = step_handles[step.id].bind(*args)
+            else:  # Should be a source step
+                step_outputs[step.id] = step_handles[step.id]
+
+        for step in graph.get_steps():
+            setup_binds(step)
+
         # Get the leaf nodes
         is_dependency = set()
 
@@ -156,7 +176,9 @@ class RayExecutor(Executor):
                 set_is_dependency(step)
 
         leaf_nodes = [
-            step_outputs[step.id] for step in graph.get_steps() if step.id not in is_dependency
+            step_outputs.get(step.id)
+            for step in graph.get_steps()
+            if step.id not in is_dependency and step.id in step_outputs
         ]
 
         return leaf_nodes
