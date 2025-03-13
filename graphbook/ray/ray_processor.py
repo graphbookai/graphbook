@@ -22,13 +22,12 @@ from PIL import Image
 from graphbook.core.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
 from graphbook.core.steps import Step, StepOutput
 from graphbook.core.utils import MP_WORKER_TIMEOUT, transform_json_log
+import ray.util.queue
 
 
 logger = logging.getLogger(__name__)
 
-step_output_err_res = (
-    "Step output must be a dictionary, and dict values must be lists."
-)
+step_output_err_res = "Step output must be a dictionary, and dict values must be lists."
 
 
 @dataclass
@@ -43,8 +42,6 @@ class GraphbookTaskContext:
     name: Optional[str] = None
     # ID of the current task.
     task_id: str = ""
-    # The context of catching exceptions.
-    catch_exceptions: bool = False
 
 
 _context: Optional[GraphbookTaskContext] = None
@@ -163,25 +160,20 @@ class RayStepHandler:
         self.graph_state = RayExecutionState()
         self.cmd_queue = cmd_queue
 
-    def init_step(self):
-        return self.graph_state.init_step()
-
-    def init_resource(self):
-        return self.graph_state.init_resource()
-
-    def handle_new_execution(self, name: str, G: dict):
+    def handle_new_execution(self, name: str, G: dict, wait_for_params=True):
         self.viewer = self.view_manager.new(name)
         self.graph_state.set_viewer(self.viewer)
         self.viewer.set_state("run_state", "initializing")
         self.viewer.set_state("graph_state", G)
-        params = self.wait_for_params()
-        return params
+        if wait_for_params:
+            params = self.wait_for_params()
+            return params
 
     def handle_start_execution(self):
         assert self.viewer is not None
         self.viewer.set_state("run_state", "running")
 
-    def handle_end_execution(self, outputs):
+    def handle_end_execution(self, *outputs):
         assert self.viewer is not None
         self.viewer.set_state("run_state", "finished")
         return outputs
@@ -253,17 +245,6 @@ class RayExecutionState:
     def set_viewer(self, viewer: ViewManagerInterface):
         self.viewer = viewer
 
-    def init_step(self):
-        idx = str(self.curr_idx)
-        self.curr_idx += 1
-        self.steps_outputs[idx] = DictionaryArrays()
-        return idx
-
-    def init_resource(self):
-        idx = str(self.curr_idx)
-        self.curr_idx += 1
-        return idx
-
     def set_params(self, params):
         self.params = params
 
@@ -302,11 +283,13 @@ class RayExecutionState:
         return ray.get(self.images.get(image_id, None))
 
     def handle_outputs(self, step_id: str, outputs: StepOutput):
-        assert step_id in self.steps_outputs, f"Step {step_id} not initialized"
         assert self.viewer is not None, "Viewer not initialized"
         if step_id in self.handled_steps:
             return
+
         self.handled_steps.add(step_id)
+        if not step_id in self.steps_outputs:
+            self.steps_outputs[step_id] = DictionaryArrays()
         for label, datas in outputs.items():
             self.steps_outputs[step_id].enqueue(label, datas)
 
@@ -314,7 +297,7 @@ class RayExecutionState:
         for pin, output in outputs.items():
             if len(output) == 0:
                 continue
-            
+
             self.viewer.handle_output(step_id, pin, transform_json_log(output[-1]))
 
 

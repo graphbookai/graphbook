@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Tuple, List, Iterator, Set, Optional, Union, Any
+from typing import Dict, Tuple, List, Iterator, Set, Optional, Union, Any, TYPE_CHECKING
 import importlib, importlib.util, inspect
 import os
 import hashlib
@@ -11,8 +11,10 @@ from graphbook.core.decorators import get_steps, get_resources
 from graphbook.core.viewer import ViewManagerInterface
 from graphbook.core.plugins import setup_plugins
 from graphbook.core.utils import transform_json_log, ExecutionContext
-from graphbook.core.serialization import GraphResourceWrapper, get_py_as_graph
 from graphbook.core import nodes
+
+if TYPE_CHECKING:
+    from graphbook.core.serialization import Graph
 
 
 class NodeInstantiationError(Exception):
@@ -169,7 +171,9 @@ class GraphState:
                 if curr_resource is not None:
                     del curr_resource, self._dict_resources[resource_id]
                 try:
-                    ExecutionContext.update(node_id=resource_id, node_name=resource_name)
+                    ExecutionContext.update(
+                        node_id=resource_id, node_name=resource_name
+                    )
                     self.view_manager.handle_start(resource_id)
                     resource: Resource = resource_hub[resource_name](**p)
                     resource_values[resource_id] = resource.value()
@@ -282,27 +286,28 @@ class GraphState:
         self._resource_values = resource_values
         self._step_states = step_states
         self._step_graph = step_graph
-        
-    def update_state_py(self, filename: str, params: dict):
-        graph = get_py_as_graph(filename)
+
+    def update_state_py(self, graph: "Graph", params: dict):
+        from graphbook.core.serialization import GraphResourceWrapper
+
         # First, create resources that the steps depend on
         resource_values = {}
         resources = {}
         resource_has_changed = {}
 
-        def set_resource_value(resource: GraphResourceWrapper):
+        def set_resource_value(resource: "GraphResourceWrapper"):
             resource_id = resource.id
             if resource_id in resource_values:
                 return
 
-            resource_params = params.get(resource_id)
+            resource_params = params.get(resource_id, {})
             resource_class = resource.node
             resource_name = resource_class.__name__
             p = {}
             input_resources_have_changed = False
             for p_key, p_value in resource.params.items():
                 if isinstance(p_value, GraphResourceWrapper):
-                    p_node: GraphResourceWrapper = p_value
+                    p_node: "GraphResourceWrapper" = p_value
                     set_resource_value(p_node)
                     p[p_key] = resource_values[p_node.id]
                     input_resources_have_changed |= resource_has_changed[p_node.id]
@@ -311,7 +316,9 @@ class GraphState:
             # Overwrite params from values in the UI
             p.update(resource_params)
 
-            curr_resource = self._dict_resources.get(resource_id) # Actual resource object
+            curr_resource = self._dict_resources.get(
+                resource_id
+            )  # Actual resource object
             curr_resource_value = self._resource_values.get(resource_id)
             if (
                 isinstance(curr_resource, resource_class)
@@ -326,7 +333,9 @@ class GraphState:
                 if curr_resource_value is not None:
                     del self._resource_values[resource_id]
                 try:
-                    ExecutionContext.update(node_id=resource_id, node_name=resource_name)
+                    ExecutionContext.update(
+                        node_id=resource_id, node_name=resource_name
+                    )
                     self.view_manager.handle_start(resource_id)
                     resource: Resource = resource_class(**p)
                     resource_values[resource_id] = resource.value()
@@ -347,7 +356,7 @@ class GraphState:
             step_id = step.id
             step_class = step.node
             step_name = step_class.__name__
-            step_params = params.get(step_id)
+            step_params = params.get(step_id, {})
             p = {}
             step_input_has_changed = step_params != self._dict_graph.get(step_id)
             for p_key, p_value in step.params.items():
@@ -361,10 +370,7 @@ class GraphState:
             p.update(step_params)
 
             curr_step = self._steps.get(step_id)
-            if (
-                isinstance(curr_step, step_class)
-                and not step_input_has_changed
-            ):
+            if isinstance(curr_step, step_class) and not step_input_has_changed:
                 steps[step_id] = self._steps[step_id]
                 queues[step_id] = self._queues[step_id]
                 step_states[step_id] = self._step_states[step_id]
@@ -422,10 +428,10 @@ class GraphState:
         }
 
         # Update current graph and resource state
-        self._dict_graph = params # Used to track changes in params
+        self._dict_graph = params  # Used to track changes in params
         self._steps = steps
         self._queues = queues
-        self._dict_resources = resources # Actual resource objects
+        self._dict_resources = resources  # Actual resource objects
         self._resource_values = resource_values
         self._step_states = step_states
         self._step_graph = step_graph
@@ -476,8 +482,10 @@ class GraphState:
         for pin, output in outputs.items():
             if len(output) == 0:
                 continue
-            self.view_manager.handle_output(step_id, pin, transform_json_log(output[-1]))
-            
+            self.view_manager.handle_output(
+                step_id, pin, transform_json_log(output[-1])
+            )
+
     def get_resource_values(self) -> dict:
         return self._resource_values
 
