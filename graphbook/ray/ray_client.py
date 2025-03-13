@@ -63,7 +63,7 @@ class RayClientPool(ClientPool):
         client = RayClient(
             sid, ws, view_manager=self.view_manager, proc_queue=self.proc_queue
         )
-        print(f"{sid}: (non-interactive)")
+        print(f"{sid}: (Ray client)")
         self.clients[sid] = client
         self.ws[sid] = ws
         await ws.send_json({"type": "sid", "data": sid})

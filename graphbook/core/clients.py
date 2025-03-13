@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, TYPE_CHECKING
+from typing import List, Dict, Optional, TYPE_CHECKING, Any
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
@@ -321,6 +321,74 @@ class AppClientPool(ClientPool):
         await super().stop()
         for client in list(self.clients.values()):
             await self.remove_client(client)
+
+
+class SimpleClient(Client):
+    """
+    A simple client that only needs to handle websocket communications.
+    No file system paths are required.
+    """
+
+    def __init__(
+        self,
+        sid: str,
+        ws: WebSocketResponse,
+        view_manager: MultiGraphViewManager,
+        processor: Any,  # GraphProcessor
+    ):
+        super().__init__(sid, ws, view_manager, processor)
+        self.processor = processor
+
+    def exec(self, req: dict):
+        # No-op as GraphProcessor doesn't use a command queue
+        pass
+
+    def get_processor(self):
+        return self.processor
+
+
+class SimpleClientPool(ClientPool):
+    """
+    A simple client pool that only needs to manage websocket connections.
+    No file system paths or node hubs are required.
+    """
+
+    def __init__(
+        self,
+        close_event: mp.Event,
+        view_queue: mp.Queue,
+        processor: Any,  # GraphProcessor
+    ):
+        super().__init__(close_event)
+        self.view_manager = MultiGraphViewManager(view_queue, processor, close_event)
+        self.processor = processor
+
+    async def add_client(self, ws: WebSocketResponse) -> Client:
+        sid = uuid.uuid4().hex
+        client = SimpleClient(sid, ws, self.view_manager, self.processor)
+        print(f"{sid}: SimpleClient")
+
+        self.clients[sid] = client
+        self.ws[sid] = ws
+        await ws.send_json({"type": "sid", "data": sid})
+        return client
+
+    async def loop(self):
+        view_data = self.view_manager.get_current_view_data()
+        for client in list(self.clients.values()):
+            if client.ws.closed:
+                continue
+            state_data = self.get_state_data(self.view_manager, client)
+            try:
+                await asyncio.gather(
+                    *[client.ws.send_json(data) for data in [*view_data, *state_data]]
+                )
+            except Exception as e:
+                print(f"Error sending to client: {e}")
+
+    def start(self):
+        super().start()
+        self.view_manager.start()
 
 
 class AppSharedClientPool(AppClientPool):

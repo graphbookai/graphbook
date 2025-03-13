@@ -34,227 +34,64 @@ To get started, install Graphbook along with the graphbook.ray dependencies with
 
     $ pip install graphbook[ray]
 
-Source Steps
-============
 
-You can build Source Steps the same way as normal without generators.
-The following should be a familiar example. We will create a source node that generates random tensors.
+Using the RayExecutor
+=====================
 
-.. code-block:: python
-    :caption: myapp.py
-    :emphasize-added: 5,7
-
-    import graphbook.ray as gb
-    from graphbook.steps import Step, SourceStep
-    import torch
-
-    gb.init()
-
-    @gb.remote
-    class GetTensors(SourceStep):
-        """
-        A source step that generates random tensors.
-        """
-        Parameters = {
-            "num_tensors": {
-                "type": "number",
-                "default": 10
-            },
-        }
-        Outputs = ["out"]
-
-        def __init__(self, num_tensors):
-            super().__init__()
-            self.num_tensors = num_tensors
-
-        def load(self):
-            tensors = [torch.rand(3, 3) for _ in range(self.num_tensors)]
-            return {
-                "out": [gb.Note({"tensor": t}) for t in tensors]
-            }
-
-Notice how the class is exactly the same as a normal Graphbook Source Step, but with the :func:`graphbook.remote` decorator.
-This decorator converts your class to a `Ray Actors <https://docs.ray.io/en/latest/ray-core/actors.html>`_ that is compatible with Graphbook.
-All other node types can be used in Ray DAGs as well except for the ones listed in :ref:`Ray_Limitations`.
-
-Additionally, we call :func:`graphbook.init()` to initialize the Graphbook Ray backend and start the Graphbook UI which can be located at https://localhost:8005.
-But wait, we don't have a full DAG yet, so continue reading to see full working examples.
-
-Assemble the DAG
-================
-
-To assemble the DAG, you can add the following code to ``myapp.py``:
+Follow the guide in :ref:`Python Workflows` to create a DAG.
+All Graphbook DAGS can be executed using the RayExecutor (:class:`graphbook.ray.RayExecutor`).
+To use the RayExecutor, simply pass it to :meth:`graphbook.Graph.run` method like so:
 
 .. code-block:: python
     :caption: myapp.py
+    :emphasize-added: 11
 
-    ...
+    import graphbook as gb
+    from graphbook.ray import RayExecutor
 
-    @gb.remote
-    class AddToTensor(Step):
-        """
-        A step that simply adds a fixed value to incoming tensors.
-        """
-        Parameters = {
-            "value": {
-                "type": "number",
-                "default": 20
-            }
-        }
-        Outputs = ["out"]
+    g = gb.Graph()
 
-        def __init__(self, value):
-            super().__init__()
-            self.value = value
+    @g()
+    def _():
+        ...
 
-        def on_data(self, data: dict):
-            data["tensor"] += self.value
-            gb.log(f'New value: {data["tensor"]}') # You may log as normal
+    if __name__ == "__main__":
+        g.run(executor=RayExecutor())
 
-    # Initialize the nodes
-    tensors = GetTensors.remote()
-    add = AddToTensor.remote()
+To run the app, execute the script:
 
-    # Connect the nodes
-    out_ref = add.bind("out", tensors)
+.. code-block:: bash
 
-    # Run the DAG
-    out = gb.run(out_ref)
-    print(out)
+    $ python myapp.py
 
-
-Again, we've added the ``remote`` decorator to the ``AddToTensor`` class.
-And to construct the DAG, we use the ``remote`` method on the source node to create a reference to the remote `Actor <https://docs.ray.io/en/latest/ray-core/actors.html>`_.
-Then, we use the ``bind`` method to connect the nodes together, and finally, we run the DAG with ``gb.run``.
-
-Notice the critical difference between Graphbook and Ray DAGs: the ``bind`` method requires the output name and the node reference.
-It is important to include the output name or else simply passing the node reference will be ambiguous since all Steps are multi-output.
-Additionally, we do not call ``bind`` on an specific Actor method, but rather on the Actor object itself.
-You must use this ``bind`` method because Graphbook nodes have a lifecycle which is typically implemented in their own respective ``__call__`` method,
-and they have inputs and outputs to be handled by a separate Actor which works to provide configuration and monitoring of each node.
-
-Also, to provide multiple inputs to a Step, see the following example:
-
-.. code-block:: python
-    :caption: myapp.py
-
-    ...
-
-    # Initialize the nodes
-    tensors1 = GetTensors.remote()
-    tensors2 = GetTensors.remote()
-    add = AddToTensor.remote()
-
-    # Connect the nodes
-    out_ref = add.bind("out", tensors1, "out", tensors2)
-
-    # Run the DAG
-    out = gb.run(out_ref) # Hangs until a user clicks "Play" in the UI
-    print(out)
-
-As you can see, the ``bind`` method must take an even number of parameters, where each pair is the output name and the node reference, in that order.
-
-Go ahead and run the DAG with ``python myapp.py``.
-You should begin to see that a name for your execution is generated, and Graphbook should invite you to configure the application in the UI.
-You can change the parameters of the nodes and monitor the performance of each node in the UI, and once you're ready, you can click the play button on the top right.
-
-.. image:: /_static/ray-example.png
-    :alt: Example of a Ray App
-    :align: center
-
-Upon completion, you will see your output printed to the console.
 
 To keep the web app running after execution is finished, you can add the following code to the end of your script:
 
 .. code-block:: python
     :caption: myapp.py
+    :emphasize-added: 6-11
 
     ...
 
-    import time
+    if __name__ == "__main__":
+        g.run(executor=RayExecutor())
 
-    try:
-        time.sleep(999999)
-    except KeyboardInterrupt:
-        pass
+        import time
 
-Resources
-=========
+        try:
+            time.sleep(999999)
+        except KeyboardInterrupt:
+            pass
 
-Resource nodes are also supported by Graphbook's Ray API.
-Create a resource node like so:
+And view your outputs in the web app by navigating to `http://localhost:8005` in your browser.
 
-.. code-block:: python
-    :caption: myapp.py
-
-    ...
-
-    from graphbook.resources import Resource
-
-    @gb.remote
-    class MyMessage(Resource):
-        """
-        A resource that holds a message.
-        """
-
-        Parameters = {
-            "message": {
-                "type": "string",
-                "default": "Hello, World!"
-            }
-        }
-
-        def __init__(self, message):
-            super().__init__(message)
-
-    message = MyMessage.remote()
-
-Modify the ``GetTensors`` class to accept the resource as a parameter:
-
-.. code-block:: python
-    :caption: myapp.py
-    :emphasize-added: 10,11,12,17,20,23
-    :emphasize-removed: 16
-
-    ...
-
-    @gb.remote
-    class GetTensors(SourceStep):
-        Parameters = {
-            "num_tensors": {
-                "type": "number",
-                "default": 10
-            },     
-            "message": {
-                "type": "resource",
-            },
-        }
-        Outputs = ["out"]
-
-        def __init__(self, num_tensors):
-        def __init__(self, num_tensors, message):
-            super().__init__()
-            self.num_tensors = num_tensors
-            self.message = message
-
-        def load(self):
-            gb.log(self.message) # Prints "Hello, World!"
-            tensors = [torch.rand(3, 3) for _ in range(self.num_tensors)]
-            return {
-                "out": [gb.Note({"tensor": t}) for t in tensors]
-            }
-
-Resources should be supplied to the remote construction of other nodes as a **keyword argument**, like so:
-
-.. code-block:: python
-    :caption: myapp.py
+.. image:: /_static/ray-example.png
+    :alt: Example of a Ray App
+    :align: center
 
 
-    tensors = GetTensors.remote(message=message)
-    add = AddToTensor.remote()
-    out_ref = add.bind("out", tensors)
-    out = gb.run(out_ref)
-    print(out)
+The RayExecutor will convert all steps and resource into `Ray Actors <https://docs.ray.io/en/latest/ray-core/actors.html>`_ that is compatible with Graphbook.
+All node types can be used in Ray DAGs as well except for the ones listed in :ref:`Ray_Limitations`.
 
 
 .. _Ray_Limitations:

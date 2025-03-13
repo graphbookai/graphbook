@@ -1,11 +1,9 @@
 from typing import Dict, List, Any, Tuple, Optional, TYPE_CHECKING
-import asyncio
 import time
 import multiprocessing as mp
-import queue
 import copy
 import psutil
-from .utils import MP_WORKER_TIMEOUT, get_gpu_util, QueueTaskLoop, RAY_AVAILABLE
+from .utils import get_gpu_util, QueueTaskLoop, RAY_AVAILABLE
 
 if RAY_AVAILABLE:
     try:
@@ -348,7 +346,9 @@ class MultiGraphViewManager(QueueTaskLoop):
             if work["cmd"] == "handle_new_graph":
                 self.handle_new_graph(work["graph_id"])
             elif work["cmd"] == "handle_output":
-                self.handle_output(work["graph_id"], work["node_id"], work["pin"], work["output"])
+                self.handle_output(
+                    work["graph_id"], work["node_id"], work["pin"], work["output"]
+                )
             elif work["cmd"] == "handle_queue_size":
                 self.handle_queue_size(work["graph_id"], work["node_id"], work["size"])
             elif work["cmd"] == "handle_time":

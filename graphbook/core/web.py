@@ -19,7 +19,12 @@ from .clients import (
     WebClient,
 )
 from .plugins import setup_plugins
-from .serialization import get_py_as_workflow, serialize_workflow_as_py, NoGraphFound
+from .serialization import (
+    get_py_as_workflow,
+    get_py_as_graph,
+    serialize_workflow_as_py,
+    NoGraphFound,
+)
 import json
 import threading
 import time
@@ -374,10 +379,12 @@ class AppServer(Server):
             filename = request.match_info.get("filename")
             data = await request.json()
             params = data.get("params")
+            graph = get_py_as_graph((client.get_root_path() or Path(".")) / filename)
             client.exec(
                 {
                     "cmd": "py_run_all",
                     "filename": filename,
+                    "graph": graph,
                     "params": params,
                 },
             )
@@ -468,7 +475,7 @@ class AppServer(Server):
             filepath = str(root_path.joinpath(filepath))
             try:
                 workflow = get_py_as_workflow(filepath)
-                return web.json_response(workflow) # { G , doc }
+                return web.json_response(workflow)  # { G , doc }
             except NoGraphFound:
                 raise web.HTTPNotFound()
             except Exception as e:
@@ -680,7 +687,10 @@ def start_app(args):
         close_event.set()
 
 
-def async_start(host, port, close_event, img_storage=None, client_pool=None):
+def async_start(host, port, close_event=None, img_storage=None, client_pool=None):
+    if close_event is None:
+        close_event = mp.Event()
+
     def _fn():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
