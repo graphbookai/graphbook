@@ -96,7 +96,10 @@ def run_async(
     dag: DAGNode,
     name: Optional[str] = None,
 ) -> ray.ObjectRef:
-    """Run a workflow asynchronously.
+    """
+    Deprecated v0.12.1. Use RayExecutor instead.
+
+    Run a workflow asynchronously.
 
     If the workflow with the given id already exists, it will be resumed.
 
@@ -152,6 +155,8 @@ def run(
     name: Optional[str] = None,
 ) -> dict:
     """
+    Deprecated v0.12.1. Use RayExecutor instead.
+
     Runs a workflow synchronously. See :func:`run_async` for more details.
 
     Returns:
@@ -268,17 +273,17 @@ class GraphbookActorWrapper:
                     len(bind_args) % 2 == 0
                 ), "Bind arguments must be pairs of bind_key and bind_obj"
 
-                # gb_context["step_deps"] = [
-                #     {
-                #         "node": str(
-                #             getattr(
-                #                 bind_args[i + 1], "_graphbook_bound_actor"
-                #             )._ray_actor_id
-                #         ),
-                #         "pin": bind_args[i],
-                #     }
-                #     for i in range(0, len(bind_args), 2)
-                # ]
+                gb_context["step_deps"] = [
+                    {
+                        "node": str(
+                            getattr(
+                                bind_args[i + 1], "_graphbook_bound_actor"
+                            )._ray_actor_id
+                        ),
+                        "pin": bind_args[i],
+                    }
+                    for i in range(0, len(bind_args), 2)
+                ]
                 setattr(actor_handle, "_graphbook_context", gb_context)
 
                 dummy_input = self._set_init_params.bind(**kwargs)
