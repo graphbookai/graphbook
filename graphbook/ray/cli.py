@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 import argparse
 from pathlib import Path
-from graphbook.core.web import start_app
-from graphbook.core import config
+from graphbook.ray.web import start_ray_server
 
 DESCRIPTION = """
 Graphbook | ML Workflow Framework
@@ -17,17 +16,10 @@ def get_args():
     parser = argparse.ArgumentParser(
         description=DESCRIPTION, formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("--num_workers", type=int, default=1)
-    parser.add_argument("--continue_on_failure", action="store_true")
-    parser.add_argument("--copy_outputs", action="store_true")
 
-    # Web subcommand
-    parser.add_argument("--media_dir", type=str, default="/")
     parser.add_argument("--web_dir", type=str)
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8005)
-    parser.add_argument("--start_media_server", action="store_true")
-    parser.add_argument("--media_port", type=int, default=8006)
     parser.add_argument(
         "--config",
         type=str,
@@ -77,20 +69,6 @@ def get_args():
         action="store_true",
         help="Isolate each user in their own execution environment. Does NOT prevent users from accessing each other's files.",
     )
-    parser.add_argument(
-        "--output_log_dir",
-        type=str,
-        default=None,
-        help="Path to output log directory (stores step outputs and logs)",
-    )
-    parser.add_argument(
-        "--memory_mode",
-        type=str,
-        choices=["all", "minimal", "none"],
-        default="all",
-        help="Memory mode: 'all' keeps all outputs in memory, 'minimal' only keeps necessary outputs " +
-             "in memory, 'none' stores all outputs to disk and loads them when needed",
-    )
 
     return parser.parse_args()
 
@@ -106,10 +84,8 @@ def resolve_paths(args):
 def main():
     args = get_args()
     args = resolve_paths(args)
-    if args.config:
-        config.setup(args.config)
 
-    start_app(args)
+    start_ray_server(args)
 
 
 if __name__ == "__main__":

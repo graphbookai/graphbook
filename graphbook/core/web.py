@@ -656,6 +656,13 @@ def start_app(args):
         num_workers=args.num_workers,
     )
 
+    # Add output logging configuration
+    if hasattr(args, 'output_log_dir'):
+        web_processor_args['output_log_dir'] = args.output_log_dir
+    
+    if hasattr(args, 'memory_mode'):
+        web_processor_args['memory_mode'] = args.memory_mode
+
     if args.start_media_server:
         p = mp.Process(target=create_media_server, args=(args,))
         p.daemon = True

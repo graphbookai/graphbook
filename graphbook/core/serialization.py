@@ -257,6 +257,84 @@ def get_py_as_graph(filepath: str) -> Graph:
         raise NoGraphFound(filepath)
 
 
+def deserialize_json_to_graph(json_data: dict) -> Graph:
+    """
+    Deserializes a JSON graph representation into a Graph object.
+    
+    Args:
+        json_data (dict): A dictionary containing the serialized graph data.
+            Expected format: {"nodes": [...], "edges": [...]}
+            
+    Returns:
+        Graph: A Graph object constructed from the JSON data
+        
+    Raises:
+        ValueError: If the JSON data is not in the expected format
+    """
+    if "nodes" not in json_data or "edges" not in json_data:
+        raise ValueError("JSON data must contain 'nodes' and 'edges' keys")
+    
+    graph = Graph()
+    node_wrappers = {}
+    
+    # First pass: create all nodes
+    for node in json_data["nodes"]:
+        node_data = node.get("data", {})
+        node_id = node["id"]
+        node_type = node.get("type")
+        
+        if node_type not in ["step", "resource"]:
+            continue
+            
+        try:
+            # Import the node class dynamically
+            module_name = node_data.get("module", "custom_nodes")
+            node_name = node_data.get("name")
+            
+            module = importlib.import_module(module_name)
+            node_class = getattr(module, node_name)
+            
+            # Create the appropriate wrapper
+            if node_type == "step":
+                wrapper = graph.step(node_class)
+            else:  # resource
+                wrapper = graph.resource(node_class)
+                
+            # Store the original ID mapping
+            wrapper.id = node_id
+            node_wrappers[node_id] = wrapper
+            
+            # Set parameters
+            params = node_data.get("parameters", {})
+            for key, param in params.items():
+                if "value" in param and param["value"] is not None:
+                    wrapper.param(key, param["value"])
+                    
+        except (ImportError, AttributeError) as e:
+            print(f"Failed to create node {node_id}: {e}")
+    
+    # Second pass: bind steps
+    for edge in json_data["edges"]:
+        source_id = edge["source"]
+        target_id = edge["target"]
+        source_handle = edge.get("sourceHandle", "out")
+        target_handle = edge.get("targetHandle", "in")
+        
+        if source_id in node_wrappers and target_id in node_wrappers:
+            source = node_wrappers[source_id]
+            target = node_wrappers[target_id]
+            
+            if target_handle == "in":
+                # This is a step binding
+                if hasattr(target, "bind"):
+                    target.bind(source, source_handle)
+            else:
+                # This is a parameter binding
+                target.param(target_handle, source)
+    
+    return graph
+
+
 def serialize_workflow_as_py(
     nodes: List[dict],
     edges: List[dict],

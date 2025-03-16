@@ -15,11 +15,6 @@ import traceback
 import sys
 from .utils import TaskLoop
 
-try:
-    from graphbook.logging import LogDirectoryReader
-except ImportError:
-    LogDirectoryReader = None
-
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
 
@@ -197,10 +192,6 @@ class AppClientPool(ClientPool):
         view_manager = MultiGraphViewManager(view_queue, processor, self.close_event)
         node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
         log_handler = None
-        if self.log_dir and LogDirectoryReader is not None:
-            log_handler = LogDirectoryReader(
-                self.log_dir, view_queue, close_event=self.close_event
-            )
         return {
             "processor": processor,
             "node_hub": node_hub,

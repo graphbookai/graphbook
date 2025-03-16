@@ -18,6 +18,7 @@ from .ray_processor import (
 )
 import graphbook.ray.ray_api as ray_api
 from copy import deepcopy
+import multiprocessing as mp
 
 
 class RayExecutor(Executor):
@@ -25,17 +26,24 @@ class RayExecutor(Executor):
     Ray execution engine that runs Graphbook workflows using Ray.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        use_file_viewing: bool = False,
+        **init_args
+    ):
         """
         Initialize the RayExecutor.
+        
+        Args:
+            use_file_viewing (bool): Whether to enable logging of step outputs to a DAG log file
+            init_args (dict): Ray Initialization args to pass into ray.init(...)
         """
         if not ray.is_initialized():
-            ray.init()
+            ray.init(**init_args)
 
         self.cmd_queue = ray.util.queue.Queue()
         self.view_queue = ray.util.queue.Queue()
 
-        import multiprocessing as mp
 
         self.client_pool = RayClientPool(
             close_event=mp.Event(),
@@ -45,12 +53,26 @@ class RayExecutor(Executor):
 
         # Initialize the Ray step handler
         self.handler = ray_api.init_handler(self.cmd_queue, self.view_queue)
+        
+        # Current execution log info
+        self.use_file_viewing = use_file_viewing
 
     def get_client_pool(self):
         return self.client_pool
 
     def get_img_storage(self):
         return RayMemoryManager
+    
+    def get_log_filename(self):
+        """
+        Get the current log filename.
+        
+        Returns:
+            str: The current log filename or None if logging is not enabled
+        """
+        if not self.enable_logging:
+            return None
+        return self.current_log_filename
 
     def run(self, graph: Graph, name: str, step_id: Optional[str] = None):
         """
@@ -58,13 +80,44 @@ class RayExecutor(Executor):
 
         Args:
             graph (Graph): The graph
+            name (str): Name of the execution
             step_id (Optional[str]): If provided, only run the specified step and its dependencies
         """
-        # Create a new execution context
+        # Create a new execution context with logging configuration
         context = GraphbookTaskContext(
             name=name,
             task_id=name,
+            enable_logging=self.enable_logging,
+            log_dir=self.log_dir,
+            log_filename=self.current_log_filename,
         )
+        
+        # Set up logging if enabled
+        if self.enable_logging:
+            # Import here to avoid circular imports
+            from graphbook.logging.ray import RayLogWriter
+            
+            # Generate log filename if needed
+            if self.log_filename is None:
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                self.current_log_filename = f"{name}-{timestamp}.log"
+            else:
+                self.current_log_filename = self.log_filename
+                
+            # Store execution ID
+            self.current_execution_id = name
+            
+            # Initialize logger
+            logger = RayLogWriter().get_logger(
+                execution_id=name,
+                log_dir=self.log_dir,
+                log_filename=self.current_log_filename
+            )
+            
+            # Initialize nodes from graph
+            serialized_graph = graph.serialize()
+            logger.initialize_from_graph(serialized_graph)
 
         # Initialize the execution and get the Ray dag
         leaf_nodes = self._build_ray_dag(graph, step_id)

@@ -43,7 +43,6 @@ class GraphbookTaskContext:
     # ID of the current task.
     task_id: str = ""
 
-
 _context: Optional[GraphbookTaskContext] = None
 
 
@@ -197,6 +196,7 @@ class RayStepHandler:
     def handle_outputs(self, step_id: str, outputs: StepOutput):
         self.graph_state.handle_images(outputs)
         self.graph_state.handle_outputs(step_id, outputs)
+        
         return outputs
 
     def get_output(self, step_id, pin_id, index):

@@ -42,6 +42,8 @@ def log(msg: Any, type: LogType = "info"):
     node_id: str = ExecutionContext.get("node_id")
     node_name: str = ExecutionContext.get("node_name")
     view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
+    graph_processor = ExecutionContext.get("graph_processor")
+    
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
 
@@ -57,9 +59,15 @@ def log(msg: Any, type: LogType = "info"):
         log_handle = view_manager.handle_log
 
     if type in text_log_types:
+        log_message = msg
         if type == "error":
-            msg = f"[ERR] {msg}"
-        print(f"[{node_id} {node_name}] {msg}")
+            log_message = f"[ERR] {msg}"
+        print(f"[{node_id} {node_name}] {log_message}")
+        
+        # Log to the output log file if available
+        if graph_processor and hasattr(graph_processor, "output_log_writer") and graph_processor.output_log_writer:
+            graph_processor.output_log_writer.write_log(node_id, str(msg), type)
+            
     elif type == "json":
         msg = transform_json_log(msg)
     elif type == "image":
