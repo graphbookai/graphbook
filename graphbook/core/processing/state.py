@@ -568,6 +568,10 @@ class MultiConsumerStateDictionaryQueue:
         self._order: List[Tuple[str, int]] = []
         self._consumer_idx: Dict[int, int] = {}
         self._consumer_subs: Dict[int, set] = {}
+        # Track which consumers have read each item
+        self._item_consumers: Dict[Tuple[str, int], Set[int]] = {}
+        # Track the minimum index that's still needed by consumers
+        self._min_required_idx = 0
 
     def add_consumer(self, consumer_id: int, key: str):
         if consumer_id not in self._consumer_idx:
@@ -578,6 +582,13 @@ class MultiConsumerStateDictionaryQueue:
     def update_consumer(self, old_id: int, new_id: int):
         self._consumer_idx[new_id] = self._consumer_idx[old_id]
         self._consumer_subs[new_id] = self._consumer_subs[old_id]
+        
+        # Update consumer in item tracking
+        for item_key, consumers in self._item_consumers.items():
+            if old_id in consumers:
+                consumers.remove(old_id)
+                consumers.add(new_id)
+                
         del self._consumer_idx[old_id]
         del self._consumer_subs[old_id]
 
@@ -585,24 +596,56 @@ class MultiConsumerStateDictionaryQueue:
         if self._consumer_idx.get(consumer_id):
             del self._consumer_idx[consumer_id]
             del self._consumer_subs[consumer_id]
+            
+            # Remove consumer from item tracking
+            for item_key, consumers in self._item_consumers.items():
+                if consumer_id in consumers:
+                    consumers.remove(consumer_id)
+            
+            # Clean up old items that no longer have consumers
+            self._cleanup_consumed_items()
 
     def remove_all_except(self, consumer_ids: List[int]):
+        removed_ids = set(self._consumer_idx.keys()) - set(consumer_ids)
         self._consumer_idx = {
             k: v for k, v in self._consumer_idx.items() if k in consumer_ids
         }
         self._consumer_subs = {
             k: v for k, v in self._consumer_subs.items() if k in consumer_ids
         }
+        
+        # Remove the removed consumers from item tracking
+        for item_key, consumers in self._item_consumers.items():
+            for consumer_id in removed_ids:
+                if consumer_id in consumers:
+                    consumers.remove(consumer_id)
+        
+        # Clean up old items that no longer have consumers
+        self._cleanup_consumed_items()
 
     def enqueue(self, key: str, records: List[Any]):
+        """Add records to the queue for the specified key."""
         if not key in self._dict:
             self._dict[key] = []
         idx = len(self._dict[key])
         self._dict[key].extend(records)
+        
+        # Add order entries and initialize consumer tracking for each item
         for i in range(len(records)):
-            self._order.append((key, idx + i))
+            order_entry = (key, idx + i)
+            self._order.append(order_entry)
+            
+            # Find consumers that need this key
+            interested_consumers = set()
+            for consumer_id, subscribed_keys in self._consumer_subs.items():
+                if key in subscribed_keys:
+                    interested_consumers.add(consumer_id)
+            
+            # Initialize consumer tracking for this item
+            self._item_consumers[order_entry] = interested_consumers
 
     def dequeue(self, consumer_id: int):
+        """Consume an item from the queue for a specific consumer."""
         idx = self._consumer_idx[consumer_id]
         key = None
         while key not in self._consumer_subs[consumer_id]:
@@ -610,25 +653,122 @@ class MultiConsumerStateDictionaryQueue:
                 raise StopIteration
             key, order_idx = self._order[idx]
             idx += 1
+        
         records = self._dict[key]
         if order_idx >= len(records):
             raise StopIteration
+        
+        # Get the value
         value = records[order_idx]
+        
+        # Mark this item as consumed by this consumer
+        item_key = (key, order_idx)
+        if consumer_id in self._item_consumers[item_key]:
+            self._item_consumers[item_key].remove(consumer_id)
+        
+        # Update the consumer's index
         self._consumer_idx[consumer_id] = idx
+        
+        # Cleanup if possible
+        self._cleanup_consumed_items()
+        
         return value
 
+    def _cleanup_consumed_items(self):
+        """Remove items that have been consumed by all interested consumers."""
+        # Find the minimum index for each consumer
+        min_idx_by_consumer = {}
+        for consumer_id, idx in self._consumer_idx.items():
+            min_idx_by_consumer[consumer_id] = idx
+        
+        # Skip if there are no consumers
+        if not min_idx_by_consumer:
+            return
+            
+        # Find the global minimum index still needed
+        min_idx = min(min_idx_by_consumer.values())
+        
+        # Remove items before min_idx that have no remaining consumers
+        items_to_remove = []
+        keys_to_cleanup = set()
+        
+        # First pass - identify items for removal
+        for i in range(min(len(self._order), min_idx)):
+            key, order_idx = self._order[i]
+            item_key = (key, order_idx)
+            
+            # If the item has no more consumers or isn't tracked, it can be removed
+            if not self._item_consumers.get(item_key, set()):
+                items_to_remove.append(i)
+                keys_to_cleanup.add(key)
+        
+        # Second pass - remove items from the data structures
+        if items_to_remove:
+            # Remove from order list
+            for i in sorted(items_to_remove, reverse=True):
+                key, order_idx = self._order[i]
+                item_key = (key, order_idx)
+                
+                # Remove from item tracking
+                if item_key in self._item_consumers:
+                    del self._item_consumers[item_key]
+                
+                # Remove from order list
+                self._order.pop(i)
+            
+            # Clean up dict items where possible
+            for key in keys_to_cleanup:
+                # Find the minimum order index for this key
+                min_order_idx = float('inf')
+                for k, order_idx in self._order:
+                    if k == key and order_idx < min_order_idx:
+                        min_order_idx = order_idx
+                
+                # If there are no more items for this key, or all are higher, cleanup
+                if min_order_idx == float('inf'):
+                    # No more items with this key
+                    self._dict[key] = []
+                elif min_order_idx > 0:
+                    # Remove consumed items at the beginning of the list
+                    self._dict[key] = self._dict[key][min_order_idx:]
+                    
+                    # Update the order indexes for remaining items
+                    for i in range(len(self._order)):
+                        k, order_idx = self._order[i]
+                        if k == key and order_idx >= min_order_idx:
+                            self._order[i] = (k, order_idx - min_order_idx)
+                            
+                            # Update the item tracking keys
+                            old_key = (k, order_idx)
+                            new_key = (k, order_idx - min_order_idx)
+                            if old_key in self._item_consumers:
+                                self._item_consumers[new_key] = self._item_consumers[old_key]
+                                del self._item_consumers[old_key]
+            
+            # Update consumer indexes after removing items
+            shift = len(items_to_remove)
+            self._min_required_idx = max(0, min_idx - shift)
+            for consumer_id in self._consumer_idx:
+                self._consumer_idx[consumer_id] = max(0, self._consumer_idx[consumer_id] - shift)
+
     def size(self):
+        """Return the total number of items in the queue."""
         return len(self._order)
 
     def dict_sizes(self):
+        """Return a dictionary with the count of items for each key."""
         return {k: len(v) for k, v in self._dict.items()}
 
     def clear(self):
+        """Clear all items from the queue."""
         self._dict.clear()
         self._order.clear()
+        self._item_consumers.clear()
         for consumer_id in self._consumer_subs:
             self._consumer_idx[consumer_id] = 0
             self._consumer_subs[consumer_id] = set()
+        self._min_required_idx = 0
 
     def reset_consumer_idx(self, consumer_id: int):
+        """Reset a consumer's index to 0."""
         self._consumer_idx[consumer_id] = 0
