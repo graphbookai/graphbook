@@ -94,7 +94,7 @@ class GraphState:
         # Next, create all steps
         steps: Dict[str, Step] = {}
         step_states: Dict[str, Set[StepState]] = {}
-        step_graph = {"child": {}, "parent": {}}
+        step_graph: Dict[str, Dict[str, Set[Tuple[str, str]]]] = {"child": {}, "parent": {}}
         for step in graph.get_steps():
             step_id = step.id
             step_class = step.node
@@ -166,11 +166,10 @@ class GraphState:
         self._resource_values = resource_values
         self._step_states = step_states
         self._step_graph = step_graph
-        
-    def get_parents(self, step_id: str) -> Dict[str, List[str]]:
-        parents: Dict[str, List[str]] = {}
-        for parent_id, slot in self._step_graph["parent"][step_id]:
-            if parent_id not in parents:
-                parents[parent_id] = []
-            parents[parent_id].append(slot)
-        return parents
+    
+    def get_depending_children(self, parent_id: str, slot: str) -> List[Step]:
+        children: List[Step] = []
+        for child_id, child_slot in self._step_graph["child"][parent_id]:
+            if child_slot == slot:
+                children.append(self._steps[child_id])
+        return children

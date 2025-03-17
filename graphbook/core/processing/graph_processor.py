@@ -156,7 +156,6 @@ class GraphProcessor:
 
         # Initialize state
         self.graph_state = GraphState(None)  # No custom nodes path needed
-        self.curr_outputs: Dict[str, StepOutput] = {}
 
         # Initialize dataloader
         self.dataloader = Dataloader(self.num_workers, False)
@@ -252,7 +251,7 @@ class GraphProcessor:
 
         return outputs
 
-    def process_step_recursive(self, step: Step, is_active: bool = False) -> bool:
+    def process_step_recursive(self, step: Step, input: Any, is_active: bool = False) -> bool:
         """
         Process a step and its child steps recursively.
 
@@ -272,29 +271,7 @@ class GraphProcessor:
             if not self.graph_state.get_state(step, StepState.EXECUTED):
                 outputs = self.exec_step(step)
         else:
-            # For non-source steps, we need to process parents first to get inputs
-            # For recursive processing, we'll process the parent steps directly
-            # instead of using the queue mechanism
-            parents = self.graph_state.get_parents(step)
-            if parents:
-                parent_active = False
-
-                # Process all parent steps
-                for parent_id in parents:
-                    parent_step = self.graph_state._steps[parent_id]
-                    curr_parent_active = self.process_step_recursive(parent_step)
-                    parent_active = parent_active or curr_parent_active
-
-                for parent_id, parent_slots in parents.items():
-                    if parent_id not in self.curr_outputs:
-                        continue
-                    parent_outputs = [
-                        out
-                        for parent_slot in parent_slots
-                        for out in self.curr_outputs[parent_id].get(parent_slot, [])
-                    ]  # TODO: Instead, this needs to be a dynamic queue where if all steps consume, the queue shrinks (lpop happens upon complete consumption of leftmost element)
-                    for parent_output in parent_outputs:
-                        outputs = self.exec_step(step, parent_output)
+            outputs = self.exec_step(step, input)
 
             # Handle AsyncStep
             if isinstance(step, AsyncStep):
@@ -310,17 +287,13 @@ class GraphProcessor:
         if outputs is None:
             return False
 
-        # Check if this step has any outputs
-        if not is_active:
-            is_active = any(len(v) > 0 for v in outputs.values())
-
-        # Update output state
-        if step.id not in self.curr_outputs:
-            self.curr_outputs[step.id] = {}
-        for output_pin, output_values in outputs.items():
-            if output_pin not in self.curr_outputs[step.id]:
-                self.curr_outputs[step.id][output_pin] = []
-            self.curr_outputs[step.id][output_pin].extend(output_values)
+        # Process child steps
+        for output_key, output_list in outputs.items():
+            for output in output_list:
+                child_steps = self.graph_state.get_depending_children(step.id, output_key)
+                for child_step in child_steps:
+                    self.process_step_recursive(child_step, output, is_active)
+                    is_active = True
 
         return is_active
 
