@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, TYPE_CHECKING, Any
+from typing import List, Dict, Optional, Any
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
@@ -71,12 +71,10 @@ class WebClient(Client):
         node_hub: NodeHub,
         view_manager: MultiGraphViewManager,
         setup_paths: dict,
-        log_handler=None,
     ):
         super().__init__(sid, ws, view_manager, processor)
         self.processor = processor
         self.node_hub = node_hub
-        self.log_handler = log_handler
         self.root_path = Path(setup_paths["workflow_dir"])
         self.docs_path = Path(setup_paths["docs_path"])
         self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
@@ -98,9 +96,6 @@ class WebClient(Client):
 
     def get_node_hub(self) -> NodeHub:
         return self.node_hub
-
-    def get_logger(self):
-        return self.log_handler
 
 
 class ClientPool(TaskLoop):
@@ -164,7 +159,6 @@ class AppClientPool(ClientPool):
         plugins: tuple,
         no_sample: bool,
         setup_paths: dict,
-        log_dir: Optional[str] = None,
     ):
         super().__init__(close_event, options=DEFAULT_CLIENT_OPTIONS)
         self.web_processor_args = web_processor_args
@@ -173,7 +167,6 @@ class AppClientPool(ClientPool):
         self.custom_nodes_path = (
             setup_paths["custom_nodes_path"] if setup_paths else None
         )
-        self.log_dir = log_dir
         self.plugins = plugins
         self.no_sample = no_sample
         sys.path.append(str(self.setup_paths["workflow_dir"]))
@@ -191,12 +184,10 @@ class AppClientPool(ClientPool):
         processor = WebInstanceProcessor(**processor_args)
         view_manager = MultiGraphViewManager(view_queue, processor, self.close_event)
         node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
-        log_handler = None
         return {
             "processor": processor,
             "node_hub": node_hub,
             "view_manager": view_manager,
-            "log_handler": log_handler,
         }
 
     def _create_dirs(
@@ -261,8 +252,6 @@ class AppClientPool(ClientPool):
         resources["processor"].start()
         resources["node_hub"].start()
         resources["view_manager"].start()
-        if resources["log_handler"]:
-            resources["log_handler"].start()
 
         await ws.send_json({"type": "sid", "data": sid})
         return client
@@ -275,9 +264,6 @@ class AppClientPool(ClientPool):
             client.get_processor().stop()
             await client.get_view_manager().stop()
             client.get_node_hub().stop()
-            logger = client.get_logger()
-            if logger:
-                logger.stop()
         if sid in self.clients:
             del self.clients[sid]
         if sid in self.ws:
@@ -390,10 +376,9 @@ class AppSharedClientPool(AppClientPool):
         plugins: tuple,
         no_sample: bool,
         setup_paths: dict,
-        log_dir: Optional[str] = None,
     ):
         super().__init__(
-            close_event, web_processor_args, plugins, no_sample, setup_paths, log_dir
+            close_event, web_processor_args, plugins, no_sample, setup_paths
         )
         self._create_dirs(**setup_paths)
         self.shared_resources = self._create_resources(
@@ -434,7 +419,6 @@ class AppSharedClientPool(AppClientPool):
         self.shared_resources["processor"].stop()
         self.shared_resources["node_hub"].stop()
         self.shared_resources["view_manager"].stop()
-        self.shared_resources["log_handler"].stop()
 
     def start(self):
         super().start()
@@ -449,7 +433,3 @@ class AppSharedClientPool(AppClientPool):
         node_hub = self.shared_resources.get("node_hub")
         if node_hub:
             node_hub.start()
-
-        log_handler = self.shared_resources.get("log_handler")
-        if log_handler:
-            log_handler.start()

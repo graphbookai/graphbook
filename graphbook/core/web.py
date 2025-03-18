@@ -234,7 +234,6 @@ class AppServer(Server):
         close_event: mp.Event,
         setup_paths: Optional[dict] = None,
         web_dir: Optional[str] = None,
-        log_dir: Optional[str] = None,
         host: str = "0.0.0.0",
         port: int = 8005,
     ):
@@ -248,7 +247,6 @@ class AppServer(Server):
                 node_plugins,
                 no_sample,
                 setup_paths=setup_paths,
-                log_dir=log_dir,
             )
         else:
             self.client_pool = AppSharedClientPool(
@@ -257,7 +255,6 @@ class AppServer(Server):
                 node_plugins,
                 no_sample,
                 setup_paths=setup_paths,
-                log_dir=log_dir,
             )
         super().__init__(
             close_event,
@@ -271,29 +268,6 @@ class AppServer(Server):
         if self.web_plugins:
             print("Loaded web plugins:")
             print(self.web_plugins)
-
-        @self.routes.get("/log/{graph_id}/{step_id}/{pin_id}/{index}")
-        async def get_log(request: web.Request) -> web.Response:
-            client: WebClient = self.get_client(request)
-            graph_id = request.match_info.get("graph_id")
-            step_id = request.match_info.get("step_id")
-            pin_id = request.match_info.get("pin_id")
-            index = int(request.match_info.get("index"))
-            logger = client.get_logger()
-            if not logger:
-                res = None
-            else:
-                res = logger.get_output(graph_id, step_id, pin_id, index)
-
-            if (
-                res
-                and res.get("step_id") == step_id
-                and res.get("pin_id") == pin_id
-                and res.get("index") == index
-            ):
-                return web.json_response(res)
-
-            return web.json_response({"error": "Could not get output."})
 
         @self.routes.post("/prompt_response/{id}")
         async def prompt_response(request: web.Request) -> web.Response:
@@ -662,16 +636,12 @@ def start_app(args):
     # Add output logging configuration
     if hasattr(args, 'output_log_dir'):
         web_processor_args['output_log_dir'] = args.output_log_dir
-    
-    if hasattr(args, 'memory_mode'):
-        web_processor_args['memory_mode'] = args.memory_mode
 
     if args.start_media_server:
         p = mp.Process(target=create_media_server, args=(args,))
         p.daemon = True
         p.start()
 
-    log_dir = args.log_dir if not args.isolate_users else None
     server = AppServer(
         web_processor_args,
         args.isolate_users,
@@ -679,7 +649,6 @@ def start_app(args):
         close_event,
         setup_paths=setup_paths,
         web_dir=args.web_dir,
-        log_dir=log_dir,
         host=args.host,
         port=args.port,
     )
