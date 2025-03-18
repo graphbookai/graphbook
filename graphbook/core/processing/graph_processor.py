@@ -65,7 +65,7 @@ class DefaultExecutor(Executor):
         self,
         copy_outputs: bool = True,
         num_workers: int = 1,
-        output_log_dir: Optional[str] = None,
+        output_log_dir: str = "outputs",
     ):
         """
         Initialize the DefaultExecutor.
@@ -73,7 +73,7 @@ class DefaultExecutor(Executor):
         Args:
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
-            output_log_dir (Optional[str]): Directory to store output logs
+            output_log_dir (str): Directory to store output logs
         """
 
         self.copy_outputs = copy_outputs
@@ -132,7 +132,7 @@ class GraphProcessor:
         view_manager_queue: mp.Queue,
         copy_outputs: bool = True,
         num_workers: int = 1,
-        output_log_dir: Optional[str] = None,
+        output_log_dir: str = "outputs",
     ):
         """
         Initialize the GraphProcessor.
@@ -149,13 +149,11 @@ class GraphProcessor:
         self.num_workers = num_workers
 
         # Initialize output log manager
-        self.output_log_manager = (
-            OutputLogManager(output_log_dir) if output_log_dir else None
-        )
+        self.output_log_manager = OutputLogManager(output_log_dir)
         self.output_log_writer = None
 
         # Initialize state
-        self.graph_state = GraphState(None)  # No custom nodes path needed
+        self.graph_state = GraphState()  # No custom nodes path needed
 
         # Initialize dataloader
         self.dataloader = Dataloader(self.num_workers, False)
@@ -219,9 +217,7 @@ class GraphProcessor:
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             log(error_msg, "error")
-            # Log the error to the output log file if available
-            if self.output_log_writer:
-                self.output_log_writer.write_log(step.id, error_msg, "error")
+            self.output_log_writer.write_log(step.id, error_msg, "error")
             traceback.print_exc()
             return None
 
@@ -230,8 +226,7 @@ class GraphProcessor:
                 if not len(step.Outputs) == 1:
                     error_msg = f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value."
                     log(error_msg, "error")
-                    if self.output_log_writer:
-                        self.output_log_writer.write_log(step.id, error_msg, "error")
+                    self.output_log_writer.write_log(step.id, error_msg, "error")
                     return None
                 outputs = {step.Outputs[0]: outputs}
 
@@ -240,18 +235,20 @@ class GraphProcessor:
                     outputs[k] = [v]
 
             self.handle_images(outputs)
+            self.graph_state.handle_outputs(
+                step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
+            )
 
             # Log outputs to file if output logging is enabled
-            if self.output_log_writer:
-                for pin_id, output_list in outputs.items():
-                    for idx, output in enumerate(output_list):
-                        self.output_log_writer.write_output(
-                            step.id, pin_id, idx, output
-                        )
+            for pin_id, output_list in outputs.items():
+                for output in output_list:
+                    self.output_log_writer.write_output(step.id, pin_id, output)
 
         return outputs
 
-    def process_step_recursive(self, step: Step, input: Any, is_active: bool = False) -> bool:
+    def process_step_recursive(
+        self, step: Step, input: Optional[Any] = None, is_active: bool = False
+    ) -> bool:
         """
         Process a step and its child steps recursively.
 
@@ -271,7 +268,8 @@ class GraphProcessor:
             if not self.graph_state.get_state(step, StepState.EXECUTED):
                 outputs = self.exec_step(step)
         else:
-            outputs = self.exec_step(step, input)
+            if input is not None:
+                outputs = self.exec_step(step, input)
 
             # Handle AsyncStep
             if isinstance(step, AsyncStep):
@@ -290,7 +288,9 @@ class GraphProcessor:
         # Process child steps
         for output_key, output_list in outputs.items():
             for output in output_list:
-                child_steps = self.graph_state.get_depending_children(step.id, output_key)
+                child_steps = self.graph_state.get_depending_children(
+                    step.id, output_key
+                )
                 for child_step in child_steps:
                     self.process_step_recursive(child_step, output, is_active)
                     is_active = True
@@ -306,15 +306,8 @@ class GraphProcessor:
         """
         is_active = False
 
-        # Find terminal steps (nodes with no children)
-        leaf_steps = []
         for step in steps:
-            if not self.graph_state._step_graph["child"].get(step.id, set()):
-                leaf_steps.append(step)
-
-        # Process terminal steps and their dependencies recursively
-        for step in leaf_steps:
-            step_active, _ = self.process_step_recursive(step)
+            step_active = self.process_step_recursive(step)
             is_active = is_active or step_active
 
         return is_active
@@ -346,8 +339,7 @@ class GraphProcessor:
         self.graph_state.set_viewer(self.viewer)
 
         # Initialize output log writer if output logging is enabled
-        if self.output_log_manager:
-            self.output_log_writer = self.output_log_manager.get_writer(self.name)
+        self.output_log_writer = self.output_log_manager.get_writer(self.name)
 
         # Update graph state with provided graph
         self.graph_state.update_state_py(graph, {})
@@ -410,8 +402,6 @@ class GraphProcessor:
         """
         # Try to get output from memory first
         output = None
-        if self.memory_mode != "none":
-            output = self.graph_state.get_output(step_id, pin_id, index)
 
         # If not found in memory and output logging is enabled, try to get it from the log file
         if output is None and self.output_log_manager:

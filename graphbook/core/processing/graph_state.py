@@ -28,9 +28,59 @@ class GraphState:
         self._parent_iterators: Dict[str, Iterator] = {}
         self._updated_nodes: Dict[str, Dict[str, bool]] = {}
         self._step_states: Dict[str, Set[StepState]] = {}
-        self._step_graph = {"child": {}, "parent": {}}
+        self._step_graph: Dict[str, Dict[str, Set[Tuple[str, str]]]] = {"child": {}, "parent": {}}
+        
+    def set_viewer(self, viewer: ViewManagerInterface):
+        self.view_manager = viewer
 
+    def get_resource_values(self) -> dict:
+        return self._resource_values
     
+    def get_state(self, step: Union[Step, str], state: StepState) -> bool:
+        step_id = step.id if isinstance(step, Step) else step
+        return state in self._step_states[step_id]
+    
+    def create_parent_subgraph(self, step_id: str):
+        new_steps = {}
+        q = []
+        q.append(step_id)
+        while q:
+            step_id = q.pop(0)
+            if step_id in new_steps:
+                continue
+
+            new_steps[step_id] = self._steps[step_id]
+            for parent_id, _ in self._step_graph["parent"][step_id]:
+                q.append(parent_id)
+        return new_steps
+    
+    def get_processing_steps(self, step_id: str = None):
+        steps = self._steps
+        if step_id is not None:
+            steps = self.create_parent_subgraph(step_id)
+        # Topologically sort the steps
+        # Note: Optional, due to the way the graph is processed
+        ordered_steps = []
+        visited = set()
+
+        def dfs(step_id):
+            if step_id in visited or step_id not in steps:
+                return
+            visited.add(step_id)
+            step = steps[step_id]
+            children = self._step_graph["child"][step_id]
+            for child_id, _ in children:
+                dfs(child_id)
+            ordered_steps.append(step)
+
+        for step_id in steps:
+            dfs(step_id)
+        return ordered_steps[::-1]
+    
+    def handle_outputs(self, step_id: str, outputs: StepOutput):
+        self._step_states[step_id].add(StepState.EXECUTED)
+        self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
+
     def update_state_py(self, graph: "Graph", params: dict):
         from graphbook.core.serialization import GraphResourceWrapper
 

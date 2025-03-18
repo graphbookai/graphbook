@@ -43,6 +43,7 @@ class OutputLogWriter:
         self.lock = threading.Lock()
         self.index = {}  # Maps (step_id, pin_id, index) to file position
         self.log_index = {}  # Maps (step_id, log_index) to file position
+        self.pin_index = {}  # Maps (step_id, pin_id) to list of output indices
         
         # Create the directory if it doesn't exist
         os.makedirs(self.log_file_path.parent, exist_ok=True)
@@ -99,26 +100,27 @@ class OutputLogWriter:
         
         return position
     
-    def write_output(self, step_id: str, pin_id: str, index: int, output: Any):
+    def write_output(self, step_id: str, pin_id: str, output: Any):
         """
         Write a step output to the log file.
         
         Args:
             step_id: ID of the step
             pin_id: ID of the output pin
-            index: Index of the output
             output: Output data
         """
         with self.lock:
+            pin_index = self.pin_index.get((step_id, pin_id), 0)
             entry_data = {
                 'step_id': step_id,
                 'pin_id': pin_id,
-                'index': index,
+                'index': pin_index,
                 'output': output,
             }
             position = self._write_entry(LogEntryType.OUTPUT, entry_data)
-            self.index[(step_id, pin_id, index)] = position
-    
+            self.index[(step_id, pin_id, pin_index)] = position
+            self.pin_index[(step_id, pin_id)] = pin_index + 1
+
     def write_log(self, step_id: str, message: str, log_type: str = "info"):
         """
         Write a log entry to the log file.
