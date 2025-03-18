@@ -80,16 +80,18 @@ class DefaultExecutor(Executor):
         self.num_workers = num_workers
         self.output_log_dir = output_log_dir
         self.view_manager_queue = mp.Queue()
+        self.close_event = mp.Event()
 
         self.processor = GraphProcessor(
             self.view_manager_queue,
             self.copy_outputs,
             self.num_workers,
             self.output_log_dir,
+            self.close_event,
         )
 
         self.client_pool = SimpleClientPool(
-            mp.Event(), self.view_manager_queue, self.processor
+            self.close_event, self.view_manager_queue, self.processor
         )
 
     def get_client_pool(self):
@@ -128,6 +130,7 @@ class GraphProcessor:
         copy_outputs: bool = True,
         num_workers: int = 1,
         output_log_dir: str = "outputs",
+        close_event: Optional[mp.Event] = None,
     ):
         """
         Initialize the GraphProcessor.
@@ -137,8 +140,9 @@ class GraphProcessor:
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
             output_log_dir (Optional[str]): Directory to store output logs
+            close_event (Optional[mp.Event]): Event to signal shutdown, created if not provided
         """
-        self.close_event = mp.Event()
+        self.close_event = close_event if close_event is not None else mp.Event()
         self.view_manager_queue = view_manager_queue
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers

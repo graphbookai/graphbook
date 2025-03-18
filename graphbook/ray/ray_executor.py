@@ -43,10 +43,10 @@ class RayExecutor(Executor):
 
         self.cmd_queue = ray.util.queue.Queue()
         self.view_queue = ray.util.queue.Queue()
-
+        self.close_event = mp.Event()
 
         self.client_pool = RayClientPool(
-            close_event=mp.Event(),
+            close_event=self.close_event,
             proc_queue=self.cmd_queue,
             view_queue=self.view_queue,
         )

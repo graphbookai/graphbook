@@ -28,7 +28,7 @@ step_output_err_res = "Step output must be a dictionary, and dict values must be
 class WebInstanceProcessor:
     def __init__(
         self,
-        close_event: mp.Event,
+        close_event: Optional[mp.Event],
         view_manager_queue: mp.Queue,
         continue_on_failure: bool,
         copy_outputs: bool,
@@ -46,7 +46,8 @@ class WebInstanceProcessor:
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
         self.dataloader = Dataloader(self.num_workers, spawn)
-        self.close_event = close_event
+        # Use the provided close_event or create a new one
+        self.close_event = close_event if close_event is not None else mp.Event()
         self.pause_event = mp.Event()
         self.filename = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)

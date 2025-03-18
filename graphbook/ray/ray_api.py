@@ -63,15 +63,25 @@ def init(*, host="0.0.0.0", port=8005) -> None:
         view_queue = ray.util.queue.Queue()
         cmd_queue = ray.util.queue.Queue()
         step_handler = RayStepHandler.remote(cmd_queue, view_queue)
+        # Use a single close_event for the whole system
         close_event = mp.Event()
+        # Set up a cleanup handler for system exit
+        import atexit
+        atexit.register(lambda: close_event.set())
+        
+        # Create client pool with the same close event
+        client_pool = RayClientPool(
+            close_event=close_event, 
+            proc_queue=cmd_queue, 
+            view_queue=view_queue
+        )
+        
         graphbook.core.web.async_start(
             host=host,
             port=port,
             close_event=close_event,
             img_storage=RayMemoryManager,
-            client_pool=RayClientPool(
-                close_event=close_event, proc_queue=cmd_queue, view_queue=view_queue
-            ),
+            client_pool=client_pool,
         )
 
 

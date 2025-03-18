@@ -210,6 +210,7 @@ class MultiGraphViewManager(QueueTaskLoop):
         self.viewers: Dict[str, List[Viewer]] = {}
         self.graph_states: Dict[str, Dict[str, StateEntry]] = {}
         self.global_states: Dict[str, StateEntry] = {}
+        # Use the provided close_event or create a new one
         self.close_event = close_event or mp.Event()
         super().__init__(work_queue, 0.1, self.close_event)
 
