@@ -20,6 +20,7 @@ from ..utils import (
 )
 from ..utils import ExecutionContext
 from ..viewer import ViewManagerInterface
+from ..output_log import OutputLogWriter
 from .. import prompts
 import warnings
 import traceback
@@ -42,19 +43,24 @@ def log(msg: Any, type: LogType = "info"):
     node_id: str = ExecutionContext.get("node_id")
     node_name: str = ExecutionContext.get("node_name")
     view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
-    graph_processor = ExecutionContext.get("graph_processor")
-    
+    log_writer: OutputLogWriter = ExecutionContext.get("log_writer")
+
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
+    
+    log_handle = None
 
-    if view_manager is None and RAY_AVAILABLE:
-        if RAY.is_initialized():
-            actor_handle = RAY.get_actor("_graphbook_RayStepHandler")
-            log_handle = actor_handle.handle_log.remote
-        else:
-            raise ValueError(
-                "View manager not initialized in context. Is this being called in a running graph?"
-            )
+    if view_manager is None:
+        if log_writer:
+            log_handle = log_writer.write_log
+        elif RAY_AVAILABLE:
+            if RAY.is_initialized():
+                actor_handle = RAY.get_actor("_graphbook_RayStepHandler")
+                log_handle = actor_handle.handle_log.remote
+            else:
+                raise ValueError(
+                    "View manager not initialized in context. Is this being called in a running graph?"
+                )
     else:
         log_handle = view_manager.handle_log
 
@@ -63,18 +69,16 @@ def log(msg: Any, type: LogType = "info"):
         if type == "error":
             log_message = f"[ERR] {msg}"
         print(f"[{node_id} {node_name}] {log_message}")
-        
-        # Log to the output log file if available
-        if graph_processor and hasattr(graph_processor, "output_log_writer") and graph_processor.output_log_writer:
-            graph_processor.output_log_writer.write_log(node_id, str(msg), type)
-            
+
     elif type == "json":
         msg = transform_json_log(msg)
     elif type == "image":
         pass  # TODO
     else:
         raise ValueError(f"Unknown log type {type}")
-    log_handle(node_id, msg, type)
+    
+    if log_handle:
+        log_handle(node_id, msg, type)
 
 
 def prompt(prompt: dict):

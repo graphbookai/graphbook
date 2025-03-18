@@ -116,11 +116,6 @@ class DefaultExecutor(Executor):
             traceback.print_exc()
             return None, None
 
-    def __del__(self):
-        """Clean up resources when the executor is garbage collected."""
-        if hasattr(self, "processor"):
-            self.processor.stop()
-
 
 class GraphProcessor:
     """
@@ -331,15 +326,22 @@ class GraphProcessor:
         self.name = name
         self.view_manager = MultiGraphViewManagerInterface(self.view_manager_queue)
         self.viewer = self.view_manager.new(name)
-        ExecutionContext.update(
-            view_manager=self.viewer, dataloader=self.dataloader, graph_processor=self
-        )
+
         self.viewer.set_state("run_state", "running")
         self.viewer.set_state("graph_state", graph.serialize())
         self.graph_state.set_viewer(self.viewer)
 
         # Initialize output log writer if output logging is enabled
         self.output_log_writer = self.output_log_manager.get_writer(self.name)
+
+        ExecutionContext.update(
+            dataloader=self.dataloader,
+            log_writer=self.output_log_writer,
+        )
+        # Create and start the log watcher to stream logs to the viewer
+        self.log_watcher = self.output_log_manager.create_watcher(
+            self.name, self.viewer
+        )
 
         # Update graph state with provided graph
         self.graph_state.update_state_py(graph, {})
@@ -404,17 +406,27 @@ class GraphProcessor:
         output = None
 
         # If not found in memory and output logging is enabled, try to get it from the log file
-        if output is None and self.output_log_manager:
-            log_reader = self.output_log_manager.get_reader(self.name)
+        if self.output_log_manager:
+            log_reader = self.output_log_manager.get_watcher(self.name)
             if log_reader:
                 output = log_reader.get_output(step_id, pin_id, index)
 
-        return transform_json_log(output)
+        output = {
+            "step_id": step_id,
+            "pin_id": pin_id,
+            "index": index,
+            "data": transform_json_log(output),
+        }
+        return output
 
     def stop(self):
         """Stop the processor and clean up resources."""
         self.close_event.set()
         self.dataloader.shutdown()
+
+        # Stop the log watcher if it's running
+        if hasattr(self, "log_watcher") and self.log_watcher:
+            self.output_log_manager.stop_watcher(self.name)
 
         # Close output log files
         if self.output_log_manager:

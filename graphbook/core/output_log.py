@@ -3,15 +3,13 @@ import os
 import msgpack
 import cloudpickle
 import time
-import io
 import threading
 import tempfile
 from pathlib import Path
 import atexit
-import shutil
 import uuid
-import json
 from enum import Enum, auto
+from graphbook.core.viewer import ViewManagerInterface
 
 
 class LogEntryType(Enum):
@@ -49,6 +47,10 @@ class OutputLogWriter:
         os.makedirs(self.log_file_path.parent, exist_ok=True)
         
         # Open the file and write the header
+        if self.log_file_path.exists():
+            print(f"Warning: Log file already exists: {self.log_file_path}. Overwriting contents.")
+            self.file.truncate(0)
+            
         self.file = open(self.log_file_path, 'wb')
         self._write_header()
         
@@ -59,8 +61,7 @@ class OutputLogWriter:
         """Write the log file header."""
         header = {
             'format': 'graphbook-output-log',
-            'version': '1.0',
-            'created_at': time.time(),
+            'version': '0',
         }
         self._write_entry(LogEntryType.META, header)
     
@@ -81,22 +82,18 @@ class OutputLogWriter:
         # Serialize the data
         serialized_data = cloudpickle.dumps(data)
         
-        # Create the entry
+        # Create and serialize the entry directly
         entry = {
             'type': entry_type.value,
             'timestamp': time.time(),
-            'size': len(serialized_data),
-            'data': serialized_data,
+            'data': serialized_data
         }
         
-        # Write the entry
-        packed_entry = msgpack.packb(entry, use_bin_type=True)
-        entry_length = len(packed_entry)
-        
-        # Write the length and then the entry
-        self.file.write(msgpack.packb(entry_length, use_bin_type=True))
-        self.file.write(packed_entry)
+        # Let MessagePack handle all the length encoding
+        self.file.write(msgpack.packb(entry, use_bin_type=True))
         self.file.flush()
+        
+        position = self.file.tell()
         
         return position
     
@@ -165,185 +162,158 @@ class OutputLogWriter:
             atexit.unregister(self.close)
 
 
-class OutputLogReader:
+class LogWatcher:
     """
-    Reader for the output log file format.
+    Watches an output log file and streams data to the viewer.
     
-    This class deserializes step outputs and logs from the log file.
+    This class monitors an output log file in real-time and sends updates
+    to the viewer for displaying logs, outputs, and queue sizes.
     """
     
-    def __init__(self, log_file_path: Union[str, Path]):
+    def __init__(self, graph_id: str, log_file_path: Union[str, Path], viewer_interface: ViewManagerInterface):
         """
-        Initialize the output log reader.
+        Initialize the log watcher.
         
         Args:
+            graph_id: ID of the graph
             log_file_path: Path to the log file
+            viewer_interface: Interface to the viewer
         """
+        self.graph_id = graph_id
         self.log_file_path = Path(log_file_path)
-        self.file = None
-        self.index = None
-        self.header = None
-        self.lock = threading.Lock()
-    
-    def _open_file(self):
-        """Open the log file and initialize if needed."""
-        if self.file is None or self.file.closed:
-            self.file = open(self.log_file_path, 'rb')
-            self._read_header()
-            self._build_index()
-    
-    def _read_header(self):
-        """Read the log file header."""
-        with self.lock:
-            self._open_file()
-            self.file.seek(0)
-            
-            # Read the length of the header entry
-            length_bytes = self.file.read(5)  # msgpack for small integers uses 5 bytes
-            length = msgpack.unpackb(length_bytes, raw=False)
-            
-            # Read the header entry
-            entry_bytes = self.file.read(length)
-            entry = msgpack.unpackb(entry_bytes, raw=False)
-            
-            if entry['type'] != LogEntryType.META.value:
-                raise ValueError("Invalid log file format")
-            
-            self.header = cloudpickle.loads(entry['data'])
-    
-    def _read_entry_at(self, position: int) -> Any:
-        """
-        Read an entry at a specific position in the file.
+        self.viewer = viewer_interface
+        self.stop_event = threading.Event()
+        self.latest_outputs: Dict[Tuple[str, str], Any] = {}  # Maps (step_id, pin_id) to the latest output
+        self.all_outputs: Dict[Tuple[str, str], List[Any]] = {}  # Maps (step_id, pin_id) to a list of outputs
+        self.outputs_updated = False  # Flag to indicate if outputs were updated during iteration
+        self.watch_thread = None
+        self.last_position = 0
+        self.pin_output_counts = {}  # Maps (step_id, pin_id) to count
         
-        Args:
-            position: Position in the file to read from
+    def start(self):
+        """Start watching the log file."""
+        if self.watch_thread is not None and self.watch_thread.is_alive():
+            return
             
-        Returns:
-            The deserialized entry data
-        """
-        with self.lock:
-            self._open_file()
-            self.file.seek(position)
-            
-            # Read the length of the entry
-            length_bytes = self.file.read(5)  # msgpack for small integers uses 5 bytes
-            length = msgpack.unpackb(length_bytes, raw=False)
-            
-            # Read the entry
-            entry_bytes = self.file.read(length)
-            entry = msgpack.unpackb(entry_bytes, raw=False)
-            
-            # Deserialize the data
-            return cloudpickle.loads(entry['data'])
+        self.stop_event.clear()
+        self.watch_thread = threading.Thread(target=self._watch_loop, daemon=True)
+        self.watch_thread.start()
     
-    def _build_index(self):
-        """Build the index from the log file."""
-        with self.lock:
-            self._open_file()
-            
-            # Start after the header
-            self.file.seek(0)
-            
-            # Skip the header
-            length_bytes = self.file.read(5)
-            length = msgpack.unpackb(length_bytes, raw=False)
-            self.file.seek(length, io.SEEK_CUR)
-            
-            self.index = {'outputs': {}, 'logs': {}}
-            
-            while True:
-                position = self.file.tell()
+    def stop(self):
+        """Stop watching the log file."""
+        if self.watch_thread is not None:
+            self.stop_event.set()
+            self.watch_thread.join(timeout=1.0)
+            self.watch_thread = None
+    
+    def _watch_loop(self):
+        """Main watch loop that monitors the log file for changes."""
+        # Wait for the log file to be created if it doesn't exist yet
+        while not self.log_file_path.exists() and not self.stop_event.is_set():
+            time.sleep(0.1)
+        
+        # Open the file for reading
+        with open(self.log_file_path, 'rb') as file:
+            # Main monitoring loop
+            while not self.stop_event.is_set():
+                # Check if there's new data
+                current_size = self.log_file_path.stat().st_size
+                if current_size > self.last_position:
+                    # Reset the outputs updated flag
+                    self.outputs_updated = False
+                    
+                    # Move to the last position we read
+                    file.seek(self.last_position)
+                    
+                    # Read new entries
+                    self._process_new_entries(file)
+                    
+                    # Update last position
+                    self.last_position = file.tell()
+                    
+                    # Update the viewer with the latest outputs (only once per iteration)
+                    if self.outputs_updated:
+                        for (step_id, pin_id), output in self.latest_outputs.items():
+                            self.viewer.handle_output(step_id, pin_id, output)
+                        # Clear latest outputs after sending to viewer
+                        self.latest_outputs = {}
                 
-                # Try to read the next entry length
-                try:
-                    length_bytes = self.file.read(5)
-                    if not length_bytes:
-                        # End of file
-                        break
-                    
-                    length = msgpack.unpackb(length_bytes, raw=False)
-                    
-                    # Read the entry
-                    entry_bytes = self.file.read(length)
-                    entry = msgpack.unpackb(entry_bytes, raw=False)
-                    data = cloudpickle.loads(entry['data'])
-                    
-                    # Index the entry
-                    if entry['type'] == LogEntryType.OUTPUT.value:
-                        key = (data['step_id'], data['pin_id'], data['index'])
-                        self.index['outputs'][key] = position
-                    elif entry['type'] == LogEntryType.LOG.value:
-                        step_id = data['step_id']
-                        if step_id not in self.index['logs']:
-                            self.index['logs'][step_id] = []
-                        self.index['logs'][step_id].append(position)
-                
-                except Exception as e:
-                    # End of file or corrupt entry
-                    break
-    
-    def get_output(self, step_id: str, pin_id: str, index: int) -> Optional[Any]:
-        """
-        Get a step output from the log file.
-        
-        Args:
-            step_id: ID of the step
-            pin_id: ID of the output pin
-            index: Index of the output
-            
-        Returns:
-            The output data or None if not found
-        """
-        with self.lock:
-            self._open_file()
-            key = (step_id, pin_id, index)
-            
-            if key not in self.index['outputs']:
-                return None
-            
-            position = self.index['outputs'][key]
-            entry_data = self._read_entry_at(position)
-            
-            return entry_data['output']
-    
-    def get_logs(self, step_id: str) -> List[Dict]:
-        """
-        Get logs for a step from the log file.
-        
-        Args:
-            step_id: ID of the step
-            
-        Returns:
-            List of log entries
-        """
-        with self.lock:
-            self._open_file()
-            
-            if step_id not in self.index['logs']:
-                return []
-            
-            logs = []
-            for position in self.index['logs'][step_id]:
-                entry_data = self._read_entry_at(position)
-                logs.append({
-                    'message': entry_data['message'],
-                    'type': entry_data['type'],
-                    'index': entry_data['index'],
-                })
-            
-            return logs
-    
-    def close(self):
-        """Close the log file."""
-        if self.file and not self.file.closed:
-            self.file.close()
+                # Sleep briefly before checking again
+                time.sleep(0.1)
 
+    
+    def _process_new_entries(self, file: BinaryIO):
+        """Process new entries in the log file."""
+        # Create an unpacker that reads directly from the file
+        unpacker = msgpack.Unpacker(file, raw=False)
+        
+        for entry in unpacker:    
+            # Process the entry based on its type
+            if entry['type'] == LogEntryType.OUTPUT.value:
+                self._handle_output_entry(entry['data'])
+            elif entry['type'] == LogEntryType.LOG.value:
+                self._handle_log_entry(entry['data'])
+            elif entry['type'] == LogEntryType.META.value:
+                pass
+            else:
+                print(f"Unknown entry type: {entry['type']}")
+
+    def _handle_output_entry(self, data):
+        """Handle an output entry from the log file."""
+        data = cloudpickle.loads(data)
+        step_id = data['step_id']
+        pin_id = data['pin_id']
+        output = data['output']
+        
+        # Store the latest output value for this pin
+        key = (step_id, pin_id)
+        self.latest_outputs[key] = output
+        self.outputs_updated = True
+        
+        # Store all outputs for this pin
+        if key not in self.all_outputs:
+            self.all_outputs[key] = []
+        self.all_outputs[key].append(output)
+        
+        # Update pin output counts
+        count = self.pin_output_counts.get(key, 0) + 1
+        self.pin_output_counts[key] = count
+        
+        # Update the queue size
+        sizes = {}
+        for (s_id, p_id), count in self.pin_output_counts.items():
+            if s_id == step_id:
+                sizes[p_id] = count
+        
+        if sizes:
+            self.viewer.handle_queue_size(step_id, sizes)
+    
+    def _handle_log_entry(self, data):
+        """Handle a log entry from the log file."""
+        data = cloudpickle.loads(data)
+        step_id = data['step_id']
+        message = data['message']
+        log_type = data['type']
+        
+        # Update the viewer with the log
+        self.viewer.handle_log(step_id, message, log_type)
+        
+    def get_output(self, step_id: str, pin_id: str, index: int) -> Optional[Any]:
+        """Get the latest output for a step and pin."""
+        key = (step_id, pin_id)
+        if key in self.all_outputs and index < len(self.all_outputs[key]):
+            print(f"Getting output for {key} at index {index}")
+            return self.all_outputs[key][index]
+        
+        print(f"Output not found for {key} at index {index}")
+        print([k for k in self.all_outputs.keys()])
+        return None
 
 class OutputLogManager:
     """
     Manager for output logs.
     
-    This class maintains a mapping of graph IDs to log files.
+    This class maintains a mapping of graph IDs to log files and watchers.
     """
     
     def __init__(self, log_dir: Optional[Union[str, Path]] = None):
@@ -359,8 +329,8 @@ class OutputLogManager:
         self.log_dir = Path(log_dir)
         os.makedirs(self.log_dir, exist_ok=True)
         
-        self.writers = {}  # graph_id -> OutputLogWriter
-        self.readers = {}  # graph_id -> OutputLogReader
+        self.writers: Dict[str, OutputLogWriter] = {}  # graph_id -> OutputLogWriter
+        self.watchers: Dict[str, LogWatcher] = {}  # graph_id -> LogWatcher
         self.lock = threading.Lock()
         
         # Register cleanup
@@ -383,7 +353,7 @@ class OutputLogManager:
             
             return self.writers[graph_id]
     
-    def get_reader(self, graph_id: str) -> Optional[OutputLogReader]:
+    def get_watcher(self, graph_id: str) -> Optional[LogWatcher]:
         """
         Get a reader for a graph.
         
@@ -393,24 +363,55 @@ class OutputLogManager:
         Returns:
             The output log reader or None if no log exists
         """
+        return self.watchers.get(graph_id)
+        
+    def create_watcher(self, graph_id: str, viewer_interface: ViewManagerInterface) -> LogWatcher:
+        """
+        Create a log watcher for a graph.
+        
+        Args:
+            graph_id: ID of the graph
+            viewer_interface: Interface to the viewer
+            
+        Returns:
+            The log watcher
+        """
         with self.lock:
+            # Stop existing watcher if any
+            if graph_id in self.watchers:
+                self.watchers[graph_id].stop()
+            
             log_file_path = self.log_dir / f"{graph_id}.graphlog"
+            watcher = LogWatcher(graph_id, log_file_path, viewer_interface)
+            self.watchers[graph_id] = watcher
+            watcher.start()
             
-            if not log_file_path.exists():
-                return None
-            
-            if graph_id not in self.readers:
-                self.readers[graph_id] = OutputLogReader(log_file_path)
-            
-            return self.readers[graph_id]
+            return watcher
+    
+    def stop_watcher(self, graph_id: str):
+        """
+        Stop a log watcher for a graph.
+        
+        Args:
+            graph_id: ID of the graph
+        """
+        print("STopping watcher")
+        with self.lock:
+            if graph_id in self.watchers:
+                self.watchers[graph_id].stop()
+                del self.watchers[graph_id]
     
     def close(self):
-        """Close all log files."""
+        """Close all log files and stop all watchers."""
         with self.lock:
+            # Stop all watchers
+            for watcher in self.watchers.values():
+                watcher.stop()
+            self.watchers.clear()
+            
+            # Close all writers and readers
             for writer in self.writers.values():
                 writer.close()
-            for reader in self.readers.values():
-                reader.close()
             
             # Unregister atexit handler
             atexit.unregister(self.close)
