@@ -409,6 +409,8 @@ class AppServer(Server):
         async def clear(request: web.Request) -> web.Response:
             client: WebClient = self.get_client(request)
             node_id = request.match_info.get("id")
+            # Reset the client's log index when clear is called
+            client.reset_log_idx()
             client.exec({"cmd": "clear", "node_id": node_id})
             return web.json_response({"success": True})
 
@@ -616,7 +618,6 @@ def start_app(args):
     if not args.spawn and mp.get_start_method() == "spawn":
         mp.set_start_method("fork", force=True)
 
-    # Create a single close_event for the entire application
     close_event = mp.Event()
     setup_paths = dict(
         workflow_dir=args.workflow_dir,
@@ -629,13 +630,8 @@ def start_app(args):
         copy_outputs=args.copy_outputs,
         spawn=args.spawn,
         num_workers=args.num_workers,
-        # Include the close_event in processor args for reuse
         close_event=close_event,
     )
-
-    # Add output logging configuration
-    if hasattr(args, 'output_log_dir'):
-        web_processor_args['output_log_dir'] = args.output_log_dir
 
     if args.start_media_server:
         p = mp.Process(target=create_media_server, args=(args,))
@@ -674,7 +670,7 @@ def async_start(host, port, close_event=None, img_storage=None, client_pool=None
         host: Host to bind to
         port: Port to bind to
         close_event: Event to signal when server should shut down, created if not provided
-        img_storage: Image storage interface
+        img_storage: Image storage interface type
         client_pool: Client pool for managing connections
     """
     # Use a provided close_event or create a new one

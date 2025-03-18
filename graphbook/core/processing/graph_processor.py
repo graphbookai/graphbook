@@ -19,7 +19,7 @@ from ..utils import transform_json_log, ExecutionContext
 from .graph_state import GraphState, StepState
 from ..viewer import MultiGraphViewManagerInterface
 from ..shm import MultiThreadedMemoryManager, ImageStorageInterface
-from ..output_log import OutputLogManager
+from graphbook.core.logs import LogManager, LogWriter
 import abc
 from graphbook.core.clients import SimpleClientPool, ClientPool
 from graphbook.core.shm import MultiThreadedMemoryManager
@@ -65,7 +65,7 @@ class DefaultExecutor(Executor):
         self,
         copy_outputs: bool = True,
         num_workers: int = 1,
-        output_log_dir: str = "outputs",
+        log_dir: str = "logs",
     ):
         """
         Initialize the DefaultExecutor.
@@ -73,12 +73,12 @@ class DefaultExecutor(Executor):
         Args:
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
-            output_log_dir (str): Directory to store output logs
+            log_dir (str): Directory to store output logs
         """
 
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
-        self.output_log_dir = output_log_dir
+        self.log_dir = log_dir
         self.view_manager_queue = mp.Queue()
         self.close_event = mp.Event()
 
@@ -86,7 +86,7 @@ class DefaultExecutor(Executor):
             self.view_manager_queue,
             self.copy_outputs,
             self.num_workers,
-            self.output_log_dir,
+            self.log_dir,
             self.close_event,
         )
 
@@ -129,7 +129,7 @@ class GraphProcessor:
         view_manager_queue: mp.Queue,
         copy_outputs: bool = True,
         num_workers: int = 1,
-        output_log_dir: str = "outputs",
+        log_dir: str = "logs",
         close_event: Optional[mp.Event] = None,
     ):
         """
@@ -139,7 +139,7 @@ class GraphProcessor:
             view_manager_queue (mp.Queue): Queue for communicating with the view manager
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
-            output_log_dir (Optional[str]): Directory to store output logs
+            log_dir (Optional[str]): Directory to store output logs
             close_event (Optional[mp.Event]): Event to signal shutdown, created if not provided
         """
         self.close_event = close_event if close_event is not None else mp.Event()
@@ -148,8 +148,8 @@ class GraphProcessor:
         self.num_workers = num_workers
 
         # Initialize output log manager
-        self.output_log_manager = OutputLogManager(output_log_dir)
-        self.output_log_writer = None
+        self.log_manager = LogManager(log_dir)
+        self.log_writer = None
 
         # Initialize state
         self.graph_state = GraphState()  # No custom nodes path needed
@@ -201,6 +201,7 @@ class GraphProcessor:
         """
         ExecutionContext.update(node_id=step.id)
         ExecutionContext.update(node_name=step.__class__.__name__)
+        self.log_writer: LogWriter
         outputs = {}
         step_fn = step if not flush else step.all
 
@@ -216,7 +217,7 @@ class GraphProcessor:
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             log(error_msg, "error")
-            self.output_log_writer.write_log(step.id, error_msg, "error")
+            self.log_writer.write_log(step.id, error_msg, "error")
             traceback.print_exc()
             return None
 
@@ -225,7 +226,7 @@ class GraphProcessor:
                 if not len(step.Outputs) == 1:
                     error_msg = f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value."
                     log(error_msg, "error")
-                    self.output_log_writer.write_log(step.id, error_msg, "error")
+                    self.log_writer.write_log(step.id, error_msg, "error")
                     return None
                 outputs = {step.Outputs[0]: outputs}
 
@@ -234,14 +235,12 @@ class GraphProcessor:
                     outputs[k] = [v]
 
             self.handle_images(outputs)
-            self.graph_state.handle_outputs(
-                step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
-            )
+            self.graph_state.set_executed(step.id)
 
             # Log outputs to file if output logging is enabled
             for pin_id, output_list in outputs.items():
                 for output in output_list:
-                    self.output_log_writer.write_output(step.id, pin_id, output)
+                    self.log_writer.write_output(step.id, pin_id, output)
 
         return outputs
 
@@ -332,20 +331,18 @@ class GraphProcessor:
         self.viewer = self.view_manager.new(name)
 
         self.viewer.set_state("run_state", "running")
-        self.viewer.set_state("graph_state", graph.serialize())
         self.graph_state.set_viewer(self.viewer)
 
         # Initialize output log writer if output logging is enabled
-        self.output_log_writer = self.output_log_manager.get_writer(self.name)
+        self.log_writer = self.log_manager.get_writer(self.name)
+        self.log_writer.update_metadata({"graph": graph.serialize()})
 
         ExecutionContext.update(
             dataloader=self.dataloader,
-            log_writer=self.output_log_writer,
+            log_writer=self.log_writer,
         )
         # Create and start the log watcher to stream logs to the viewer
-        self.log_watcher = self.output_log_manager.create_watcher(
-            self.name, self.viewer
-        )
+        self.log_watcher = self.log_manager.create_watcher(self.name, self.viewer)
 
         # Update graph state with provided graph
         self.graph_state.update_state_py(graph, {})
@@ -410,8 +407,8 @@ class GraphProcessor:
         output = None
 
         # If not found in memory and output logging is enabled, try to get it from the log file
-        if self.output_log_manager:
-            log_reader = self.output_log_manager.get_watcher(self.name)
+        if self.log_manager:
+            log_reader = self.log_manager.get_watcher(self.name)
             if log_reader:
                 output = log_reader.get_output(step_id, pin_id, index)
 
@@ -430,11 +427,11 @@ class GraphProcessor:
 
         # Stop the log watcher if it's running
         if hasattr(self, "log_watcher") and self.log_watcher:
-            self.output_log_manager.stop_watcher(self.name)
+            self.log_manager.stop_watcher(self.name)
 
         # Close output log files
-        if self.output_log_manager:
-            self.output_log_manager.close()
+        if self.log_manager:
+            self.log_manager.close()
 
     def handle_prompt_response(self, step_id: str, response: str) -> bool:
         """Handle a prompt response for a step."""

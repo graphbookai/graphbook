@@ -1,5 +1,6 @@
 import { API, ServerAPI } from "../api";
 import { useState, useEffect, useCallback } from "react";
+import { LogEntry } from "../utils";
 
 type States = { [type: string]: any };
 type GraphStateLists = { [graph: string]: States };
@@ -20,6 +21,14 @@ const globalLastValueSetters: StateCallbacks = {};
 const everyGraphLastValueSetters: StateCallbacks = {};
 const everyGraphMessageListeners: StateCallbacks = {};
 
+// Centralized logs store
+type LogsStore = {
+    [graph_id: string]: {
+        [node_id: string]: LogEntry[];
+    }
+};
+const logsStore: LogsStore = {};
+const logUpdateListeners: { [graph_id: string]: { [node_id: string]: Function[] } } = {};
 
 const onConnectStateChange = (isConnected: boolean) => {
     const setGlobalAPI = (api: ServerAPI | null) => {
@@ -34,6 +43,10 @@ const onConnectStateChange = (isConnected: boolean) => {
             for (const type in messageStates[graph]) {
                 delete messageStates[graph][type];
             }
+        }
+        // Clear logs when connection state changes
+        for (const graph in logsStore) {
+            delete logsStore[graph];
         }
     }
 
@@ -53,6 +66,12 @@ function onStatefulMessage(msg) {
     let listeners = globalMessageListeners;
     let setters = globalLastValueSetters;
     const { graph_id, type, data } = parsedMsg;
+
+    // Special handling for logs type
+    if (type === 'logs' && graph_id) {
+        handleLogMessage(graph_id, data);
+        return;
+    }
 
     if (graph_id) {
         states = messageStates[graph_id];
@@ -97,6 +116,81 @@ function onStatefulMessage(msg) {
         }, {});
         for (const listener of everyGraphMessageListeners[type]) {
             listener(everyState);
+        }
+    }
+}
+
+function handleLogMessage(graph_id: string, logs: LogEntry[]) {
+    if (!Array.isArray(logs) || logs.length === 0) return;
+
+    // Initialize graph logs store if needed
+    if (!logsStore[graph_id]) {
+        logsStore[graph_id] = {};
+    }
+
+    const graphLogs = logsStore[graph_id];
+
+    // Process each log entry
+    for (const log of logs) {
+        const { node_id } = log;
+        
+        if (node_id) {
+            // Add to node-specific logs
+            if (!graphLogs[node_id]) {
+                graphLogs[node_id] = [];
+            }
+            
+            // If this node has a wipe, and we're processing the first log after a wipe,
+            // clear the logs for this node
+            if (log.type === 'wipe') {
+                graphLogs[node_id] = [];
+            }
+            
+            graphLogs[node_id].push(log);
+        }
+    }
+    
+    // Notify listeners
+    if (logUpdateListeners[graph_id]) {
+        for (const nodeId in logUpdateListeners[graph_id]) {
+            // Check if there are logs for this node
+            const nodeLogs = graphLogs[nodeId];
+            if (nodeLogs) {
+                for (const listener of logUpdateListeners[graph_id][nodeId]) {
+                    listener(nodeLogs);
+                }
+            }
+        }
+    }
+}
+
+// Function to clear logs when Clear Outputs is clicked
+export function clearNodeLogs(graph_id: string, node_id?: string) {
+    if (!logsStore[graph_id]) return;
+    
+    if (node_id) {
+        // Clear logs for a specific node
+        if (logsStore[graph_id][node_id]) {
+            logsStore[graph_id][node_id] = [];
+            
+            // Notify listeners for this node
+            if (logUpdateListeners[graph_id] && logUpdateListeners[graph_id][node_id]) {
+                for (const listener of logUpdateListeners[graph_id][node_id]) {
+                    listener([]);
+                }
+            }
+        }
+    } else {
+        // Clear all logs for the graph
+        logsStore[graph_id] = {};
+        
+        // Notify all listeners for all nodes in this graph
+        if (logUpdateListeners[graph_id]) {
+            for (const nodeId in logUpdateListeners[graph_id]) {
+                for (const listener of logUpdateListeners[graph_id][nodeId]) {
+                    listener([]);
+                }
+            }
         }
     }
 }
@@ -275,4 +369,49 @@ export function useAPIReconnectTimer() {
     }, []);
 
     return timeUntilReconnect;
+}
+
+/**
+ * Hook to subscribe to logs for a specific node in a graph
+ * @param graphId The graph ID to subscribe to logs for
+ * @param nodeId The node ID to subscribe to logs for, or 'all' for all nodes
+ * @returns Array of log entries
+ */
+export function useLogSubscription(graphId: string, nodeId: string): LogEntry[] {
+    const [logs, setLogs] = useState<LogEntry[]>([]);
+
+    useEffect(() => {
+        if (!graphId) return;
+        
+        // Create structure for graph if it doesn't exist
+        if (!logUpdateListeners[graphId]) {
+            logUpdateListeners[graphId] = {};
+        }
+        
+        // Create array for node if it doesn't exist
+        if (!logUpdateListeners[graphId][nodeId]) {
+            logUpdateListeners[graphId][nodeId] = [];
+        }
+        
+        // Add our listener
+        logUpdateListeners[graphId][nodeId].push(setLogs);
+        
+        // Initial setup of logs if they exist already
+        if (logsStore[graphId]) {
+            if (logsStore[graphId][nodeId]) {
+                setLogs(logsStore[graphId][nodeId]);
+            }
+        }
+        
+        // Cleanup
+        return () => {
+            if (logUpdateListeners[graphId] && logUpdateListeners[graphId][nodeId]) {
+                logUpdateListeners[graphId][nodeId] = logUpdateListeners[graphId][nodeId].filter(
+                    listener => listener !== setLogs
+                );
+            }
+        };
+    }, [graphId, nodeId]);
+    
+    return logs;
 }

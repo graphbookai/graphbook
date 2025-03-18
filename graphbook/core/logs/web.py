@@ -46,7 +46,6 @@ def start_view(args):
             print(f"Error: Invalid log file or directory: {log_path}")
             sys.exit(1)
     else:
-        print("No log file or directory specified. Will watch for new logs.")
         log_path = Path("logs")  # Default to the logs directory
         # Create it if it doesn't exist
         log_path.mkdir(exist_ok=True)

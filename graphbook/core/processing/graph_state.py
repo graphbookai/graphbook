@@ -1,17 +1,9 @@
 from __future__ import annotations
-from typing import Dict, Tuple, List, Iterator, Set, Optional, Union, Any, TYPE_CHECKING
-import importlib, importlib.util, inspect
-import os
-import hashlib
-from enum import Enum
-from pathlib import Path
+from typing import Dict, Tuple, List, Iterator, Set, Union, TYPE_CHECKING
 from graphbook.core.steps import Step, PromptStep, StepOutput
 from graphbook.core.resources import Resource
-from graphbook.core.decorators import get_steps, get_resources
 from graphbook.core.viewer import ViewManagerInterface
-from graphbook.core.plugins import setup_plugins
-from graphbook.core.utils import transform_json_log, ExecutionContext
-from graphbook.core import nodes
+from graphbook.core.utils import ExecutionContext
 from graphbook.core.processing.state import NodeInstantiationError, StepState
 
 
@@ -77,9 +69,19 @@ class GraphState:
             dfs(step_id)
         return ordered_steps[::-1]
     
-    def handle_outputs(self, step_id: str, outputs: StepOutput):
+    def set_executed(self, step_id: str):
         self._step_states[step_id].add(StepState.EXECUTED)
         self._step_states[step_id].add(StepState.EXECUTED_THIS_RUN)
+        
+    def handle_prompt_response(self, step_id: str, response: dict) -> bool:
+        step = self._steps.get(step_id)
+        if not isinstance(step, PromptStep):
+            return False
+        try:
+            step.handle_prompt_response(response)
+            return True
+        except:
+            return False
 
     def update_state_py(self, graph: "Graph", params: dict):
         from graphbook.core.serialization import GraphResourceWrapper

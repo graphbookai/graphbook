@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from graphbook.core import config
 from graphbook.core.web import start_app
-from graphbook.logging.web import start_view
+from graphbook.core.logs.web import start_view
 
 
 DESCRIPTION = """
@@ -62,12 +62,6 @@ def add_app_args(parser):
         help="Path to the docs directory",
     )
     parser.add_argument(
-        "--log_dir",
-        type=str,
-        default="logs",
-        help="Path to the logs directory for applications that simply use the DAG Logging lib",
-    )
-    parser.add_argument(
         "--no_sample",
         action="store_true",
         help="Do not create a sample workflow if the workflow directory does not exist",
@@ -81,12 +75,6 @@ def add_app_args(parser):
         "--isolate_users",
         action="store_true",
         help="Isolate each user in their own execution environment. Does NOT prevent users from accessing each other's files.",
-    )
-    parser.add_argument(
-        "--output_log_dir",
-        type=str,
-        default="logs",
-        help="Path to output log directory (stores step outputs and logs)",
     )
 
 

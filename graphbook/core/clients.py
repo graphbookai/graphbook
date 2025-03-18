@@ -49,8 +49,13 @@ class Client:
         # graph_id -> {state_type -> idx}
         self.state_idx: Dict[str, Dict[str, int]] = {}
         self.state_idx_global: Dict[str, int] = {}
+        self.log_idx: Dict[str, int] = {}
         self.view_manager = view_manager
         self.proc_interface = proc_interface
+        
+    def reset_log_idx(self):
+        """Reset the log index to 0 when clear outputs is called"""
+        self.log_idx = {}
 
     def get_view_manager(self) -> MultiGraphViewManager:
         return self.view_manager
@@ -136,6 +141,22 @@ class ClientPool(TaskLoop):
 
         return_data = [data for _, data in states]
         return return_data
+        
+    def get_logs_data(
+        self, view_manager: MultiGraphViewManager, client: Client
+    ) -> List[dict]:
+        """Get new logs for a client and update their log index"""
+        graph_logs = []
+        for graph_id, log_viewer in view_manager.log_viewers.items():
+            if client.log_idx.get(graph_id) is None:
+                client.log_idx[graph_id] = 0
+            logs = log_viewer.get_logs_since_idx(client.log_idx[graph_id])
+            if logs:
+                # Update client's log index
+                client.log_idx[graph_id] = len(log_viewer.logs)
+                # Format logs data for transmission
+                graph_logs.append({"type": "logs", "graph_id": graph_id, "data": logs})
+        return graph_logs
 
     async def remove_client(self, client: Client):
         sid = client.sid
@@ -280,13 +301,16 @@ class AppClientPool(ClientPool):
                 view_manager = client.get_view_manager()
                 view_data = view_manager.get_current_view_data()
                 state_data = self.get_state_data(view_manager, client)
+                
+                # Get new logs for this client
+                logs_data = self.get_logs_data(view_manager, client)
+                
                 try:
-                    await asyncio.gather(
-                        *[
-                            client.ws.send_json(data)
-                            for data in [*view_data, *state_data]
-                        ]
-                    )
+                    client_data = [*view_data, *state_data, *logs_data]
+                    if len(client_data) > 0:
+                        await asyncio.gather(
+                            *[client.ws.send_json(data) for data in client_data]
+                        )
                 except Exception as e:
                     print(f"Error sending to client: {e}")
         except Exception as e:
@@ -356,10 +380,16 @@ class SimpleClientPool(ClientPool):
             if client.ws.closed:
                 continue
             state_data = self.get_state_data(self.view_manager, client)
+            
+            # Get new logs for this client
+            logs_data = self.get_logs_data(self.view_manager, client)
+            
             try:
-                await asyncio.gather(
-                    *[client.ws.send_json(data) for data in [*view_data, *state_data]]
-                )
+                client_data = [*view_data, *state_data, *logs_data]
+                if len(client_data) > 0:
+                    await asyncio.gather(
+                        *[client.ws.send_json(data) for data in client_data]
+                    )
             except Exception as e:
                 print(f"Error sending to client: {e}")
 
@@ -407,10 +437,16 @@ class AppSharedClientPool(AppClientPool):
             if client.ws.closed:
                 continue
             state_data = self.get_state_data(view_manager, client)
+            
+            # Get new logs for this client
+            logs_data = self.get_logs_data(view_manager, client)
+            
             try:
-                await asyncio.gather(
-                    *[client.ws.send_json(data) for data in [*view_data, *state_data]]
-                )
+                client_data = [*view_data, *state_data, *logs_data]
+                if len(client_data) > 0:
+                    await asyncio.gather(
+                        *[client.ws.send_json(data) for data in client_data]
+                    )
             except Exception as e:
                 print(f"Error sending to client: {e}")
 

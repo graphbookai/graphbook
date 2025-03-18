@@ -19,7 +19,7 @@ import { getHandle, evalDragData } from '../../utils.ts';
 import { Resource } from '../Nodes/Resource.js';
 import { Export } from '../Nodes/Export.tsx';
 import { NodeContextMenu, PaneContextMenu } from '../ContextMenu.tsx';
-import { useAPI, useAPIMessageEffect } from '../../hooks/API.ts';
+import { useAPI, useAPIMessageEffect, clearNodeLogs } from '../../hooks/API.ts';
 import { useRunState } from '../../hooks/RunState.ts';
 import { GraphStore } from '../../graphstore.ts';
 import { NodeConfig } from '../NodeConfig.tsx';
@@ -488,7 +488,10 @@ function ControlRow() {
         }
 
         API.clearAll();
-    }, [API]);
+        
+        // Also clear logs on the client side
+        clearNodeLogs(filename);
+    }, [API, filename]);
 
     const layout = useCallback(() => {
         const newNodes = layoutDAG(nodes, edges);

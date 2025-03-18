@@ -20,7 +20,7 @@ from ..utils import (
 )
 from ..utils import ExecutionContext
 from ..viewer import ViewManagerInterface
-from ..output_log import OutputLogWriter
+from ..logs import LogWriter
 from .. import prompts
 import warnings
 import traceback
@@ -43,7 +43,7 @@ def log(msg: Any, type: LogType = "info"):
     node_id: str = ExecutionContext.get("node_id")
     node_name: str = ExecutionContext.get("node_name")
     view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
-    log_writer: OutputLogWriter = ExecutionContext.get("log_writer")
+    log_writer: LogWriter = ExecutionContext.get("log_writer")
 
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
