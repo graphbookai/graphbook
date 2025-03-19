@@ -13,7 +13,6 @@ import msgpack
 import cloudpickle
 import time
 import threading
-import tempfile
 import atexit
 import uuid
 import io
@@ -91,9 +90,6 @@ class LogWriter:
         self.max_buffer_size = max_buffer_size
         self.buffer = []
         self.lock = threading.Lock()
-        self.index = {}  # Maps (step_id, pin_id, index) to file position
-        self.log_index = {}  # Maps (step_id, log_index) to file position
-        self.pin_index = {}  # Maps (step_id, pin_id) to list of output indices
         self.metadata = {}  # Graph structure metadata
 
         # Create the directory if it doesn't exist
@@ -184,16 +180,12 @@ class LogWriter:
             output: Output data
         """
         with self.lock:
-            pin_index = self.pin_index.get((step_id, pin_id), 0)
             entry_data = {
                 "step_id": step_id,
                 "pin_id": pin_id,
-                "index": pin_index,
                 "output": output,
             }
-            position = self._write_entry(LogEntryType.OUTPUT, entry_data)
-            self.index[(step_id, pin_id, pin_index)] = position
-            self.pin_index[(step_id, pin_id)] = pin_index + 1
+            self._write_entry(LogEntryType.OUTPUT, entry_data)
 
     def write_log(self, step_id: str, message: str, log_type: str = "info"):
         """
@@ -205,7 +197,6 @@ class LogWriter:
             log_type: Type of log (info, warning, error)
         """
         with self.lock:
-            print("LOG ENTRY WRITTEN")
             log_index = len(self.log_index.get(step_id, []))
             entry_data = {
                 "step_id": step_id,
@@ -213,18 +204,7 @@ class LogWriter:
                 "type": log_type,
                 "index": log_index,
             }
-            position = self._write_entry(LogEntryType.LOG, entry_data)
-
-            if step_id not in self.log_index:
-                self.log_index[step_id] = []
-            self.log_index[step_id].append(position)
-
-    def get_index(self) -> Dict:
-        """Get the index mapping."""
-        return {
-            "outputs": self.index,
-            "logs": self.log_index,
-        }
+            self._write_entry(LogEntryType.LOG, entry_data)
 
     def flush(self):
         """Flush the buffer to disk."""
@@ -291,15 +271,11 @@ class LogWatcher:
         self.log_file_path = Path(log_file_path)
         self.viewer = viewer_interface
         self.stop_event = threading.Event()
-        self.latest_outputs: Dict[Tuple[str, str], Any] = (
-            {}
-        )  # Maps (step_id, pin_id) to the latest output
-        self.all_outputs: Dict[Tuple[str, str], List[Any]] = (
-            {}
-        )  # Maps (step_id, pin_id) to a list of outputs
-        self.outputs_updated = (
-            False  # Flag to indicate if outputs were updated during iteration
-        )
+        # (step_id, pin_id) -> latest output
+        self.latest_outputs: Dict[Tuple[str, str], Any] = {}
+        # (step_id, pin_id) -> list of all outputs
+        self.all_outputs: Dict[Tuple[str, str], List[Any]] = {}
+        self.outputs_updated = False
         self.latest_metadata = {}  # Latest graph metadata
         self.watch_thread = None
         self.last_position = 0
@@ -466,14 +442,12 @@ class LogWatcher:
 
     def _handle_log_entry(self, data):
         """Handle a log entry from the log file."""
-        print("LOG ENTRY FOUND")
         data = cloudpickle.loads(data)
         step_id = data["step_id"]
         message = data["message"]
         log_type = data["type"]
 
         # Update the viewer with the log
-        print("Handling log", step_id, message, log_type)
         self.viewer.handle_log(step_id, message, log_type)
 
     def get_output(self, step_id: str, pin_id: str, index: int) -> Optional[Any]:
@@ -701,6 +675,54 @@ class LogManager:
             atexit.unregister(self.close)
 
 
+class DAGNodeRef:
+    """
+    Reference to a DAG node capable of logging images.
+    You should not create this directly, but instead use the :meth:`graphbook.logging.DAGLogger.node` to create one.
+
+    Args:
+        id: Unique identifier for the node
+        logger: Owner DAGLogger instance
+    """
+
+    def __init__(
+        self,
+        id: str,
+        logger: "DAGLogger",
+    ):
+        self.id = id
+        self.logger = logger
+
+    def log_image(self, image: Image.Image):
+        """
+        Logs an image to the DAG.
+
+        Args:
+            pil_or_tensor: PIL Image
+        """
+        self.logger.log_image(self.id, image)
+
+    def log_output(self, output: Any, pin_id: str = "out"):
+        """
+        Logs an output to the DAG.
+
+        Args:
+            output: Output data
+            pin_id: ID of the output pin
+        """
+        self.logger.log_output(self.id, output, pin_id)
+
+    def log_message(self, message: str, log_type: str = "info"):
+        """
+        Logs a message to the DAG.
+
+        Args:
+            message: Log message
+            log_type: Type of log (info, warning, error)
+        """
+        self.logger.log_message(self.id, message, log_type)
+
+
 class DAGLogger:
     """
     Logger for both code execution and image logging.
@@ -761,7 +783,7 @@ class DAGLogger:
         graph = self._build_graph_from_nodes()
         self.writer.update_metadata({"graph": graph})
 
-        return id
+        return DAGNodeRef(id, self)
 
     def log_image(self, node_id: str, image: Image.Image):
         """
@@ -819,3 +841,16 @@ class DAGLogger:
     def close(self):
         """Close the log file."""
         self.writer.close()
+
+
+class CallableNode(Callable):
+    def __init__(self, ref: DAGNodeRef, log_every: int = 1):
+        self.ref = ref
+        self.log_every = log_every
+        self.counter = 0
+
+    def __call__(self, input):
+        if self.counter % self.log_every == 0:
+            self.ref.log_image(input)
+        self.counter += 1
+        return input

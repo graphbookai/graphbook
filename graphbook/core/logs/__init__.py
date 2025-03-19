@@ -6,6 +6,8 @@ images, and logs for visualization in the graphbook UI.
 """
 
 from .data import (
+    DAGNodeRef,
+    CallableNode,
     DAGLogger,
     LogWriter,
     LogManager,
@@ -13,6 +15,8 @@ from .data import (
 )
 
 __all__ = [
+    'DAGNodeRef',
+    'CallableNode',
     'DAGLogger',
     'LogWriter',
     'LogManager',
