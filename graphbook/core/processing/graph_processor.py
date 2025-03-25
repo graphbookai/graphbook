@@ -1,8 +1,6 @@
 from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING, Set, Union
 import multiprocessing as mp
 import traceback
-import time
-import copy
 from PIL import Image
 
 from ..steps import (
@@ -17,7 +15,7 @@ from ..steps import (
 from ..dataloading import Dataloader
 from ..utils import transform_json_log, ExecutionContext
 from .graph_state import GraphState, StepState
-from .event_handler import EventHandler, FileEventHandler, MemoryEventHandler
+from .event_handler import FileEventHandler, MemoryEventHandler
 from ..shm import MultiThreadedMemoryManager, ImageStorageInterface
 import abc
 from graphbook.core.clients import SimpleClientPool, ClientPool
@@ -99,18 +97,18 @@ class DefaultExecutor(Executor):
     def get_img_storage(self):
         return MultiThreadedMemoryManager
 
-    def run(self, graph: "Graph", name: str, step_id: Optional[str] = None):
+    def run(self, graph: "Graph", name: str):
         """
         Execute the provided graph.
 
         Args:
             graph (Dict[str, Any]): The serialized graph to execute
-            step_id (Optional[str]): If provided, only run the specified step and its dependencies
+            name (str): The name of the graph
         """
 
         try:
             # Execute the workflow directly
-            self.processor.run(graph, name, step_id)
+            self.processor.run(graph, name)
 
         except Exception as e:
             log(f"Execution error: {type(e).__name__}: {str(e)}", "error")
@@ -146,14 +144,14 @@ class GraphProcessor:
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
         self.name = None
-        
+
         # Initialize state
         self.graph_state = GraphState()  # No custom nodes path needed
 
         # Initialize event handler - will be FileEventHandler if log_dir is provided, otherwise MemoryEventHandler
         self.event_handler = None
         self.log_dir = log_dir
-        
+
         # Initialize dataloader
         self.dataloader = Dataloader(self.num_workers, False)
 
@@ -324,16 +322,18 @@ class GraphProcessor:
             traceback.print_exc()
         return False
 
-    def run(self, graph: "Graph", name: str, step_id: Optional[str] = None):
+    def run(self, graph: "Graph", name: str):
         """Run the entire graph or a specific step."""
         self.name = name
-        
+
         # Initialize the appropriate event handler based on log_dir
         if self.log_dir is not None:
-            self.event_handler = FileEventHandler(name, self.view_manager_queue, self.log_dir)
+            self.event_handler = FileEventHandler(
+                name, self.view_manager_queue, self.log_dir
+            )
         else:
             self.event_handler = MemoryEventHandler(name, self.view_manager_queue)
-            
+
         # Initialize viewer
         self.viewer = self.event_handler.initialize_viewer()
         self.graph_state.set_viewer(self.viewer)
@@ -352,12 +352,9 @@ class GraphProcessor:
         # Handle resources
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.event_handler.handle_output(
-                resource_id, "resource", value
-            )
+            self.event_handler.handle_output(resource_id, "resource", value)
 
-        # Get processing steps
-        steps: List[Step] = self.graph_state.get_processing_steps(step_id)
+        steps = self.graph_state.get_processing_steps()
 
         # Execute start events
         for step in steps:
@@ -407,7 +404,7 @@ class GraphProcessor:
         """
         if hasattr(self.event_handler, "get_output"):
             return self.event_handler.get_output(step_id, pin_id, index)
-        
+
         # Default fallback for any other event handler implementation
         return {
             "step_id": step_id,

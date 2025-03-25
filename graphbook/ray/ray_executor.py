@@ -1,17 +1,17 @@
 import ray
 from graphbook.core.processing.graph_processor import Executor
+from graphbook.core.processing.event_handler import FileEventHandler
 from graphbook.core.serialization import (
     Graph,
     GraphNodeWrapper,
     GraphStepWrapper,
     GraphResourceWrapper,
 )
-from graphbook.core.steps import Step
-from graphbook.core.resources import Resource
+
 from .ray_img import RayMemoryManager
 from .ray_client import RayClientPool
 import ray.util.queue
-from typing import Optional, Tuple, Dict
+from typing import Optional, List
 from .ray_processor import (
     GraphbookTaskContext,
     graphbook_task_context,
@@ -26,16 +26,12 @@ class RayExecutor(Executor):
     Ray execution engine that runs Graphbook workflows using Ray.
     """
 
-    def __init__(
-        self,
-        use_file_viewing: bool = False,
-        **init_args
-    ):
+    def __init__(self, log_dir: str = "logs", **init_args):
         """
         Initialize the RayExecutor.
-        
+
         Args:
-            use_file_viewing (bool): Whether to enable logging of step outputs to a DAG log file
+            log_dir (str): Directory to store output logs. If None, logging is disabled
             init_args (dict): Ray Initialization args to pass into ray.init(...)
         """
         if not ray.is_initialized():
@@ -53,71 +49,45 @@ class RayExecutor(Executor):
 
         # Initialize the Ray step handler
         self.handler = ray_api.init_handler(self.cmd_queue, self.view_queue)
-        
-        # Current execution log info
-        self.use_file_viewing = use_file_viewing
+
+        # Set up logging
+        self.log_dir = log_dir
 
     def get_client_pool(self):
         return self.client_pool
 
     def get_img_storage(self):
         return RayMemoryManager
-    
-    def get_log_filename(self):
-        """
-        Get the current log filename.
-        
-        Returns:
-            str: The current log filename or None if logging is not enabled
-        """
-        if not self.enable_logging:
-            return None
-        return self.current_log_filename
 
-    def run(self, graph: Graph, name: str, step_id: Optional[str] = None):
+    def get_log_dir(self):
+        """
+        Get the log directory.
+
+        Returns:
+            str: The log directory
+        """
+        return self.log_dir
+
+    def run(self, graph: Graph, name: str):
         """
         Execute the provided graph using Ray.
 
         Args:
             graph (Graph): The graph
             name (str): Name of the execution
-            step_id (Optional[str]): If provided, only run the specified step and its dependencies
         """
         # Create a new execution context with logging configuration
         context = GraphbookTaskContext(
             name=name,
             task_id=name,
-            enable_logging=self.enable_logging,
-            log_dir=self.log_dir,
-            log_filename=self.current_log_filename,
         )
-        
-        # Set up logging if enabled
-        if self.enable_logging:
-            # Import here to avoid circular imports
-            from graphbook.logging.ray import RayLogWriter
-            
-            # Generate log filename if needed
-            if self.log_filename is None:
-                from datetime import datetime
-                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-                self.current_log_filename = f"{name}-{timestamp}.log"
-            else:
-                self.current_log_filename = self.log_filename
-                
-            # Store execution ID
-            self.current_execution_id = name
-            
-            # Initialize logger
-            logger = RayLogWriter().get_logger(
-                execution_id=name,
-                log_dir=self.log_dir,
-                log_filename=self.current_log_filename
-            )
-            
-            # Initialize nodes from graph
-            serialized_graph = graph.serialize()
-            logger.initialize_from_graph(serialized_graph)
+
+        # Create an event handler using the FileEventHandler
+        event_handler = FileEventHandler(name, self.view_queue, self.log_dir)
+
+        # Initialize the event handler's viewer and update metadata
+        event_handler.initialize_viewer()
+        event_handler.update_metadata({"graph": graph.serialize()})
 
         # Initialize the execution and get the Ray dag
         leaf_nodes = self._build_ray_dag(graph, step_id)
@@ -127,22 +97,30 @@ class RayExecutor(Executor):
             # Start the execution
             ray.get(
                 self.handler.handle_new_execution.remote(
-                    context.name, graph.serialize(), False
+                    context.name, graph.serialize(), self.log_dir, False
                 )
             )
 
             final = self.handler.handle_end_execution.bind(*leaf_nodes)
             # Execute the workflow
-            return ray.get(final.execute())
+            result = ray.get(final.execute())
 
-    def _build_ray_dag(
-        self, graph: Graph, step_id: Optional[str] = None
-    ) -> Tuple[Dict[str, Step], Dict[str, Resource]]:
+            # Clean up event handler
+            event_handler.cleanup()
+
+            return result
+
+    def _build_ray_dag(self, graph: Graph) -> List[ray.ObjectRef]:
         """
-        Constructs a Ray DAG and returns the leaf nodes to the dag
+        Constructs a Ray DAG and returns the leaf nodes to the dag.
+
+        Args:
+            graph (Graph): The graph
+            step_id (Optional[str]): If provided, only run the specified step and its dependencies
+
+        Returns:
+            List[ray.ObjectRef]: The leaf nodes of the Ray DAG
         """
-        # steps = {step.id: step for step in graph.get_steps()}
-        # resources = {resource.id: resource for resource in graph.get_resources()}
         step_actors = {
             step.id: ray_api.remote(step.get()) for step in graph.get_steps()
         }

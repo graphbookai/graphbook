@@ -17,10 +17,8 @@ from typing import (
 )
 from .ray_processor import (
     RayStepHandler,
-    execute,
     GraphbookTaskContext,
     graphbook_task_context,
-    create_graph_execution,
 )
 from .ray_img import RayMemoryManager
 from .ray_client import RayClientPool
@@ -35,7 +33,6 @@ from graphbook.core.resources import Resource
 import graphbook.core.web
 import multiprocessing as mp
 import logging
-import uuid
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -67,15 +64,14 @@ def init(*, host="0.0.0.0", port=8005) -> None:
         close_event = mp.Event()
         # Set up a cleanup handler for system exit
         import atexit
+
         atexit.register(lambda: close_event.set())
-        
+
         # Create client pool with the same close event
         client_pool = RayClientPool(
-            close_event=close_event, 
-            proc_queue=cmd_queue, 
-            view_queue=view_queue
+            close_event=close_event, proc_queue=cmd_queue, view_queue=view_queue
         )
-        
+
         graphbook.core.web.async_start(
             host=host,
             port=port,
@@ -100,79 +96,6 @@ def is_graphbook_ray_initialized() -> bool:
     Returns whether the Graphbook Ray API is initialized.
     """
     return ray.is_initialized() and step_handler is not None
-
-
-def run_async(
-    dag: DAGNode,
-    name: Optional[str] = None,
-) -> ray.ObjectRef:
-    """
-    Deprecated v0.12.1. Use RayExecutor instead.
-
-    Run a workflow asynchronously.
-
-    If the workflow with the given id already exists, it will be resumed.
-
-    Args:
-        dag: The leaf node of the DAG. Will recursively run its dependencies.
-        name: A unique identifier that can be used to identify the graphbook execution
-            in the web UI. If not specified, a random id will be generated.
-
-    Returns:
-       The running result as ray.ObjectRef.
-
-    """
-    _ensure_graphbook_initialized()
-    if not isinstance(dag, DAGNode):
-        raise TypeError("Input should be a DAG.")
-
-    if name is None:
-        name = str(uuid.uuid4())
-
-    logger.info(f'Graphbook job created. [id="{name}"].')
-    context = GraphbookTaskContext(name=name)
-    with graphbook_task_context(context):
-        G, nodes = create_graph_execution(dag)
-
-        # Prompts for user input
-        print(f"Starting execution {name}")
-        print(
-            "Found parameters that need to be set. Please navigate to the Graphbook UI to set them."
-        )
-        params = ray.get(step_handler.handle_new_execution.remote(name, G))
-
-        # Set the param values to each node and other context variables
-        context_setup_refs = []
-        for node_id, node_name, handle in nodes:
-            node_params = params.get(node_id)
-            ref = handle._set_init_params.remote(**node_params)
-            context_setup_refs.append(ref)
-            context_setup = handle.set_context.remote(
-                node_id=node_id,
-                node_name=node_name,
-            )
-            context_setup_refs.append(context_setup)
-
-        context_setup_refs.append(step_handler.handle_start_execution.remote())
-        ray.wait(context_setup_refs)
-        final = step_handler.handle_end_execution.bind((dag,))
-
-        return execute(final, context)
-
-
-def run(
-    dag: DAGNode,
-    name: Optional[str] = None,
-) -> dict:
-    """
-    Deprecated v0.12.1. Use RayExecutor instead.
-
-    Runs a workflow synchronously. See :func:`run_async` for more details.
-
-    Returns:
-        The multi-output value of the argument leaf node.
-    """
-    return ray.get(run_async(dag, name=name))
 
 
 def _make_input_grapbook_class(cls):
