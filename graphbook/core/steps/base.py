@@ -19,7 +19,7 @@ from ..utils import (
     RAY_AVAILABLE,
 )
 from ..utils import ExecutionContext
-from ..viewer import ViewManagerInterface
+from ..processing.event_handler import EventHandler
 from ..logs import LogWriter
 from .. import prompts
 import warnings
@@ -42,27 +42,24 @@ text_log_types = ["info", "error"]
 def log(msg: Any, type: LogType = "info"):
     node_id: str = ExecutionContext.get("node_id")
     node_name: str = ExecutionContext.get("node_name")
-    view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
-    log_writer: LogWriter = ExecutionContext.get("log_writer")
+    event_handler: EventHandler = ExecutionContext.get("event_handler")
 
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
     
     log_handle = None
 
-    if view_manager is None:
-        if log_writer:
-            log_handle = log_writer.write_log
-        elif RAY_AVAILABLE:
-            if RAY.is_initialized():
-                actor_handle = RAY.get_actor("_graphbook_RayStepHandler")
-                log_handle = actor_handle.handle_log.remote
-            else:
-                raise ValueError(
-                    "View manager not initialized in context. Is this being called in a running graph?"
-                )
-    else:
-        log_handle = view_manager.handle_log
+    if event_handler:
+        log_handle = event_handler.write_log
+    elif RAY_AVAILABLE:
+        if RAY.is_initialized():
+            actor_handle = RAY.get_actor("_graphbook_RayStepHandler")
+            log_handle = actor_handle.handle_log.remote
+        else:
+            raise ValueError(
+                "View manager not initialized in context. Is this being called in a running graph?"
+            )
+
 
     if type in text_log_types:
         log_message = msg
@@ -83,18 +80,18 @@ def log(msg: Any, type: LogType = "info"):
 
 def prompt(prompt: dict):
     node_id: str = ExecutionContext.get("node_id")
-    view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
+    event_handler: EventHandler = ExecutionContext.get("event_handler")
     if node_id is None:
         raise ValueError(
             f"Can't find node id in {caller}. Only initialized steps can log."
         )
 
-    if view_manager is None:
+    if event_handler is None:
         raise ValueError(
             "View manager not initialized in context. Is this being called in a running graph?"
         )
 
-    view_manager.handle_prompt(node_id, prompt)
+    event_handler.handle_prompt(node_id, prompt)
 
 
 class Step:

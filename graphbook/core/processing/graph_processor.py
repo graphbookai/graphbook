@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING, Set
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING, Set, Union
 import multiprocessing as mp
 import traceback
 import time
@@ -17,9 +17,8 @@ from ..steps import (
 from ..dataloading import Dataloader
 from ..utils import transform_json_log, ExecutionContext
 from .graph_state import GraphState, StepState
-from ..viewer import MultiGraphViewManagerInterface
+from .event_handler import EventHandler, FileEventHandler, MemoryEventHandler
 from ..shm import MultiThreadedMemoryManager, ImageStorageInterface
-from graphbook.core.logs import LogManager, LogWriter
 import abc
 from graphbook.core.clients import SimpleClientPool, ClientPool
 from graphbook.core.shm import MultiThreadedMemoryManager
@@ -129,7 +128,7 @@ class GraphProcessor:
         view_manager_queue: mp.Queue,
         copy_outputs: bool = True,
         num_workers: int = 1,
-        log_dir: str = "logs",
+        log_dir: Optional[str] = "logs",
         close_event: Optional[mp.Event] = None,
     ):
         """
@@ -139,21 +138,22 @@ class GraphProcessor:
             view_manager_queue (mp.Queue): Queue for communicating with the view manager
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
-            log_dir (Optional[str]): Directory to store output logs
+            log_dir (Optional[str]): Directory to store output logs. If None, in-memory event handling is used
             close_event (Optional[mp.Event]): Event to signal shutdown, created if not provided
         """
         self.close_event = close_event if close_event is not None else mp.Event()
         self.view_manager_queue = view_manager_queue
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
-
-        # Initialize output log manager
-        self.log_manager = LogManager(log_dir)
-        self.log_writer = None
-
+        self.name = None
+        
         # Initialize state
         self.graph_state = GraphState()  # No custom nodes path needed
 
+        # Initialize event handler - will be FileEventHandler if log_dir is provided, otherwise MemoryEventHandler
+        self.event_handler = None
+        self.log_dir = log_dir
+        
         # Initialize dataloader
         self.dataloader = Dataloader(self.num_workers, False)
 
@@ -197,11 +197,9 @@ class GraphProcessor:
             step: The step to execute
             input: Input data for the step
             flush: Whether to flush the step (for AsyncStep)
-            for_viewers: Whether to handle outputs for viewers (set to False in recursive processing)
         """
         ExecutionContext.update(node_id=step.id)
         ExecutionContext.update(node_name=step.__class__.__name__)
-        self.log_writer: LogWriter
         outputs = {}
         step_fn = step if not flush else step.all
 
@@ -217,7 +215,8 @@ class GraphProcessor:
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             log(error_msg, "error")
-            self.log_writer.write_log(step.id, error_msg, "error")
+            if self.event_handler:
+                self.event_handler.write_log(step.id, error_msg, "error")
             traceback.print_exc()
             return None
 
@@ -226,7 +225,8 @@ class GraphProcessor:
                 if not len(step.Outputs) == 1:
                     error_msg = f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value."
                     log(error_msg, "error")
-                    self.log_writer.write_log(step.id, error_msg, "error")
+                    if self.event_handler:
+                        self.event_handler.write_log(step.id, error_msg, "error")
                     return None
                 outputs = {step.Outputs[0]: outputs}
 
@@ -237,10 +237,11 @@ class GraphProcessor:
             self.handle_images(outputs)
             self.graph_state.set_executed(step.id)
 
-            # Log outputs to file if output logging is enabled
-            for pin_id, output_list in outputs.items():
-                for output in output_list:
-                    self.log_writer.write_output(step.id, pin_id, output)
+            # Write outputs using the event handler
+            if self.event_handler:
+                for pin_id, output_list in outputs.items():
+                    for output in output_list:
+                        self.event_handler.write_output(step.id, pin_id, output)
 
         return outputs
 
@@ -325,24 +326,25 @@ class GraphProcessor:
 
     def run(self, graph: "Graph", name: str, step_id: Optional[str] = None):
         """Run the entire graph or a specific step."""
-        # Initialize viewer
         self.name = name
-        self.view_manager = MultiGraphViewManagerInterface(self.view_manager_queue)
-        self.viewer = self.view_manager.new(name)
-
-        self.viewer.set_state("run_state", "running")
+        
+        # Initialize the appropriate event handler based on log_dir
+        if self.log_dir is not None:
+            self.event_handler = FileEventHandler(name, self.view_manager_queue, self.log_dir)
+        else:
+            self.event_handler = MemoryEventHandler(name, self.view_manager_queue)
+            
+        # Initialize viewer
+        self.viewer = self.event_handler.initialize_viewer()
         self.graph_state.set_viewer(self.viewer)
 
-        # Initialize output log writer if output logging is enabled
-        self.log_writer = self.log_manager.get_writer(self.name)
-        self.log_writer.update_metadata({"graph": graph.serialize()})
+        # Update metadata for the graph
+        self.event_handler.update_metadata({"graph": graph.serialize()})
 
         ExecutionContext.update(
             dataloader=self.dataloader,
-            log_writer=self.log_writer,
+            event_handler=self.event_handler,
         )
-        # Create and start the log watcher to stream logs to the viewer
-        self.log_watcher = self.log_manager.create_watcher(self.name, self.viewer)
 
         # Update graph state with provided graph
         self.graph_state.update_state_py(graph, {})
@@ -350,8 +352,8 @@ class GraphProcessor:
         # Handle resources
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.viewer.handle_output(
-                resource_id, "resource", transform_json_log(value)
+            self.event_handler.handle_output(
+                resource_id, "resource", value
             )
 
         # Get processing steps
@@ -359,10 +361,10 @@ class GraphProcessor:
 
         # Execute start events
         for step in steps:
-            self.viewer.handle_start(step.id)
+            self.event_handler.handle_start(step.id)
             succeeded = self.try_execute_step_event(step, "on_start")
             if not succeeded:
-                self.viewer.set_state("run_state", "finished")
+                self.event_handler.handle_end()
                 return
 
         # Set up dataloader
@@ -378,8 +380,7 @@ class GraphProcessor:
             ):
                 dag_is_active = self.handle_steps(steps)
         finally:
-            self.viewer.handle_end()
-            self.viewer.set_state("run_state", "finished")
+            self.event_handler.handle_end()
             self.dataloader.stop()
             for step in steps:
                 self.try_execute_step_event(step, "on_end")
@@ -400,38 +401,29 @@ class GraphProcessor:
         """
         Get a specific output from a step.
 
-        This method first tries to get the output from memory. If not found
-        and output logging is enabled, it tries to get it from the log file.
+        For FileEventHandler, this method gets the output from the log file.
+        For MemoryEventHandler, it will simply return None as outputs are managed
+        by the graph_state in the WebInstanceProcessor.
         """
-        # Try to get output from memory first
-        output = None
-
-        # If not found in memory and output logging is enabled, try to get it from the log file
-        if self.log_manager:
-            log_reader = self.log_manager.get_watcher(self.name)
-            if log_reader:
-                output = log_reader.get_output(step_id, pin_id, index)
-
-        output = {
+        if hasattr(self.event_handler, "get_output"):
+            return self.event_handler.get_output(step_id, pin_id, index)
+        
+        # Default fallback for any other event handler implementation
+        return {
             "step_id": step_id,
             "pin_id": pin_id,
             "index": index,
-            "data": transform_json_log(output),
+            "data": None,
         }
-        return output
 
     def stop(self):
         """Stop the processor and clean up resources."""
         self.close_event.set()
         self.dataloader.shutdown()
 
-        # Stop the log watcher if it's running
-        if hasattr(self, "log_watcher") and self.log_watcher:
-            self.log_manager.stop_watcher(self.name)
-
-        # Close output log files
-        if self.log_manager:
-            self.log_manager.close()
+        # Clean up the event handler resources
+        if self.event_handler:
+            self.event_handler.cleanup()
 
     def handle_prompt_response(self, step_id: str, response: str) -> bool:
         """Handle a prompt response for a step."""

@@ -197,12 +197,10 @@ class LogWriter:
             log_type: Type of log (info, warning, error)
         """
         with self.lock:
-            log_index = len(self.log_index.get(step_id, []))
             entry_data = {
                 "step_id": step_id,
                 "message": message,
                 "type": log_type,
-                "index": log_index,
             }
             self._write_entry(LogEntryType.LOG, entry_data)
 
