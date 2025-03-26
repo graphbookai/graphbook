@@ -10,7 +10,7 @@ from ..steps import (
 from ..dataloading import Dataloader
 from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from .state import GraphState, StepState, NodeInstantiationError
-from ..viewer import MultiGraphViewManagerInterface
+from .event_handler import MemoryEventHandler
 from ..shm import MultiThreadedMemoryManager
 from typing import List, Optional, Any, Dict
 from pathlib import Path
@@ -28,7 +28,7 @@ step_output_err_res = "Step output must be a dictionary, and dict values must be
 class WebInstanceProcessor:
     def __init__(
         self,
-        close_event: mp.Event,
+        close_event: Optional[mp.Event],
         view_manager_queue: mp.Queue,
         continue_on_failure: bool,
         copy_outputs: bool,
@@ -38,17 +38,18 @@ class WebInstanceProcessor:
         num_workers: int = 1,
     ):
         self.cmd_queue = mp.Queue()
-        self.view_manager = MultiGraphViewManagerInterface(view_manager_queue)
-        self.viewer = None
+        self.view_manager_queue = view_manager_queue
         self.workflow_path = workflow_path
         self.graph_state = GraphState(custom_nodes_path)
         self.continue_on_failure = continue_on_failure
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
         self.dataloader = Dataloader(self.num_workers, spawn)
-        self.close_event = close_event
+        self.close_event = close_event if close_event is not None else mp.Event()
         self.pause_event = mp.Event()
         self.filename = None
+        self.event_handler = None
+        self.viewer = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
 
     def handle_images(self, outputs: StepOutput):
@@ -94,17 +95,18 @@ class WebInstanceProcessor:
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            log(f"{type(e).__name__}: {str(e)}", "error")
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            log(error_msg, "error")
+            self.event_handler.write_log(step.id, error_msg, "error")
             traceback.print_exc()
             return None
 
         if outputs:
             if not isinstance(outputs, dict):
                 if not len(step.Outputs) == 1:
-                    log(
-                        f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value.",
-                        "error",
-                    )
+                    error_msg = f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value."
+                    log(error_msg, "error")
+                    self.event_handler.write_log(step.id, error_msg, "error")
                     return None
                 outputs = {step.Outputs[0]: outputs}
 
@@ -116,7 +118,14 @@ class WebInstanceProcessor:
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
-            self.viewer.handle_time(step.id, time.time() - start_time)
+            
+            self.event_handler.handle_time(step.id, time.time() - start_time)
+            
+            # Send outputs to event handler
+            for pin_id, output_list in outputs.items():
+                for output in output_list:
+                    self.event_handler.write_output(step.id, pin_id, output)
+                        
         return outputs
 
     def handle_steps(self, steps: List[Step]) -> bool:
@@ -188,15 +197,17 @@ class WebInstanceProcessor:
     def run(self, step_id: str = None):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.viewer.handle_output(
-                resource_id, "resource", transform_json_log(value)
+            self.event_handler.handle_output(
+                resource_id, "resource", value
             )
+        
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
-            self.viewer.handle_start(step.id)
+            self.event_handler.handle_start(step.id)
             succeeded = self.try_execute_step_event(step, "on_start")
             if not succeeded:
                 return
+                
         self.setup_dataloader(steps)
         self.pause_event.clear()
         dag_is_active = True
@@ -209,7 +220,7 @@ class WebInstanceProcessor:
             ):
                 dag_is_active = self.handle_steps(steps)
         finally:
-            self.viewer.handle_end()
+            self.event_handler.handle_end()
             self.dataloader.stop()
             for step in steps:
                 self.try_execute_step_event(step, "on_end")
@@ -217,21 +228,23 @@ class WebInstanceProcessor:
     def step(self, step_id: str = None):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.viewer.handle_output(
-                resource_id, "resource", transform_json_log(value)
+            self.event_handler.handle_output(
+                resource_id, "resource", value
             )
+                
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
-            self.viewer.handle_start(step.id)
+            self.event_handler.handle_start(step.id)
             succeeded = self.try_execute_step_event(step, "on_start")
             if not succeeded:
                 return
+                
         self.setup_dataloader(steps)
         self.pause_event.clear()
         try:
             self.step_until_received_output(steps, step_id)
         finally:
-            self.viewer.handle_end()
+            self.event_handler.handle_end()
             self.dataloader.stop()
             for step in steps:
                 self.try_execute_step_event(step, "on_end")
@@ -243,15 +256,22 @@ class WebInstanceProcessor:
             )
         self.filename = filename
         if is_running:
-            self.viewer = self.view_manager.new(filename)
-            self.viewer.set_state("run_state", "running")
-            ExecutionContext.update(view_manager=self.viewer)
+            # Create a new event handler for this run
+            self.event_handler = MemoryEventHandler(filename, self.view_manager_queue)
+            # Initialize the viewer
+            self.viewer = self.event_handler.initialize_viewer()
+            # Set up the execution context and graph state
+            ExecutionContext.update(event_handler=self.event_handler)
             self.graph_state.set_viewer(self.viewer)
         else:
-            self.viewer.set_state("run_state", "finished")
+            # Mark execution as finished
+            if self.event_handler:
+                self.event_handler.handle_end()
 
     def cleanup(self):
         self.dataloader.shutdown()
+        if self.event_handler:
+            self.event_handler.cleanup()
 
     def setup_dataloader(self, steps: List[Step]):
         dataloader_consumers = [step for step in steps if isinstance(step, BatchStep)]
@@ -274,7 +294,7 @@ class WebInstanceProcessor:
             return True
         except NodeInstantiationError as e:
             traceback.print_exc()
-            self.viewer.handle_log(e.node_id, str(e), "error")
+            self.event_handler.write_log(e.node_id, str(e), "error")
         except Exception as e:
             traceback.print_exc()
         return False
@@ -305,8 +325,8 @@ class WebInstanceProcessor:
                     self._exec(work)
                 elif work["cmd"] == "clear":
                     self.graph_state.clear_outputs(work.get("node_id"))
-                    if self.viewer:
-                        self.viewer.handle_clear(work.get("node_id"))
+                    if self.event_handler:
+                        self.event_handler.handle_clear(work.get("node_id"))
                     step = self.graph_state.get_step(work.get("node_id"))
                     self.dataloader.clear(id(step) if step != None else None)
             except queue.Empty:

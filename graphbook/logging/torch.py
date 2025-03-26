@@ -1,5 +1,5 @@
 from typing import List, Union, Optional, Sequence, Callable
-from graphbook.logging.dag import DAGLogger, DAGNodeRef, CallableNode
+from graphbook.core.logs.data import DAGLogger, DAGNodeRef, CallableNode
 from PIL import Image
 from pathlib import Path
 

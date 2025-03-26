@@ -25,9 +25,6 @@ See :meth:`graphbook.steps.Step.log` if you want to log textual information asso
 Getting Started
 ===============
 
-.. warning::
-    This feature is currently in beta. Please report any issues to the repo_.
-
 To get started, install Graphbook along with the graphbook.logging dependencies with:
 
 .. code-block:: console

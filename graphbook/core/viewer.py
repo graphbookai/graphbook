@@ -3,7 +3,7 @@ import time
 import multiprocessing as mp
 import copy
 import psutil
-from .utils import get_gpu_util, QueueTaskLoop, RAY_AVAILABLE
+from .utils import get_gpu_util, transform_json_log, QueueTaskLoop, RAY_AVAILABLE
 
 if RAY_AVAILABLE:
     try:
@@ -51,7 +51,7 @@ class DataViewer(Viewer):
     def handle_output(self, node_id: str, pin: str, output: Any):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        self.last_outputs[node_id] |= {pin: output}
+        self.last_outputs[node_id] |= {pin: transform_json_log(output)}
 
     def set_filename(self, filename: str):
         if filename != self.filename:
@@ -121,27 +121,29 @@ class NodeStatsViewer(Viewer):
 
 class NodeLogsViewer(Viewer):
     """
-    Updates client with new set of incoming logs
+    Stores logs in a single list for efficient index-based access
     """
 
     def __init__(self):
         super().__init__("logs")
-        self.logs: Dict[str, List[str]] = {}
-
-    def handle_start(self, node_id: str):
-        if node_id not in self.logs:
-            self.logs[node_id] = []
-        self.logs[node_id].append({"type": "wipe"})
+        self.logs: List[dict] = []
 
     def handle_log(self, node_id: str, log: str, type: str = "info"):
-        if node_id not in self.logs:
-            self.logs[node_id] = []
-        self.logs[node_id].append({"type": type, "msg": log})
+        self.logs.append({"node_id": node_id, "type": type, "msg": log})
+        
+    def handle_clear(self, node_id: Optional[str] = None):
+        """Clear all logs in the graph regardless of node_id"""
+        # Simply reset the logs list
+        self.logs = []
 
+    def get_logs_since_idx(self, idx: int) -> List[dict]:
+        """Get logs starting from the given index"""
+        if idx >= len(self.logs):
+            return []
+        return self.logs[idx:]
+        
     def get_next(self):
-        logs = copy.deepcopy(self.logs)
-        self.logs = {}
-        return logs
+        return None
 
 
 class SystemUtilViewer(Viewer):
@@ -210,6 +212,7 @@ class MultiGraphViewManager(QueueTaskLoop):
         self.viewers: Dict[str, List[Viewer]] = {}
         self.graph_states: Dict[str, Dict[str, StateEntry]] = {}
         self.global_states: Dict[str, StateEntry] = {}
+        # Use the provided close_event or create a new one
         self.close_event = close_event or mp.Event()
         super().__init__(work_queue, 0.1, self.close_event)
 
@@ -225,9 +228,9 @@ class MultiGraphViewManager(QueueTaskLoop):
         self.data_viewers[graph_id] = DataViewer()
         self.viewers[graph_id] = [
             self.node_stats_viewers[graph_id],
-            self.log_viewers[graph_id],
             self.prompt_viewers[graph_id],
             self.data_viewers[graph_id],
+            self.log_viewers[graph_id],
         ]
         self.graph_states[graph_id] = {}
 
@@ -317,14 +320,18 @@ class MultiGraphViewManager(QueueTaskLoop):
             or state_entry[0] > global_client_idx[state_type]
         ]
         return [*states, *global_states]
-
+    
     def get_current_view_data(self) -> List[dict]:
         """
-        Get the current data from all viewer classes
+        Get the current data from all viewer classes except logs
         """
         view_data = []
         for graph_id, viewers in self.viewers.items():
             for viewer in viewers:
+                # Skip log viewers as they're handled separately in get_logs_data
+                if viewer.get_event_name() == "logs":
+                    continue
+                    
                 next_entry = viewer.get_next()
                 if next_entry is not None:
                     entry = {

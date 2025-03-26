@@ -1,8 +1,6 @@
 import json
 import warnings
 
-warnings.simplefilter("default", DeprecationWarning)
-
 class Note:
     """
     **DEPRECATED**: This class is deprecated and will be removed in a future version of Graphbook.

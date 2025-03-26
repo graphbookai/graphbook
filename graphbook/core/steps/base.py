@@ -19,7 +19,8 @@ from ..utils import (
     RAY_AVAILABLE,
 )
 from ..utils import ExecutionContext
-from ..viewer import ViewManagerInterface
+from ..processing.event_handler import EventHandler
+from ..logs import LogWriter
 from .. import prompts
 import warnings
 import traceback
@@ -27,8 +28,6 @@ import copy
 
 if TYPE_CHECKING:
     from ..dataloading import Dataloader
-
-warnings.simplefilter("default", DeprecationWarning)
 
 StepOutput = Dict[str, List[Any]]
 """A dict mapping of output slot to Any list. Every Step outputs a StepOutput."""
@@ -41,11 +40,16 @@ text_log_types = ["info", "error"]
 def log(msg: Any, type: LogType = "info"):
     node_id: str = ExecutionContext.get("node_id")
     node_name: str = ExecutionContext.get("node_name")
-    view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
+    event_handler: EventHandler = ExecutionContext.get("event_handler")
+
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
+    
+    log_handle = None
 
-    if view_manager is None and RAY_AVAILABLE:
+    if event_handler:
+        log_handle = event_handler.write_log
+    elif RAY_AVAILABLE:
         if RAY.is_initialized():
             actor_handle = RAY.get_actor("_graphbook_RayStepHandler")
             log_handle = actor_handle.handle_log.remote
@@ -53,36 +57,39 @@ def log(msg: Any, type: LogType = "info"):
             raise ValueError(
                 "View manager not initialized in context. Is this being called in a running graph?"
             )
-    else:
-        log_handle = view_manager.handle_log
+
 
     if type in text_log_types:
+        log_message = msg
         if type == "error":
-            msg = f"[ERR] {msg}"
-        print(f"[{node_id} {node_name}] {msg}")
+            log_message = f"[ERR] {msg}"
+        print(f"[{node_id} {node_name}] {log_message}")
+
     elif type == "json":
         msg = transform_json_log(msg)
     elif type == "image":
         pass  # TODO
     else:
         raise ValueError(f"Unknown log type {type}")
-    log_handle(node_id, msg, type)
+    
+    if log_handle:
+        log_handle(node_id, msg, type)
 
 
 def prompt(prompt: dict):
     node_id: str = ExecutionContext.get("node_id")
-    view_manager: ViewManagerInterface = ExecutionContext.get("view_manager")
+    event_handler: EventHandler = ExecutionContext.get("event_handler")
     if node_id is None:
         raise ValueError(
             f"Can't find node id in {caller}. Only initialized steps can log."
         )
 
-    if view_manager is None:
+    if event_handler is None:
         raise ValueError(
             "View manager not initialized in context. Is this being called in a running graph?"
         )
 
-    view_manager.handle_prompt(node_id, prompt)
+    event_handler.handle_prompt(node_id, prompt)
 
 
 class Step:

@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, TYPE_CHECKING, Any
+from typing import List, Dict, Optional, Any
 import uuid
 from aiohttp.web import WebSocketResponse
 from .processing.web_processor import WebInstanceProcessor
@@ -14,11 +14,6 @@ import shutil
 import traceback
 import sys
 from .utils import TaskLoop
-
-try:
-    from graphbook.logging import LogDirectoryReader
-except ImportError:
-    LogDirectoryReader = None
 
 
 DEFAULT_CLIENT_OPTIONS = {"SEND_EVERY": 0.5}
@@ -54,8 +49,13 @@ class Client:
         # graph_id -> {state_type -> idx}
         self.state_idx: Dict[str, Dict[str, int]] = {}
         self.state_idx_global: Dict[str, int] = {}
+        self.log_idx: Dict[str, int] = {}
         self.view_manager = view_manager
         self.proc_interface = proc_interface
+        
+    def reset_log_idx(self):
+        """Reset the log index to 0 when clear outputs is called"""
+        self.log_idx = {}
 
     def get_view_manager(self) -> MultiGraphViewManager:
         return self.view_manager
@@ -76,12 +76,10 @@ class WebClient(Client):
         node_hub: NodeHub,
         view_manager: MultiGraphViewManager,
         setup_paths: dict,
-        log_handler=None,
     ):
         super().__init__(sid, ws, view_manager, processor)
         self.processor = processor
         self.node_hub = node_hub
-        self.log_handler = log_handler
         self.root_path = Path(setup_paths["workflow_dir"])
         self.docs_path = Path(setup_paths["docs_path"])
         self.custom_nodes_path = Path(setup_paths["custom_nodes_path"])
@@ -103,9 +101,6 @@ class WebClient(Client):
 
     def get_node_hub(self) -> NodeHub:
         return self.node_hub
-
-    def get_logger(self):
-        return self.log_handler
 
 
 class ClientPool(TaskLoop):
@@ -146,6 +141,22 @@ class ClientPool(TaskLoop):
 
         return_data = [data for _, data in states]
         return return_data
+        
+    def get_logs_data(
+        self, view_manager: MultiGraphViewManager, client: Client
+    ) -> List[dict]:
+        """Get new logs for a client and update their log index"""
+        graph_logs = []
+        for graph_id, log_viewer in view_manager.log_viewers.items():
+            if client.log_idx.get(graph_id) is None:
+                client.log_idx[graph_id] = 0
+            logs = log_viewer.get_logs_since_idx(client.log_idx[graph_id])
+            if logs:
+                # Update client's log index
+                client.log_idx[graph_id] = len(log_viewer.logs)
+                # Format logs data for transmission
+                graph_logs.append({"type": "logs", "graph_id": graph_id, "data": logs})
+        return graph_logs
 
     async def remove_client(self, client: Client):
         sid = client.sid
@@ -169,7 +180,6 @@ class AppClientPool(ClientPool):
         plugins: tuple,
         no_sample: bool,
         setup_paths: dict,
-        log_dir: Optional[str] = None,
     ):
         super().__init__(close_event, options=DEFAULT_CLIENT_OPTIONS)
         self.web_processor_args = web_processor_args
@@ -178,7 +188,6 @@ class AppClientPool(ClientPool):
         self.custom_nodes_path = (
             setup_paths["custom_nodes_path"] if setup_paths else None
         )
-        self.log_dir = log_dir
         self.plugins = plugins
         self.no_sample = no_sample
         sys.path.append(str(self.setup_paths["workflow_dir"]))
@@ -196,16 +205,10 @@ class AppClientPool(ClientPool):
         processor = WebInstanceProcessor(**processor_args)
         view_manager = MultiGraphViewManager(view_queue, processor, self.close_event)
         node_hub = NodeHub(self.plugins, view_manager, custom_nodes_path)
-        log_handler = None
-        if self.log_dir and LogDirectoryReader is not None:
-            log_handler = LogDirectoryReader(
-                self.log_dir, view_queue, close_event=self.close_event
-            )
         return {
             "processor": processor,
             "node_hub": node_hub,
             "view_manager": view_manager,
-            "log_handler": log_handler,
         }
 
     def _create_dirs(
@@ -270,8 +273,6 @@ class AppClientPool(ClientPool):
         resources["processor"].start()
         resources["node_hub"].start()
         resources["view_manager"].start()
-        if resources["log_handler"]:
-            resources["log_handler"].start()
 
         await ws.send_json({"type": "sid", "data": sid})
         return client
@@ -284,9 +285,6 @@ class AppClientPool(ClientPool):
             client.get_processor().stop()
             await client.get_view_manager().stop()
             client.get_node_hub().stop()
-            logger = client.get_logger()
-            if logger:
-                logger.stop()
         if sid in self.clients:
             del self.clients[sid]
         if sid in self.ws:
@@ -303,13 +301,16 @@ class AppClientPool(ClientPool):
                 view_manager = client.get_view_manager()
                 view_data = view_manager.get_current_view_data()
                 state_data = self.get_state_data(view_manager, client)
+                
+                # Get new logs for this client
+                logs_data = self.get_logs_data(view_manager, client)
+                
                 try:
-                    await asyncio.gather(
-                        *[
-                            client.ws.send_json(data)
-                            for data in [*view_data, *state_data]
-                        ]
-                    )
+                    client_data = [*view_data, *state_data, *logs_data]
+                    if len(client_data) > 0:
+                        await asyncio.gather(
+                            *[client.ws.send_json(data) for data in client_data]
+                        )
                 except Exception as e:
                     print(f"Error sending to client: {e}")
         except Exception as e:
@@ -379,10 +380,16 @@ class SimpleClientPool(ClientPool):
             if client.ws.closed:
                 continue
             state_data = self.get_state_data(self.view_manager, client)
+            
+            # Get new logs for this client
+            logs_data = self.get_logs_data(self.view_manager, client)
+            
             try:
-                await asyncio.gather(
-                    *[client.ws.send_json(data) for data in [*view_data, *state_data]]
-                )
+                client_data = [*view_data, *state_data, *logs_data]
+                if len(client_data) > 0:
+                    await asyncio.gather(
+                        *[client.ws.send_json(data) for data in client_data]
+                    )
             except Exception as e:
                 print(f"Error sending to client: {e}")
 
@@ -399,10 +406,9 @@ class AppSharedClientPool(AppClientPool):
         plugins: tuple,
         no_sample: bool,
         setup_paths: dict,
-        log_dir: Optional[str] = None,
     ):
         super().__init__(
-            close_event, web_processor_args, plugins, no_sample, setup_paths, log_dir
+            close_event, web_processor_args, plugins, no_sample, setup_paths
         )
         self._create_dirs(**setup_paths)
         self.shared_resources = self._create_resources(
@@ -431,10 +437,16 @@ class AppSharedClientPool(AppClientPool):
             if client.ws.closed:
                 continue
             state_data = self.get_state_data(view_manager, client)
+            
+            # Get new logs for this client
+            logs_data = self.get_logs_data(view_manager, client)
+            
             try:
-                await asyncio.gather(
-                    *[client.ws.send_json(data) for data in [*view_data, *state_data]]
-                )
+                client_data = [*view_data, *state_data, *logs_data]
+                if len(client_data) > 0:
+                    await asyncio.gather(
+                        *[client.ws.send_json(data) for data in client_data]
+                    )
             except Exception as e:
                 print(f"Error sending to client: {e}")
 
@@ -443,7 +455,6 @@ class AppSharedClientPool(AppClientPool):
         self.shared_resources["processor"].stop()
         self.shared_resources["node_hub"].stop()
         self.shared_resources["view_manager"].stop()
-        self.shared_resources["log_handler"].stop()
 
     def start(self):
         super().start()
@@ -458,7 +469,3 @@ class AppSharedClientPool(AppClientPool):
         node_hub = self.shared_resources.get("node_hub")
         if node_hub:
             node_hub.start()
-
-        log_handler = self.shared_resources.get("log_handler")
-        if log_handler:
-            log_handler.start()

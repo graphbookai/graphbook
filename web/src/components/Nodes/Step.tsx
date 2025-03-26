@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Flex, Image, theme, Typography, Space } from 'antd';
-import { useAPINodeMessageEffect } from '../../hooks/API';
+import { useAPINodeMessageEffect, useLogSubscription } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
-import { getMergedLogs, getMediaPath } from '../../utils';
+import { getMediaPath } from '../../utils';
 import { useSettings } from '../../hooks/Settings';
 import { usePrompt, Prompt } from '../../hooks/Prompts';
 import type { LogEntry, ImageRef } from '../../utils';
@@ -30,7 +30,6 @@ const { Text } = Typography;
 export function Step({ id, data, selected }) {
     const { name, parameters, inputs, outputs, isCollapsed } = data;
     const [quickViewData, setQuickViewData] = useState<QuickViewEntry>({});
-    const [logsData, setLogsData] = useState<LogEntry[]>([]);
     const [errored, setErrored] = useState<boolean>(false);
     const [recordCount, setRecordCount] = useState({});
     const [isPromptNode, setIsPromptNode] = useState(false);
@@ -41,9 +40,7 @@ export function Step({ id, data, selected }) {
         setQuickViewData(msg);
     });
 
-    useAPINodeMessageEffect('logs', id, filename, (newEntries) => {
-        setLogsData(prev => getMergedLogs(prev, newEntries));
-    });
+    const logsData = useLogSubscription(filename, id);
 
     useAPINodeMessageEffect('stats', id, filename, (msg) => {
         setRecordCount(msg.queue_size || {});

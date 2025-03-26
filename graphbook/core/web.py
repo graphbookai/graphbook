@@ -234,7 +234,6 @@ class AppServer(Server):
         close_event: mp.Event,
         setup_paths: Optional[dict] = None,
         web_dir: Optional[str] = None,
-        log_dir: Optional[str] = None,
         host: str = "0.0.0.0",
         port: int = 8005,
     ):
@@ -248,7 +247,6 @@ class AppServer(Server):
                 node_plugins,
                 no_sample,
                 setup_paths=setup_paths,
-                log_dir=log_dir,
             )
         else:
             self.client_pool = AppSharedClientPool(
@@ -257,7 +255,6 @@ class AppServer(Server):
                 node_plugins,
                 no_sample,
                 setup_paths=setup_paths,
-                log_dir=log_dir,
             )
         super().__init__(
             close_event,
@@ -271,29 +268,6 @@ class AppServer(Server):
         if self.web_plugins:
             print("Loaded web plugins:")
             print(self.web_plugins)
-
-        @self.routes.get("/log/{graph_id}/{step_id}/{pin_id}/{index}")
-        async def get_log(request: web.Request) -> web.Response:
-            client: WebClient = self.get_client(request)
-            graph_id = request.match_info.get("graph_id")
-            step_id = request.match_info.get("step_id")
-            pin_id = request.match_info.get("pin_id")
-            index = int(request.match_info.get("index"))
-            logger = client.get_logger()
-            if not logger:
-                res = None
-            else:
-                res = logger.get_output(graph_id, step_id, pin_id, index)
-
-            if (
-                res
-                and res.get("step_id") == step_id
-                and res.get("pin_id") == pin_id
-                and res.get("index") == index
-            ):
-                return web.json_response(res)
-
-            return web.json_response({"error": "Could not get output."})
 
         @self.routes.post("/prompt_response/{id}")
         async def prompt_response(request: web.Request) -> web.Response:
@@ -435,6 +409,8 @@ class AppServer(Server):
         async def clear(request: web.Request) -> web.Response:
             client: WebClient = self.get_client(request)
             node_id = request.match_info.get("id")
+            # Reset the client's log index when clear is called
+            client.reset_log_idx()
             client.exec({"cmd": "clear", "node_id": node_id})
             return web.json_response({"success": True})
 
@@ -654,6 +630,7 @@ def start_app(args):
         copy_outputs=args.copy_outputs,
         spawn=args.spawn,
         num_workers=args.num_workers,
+        close_event=close_event,
     )
 
     if args.start_media_server:
@@ -661,7 +638,6 @@ def start_app(args):
         p.daemon = True
         p.start()
 
-    log_dir = args.log_dir if not args.isolate_users else None
     server = AppServer(
         web_processor_args,
         args.isolate_users,
@@ -669,7 +645,6 @@ def start_app(args):
         close_event,
         setup_paths=setup_paths,
         web_dir=args.web_dir,
-        log_dir=log_dir,
         host=args.host,
         port=args.port,
     )
@@ -688,6 +663,17 @@ def start_app(args):
 
 
 def async_start(host, port, close_event=None, img_storage=None, client_pool=None):
+    """
+    Start a graphbook server asynchronously in a separate thread.
+    
+    Args:
+        host: Host to bind to
+        port: Port to bind to
+        close_event: Event to signal when server should shut down, created if not provided
+        img_storage: Image storage interface type
+        client_pool: Client pool for managing connections
+    """
+    # Use a provided close_event or create a new one
     if close_event is None:
         close_event = mp.Event()
 

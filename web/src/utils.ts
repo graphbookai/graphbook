@@ -144,7 +144,9 @@ export const evalDragData = async (reactFlowInstance: ReactFlowInstance, API: Se
 
 export type LogEntry = {
     type: string,
-    msg?: string
+    msg?: string,
+    node_id?: string,
+    idx?: number
 };
 
 export const getMergedLogs = (prevLogs: Array<LogEntry>, newLogs: Array<LogEntry>) => {

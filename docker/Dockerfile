@@ -53,4 +53,4 @@ COPY --from=builder /app/web/dist web/dist
 
 EXPOSE 8005 8006
 
-CMD ["python", "-m", "graphbook.main", "--web_dir", "web/dist"]
+CMD ["python", "graphbook/core/cli.py", "--web_dir", "web/dist"]

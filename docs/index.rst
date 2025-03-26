@@ -9,17 +9,29 @@
 Graphbook
 ##########
 
-Graphbook is a framework for building efficient, interactive DAG-structured AI data pipelines or workflows composed of nodes written in Python. Graphbook provides common ML processing features such as multiprocessing IO and automatic batching for PyTorch tensors, and it features a web-based UI to assemble, monitor, and execute data processing workflows. It can be used to prepare training data for custom ML models, experiment with custom trained or off-the-shelf models, and to build ML-based ETL applications. Custom nodes can be built in Python, and Graphbook will behave like a framework and call lifecycle methods on those nodes.
+Graphbook is an open source framework for building scalable and visual AI applications written in Python.
+You should use Graphbook if you want to simplify the development of AI applications that need to be scalable, observable, and interactive with a fresh-looking UI.
 
 .. image:: https://media.githubusercontent.com/media/rsamf/public/main/docs/overview/huggingface-pipeline-demo.gif
     :alt: Huggingface Pipeline Demo
     :width: 600px
     :align: center
 
+Example Applications
+********************
+
+* Clean and curate custom large scale datasets
+* `Demo ML apps <https://huggingface.co/spaces/rsamf/rmbg-graphbook>`_ on Huggingface Spaces
+* Build and deliver customizable no-code or hybrid low-code ML apps and services
+* Quickly experiment with different ML models and adjust hyperparameters
+* Maximize GPU utilization, parallelize IO, and scale across clusters
+* Wrap your Ray DAGs with a frontend for end users
+
 Features
 *********
 
 * ​​Graph-based visual editor to experiment and create complex ML workflows
+* Workflows can be serialized as Python and JSON files
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
 * Custom buildable nodes with Python via OOP and functional patterns
@@ -36,18 +48,8 @@ Features
 * Monitorable worker queue sizes for optimal worker scaling
 * Human-in-the-loop prompting for interactivity and manual control during DAG execution
 * Can switch to threaded processing per client session for demoing apps to multiple simultaneous users
-* (BETA) **Now with Ray!** Build all-code workflows and scale pipelines on remote machines
+* Scale with Ray: Build all-code workflows and scale pipelines on Ray clusters
 * (BETA) Third Party Plugins 
-
-Applications
-*************
-
-* Clean and curate custom large scale datasets
-* `Demo ML apps <https://huggingface.co/spaces/rsamf/rmbg-graphbook>`_ on Huggingface Spaces
-* Build and deliver customizable no-code or hybrid low-code ML apps and services
-* Quickly experiment with different ML models and adjust hyperparameters
-* Maximize GPU utilization, parallelize IO, and scale across clusters
-* Wrap your Ray DAGs with a frontend for end users
 
 
 Why
