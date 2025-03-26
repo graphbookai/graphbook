@@ -1,8 +1,17 @@
-from graphbook.logging.dag import DAGLogger, DAGNodeRef, DAGStreamReader, LogDirectoryReader
+from graphbook.core.logs import (
+    LogManager,
+    LogDirectoryReader,
+    LogWriter,
+    DAGLogger,
+    DAGNodeRef,
+    CallableNode,
+)
 
 __all__ = [
+    "LogManager",
+    "LogDirectoryReader",
+    "LogWriter",
     "DAGLogger",
     "DAGNodeRef",
-    "DAGStreamReader",
-    "LogDirectoryReader",
+    "CallableNode",
 ]

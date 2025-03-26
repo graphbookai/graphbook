@@ -14,7 +14,7 @@ import { layoutDAG, getNodeParams } from '../../graph.ts';
 import { Step } from '../Nodes/Step.tsx';
 import { Resource } from '../Nodes/Resource.js';
 import { NodeContextMenu } from '../ContextMenu.tsx';
-import { useAPI } from '../../hooks/API.ts';
+import { useAPI, clearNodeLogs } from '../../hooks/API.ts';
 import { useRunState } from '../../hooks/RunState.ts';
 import { NodeConfig } from '../NodeConfig.tsx';
 import { Monitor } from '../Monitor.tsx';
@@ -73,7 +73,7 @@ export default function Flow({ filename }) {
             const { G, doc } = graph;
             Object.entries<any>(G).forEach(([nodeId, node]) => {
                 Object.values<any>(node.parameters).forEach((param) => {
-                    if (param.type !== "resource" && param.default !== undefined) {
+                    if (param.type !== "resource" && param.default !== undefined && param.value === undefined) {
                         param.value = param.default;
                     }
                 });
@@ -273,7 +273,10 @@ function ControlRow() {
         }
 
         API.clearAll();
-    }, [API]);
+        
+        // Also clear logs on the client side
+        clearNodeLogs(filename);
+    }, [API, filename]);
 
     const layout = useCallback(() => {
         const newNodes = layoutDAG(nodes, edges);

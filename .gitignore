@@ -11,10 +11,10 @@ docs/_build
 /workflow
 /media
 /tests/outputs/**/*
-
-# Logs
-logs
+/logs/**/*
 *.log
+
+# Dev logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

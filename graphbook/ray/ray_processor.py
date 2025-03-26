@@ -20,6 +20,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from PIL import Image
 from graphbook.core.viewer import MultiGraphViewManagerInterface, ViewManagerInterface
+from graphbook.core.processing.event_handler import FileEventHandler
 from graphbook.core.steps import Step, StepOutput
 from graphbook.core.utils import MP_WORKER_TIMEOUT, transform_json_log
 import ray.util.queue
@@ -63,124 +64,50 @@ def graphbook_task_context(context) -> Generator[None, None, None]:
         _context = original_context
 
 
-def execute(dag: DAGNode, context: GraphbookTaskContext) -> None:
-    """Execute a Graphbook DAG.
-
-    Args:
-        dag: A leaf node of the DAG.
-        context: The execution context.
-    Returns:
-        An object ref that represent the result.
-    """
-    logger.info(f"Graphbook job [id={context.name}] started.")
-    try:
-        return dag.execute()
-    finally:
-        pass
-
-
-def create_graph_execution(
-    dag: DAGNode,
-) -> Tuple[dict, List[Tuple[str, str, ActorHandle]]]:
-    """
-    Create a graph execution.
-
-    Args:
-        dag: The leaf node to the dag
-    """
-    # BFS
-
-    actor_id_to_idx = {}
-    nodes = []
-    G = {}
-
-    def fn(node: ClassMethodNode):
-        handle: ActorHandle = node._parent_class_node
-        node_context = getattr(handle, "_graphbook_context", None)
-        if node_context is not None:
-            curr_id = str(handle._actor_id)
-            if curr_id in G:
-                return
-
-            node_id = node_context["node_id"]
-            node_class = node_context["class"]
-            node_name = node_class.__name__[len("ActorClass(") : -1]
-            node_doc = node_context["doc"]
-
-            if issubclass(node_class, Step):
-                step_deps = node_context.get("step_deps", [])
-                G[curr_id] = {
-                    "type": "step",
-                    "name": node_name,
-                    "parameters": deepcopy(getattr(node_class, "Parameters", {})),
-                    "inputs": step_deps,
-                    "outputs": getattr(node_class, "Outputs", ["out"]),
-                    "category": getattr(node_class, "Category", ""),
-                    "doc": node_doc or "",
-                }
-            else:  # Resource
-                G[curr_id] = {
-                    "type": "resource",
-                    "name": node_name,
-                    "parameters": deepcopy(getattr(node_class, "Parameters", {})),
-                    "category": getattr(node_class, "Category", ""),
-                    "doc": node_doc or "",
-                }
-
-            resource_deps = node_context["resource_deps"]
-            parameters = G[curr_id]["parameters"]
-            for k, actor_id in resource_deps.items():
-                parameters[k]["value"] = actor_id
-
-            actor_id_to_idx[curr_id] = node_id
-            nodes.append((node_id, node_name, handle))
-
-    dag.traverse_and_apply(fn)
-
-    # Transform actor ids to simple ids
-    for n in G:
-        if G[n]["type"] == "step":
-            for input in G[n]["inputs"]:
-                input["node"] = actor_id_to_idx[input["node"]]
-        parameters = G[n]["parameters"]
-        for k, param in parameters.items():
-            if param["type"] == "resource":
-                param["value"] = actor_id_to_idx[param["value"]]
-    for k in list(G):
-        G[actor_id_to_idx[k]] = G.pop(k)
-
-    return G, nodes
-
-
 @ray.remote(name="_graphbook_RayStepHandler")
 class RayStepHandler:
     def __init__(self, cmd_queue: queue.Queue, view_manager_queue: queue.Queue):
-        self.view_manager = MultiGraphViewManagerInterface(view_manager_queue)
+        self.view_manager_queue = view_manager_queue
+        self.event_handler = None
         self.viewer = None
         self.graph_state = RayExecutionState()
         self.cmd_queue = cmd_queue
+        self.log_dir = "logs"
 
-    def handle_new_execution(self, name: str, G: dict, wait_for_params=True):
-        self.viewer = self.view_manager.new(name)
+    def handle_new_execution(
+        self, name: str, G: dict, log_dir: str = "logs", wait_for_params=True
+    ):
+        # Store the log directory
+        self.log_dir = log_dir
+
+        # Create a new event handler
+        self.event_handler = FileEventHandler(
+            name, self.view_manager_queue, self.log_dir
+        )
+
+        # Initialize the viewer
         self.graph_state.set_viewer(self.viewer)
-        self.viewer.set_state("run_state", "initializing")
-        self.viewer.set_state("graph_state", G)
+
+        # Update metadata
+        self.event_handler.update_metadata({"graph": G})
+
         if wait_for_params:
             params = self.wait_for_params()
             return params
 
     def handle_start_execution(self):
-        assert self.viewer is not None
-        self.viewer.set_state("run_state", "running")
+        # Use event handler to update the state
+        self.event_handler.viewer.set_state("run_state", "running")
 
     def handle_end_execution(self, *outputs):
-        assert self.viewer is not None
-        self.viewer.set_state("run_state", "finished")
+        # Mark execution as finished
+        self.event_handler.handle_end()
+        # Clean up resources
+        self.event_handler.cleanup()
         return outputs
 
     def handle_log(self, node_id, msg, type):
-        assert self.viewer is not None
-        self.viewer.handle_log(node_id, msg, type)
+        self.event_handler.write_log(node_id, msg, type)
 
     def prepare_inputs(
         self, dummy_input, step_id: str, *bind_args: List[Tuple[str, dict]]
@@ -195,19 +122,38 @@ class RayStepHandler:
         return all_datas
 
     def handle_outputs(self, step_id: str, outputs: StepOutput):
+        # Use event handler to write outputs and handle events
+
+        # Process images for Ray
         self.graph_state.handle_images(outputs)
-        self.graph_state.handle_outputs(step_id, outputs)
+
+        # Log step output to file
+        for pin_id, output_list in outputs.items():
+            for output in output_list:
+                self.event_handler.write_output(step_id, pin_id, output)
+
         return outputs
 
     def get_output(self, step_id, pin_id, index):
-        return {
-            "step_id": step_id,
-            "pin_id": pin_id,
-            "index": index,
-            "data": transform_json_log(
-                self.graph_state.steps_outputs[step_id][pin_id][index]
-            ),
-        }
+        # Try to get output using event handler if available
+        if self.event_handler and hasattr(self.event_handler, "get_output"):
+            return self.event_handler.get_output(step_id, pin_id, index)
+
+        # Fall back to graph state
+        if (
+            step_id in self.graph_state.steps_outputs
+            and pin_id in self.graph_state.steps_outputs[step_id]
+        ):
+            return {
+                "step_id": step_id,
+                "pin_id": pin_id,
+                "index": index,
+                "data": transform_json_log(
+                    self.graph_state.steps_outputs[step_id][pin_id][index]
+                ),
+            }
+
+        return None
 
     def get_image(self, image_id: str):
         return self.graph_state.get_image(image_id)
@@ -241,6 +187,7 @@ class RayExecutionState:
         self.handled_steps = set()
         self.params = None
         self.images: Dict[str, ray._raylet.ObjectRef] = {}
+        self.event_handler = None
 
     def set_viewer(self, viewer: ViewManagerInterface):
         self.viewer = viewer
@@ -293,6 +240,7 @@ class RayExecutionState:
         for label, datas in outputs.items():
             self.steps_outputs[step_id].enqueue(label, datas)
 
+        # Use viewer for UI updates
         self.viewer.handle_queue_size(step_id, self.steps_outputs[step_id].sizes())
         for pin, output in outputs.items():
             if len(output) == 0:

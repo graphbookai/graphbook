@@ -1,8 +1,6 @@
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING, Set, Union
 import multiprocessing as mp
 import traceback
-import time
-import copy
 from PIL import Image
 
 from ..steps import (
@@ -12,15 +10,17 @@ from ..steps import (
     AsyncStep,
     BatchStep,
     log,
+    StepOutput,
 )
 from ..dataloading import Dataloader
 from ..utils import transform_json_log, ExecutionContext
-from .state import GraphState, StepState
-from ..viewer import MultiGraphViewManagerInterface
+from .graph_state import GraphState, StepState
+from .event_handler import FileEventHandler, MemoryEventHandler
 from ..shm import MultiThreadedMemoryManager, ImageStorageInterface
 import abc
 from graphbook.core.clients import SimpleClientPool, ClientPool
 from graphbook.core.shm import MultiThreadedMemoryManager
+
 
 if TYPE_CHECKING:
     from ..serialization import Graph
@@ -62,6 +62,7 @@ class DefaultExecutor(Executor):
         self,
         copy_outputs: bool = True,
         num_workers: int = 1,
+        log_dir: str = "logs",
     ):
         """
         Initialize the DefaultExecutor.
@@ -69,14 +70,25 @@ class DefaultExecutor(Executor):
         Args:
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
+            log_dir (str): Directory to store output logs
         """
 
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
+        self.log_dir = log_dir
         self.view_manager_queue = mp.Queue()
+        self.close_event = mp.Event()
+
+        self.processor = GraphProcessor(
+            self.view_manager_queue,
+            self.copy_outputs,
+            self.num_workers,
+            self.log_dir,
+            self.close_event,
+        )
 
         self.client_pool = SimpleClientPool(
-            mp.Event(), self.view_manager_queue, self.processor
+            self.close_event, self.view_manager_queue, self.processor
         )
 
     def get_client_pool(self):
@@ -85,37 +97,23 @@ class DefaultExecutor(Executor):
     def get_img_storage(self):
         return MultiThreadedMemoryManager
 
-    def run(self, graph: "Graph", name: str, step_id: Optional[str] = None):
+    def run(self, graph: "Graph", name: str):
         """
         Execute the provided graph.
 
         Args:
             graph (Dict[str, Any]): The serialized graph to execute
-            step_id (Optional[str]): If provided, only run the specified step and its dependencies
+            name (str): The name of the graph
         """
-        # Import here to avoid circular imports
-        from graphbook.core.processing.graph_processor import GraphProcessor
 
         try:
-
-            self.processor = GraphProcessor(
-                name,
-                self.view_manager_queue,
-                self.copy_outputs,
-                self.num_workers,
-            )
             # Execute the workflow directly
-            self.processor.run(graph, step_id)
+            self.processor.run(graph, name)
 
         except Exception as e:
             log(f"Execution error: {type(e).__name__}: {str(e)}", "error")
             traceback.print_exc()
             return None, None
-
-    def __del__(self):
-        """Clean up resources when the executor is garbage collected."""
-        if hasattr(self, "processor"):
-            self.processor.stop()
 
 
 class GraphProcessor:
@@ -125,29 +123,34 @@ class GraphProcessor:
 
     def __init__(
         self,
-        name: str,
         view_manager_queue: mp.Queue,
         copy_outputs: bool = True,
         num_workers: int = 1,
+        log_dir: Optional[str] = "logs",
+        close_event: Optional[mp.Event] = None,
     ):
         """
         Initialize the GraphProcessor.
 
         Args:
-            name (str): Name of the graph
             view_manager_queue (mp.Queue): Queue for communicating with the view manager
             copy_outputs (bool): Whether to make deep copies of step outputs
             num_workers (int): Number of workers for batch processing
+            log_dir (Optional[str]): Directory to store output logs. If None, in-memory event handling is used
+            close_event (Optional[mp.Event]): Event to signal shutdown, created if not provided
         """
-        self.close_event = mp.Event()
+        self.close_event = close_event if close_event is not None else mp.Event()
         self.view_manager_queue = view_manager_queue
         self.copy_outputs = copy_outputs
         self.num_workers = num_workers
-        self.view_manager = MultiGraphViewManagerInterface(self.view_manager_queue)
-        self.viewer = self.view_manager.new(name)
+        self.name = None
 
         # Initialize state
-        self.graph_state = GraphState(None)  # No custom nodes path needed
+        self.graph_state = GraphState()  # No custom nodes path needed
+
+        # Initialize event handler - will be FileEventHandler if log_dir is provided, otherwise MemoryEventHandler
+        self.event_handler = None
+        self.log_dir = log_dir
 
         # Initialize dataloader
         self.dataloader = Dataloader(self.num_workers, False)
@@ -180,14 +183,23 @@ class GraphProcessor:
                         try_add_image(item)
 
     def exec_step(
-        self, step: Step, input: Optional[Any] = None, flush: bool = False
+        self,
+        step: Step,
+        input: Optional[Any] = None,
+        flush: bool = False,
     ) -> Optional[Dict[str, List[Any]]]:
-        """Execute a single step with optional input."""
+        """
+        Execute a single step with optional input.
+
+        Args:
+            step: The step to execute
+            input: Input data for the step
+            flush: Whether to flush the step (for AsyncStep)
+        """
         ExecutionContext.update(node_id=step.id)
         ExecutionContext.update(node_name=step.__class__.__name__)
         outputs = {}
         step_fn = step if not flush else step.all
-        start_time = time.time()
 
         try:
             if input is None:
@@ -199,17 +211,20 @@ class GraphProcessor:
                 else:
                     outputs = step_fn(input)
         except Exception as e:
-            log(f"{type(e).__name__}: {str(e)}", "error")
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            log(error_msg, "error")
+            if self.event_handler:
+                self.event_handler.write_log(step.id, error_msg, "error")
             traceback.print_exc()
             return None
 
         if outputs:
             if not isinstance(outputs, dict):
                 if not len(step.Outputs) == 1:
-                    log(
-                        f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value.",
-                        "error",
-                    )
+                    error_msg = f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value."
+                    log(error_msg, "error")
+                    if self.event_handler:
+                        self.event_handler.write_log(step.id, error_msg, "error")
                     return None
                 outputs = {step.Outputs[0]: outputs}
 
@@ -218,46 +233,79 @@ class GraphProcessor:
                     outputs[k] = [v]
 
             self.handle_images(outputs)
-            self.graph_state.handle_outputs(
-                step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
-            )
-            self.viewer.handle_time(step.id, time.time() - start_time)
+            self.graph_state.set_executed(step.id)
+
+            # Write outputs using the event handler
+            if self.event_handler:
+                for pin_id, output_list in outputs.items():
+                    for output in output_list:
+                        self.event_handler.write_output(step.id, pin_id, output)
+
         return outputs
 
-    def handle_steps(self, steps: List[Step]) -> bool:
-        """Process a sequence of steps, handling dependencies."""
-        is_active = False
-        for step in steps:
-            output = {}
-            if isinstance(step, GeneratorSourceStep):
-                output = self.exec_step(step)
-            elif isinstance(step, SourceStep):
-                if not self.graph_state.get_state(step, StepState.EXECUTED):
-                    output = self.exec_step(step)
-            else:
-                try:
-                    input = self.graph_state.get_input(step)
-                    is_active = True
-                except StopIteration:
-                    input = None
+    def process_step_recursive(
+        self, step: Step, input: Optional[Any] = None, is_active: bool = False
+    ) -> bool:
+        """
+        Process a step and its child steps recursively.
 
-                if isinstance(step, AsyncStep):
-                    if is_active:  # parent is active
-                        # Proceed with normal step execution
-                        output = self.exec_step(step, input)
-                    else:
-                        # Flush queue and proceed with normal execution
-                        output = self.exec_step(step, flush=True)
-                    is_active = is_active or step.is_active()
+        Args:
+            step: The step to process
+            is_active: Whether the parent is active
+
+        Returns:
+            is_active
+        """
+        outputs = {}
+
+        # Process source steps
+        if isinstance(step, GeneratorSourceStep):
+            outputs = self.exec_step(step)
+        elif isinstance(step, SourceStep):
+            if not self.graph_state.get_state(step, StepState.EXECUTED):
+                outputs = self.exec_step(step)
+        else:
+            if input is not None:
+                outputs = self.exec_step(step, input)
+
+            # Handle AsyncStep
+            if isinstance(step, AsyncStep):
+                if is_active:  # parent is active
+                    # Skip - already processed above
+                    pass
                 else:
-                    if input:
-                        output = self.exec_step(step, input)
+                    # Flush queue and proceed with normal execution
+                    outputs = self.exec_step(step, flush=True)
+                is_active = is_active or step.is_active()
 
-            if output is None:
-                return False
-            else:
-                if not is_active:
-                    is_active = any(len(v) > 0 for v in output.values())
+        # Check for NULL outputs
+        if outputs is None:
+            return False
+
+        # Process child steps
+        for output_key, output_list in outputs.items():
+            for output in output_list:
+                child_steps = self.graph_state.get_depending_children(
+                    step.id, output_key
+                )
+                for child_step in child_steps:
+                    self.process_step_recursive(child_step, output, is_active)
+                    is_active = True
+
+        return is_active
+
+    def handle_steps(self, steps: List[Step]) -> bool:
+        """
+        Process a sequence of steps, handling dependencies using recursive approach.
+
+        This is a replacement for the original handle_steps that uses a recursive approach
+        to immediately consume outputs rather than storing them in memory.
+        """
+        is_active = False
+
+        for step in steps:
+            step_active = self.process_step_recursive(step)
+            is_active = is_active or step_active
 
         return is_active
 
@@ -274,13 +322,29 @@ class GraphProcessor:
             traceback.print_exc()
         return False
 
-    def run(self, graph: "Graph", step_id: Optional[str] = None):
+    def run(self, graph: "Graph", name: str):
         """Run the entire graph or a specific step."""
+        self.name = name
+
+        # Initialize the appropriate event handler based on log_dir
+        if self.log_dir is not None:
+            self.event_handler = FileEventHandler(
+                name, self.view_manager_queue, self.log_dir
+            )
+        else:
+            self.event_handler = MemoryEventHandler(name, self.view_manager_queue)
+
         # Initialize viewer
-        ExecutionContext.update(view_manager=self.viewer, dataloader=self.dataloader)
-        self.viewer.set_state("run_state", "running")
-        self.viewer.set_state("graph_state", graph.serialize())
+        self.viewer = self.event_handler.initialize_viewer()
         self.graph_state.set_viewer(self.viewer)
+
+        # Update metadata for the graph
+        self.event_handler.update_metadata({"graph": graph.serialize()})
+
+        ExecutionContext.update(
+            dataloader=self.dataloader,
+            event_handler=self.event_handler,
+        )
 
         # Update graph state with provided graph
         self.graph_state.update_state_py(graph, {})
@@ -288,19 +352,16 @@ class GraphProcessor:
         # Handle resources
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.viewer.handle_output(
-                resource_id, "resource", transform_json_log(value)
-            )
+            self.event_handler.handle_output(resource_id, "resource", value)
 
-        # Get processing steps
-        steps: List[Step] = self.graph_state.get_processing_steps(step_id)
+        steps = self.graph_state.get_processing_steps()
 
         # Execute start events
         for step in steps:
-            self.viewer.handle_start(step.id)
+            self.event_handler.handle_start(step.id)
             succeeded = self.try_execute_step_event(step, "on_start")
             if not succeeded:
-                self.viewer.set_state("run_state", "finished")
+                self.event_handler.handle_end()
                 return
 
         # Set up dataloader
@@ -316,8 +377,7 @@ class GraphProcessor:
             ):
                 dag_is_active = self.handle_steps(steps)
         finally:
-            self.viewer.handle_end()
-            self.viewer.set_state("run_state", "finished")
+            self.event_handler.handle_end()
             self.dataloader.stop()
             for step in steps:
                 self.try_execute_step_event(step, "on_end")
@@ -335,14 +395,32 @@ class GraphProcessor:
         self.dataloader.start(consumer_ids, consumer_load_fn, consumer_dump_fn)
 
     def get_output(self, step_id: str, pin_id: str, index: int) -> Optional[Any]:
-        """Get a specific output from a step."""
-        output = self.graph_state.get_output(step_id, pin_id, index)
-        return transform_json_log(output)
+        """
+        Get a specific output from a step.
+
+        For FileEventHandler, this method gets the output from the log file.
+        For MemoryEventHandler, it will simply return None as outputs are managed
+        by the graph_state in the WebInstanceProcessor.
+        """
+        if hasattr(self.event_handler, "get_output"):
+            return self.event_handler.get_output(step_id, pin_id, index)
+
+        # Default fallback for any other event handler implementation
+        return {
+            "step_id": step_id,
+            "pin_id": pin_id,
+            "index": index,
+            "data": None,
+        }
 
     def stop(self):
         """Stop the processor and clean up resources."""
         self.close_event.set()
         self.dataloader.shutdown()
+
+        # Clean up the event handler resources
+        if self.event_handler:
+            self.event_handler.cleanup()
 
     def handle_prompt_response(self, step_id: str, response: str) -> bool:
         """Handle a prompt response for a step."""

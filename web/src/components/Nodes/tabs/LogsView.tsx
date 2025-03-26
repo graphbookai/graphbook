@@ -43,7 +43,7 @@ export function LogsView({ data }) {
                             padding: '1px 0 1px 4px'
                         };
                         return (
-                            <Text key={i} style={style}>{textOf(msg)}</Text>
+                            <Text key={log.idx || i} style={style}>{textOf(msg)}</Text>
                         );
                     })
                 }

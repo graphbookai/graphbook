@@ -4,7 +4,7 @@ import { useReactFlow, useUpdateNodeInternals } from 'reactflow';
 import { keyRecursively, uniqueIdFrom } from '../utils.ts';
 import { Graph, getNodeParams } from '../graph.ts';
 import { useRunState } from '../hooks/RunState.ts';
-import { useAPI } from '../hooks/API.ts';
+import { useAPI, clearNodeLogs } from '../hooks/API.ts';
 import { useNotification } from '../hooks/Notification.ts';
 import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
@@ -31,7 +31,11 @@ export function NodeContextMenu({ nodeId, top, left, close, canEditGraph = true 
             name: 'Clear Outputs',
             disabled: () => API && runState !== 'finished',
             action: async () => {
+                // Call the server API to clear outputs
                 API.clear(node.id);
+                
+                // Also clear logs on the client side
+                clearNodeLogs(filename, node.id);
             }
         },
         ...(canEditGraph ?

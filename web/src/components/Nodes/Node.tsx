@@ -150,7 +150,7 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
                     !isCollapsed && tabs.length > 0 &&
                     <Tabs items={tabList} defaultActiveKey={props.defaultTab || 'Params'} onTabClick={onTabClick} />
                 }
-                <div style={{ position: 'relative' }}>
+                <div className="nowheel" style={{ position: 'relative' }}>
                     <ContentDefault
                         id={id}
                         inputs={inputs}
