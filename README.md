@@ -75,6 +75,7 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 
 ### Current Features
 * ​​Graph-based visual editor to experiment and create complex ML workflows
+* Workflows can be serialized as Python and JSON files
 * Caches outputs and only re-executes parts of the workflow that changes between executions
 * UI monitoring components for logs and outputs per node
 * Custom buildable nodes with Python via OOP and functional patterns
@@ -91,7 +92,7 @@ Graphbook is in a very early stage of development, so expect minor bugs and rapi
 * Monitorable worker queue sizes for optimal worker scaling
 * Human-in-the-loop prompting for interactivity and manual control during DAG execution
 * Can switch to threaded processing per client session for demoing apps to multiple simultaneous users
-* (BETA) **Now with Ray!** Build all-code workflows and scale pipelines on remote machines
+* Scale with Ray: Build all-code workflows and scale pipelines on Ray clusters
 * (BETA) Third Party Plugins *
 
 \* We plan on adding documentation for the community to build plugins, but for now, an example can be seen at

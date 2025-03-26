@@ -25,9 +25,6 @@ Although using Ray can make your applications more scalable, there are some limi
 Getting Started
 ===============
 
-.. warning::
-    This feature is currently in beta. Please report any issues to the repo_.
-
 To get started, install Graphbook along with the graphbook.ray dependencies with:
 
 .. code-block:: console
@@ -83,7 +80,7 @@ To keep the web app running after execution is finished, you can add the followi
         except KeyboardInterrupt:
             pass
 
-And view your outputs in the web app by navigating to `http://localhost:8005` in your browser.
+And view your outputs in the web app by navigating to http://localhost:8005 in your browser.
 
 .. image:: /_static/ray-example.png
     :alt: Example of a Ray App
@@ -93,6 +90,49 @@ And view your outputs in the web app by navigating to `http://localhost:8005` in
 The RayExecutor will convert all steps and resource into `Ray Actors <https://docs.ray.io/en/latest/ray-core/actors.html>`_ that is compatible with Graphbook.
 All node types can be used in Ray DAGs as well except for the ones listed in :ref:`Ray_Limitations`.
 
+Deploy to a Ray Cluster
+***********************
+
+To deploy your Ray DAG to a Ray cluster, you must already have a Ray cluster running.
+See `Ray's documentation <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ for more information on how to set up a Ray cluster.
+
+Once you have a Ray cluster running, your script will have the following changes:
+
+* **start_web_server**: Set to ``False`` to prevent the web server from starting on the cluster.
+* **executor** must have the following:
+
+    * **address**: The address of the Ray cluster.
+    * **log_dir**: A persistent storage location for logs.
+
+The example below uses an S3 bucket for log storage, and you can assume this cluster is in AWS:
+
+.. code-block:: python
+    :caption: myapp.py
+    :emphasize-added: 11-15
+
+    import graphbook as gb
+    from graphbook.ray import RayExecutor
+
+    g = gb.Graph()
+
+    @g()
+    def _():
+        ...
+
+    if __name__ == "__main__":
+        executor = RayExecutor(
+            address="<cluster_address>",
+            log_dir="s3://my-bucket/logs"
+        )
+        g.run(executor=executor, start_web_server=False)
+
+While it is executing, you may view the graph execution in realtime with:
+
+.. code-block:: bash
+
+    $ graphbook view s3://my-bucket/logs
+
+The ``view`` subcommand will run a graphbook server that will simply read the logs of a given directory or S3 url.
 
 .. _Ray_Limitations:
 
