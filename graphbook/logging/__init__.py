@@ -6,7 +6,6 @@ from graphbook.core.logs import (
     DAGNodeRef,
     CallableNode,
 )
-from graphbook.logging.torch import TransformsLogger, TensorDAGNodeRef
 
 __all__ = [
     "LogManager",
@@ -15,6 +14,4 @@ __all__ = [
     "DAGLogger",
     "DAGNodeRef",
     "CallableNode",
-    "TransformsLogger",
-    "TensorDAGNodeRef",
 ]

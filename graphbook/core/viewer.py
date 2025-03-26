@@ -3,7 +3,7 @@ import time
 import multiprocessing as mp
 import copy
 import psutil
-from .utils import get_gpu_util, QueueTaskLoop, RAY_AVAILABLE
+from .utils import get_gpu_util, transform_json_log, QueueTaskLoop, RAY_AVAILABLE
 
 if RAY_AVAILABLE:
     try:
@@ -51,7 +51,7 @@ class DataViewer(Viewer):
     def handle_output(self, node_id: str, pin: str, output: Any):
         if node_id not in self.last_outputs:
             self.last_outputs[node_id] = {}
-        self.last_outputs[node_id] |= {pin: output}
+        self.last_outputs[node_id] |= {pin: transform_json_log(output)}
 
     def set_filename(self, filename: str):
         if filename != self.filename:

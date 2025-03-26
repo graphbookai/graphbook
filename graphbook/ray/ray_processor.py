@@ -86,7 +86,6 @@ class RayStepHandler:
         )
 
         # Initialize the viewer
-        self.viewer = self.event_handler.initialize_viewer()
         self.graph_state.set_viewer(self.viewer)
 
         # Update metadata
@@ -97,21 +96,18 @@ class RayStepHandler:
             return params
 
     def handle_start_execution(self):
-        if self.event_handler:
-            # Use event handler to update the state
-            self.event_handler.viewer.set_state("run_state", "running")
+        # Use event handler to update the state
+        self.event_handler.viewer.set_state("run_state", "running")
 
     def handle_end_execution(self, *outputs):
-        if self.event_handler:
-            # Mark execution as finished
-            self.event_handler.handle_end()
-            # Clean up resources
-            self.event_handler.cleanup()
+        # Mark execution as finished
+        self.event_handler.handle_end()
+        # Clean up resources
+        self.event_handler.cleanup()
         return outputs
 
     def handle_log(self, node_id, msg, type):
-        if self.event_handler:
-            self.event_handler.write_log(node_id, msg, type)
+        self.event_handler.write_log(node_id, msg, type)
 
     def prepare_inputs(
         self, dummy_input, step_id: str, *bind_args: List[Tuple[str, dict]]
@@ -126,18 +122,15 @@ class RayStepHandler:
         return all_datas
 
     def handle_outputs(self, step_id: str, outputs: StepOutput):
+        # Use event handler to write outputs and handle events
+
         # Process images for Ray
         self.graph_state.handle_images(outputs)
 
-        # Store outputs in graph state
-        self.graph_state.handle_outputs(step_id, outputs)
-
-        # Use event handler to write outputs and handle events
-        if self.event_handler:
-            # Log step output to file
-            for pin_id, output_list in outputs.items():
-                for output in output_list:
-                    self.event_handler.write_output(step_id, pin_id, output)
+        # Log step output to file
+        for pin_id, output_list in outputs.items():
+            for output in output_list:
+                self.event_handler.write_output(step_id, pin_id, output)
 
         return outputs
 

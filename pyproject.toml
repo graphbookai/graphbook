@@ -30,7 +30,6 @@ watchdog = "^4.0.0"
 psutil = "^6.0.0"
 pyyaml = "^6.0.2"
 ray = { version = "^2.41.0", optional = true }
-pyarrow = { version = "^19.0.0", optional = true }
 cloudpickle = "^3.1.1"
 msgpack = "^1.1.0"
 
@@ -58,10 +57,10 @@ optional = true
 
 [tool.poetry.group.peer.dependencies]
 ray = "^2.41.0"
-pyarrow = "^19.0.0"
 torch = "^2.0.0"
 torchvision = "^0.18.1"
+s3fs = "^2024.4.0"
 
 [tool.poetry.extras]
 ray = ["ray"]
-logging = ["pyarrow"]
+logging = []

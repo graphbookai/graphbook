@@ -9,12 +9,12 @@ This module provides a simplified, unified logging system that:
 from typing import Dict, List, Any, Optional, Union, Tuple, BinaryIO, Callable
 from pathlib import Path
 import os
+import os.path as osp
 import msgpack
 import cloudpickle
 import time
 import threading
 import atexit
-import uuid
 import io
 import struct
 from enum import Enum, auto
@@ -40,6 +40,50 @@ class StreamUnreadyError(Exception):
     pass
 
 
+def is_s3_url(path_str: str) -> bool:
+    """Check if a string is an S3 URL.
+
+    Args:
+        path_str: String to check
+
+    Returns:
+        True if the string is an S3 URL, False otherwise
+    """
+    if isinstance(path_str, str):
+        if path_str.startswith("s3://"):
+            return True
+        if path_str.startswith("https://") and ".s3." in path_str:
+            return True
+    return False
+
+
+def parse_s3_url(url: str) -> tuple:
+    """Parse an S3 URL into bucket and key.
+
+    Args:
+        url: S3 URL to parse
+
+    Returns:
+        Tuple of (bucket, key)
+    """
+    if url.startswith("s3://"):
+        parts = url[5:].split("/", 1)
+        bucket = parts[0]
+        key = parts[1] if len(parts) > 1 else ""
+        return bucket, key
+
+    # Handle https URLs
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if ".s3." in parsed.netloc:
+        bucket = parsed.netloc.split(".s3.")[0]
+        key = parsed.path.lstrip("/")
+        return bucket, key
+
+    raise ValueError(f"Invalid S3 URL: {url}")
+
+
 def _check_file(f: io.BufferedReader):
     """Check if the file is in the correct format."""
     marker = f.read(len(MARKER))
@@ -61,6 +105,74 @@ def _check_file(f: io.BufferedReader):
     return new_loc
 
 
+class S3Writer:
+    """
+    Writer for S3 destinations.
+    """
+
+    def __init__(self, s3_url: str):
+        """
+        Initialize the S3 writer.
+
+        Args:
+            s3_url: S3 URL to write to
+        """
+        # Check if boto3 is available
+        try:
+            import s3fs
+        except ImportError:
+            raise ImportError(
+                "s3fs is required for S3 support. Install with 'pip install s3fs'"
+            )
+
+        self.s3_url = s3_url
+        self.bucket_name, self.key = parse_s3_url(s3_url)
+        self.s3_client = s3fs.S3FileSystem(anon=False)
+        self.buffer = io.BytesIO()
+        self.closed = False
+
+    def write(self, data: bytes):
+        """Write data to the buffer."""
+        self.buffer.write(data)
+
+    def flush(self):
+        """Flush the buffer to S3."""
+        if self.closed:
+            return
+
+        # Reset buffer position to start
+        self.buffer.seek(0)
+
+        # Upload to S3
+        try:
+            with self.s3_client.open(self.s3_url, "wb") as f:
+                f.write(self.buffer.read())
+            print(f"Uploaded to S3: {self.s3_url}")
+        except Exception as e:
+            print(f"Error uploading to S3: {str(e)}")
+
+    def tell(self):
+        """Get the current position in the buffer."""
+        if self.buffer.closed:
+            self._renew_buffer()
+            
+        return self.buffer.tell()
+
+    def close(self):
+        """Flush and close the buffer."""
+        print("!!!!!!Closing S3Writer!!!!!!")
+        if not self.closed:
+            self.flush()
+            self.buffer.close()
+            self.closed = True
+            
+    def _renew_buffer(self):
+        old_buffer = self.buffer
+        self.buffer = io.BytesIO()
+        old_buffer.seek(0)
+        self.buffer.write(old_buffer.read())
+
+
 class LogEntryType(Enum):
     """Type of log entry for log file."""
 
@@ -78,30 +190,36 @@ class LogWriter:
     writing them to a log file for later retrieval.
     """
 
-    def __init__(self, log_file_path: Union[str, Path], max_buffer_size: int = 50):
+    def __init__(self, log_file_path: str):
         """
         Initialize the log writer.
 
         Args:
-            log_file_path: Path to the log file
-            max_buffer_size: Maximum number of entries to buffer before writing to disk
+            log_file_path: Path to the log file (can be a local path or an S3 URL)
         """
-        self.log_file_path = Path(log_file_path)
-        self.max_buffer_size = max_buffer_size
-        self.buffer = []
+        print("logwriter", log_file_path)
+        self.is_s3 = is_s3_url(log_file_path)
+        self.log_file_path = log_file_path
+
+        # Check if it's an S3 URL
+        if self.is_s3:
+            self.file = S3Writer(self.log_file_path)
+        else:
+            pth = Path(self.log_file_path)
+            # Create the directory if it doesn't exist
+            os.makedirs(pth.parent, exist_ok=True)
+
+            # Open the file and write the header
+            if pth.exists():
+                print(
+                    f"Warning: Log file already exists: {self.log_file_path}. Overwriting contents."
+                )
+
+            self.file = open(self.log_file_path, "wb")
+
         self.lock = threading.Lock()
         self.metadata = {}  # Graph structure metadata
 
-        # Create the directory if it doesn't exist
-        os.makedirs(self.log_file_path.parent, exist_ok=True)
-
-        # Open the file and write the header
-        if self.log_file_path.exists():
-            print(
-                f"Warning: Log file already exists: {self.log_file_path}. Overwriting contents."
-            )
-
-        self.file = open(self.log_file_path, "wb")
         self._write_header()
 
         # Register cleanup
@@ -211,9 +329,14 @@ class LogWriter:
 
     def close(self):
         """Close the log file."""
-        if hasattr(self, "file") and not self.file.closed:
-            self.flush()
-            self.file.close()
+        if hasattr(self, "file"):
+            if self.is_s3:
+                if not getattr(self.file, "closed", False):
+                    self.flush()
+                    self.file.close()
+            elif not self.file.closed:
+                self.flush()
+                self.file.close()
             # Unregister atexit handler
             atexit.unregister(self.close)
 
@@ -451,8 +574,10 @@ class LogWatcher:
     def get_output(self, step_id: str, pin_id: str, index: int) -> Optional[Any]:
         """Get the output for a step and pin at a specific index."""
         key = (step_id, pin_id)
+        print("GET")
         if key in self.all_outputs and index < len(self.all_outputs[key]):
-            return self.all_outputs[key][index]
+            print("RET")
+            return transform_json_log(self.all_outputs[key][index])
         return None
 
 
@@ -574,15 +699,18 @@ class LogManager:
     This class maintains a mapping of graph IDs to log files and watchers.
     """
 
-    def __init__(self, log_dir: Optional[Union[str, Path]] = "logs"):
+    def __init__(self, log_dir: str = "logs"):
         """
         Initialize the log manager.
 
         Args:
-            log_dir: Directory to store log files
+            log_dir: Directory to store log files (can be a local path or an S3 URL)
         """
-        self.log_dir = Path(log_dir)
-        os.makedirs(self.log_dir, exist_ok=True)
+        self.is_s3 = is_s3_url(log_dir)
+        self.log_dir = log_dir
+        
+        if not self.is_s3:
+            os.makedirs(self.log_dir, exist_ok=True)
 
         self.writers: Dict[str, LogWriter] = {}
         self.watchers: Dict[str, LogWatcher] = {}
@@ -603,7 +731,7 @@ class LogManager:
         """
         with self.lock:
             if graph_id not in self.writers:
-                log_file_path = self.log_dir / f"{graph_id}.log"
+                log_file_path = osp.join(self.log_dir, f"{graph_id}.log")
                 self.writers[graph_id] = LogWriter(log_file_path)
 
             return self.writers[graph_id]
@@ -639,6 +767,7 @@ class LogManager:
                 self.watchers[graph_id].stop()
 
             log_file_path = self.log_dir / f"{graph_id}.log"
+
             watcher = LogWatcher(graph_id, log_file_path, viewer_interface)
             self.watchers[graph_id] = watcher
             watcher.start()

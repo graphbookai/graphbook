@@ -29,8 +29,6 @@ import copy
 if TYPE_CHECKING:
     from ..dataloading import Dataloader
 
-warnings.simplefilter("default", DeprecationWarning)
-
 StepOutput = Dict[str, List[Any]]
 """A dict mapping of output slot to Any list. Every Step outputs a StepOutput."""
 

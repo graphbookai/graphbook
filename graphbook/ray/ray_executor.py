@@ -11,7 +11,7 @@ from graphbook.core.serialization import (
 from .ray_img import RayMemoryManager
 from .ray_client import RayClientPool
 import ray.util.queue
-from typing import Optional, List
+from typing import List
 from .ray_processor import (
     GraphbookTaskContext,
     graphbook_task_context,
@@ -31,7 +31,9 @@ class RayExecutor(Executor):
         Initialize the RayExecutor.
 
         Args:
-            log_dir (str): Directory to store output logs. If None, logging is disabled
+            log_dir (str): Directory to store output logs. Can be a local path or an S3 URL.
+                S3 URLs should be in the format 's3://bucket-name/path/to/logs/'.
+                If None, logging is disabled.
             init_args (dict): Ray Initialization args to pass into ray.init(...)
         """
         if not ray.is_initialized():
@@ -51,6 +53,7 @@ class RayExecutor(Executor):
         self.handler = ray_api.init_handler(self.cmd_queue, self.view_queue)
 
         # Set up logging
+        # Note: S3 path validation will happen in LogManager when it's instantiated
         self.log_dir = log_dir
 
     def get_client_pool(self):
@@ -82,15 +85,8 @@ class RayExecutor(Executor):
             task_id=name,
         )
 
-        # Create an event handler using the FileEventHandler
-        event_handler = FileEventHandler(name, self.view_queue, self.log_dir)
-
-        # Initialize the event handler's viewer and update metadata
-        event_handler.initialize_viewer()
-        event_handler.update_metadata({"graph": graph.serialize()})
-
         # Initialize the execution and get the Ray dag
-        leaf_nodes = self._build_ray_dag(graph, step_id)
+        leaf_nodes = self._build_ray_dag(graph)
 
         # Execute the dag
         with graphbook_task_context(context):
@@ -105,9 +101,6 @@ class RayExecutor(Executor):
             # Execute the workflow
             result = ray.get(final.execute())
 
-            # Clean up event handler
-            event_handler.cleanup()
-
             return result
 
     def _build_ray_dag(self, graph: Graph) -> List[ray.ObjectRef]:
@@ -116,7 +109,6 @@ class RayExecutor(Executor):
 
         Args:
             graph (Graph): The graph
-            step_id (Optional[str]): If provided, only run the specified step and its dependencies
 
         Returns:
             List[ray.ObjectRef]: The leaf nodes of the Ray DAG

@@ -6,17 +6,12 @@ of sending events to clients. The different implementations support
 different backends (file-based or in-memory).
 """
 
-from typing import Dict, List, Optional, Any, TYPE_CHECKING
+from typing import Dict, Optional, Any, TYPE_CHECKING
 import multiprocessing as mp
-import traceback
-import time
 from abc import ABC, abstractmethod
-from pathlib import Path
-
 from ..utils import transform_json_log
-from ..viewer import MultiGraphViewManagerInterface, ViewManagerInterface
-from ..shm import MultiThreadedMemoryManager
-from ..logs import LogManager, LogWriter
+from ..viewer import MultiGraphViewManagerInterface
+from ..logs import LogManager
 
 if TYPE_CHECKING:
     from ..serialization import Graph
@@ -174,15 +169,12 @@ class FileEventHandler(EventHandler):
         """
         super().__init__(graph_name, view_manager_queue)
         self.log_manager = LogManager(log_dir)
-        self.log_writer = None
         self.log_watcher = None
+        self.log_writer = self.log_manager.get_writer(self.graph_name)
 
     def initialize_viewer(self):
         """Initialize the viewer and log writer/watcher."""
         super().initialize_viewer()
-
-        # Initialize log writer
-        self.log_writer = self.log_manager.get_writer(self.graph_name)
 
         # Create and start the log watcher to stream logs to the viewer
         self.log_watcher = self.log_manager.create_watcher(self.graph_name, self.viewer)

@@ -11,12 +11,11 @@ API Reference
 
 .. autofunction:: graphbook.ray.init
 
-.. autofunction:: graphbook.ray.run
-
-.. autofunction:: graphbook.ray.run_async
-
 .. autofunction:: graphbook.ray.is_graphbook_ray_initialized
 
 .. autodecorator:: graphbook.ray.remote
+
+.. autodecorator:: graphbook.ray.options
+
 
 .. autoclass:: graphbook.ray.RayExecutor
