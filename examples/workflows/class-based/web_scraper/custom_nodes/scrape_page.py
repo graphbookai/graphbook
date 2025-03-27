@@ -1,14 +1,7 @@
-from graphbook.core.steps import Step
 from firecrawl import FirecrawlApp
-from pydantic import BaseModel
+from graphbook.core.steps import Step
 
-# Define schema to extract contents into
-class ExtractSchema(BaseModel):
-    """JSON Schema for web scraping results."""
-    company_mission: str
-    supports_sso: bool
-    is_open_source: bool
-    is_in_yc: bool
+from custom_nodes.firecrawl_utils import scrape_mission
 
 class ScrapePage(Step):
     """
@@ -35,13 +28,7 @@ class ScrapePage(Step):
         
         # Firecrawl scrape
         app = FirecrawlApp(api_key=self.api_key)
-        scrape_results = app.scrape_url(self.url, {
-            'formats': ['json'],
-            'jsonOptions': {
-                'schema': ExtractSchema.model_json_schema(),
-            }
-        })
-        self.mission_statement = scrape_results['json']['company_mission']
+        self.mission_statement = scrape_mission(self.url, app)
         
         # self.mission_statement = f"Mission statement found from {self.url} using the key {self.api_key}"
         self.log(f"Scraped mission statement: {self.mission_statement}")
