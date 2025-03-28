@@ -1,4 +1,3 @@
-from graphbook.core.note import Note
 from graphbook.core.resources import Resource
 
 class PersonalInfo(Resource):
@@ -13,7 +12,7 @@ class PersonalInfo(Resource):
     Parameters = {
         "api_key": {
             "type": "string",
-            "default": "fc-4004dda2dff3483f8207c71699b25e0b"
+            "default": "<API_KEY_HERE>"
         }
     }
     Outputs = ["api_key"]

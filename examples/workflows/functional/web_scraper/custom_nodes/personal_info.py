@@ -1,13 +1,13 @@
-from graphbook import Note
 from graphbook import resource, param
 
 @resource("Custom/PersonalInfo")
-@param("api_key", type="string", default="fc-4004dda2dff3483f8207c71699b25e0b")
+@param("api_key", type="string", default="<API_KEY_HERE>")
 def url_source(ctx):
     """
-    Stores a web page URL for use in a workflow.
+    Store the personal information of the user. Currently,
+    this only contains the API key for the Firecrawl API.
 
     Args:
-        url (str): The URL of the page to use in a workflow.
+        api_key (str): The API key for the Firecrawl API.
     """
     return ctx.api_key

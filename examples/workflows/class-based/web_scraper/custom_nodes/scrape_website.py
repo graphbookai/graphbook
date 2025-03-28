@@ -25,9 +25,7 @@ class ScrapeWebsite(Step):
         self.api_key = api_key
         self.max_depth = max_depth
 
-    def on_data(self, data: dict):
-        url = data['url']
-        
+    def on_data(self, url: str):
         self.page_titles = crawl_links(url, self.api_key, self.max_depth)
         self.log(f"Scraped page titles: {self.page_titles}")
 

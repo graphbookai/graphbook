@@ -1,4 +1,3 @@
-from graphbook.core.note import Note
 from graphbook.core.steps import SourceStep
 
 class UrlSource(SourceStep):
@@ -21,9 +20,7 @@ class UrlSource(SourceStep):
         self.url = url
 
     def load(self):
-        return {
-            "url": [Note({"url": self.url})]
-        }
+        return {"url": self.url}
 
     def route(self, data: dict) -> str:
         return "url"

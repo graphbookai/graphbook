@@ -1,4 +1,3 @@
-from graphbook.core.note import Note
 from graphbook.core.resources import Resource
 
 class CrawlParams(Resource):
@@ -21,5 +20,5 @@ class CrawlParams(Resource):
         super().__init__()
         self.max_depth = max_depth
 
-    def value(self) -> str:
+    def value(self) -> int:
         return self.max_depth

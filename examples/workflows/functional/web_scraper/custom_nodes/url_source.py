@@ -1,4 +1,3 @@
-from graphbook import Note
 from graphbook import step, param, output, source
 
 @step("Custom/UrlSource")
@@ -12,4 +11,4 @@ def url_source(ctx):
     Args:
         url (str): The URL of the page to use in a workflow.
     """
-    yield Note({"url": ctx.url})
+    yield {"url": ctx.url}
