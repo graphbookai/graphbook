@@ -51,7 +51,7 @@ class UrlSource(SourceStep):
         self.url = url
 
     def load(self):
-        return {"url": self.url}
+        return {"url": [self.url]}
 
     def route(self, data: dict) -> str:
         return "url"
@@ -105,7 +105,7 @@ class ScrapePage(Step):
         app = FirecrawlApp(api_key=self.api_key)
         self.mission_statement = scrape_mission(url, app)
         
-        self.mission_statement = f"Mission statement found from {url} using the key {self.api_key}"
+        self.log(f"Mission statement found from {url} using the key {self.api_key}")
         self.log(f"Scraped mission statement: {self.mission_statement}")
 
     def route(self, data: dict) -> str:
@@ -119,7 +119,17 @@ def _():
     scrape_page = g.step(ScrapePage)
     
     url_source.param("url", "https://www.graphbook.ai/")
-    personal_info.param("api_key", "<API_KEY_HERE>")
+    personal_info.param("api_key", "fc-2f55841837434c39b7906be5be1c5fe0")
     
     scrape_page.param("api_key", personal_info)
-    scrape_page.bind(url_source)
+    scrape_page.bind(url_source, "url")
+
+if __name__ == "__main__":
+    # Run the workflow
+    g.run()
+    
+    try:
+        import time
+        time.sleep(9999)
+    except KeyboardInterrupt:
+        pass

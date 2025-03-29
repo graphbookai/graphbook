@@ -20,6 +20,7 @@ import threading as th
 import traceback
 import time
 import copy
+import cloudpickle
 from PIL import Image
 
 step_output_err_res = "Step output must be a dictionary, and dict values must be lists."
@@ -288,7 +289,8 @@ class WebInstanceProcessor:
         try:
             filename: str = work["filename"]
             if filename.endswith(".py"):
-                self.graph_state.update_state_py(work["graph"], work["params"])
+                graph = cloudpickle.loads(work["graph"])
+                self.graph_state.update_state_py(graph, work["params"])
             else:
                 self.graph_state.update_state(work["graph"], work["resources"])
             return True

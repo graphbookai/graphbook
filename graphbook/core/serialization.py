@@ -80,6 +80,12 @@ class GraphStepWrapper(GraphNodeWrapper):
             src (GraphStepWrapper): The source step to bind to
             key (str): The output key on the source step to bind to
         """
+        available_pins = src.node.Outputs
+        if key not in available_pins:
+            raise ValueError(
+                f"Pin '{key}' not found in available pins: {available_pins} for node {src.node.__name__}"
+            )
+
         self.deps.append((key, src))
 
     def serialize(self):

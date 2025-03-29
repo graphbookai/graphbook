@@ -44,7 +44,7 @@ def log(msg: Any, type: LogType = "info"):
 
     if node_id is None or node_name is None:
         raise ValueError("Can't find node info. Only initialized steps can log.")
-    
+
     log_handle = None
 
     if event_handler:
@@ -58,7 +58,6 @@ def log(msg: Any, type: LogType = "info"):
                 "View manager not initialized in context. Is this being called in a running graph?"
             )
 
-
     if type in text_log_types:
         log_message = msg
         if type == "error":
@@ -71,7 +70,7 @@ def log(msg: Any, type: LogType = "info"):
         pass  # TODO
     else:
         raise ValueError(f"Unknown log type {type}")
-    
+
     if log_handle:
         log_handle(node_id, msg, type)
 
@@ -96,6 +95,11 @@ class Step:
     """
     The base class of the executable workflow node, step. All other step classes should be a descendant of this class.
     """
+
+    RequiresInput = True
+    Parameters = {}
+    Outputs = ["out"]
+    Category = ""
 
     def __init__(self, item_key=None):
         self.id = None
