@@ -1,7 +1,8 @@
 from . import steps, resources
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 import abc
 from .utils import transform_function_string
+from copy import deepcopy
 
 
 class NodeClassFactory:
@@ -59,34 +60,6 @@ class StepClassFactory(NodeClassFactory):
             self.is_outputs_specified = True
             self.Outputs = []
         self.Outputs.extend(outputs)
-
-    def batch(
-        self, default_batch_size: int, default_item_key: str, load_fn=None, dump_fn=None
-    ):
-        self.BaseClass = steps.BatchStep
-        self.param(
-            "batch_size",
-            "number",
-            default=default_batch_size,
-            required=True,
-            description="The size of the batch to be loaded",
-        )
-        self.param(
-            "item_key",
-            "string",
-            default=default_item_key,
-            required=True,
-            description="The key to use for batching",
-        )
-        if load_fn is not None:
-            self.event("load_fn", load_fn)
-        if dump_fn is not None:
-            self.event("dump_fn", dump_fn)
-
-    def prompt(self, get_prompt=None):
-        self.BaseClass = steps.PromptStep
-        if get_prompt is not None:
-            self.event("get_prompt", get_prompt)
 
     def build(self):
         def __init__(cls, **kwargs):
@@ -157,18 +130,7 @@ class DecoratorFunction:
         self.kwargs = kwargs
 
 
-step_factories: Dict[str, StepClassFactory] = {}
 resource_factories: Dict[str, ResourceClassFactory] = {}
-
-
-def get_steps():
-    global step_factories
-    steps = {}
-    for name, factory in step_factories.items():
-        steps[name] = factory.build()
-
-    step_factories.clear()
-    return steps
 
 
 def get_resources():
@@ -181,7 +143,7 @@ def get_resources():
     return resources
 
 
-def step(name, event: Optional[str] = None):
+def step(name: Optional[str] = None, event: Optional[str] = None):
     """
     Marks a function as belonging to a step method.
     Use this decorator if you want to create a new step node or attach new functions as events to an existing step node.
@@ -201,36 +163,34 @@ def step(name, event: Optional[str] = None):
     """
 
     def decorator(func):
-        global step_factories
-        short_name = name.split("/")[-1]
-        category = "/".join(name.split("/")[:-1])
-        factory = step_factories.get(short_name) or StepClassFactory(
-            short_name, category
-        )
+        cls = type("temp", (steps.Step,), {"build_meta": {}})
+        cls.Parameters = deepcopy(cls.Parameters)
+        cls.Outputs = deepcopy(cls.Outputs)
+        cls.build_meta["main_func"] = "on_data"
 
         while isinstance(func, DecoratorFunction):
-            func.fn(factory, **func.kwargs)
+            cls = func.fn(cls, **func.kwargs)
             func = func.next
 
-        if event is not None:
-            factory.event(event, func)
+        if name is None:
+            short_name = func.__name__
+            category = ""
         else:
-            if factory.BaseClass == steps.Step:
-                factory.event("on_data", func)
-            elif factory.BaseClass == steps.BatchStep:
-                factory.event("on_item_batch", func)
-            elif factory.BaseClass == steps.PromptStep:
-                factory.event("on_prompt_response", func)
-            else:
-                factory.event("load", func)
+            short_name = name.split("/")[-1]
+            category = "/".join(name.split("/")[:-1])
+            print(short_name)
 
-        factory.doc(func.__doc__)
-        step_factories[short_name] = factory
+        # NewStepType = type(short_name, (DerivedStep,), dict(steps.Step.__dict__))
+        cls.__name__ = short_name
+        cls.__qualname__ = short_name
+        cls.__module__ = func.__module__
+        cls.__doc__ = func.__doc__
+        cls.Category = category
 
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
+        setattr(cls, cls.build_meta["main_func"], func)
+        del cls.build_meta
 
-        return wrapper
+        return cls
 
     return decorator
 
@@ -275,8 +235,14 @@ def param(
     """
 
     def decorator(func):
-        def set_p(factory: NodeClassFactory):
-            factory.param(name, type, cast_as, default, required, description)
+        def set_p(node_class: Union[steps.Step, resources.Resource]):
+            node_class.Parameters[name] = {
+                "type": type,
+                "default": default,
+                "required": required,
+                "description": description,
+            }
+            return node_class
 
         return DecoratorFunction(func, set_p)
 
@@ -311,8 +277,9 @@ def event(event: str, event_fn: callable):
     """
 
     def decorator(func):
-        def set_event(factory: StepClassFactory):
-            factory.event(event, event_fn)
+        def set_event(node_class):
+            setattr(node_class, event, event_fn)
+            return node_class
 
         return DecoratorFunction(func, set_event)
 
@@ -343,8 +310,14 @@ def source(is_generator=True):
     """
 
     def decorator(func):
-        def set_source(factory: StepClassFactory):
-            factory.source(is_generator)
+        def set_source(step_class: steps.Step):
+            step_class = type(
+                step_class.__name__,
+                (steps.GeneratorSourceStep if is_generator else steps.SourceStep,),
+                step_class.__dict__,
+            )
+            step_class.build_meta["main_func"] = "load"
+            return step_class
 
         return DecoratorFunction(func, set_source)
 
@@ -374,8 +347,12 @@ def output(*outputs: List[str]):
     """
 
     def decorator(func):
-        def set_output(factory: StepClassFactory):
-            factory.output(outputs)
+        def set_output(step_class: steps.Step):
+            build_meta = step_class.build_meta
+            if not build_meta.get("is_outputs_specified"):
+                build_meta["is_outputs_specified"] = True
+                step_class.Outputs = []
+            step_class.Outputs.extend(outputs)
 
         return DecoratorFunction(func, set_output)
 
@@ -416,8 +393,33 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
     """
 
     def decorator(func):
-        def set_batch(factory: StepClassFactory):
-            factory.batch(batch_size, item_key, load_fn)
+        def set_batch(step_class):
+            step_class.Parameters["batch_size"] = {
+                "type": "number",
+                "default": batch_size,
+                "required": True,
+                "description": "The size of the batch to be loaded",
+            }
+            step_class.Parameters["item_key"] = {
+                "type": "string",
+                "default": item_key,
+                "required": True,
+                "description": "The key to use for batching",
+            }
+
+            if load_fn is not None:
+                setattr(step_class, "load_fn", load_fn)
+            if dump_fn is not None:
+                setattr(step_class, "dump_fn", dump_fn)
+
+            step_class = type(
+                step_class.__name__,
+                (steps.BatchStep,),
+                step_class.__dict__,
+            )
+            step_class.build_meta["main_func"] = "on_item_batch"
+
+            return step_class
 
         return DecoratorFunction(func, set_batch)
 
@@ -520,9 +522,20 @@ def prompt(get_prompt: callable = None):
                     else:
                         data["label"] = "dog"
     """
+
     def decorator(func):
-        def set_prompt(factory: StepClassFactory):
-            factory.prompt(get_prompt)
+        def set_prompt(step_class: steps.Step):
+            step_class = type(
+                step_class.__name__,
+                (steps.PromptStep,),
+                step_class.__dict__,
+            )
+            if get_prompt is not None:
+                step_class.get_prompt = get_prompt
+            
+            step_class.build_meta["main_func"] = "on_prompt_response"
+
+            return step_class
 
         return DecoratorFunction(func, set_prompt)
 

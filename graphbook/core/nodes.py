@@ -10,7 +10,7 @@ import inspect
 import traceback
 from graphbook.core import steps, resources
 from graphbook.core.doc2md import convert_to_md
-from graphbook.core.decorators import get_steps, get_resources
+from graphbook.core.decorators import get_resources
 from graphbook.core.viewer import MultiGraphViewManager
 
 
@@ -244,15 +244,15 @@ class CustomNodeImporter:
         for name, obj in inspect.getmembers(mod):
             if inspect.isclass(obj):
                 if issubclass(obj, steps.Step) and not obj in BUILT_IN_STEPS:
-                    self.step_handler(filename, name, obj)
+                    self.step_handler(filename, obj.__name__, obj)
                 if (
                     issubclass(obj, resources.Resource)
                     and not obj in BUILT_IN_RESOURCES
                 ):
-                    self.resource_handler(filename, name, obj)
+                    self.resource_handler(filename, obj.__name__, obj)
 
-        for name, cls in get_steps().items():
-            self.step_handler(filename, name, cls)
+        # for name, cls in get_steps().items():
+        #     self.step_handler(filename, name, cls)
         for name, cls in get_resources().items():
             self.resource_handler(filename, name, cls)
 

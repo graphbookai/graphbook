@@ -4,6 +4,7 @@ name: Deploy Graphbook Docs
 on:
   push:
     branches: ["main"]
+    tags: ["v*"]
     paths:
       - 'docs/**'
       - 'graphbook/**'
