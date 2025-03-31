@@ -1,126 +1,33 @@
 from . import steps, resources
-from typing import List, Dict, Optional, Union
-import abc
+from typing import List, Optional, Union
 from .utils import transform_function_string
 from copy import deepcopy
 
 
-class NodeClassFactory:
-    def __init__(self, name, category, BaseClass):
-        self.name = name
-        self.category = category
-        self.BaseClass = BaseClass
-        self.Parameters = {}
-        self.parameter_type_casts = {}
-        self.events = {}
-        self.docstring = ""
-
-    def event(self, event, func):
-        self.events[event] = func
-
-    def doc(self, docstring):
-        self.docstring = docstring
-
-    def param(
-        self, name, type, cast_as=None, default=None, required=False, description=""
-    ):
-        if name not in self.Parameters:
-            self.Parameters[name] = {
-                "type": type,
-                "default": default,
-                "required": required,
-                "description": description,
-            }
-            self.parameter_type_casts[name] = cast_as
-            if cast_as is None:
-                # Default casts
-                if type == "function":
-                    self.parameter_type_casts[name] = transform_function_string
-                if type == "int":
-                    self.parameter_type_casts[name] = int
-
-    @abc.abstractmethod
-    def build():
-        return None
+def create_type(base):
+    """
+    Creates a new type that inherits from the base class.
+    This is used to create a new class at runtime with the same attributes as the base class.
+    """
+    child_class_dict = dict(base.__dict__)
+    del child_class_dict["__weakref__"]
+    del child_class_dict["__dict__"]
+    return type("temp", (base,), {**deepcopy(child_class_dict), "build_meta": {}})
 
 
-class StepClassFactory(NodeClassFactory):
-    def __init__(self, name, category, BaseClass=steps.Step):
-        super().__init__(name, category, BaseClass)
-        self.RequiresInput = True
-        self.Outputs = ["out"]
-        self.is_outputs_specified = False
+def switch_parent(child_class, parent_class):
+    """
+    Switches the parent class of a child class to a new parent class, so that we
+    can change the parent class of a class at runtime.
+    """
+    child_class_dict = dict(child_class.__dict__)
+    child_class = type(
+        child_class.__name__,
+        (parent_class,),
+        deepcopy(child_class_dict),
+    )
 
-    def source(self, is_generator=True):
-        self.RequiresInput = False
-        self.BaseClass = steps.GeneratorSourceStep if is_generator else steps.SourceStep
-
-    def output(self, outputs):
-        if not self.is_outputs_specified:
-            self.is_outputs_specified = True
-            self.Outputs = []
-        self.Outputs.extend(outputs)
-
-    def build(self):
-        def __init__(cls, **kwargs):
-            if self.BaseClass == steps.BatchStep:
-                self.BaseClass.__init__(
-                    cls, batch_size=kwargs["batch_size"], item_key=kwargs["item_key"]
-                )
-            else:
-                self.BaseClass.__init__(cls)
-            for key, param in self.Parameters.items():
-                value = kwargs.get(key) or param.get("default")
-                if value is None and param.get("required"):
-                    raise ValueError(f"Parameter {key} is required")
-                cast_as = self.parameter_type_casts[key]
-                if cast_as is not None:
-                    value = cast_as(value)
-                setattr(cls, key, value)
-            init_event = self.events.get("__init__")
-            if init_event:
-                init_event(cls, **kwargs)
-
-        cls_methods = {"__init__": __init__}
-        for event, fn in self.events.items():
-            if event == "__init__":
-                continue
-            cls_methods[event] = fn
-        newclass = type(self.name, (self.BaseClass,), cls_methods)
-        newclass.Category = self.category
-        newclass.Parameters = self.Parameters
-        newclass.__doc__ = self.docstring
-        newclass.RequiresInput = self.RequiresInput
-        newclass.Outputs = self.Outputs
-        return newclass
-
-
-class ResourceClassFactory(NodeClassFactory):
-    def __init__(self, name, category, BaseClass=resources.Resource):
-        super().__init__(name, category, BaseClass)
-
-    def build(self):
-        def __init__(cls, **kwargs):
-            self.BaseClass.__init__(cls)
-            for key, param in self.Parameters.items():
-                value = kwargs.get(key) or param.get("default")
-                if value is None and param.get("required"):
-                    raise ValueError(f"Parameter {key} is required")
-                cast_as = self.parameter_type_casts[key]
-                if cast_as is not None:
-                    value = cast_as(value)
-                setattr(cls, key, value)
-
-        cls_methods = {"__init__": __init__}
-        for event, fn in self.events.items():
-            if event == "__init__":
-                continue
-            cls_methods[event] = fn
-        newclass = type(self.name, (self.BaseClass,), cls_methods)
-        newclass.Category = self.category
-        newclass.Parameters = self.Parameters
-        newclass.__doc__ = self.docstring
-        return newclass
+    return child_class
 
 
 class DecoratorFunction:
@@ -128,19 +35,6 @@ class DecoratorFunction:
         self.next = next
         self.fn = fn
         self.kwargs = kwargs
-
-
-resource_factories: Dict[str, ResourceClassFactory] = {}
-
-
-def get_resources():
-    global resource_factories
-    resources = {}
-    for name, factory in resource_factories.items():
-        resources[name] = factory.build()
-
-    resource_factories.clear()
-    return resources
 
 
 def step(name: Optional[str] = None, event: Optional[str] = None):
@@ -163,10 +57,8 @@ def step(name: Optional[str] = None, event: Optional[str] = None):
     """
 
     def decorator(func):
-        cls = type("temp", (steps.Step,), {"build_meta": {}})
-        cls.Parameters = deepcopy(cls.Parameters)
-        cls.Outputs = deepcopy(cls.Outputs)
-        cls.build_meta["main_func"] = "on_data"
+        cls = create_type(steps.Step)
+        cls.build_meta["main_func"] = "on_data" if event is None else event
 
         while isinstance(func, DecoratorFunction):
             cls = func.fn(cls, **func.kwargs)
@@ -178,15 +70,33 @@ def step(name: Optional[str] = None, event: Optional[str] = None):
         else:
             short_name = name.split("/")[-1]
             category = "/".join(name.split("/")[:-1])
-            print(short_name)
 
-        # NewStepType = type(short_name, (DerivedStep,), dict(steps.Step.__dict__))
         cls.__name__ = short_name
         cls.__qualname__ = short_name
         cls.__module__ = func.__module__
         cls.__doc__ = func.__doc__
         cls.Category = category
 
+        super_call = cls.build_meta.get("super_call")
+        init_call = cls.build_meta.get("init_call")
+
+        def cls_init(cls, **kwargs):
+            if super_call:
+                super_call(cls, **kwargs)
+            else:
+                super().__init__(cls)
+            for key, param in cls.Parameters.items():
+                value = kwargs.get(key) or param.get("default")
+                if value is None and param.get("required"):
+                    raise ValueError(f"Parameter {key} is required")
+                cast_as = cls.build_meta["parameter_type_casts"][key]
+                if cast_as is not None:
+                    value = cast_as(value)
+                setattr(cls, key, value)
+            if init_call:
+                init_call(cls, **kwargs)
+
+        setattr(cls, "__init__", cls_init)
         setattr(cls, cls.build_meta["main_func"], func)
         del cls.build_meta
 
@@ -215,7 +125,7 @@ def param(
         default (Any): The default value of the parameter.
         required (bool): Whether the parameter is required.
         description (str): A description of the parameter.
-        cast_as (Union[type, callable]): A function or class type to cast the parameter to a specific type.
+        cast_as (Optional[Union[type, callable]]): A function or class type to cast the parameter to a specific type.
 
     Examples:
         .. highlight:: python
@@ -242,6 +152,19 @@ def param(
                 "required": required,
                 "description": description,
             }
+            if node_class.build_meta.get("parameter_type_casts") is None:
+                node_class.build_meta["parameter_type_casts"] = {}
+
+            # Set to c, to avoid a "cast_as referenced before assignment error"
+            c = cast_as
+            if c is None:
+                # Default casts
+                if type == "function":
+                    c = transform_function_string
+                if type == "int":
+                    c = int
+
+            node_class.build_meta["parameter_type_casts"][name] = c
             return node_class
 
         return DecoratorFunction(func, set_p)
@@ -278,7 +201,10 @@ def event(event: str, event_fn: callable):
 
     def decorator(func):
         def set_event(node_class):
-            setattr(node_class, event, event_fn)
+            if event == "__init__":
+                node_class.build_meta["init_call"] = event_fn
+            else:
+                setattr(node_class, event, event_fn)
             return node_class
 
         return DecoratorFunction(func, set_event)
@@ -311,10 +237,9 @@ def source(is_generator=True):
 
     def decorator(func):
         def set_source(step_class: steps.Step):
-            step_class = type(
-                step_class.__name__,
-                (steps.GeneratorSourceStep if is_generator else steps.SourceStep,),
-                step_class.__dict__,
+            step_class = switch_parent(
+                step_class,
+                steps.GeneratorSourceStep if is_generator else steps.SourceStep,
             )
             step_class.build_meta["main_func"] = "load"
             return step_class
@@ -353,6 +278,7 @@ def output(*outputs: List[str]):
                 build_meta["is_outputs_specified"] = True
                 step_class.Outputs = []
             step_class.Outputs.extend(outputs)
+            return step_class
 
         return DecoratorFunction(func, set_output)
 
@@ -394,6 +320,7 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
 
     def decorator(func):
         def set_batch(step_class):
+            step_class = switch_parent(step_class, steps.BatchStep)
             step_class.Parameters["batch_size"] = {
                 "type": "number",
                 "default": batch_size,
@@ -412,13 +339,14 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
             if dump_fn is not None:
                 setattr(step_class, "dump_fn", dump_fn)
 
-            step_class = type(
-                step_class.__name__,
-                (steps.BatchStep,),
-                step_class.__dict__,
-            )
             step_class.build_meta["main_func"] = "on_item_batch"
 
+            def super_call(cls, **kwargs):
+                super.__init__(
+                    cls, batch_size=kwargs["batch_size"], item_key=kwargs["item_key"]
+                )
+
+            step_class.build_meta["super_call"] = super_call
             return step_class
 
         return DecoratorFunction(func, set_batch)
@@ -446,25 +374,40 @@ def resource(name):
     """
 
     def decorator(func):
-        global resource_factories
-        short_name = name.split("/")[-1]
-        category = "/".join(name.split("/")[:-1])
-        factory = resource_factories.get(short_name) or ResourceClassFactory(
-            short_name, category
-        )
+        cls = create_type(resources.Resource)
+        cls.build_meta["main_func"] = "value"
 
         while isinstance(func, DecoratorFunction):
-            func.fn(factory, **func.kwargs)
+            cls = func.fn(cls, **func.kwargs)
             func = func.next
 
-        factory.event("value", func)
-        factory.doc(func.__doc__)
-        resource_factories[short_name] = factory
+        if name is None:
+            short_name = func.__name__
+            category = ""
+        else:
+            short_name = name.split("/")[-1]
+            category = "/".join(name.split("/")[:-1])
 
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
+        cls.__name__ = short_name
+        cls.__qualname__ = short_name
+        cls.__module__ = func.__module__
+        cls.__doc__ = func.__doc__
+        cls.Category = category
 
-        return wrapper
+        def cls_init(cls, **kwargs):
+            super().__init__(cls)
+            for key, param in cls.Parameters.items():
+                value = kwargs.get(key) or param.get("default")
+                if value is None and param.get("required"):
+                    raise ValueError(f"Parameter {key} is required")
+                cast_as = cls.build_meta["parameter_type_casts"][key]
+                if cast_as is not None:
+                    value = cast_as(value)
+                setattr(cls, key, value)
+
+        setattr(cls, "__init__", cls_init)
+        setattr(cls, cls.build_meta["main_func"], func)
+        del cls.build_meta
 
     return decorator
 
@@ -525,14 +468,10 @@ def prompt(get_prompt: callable = None):
 
     def decorator(func):
         def set_prompt(step_class: steps.Step):
-            step_class = type(
-                step_class.__name__,
-                (steps.PromptStep,),
-                step_class.__dict__,
-            )
+            step_class = switch_parent(step_class, steps.PromptStep)
             if get_prompt is not None:
                 step_class.get_prompt = get_prompt
-            
+
             step_class.build_meta["main_func"] = "on_prompt_response"
 
             return step_class
