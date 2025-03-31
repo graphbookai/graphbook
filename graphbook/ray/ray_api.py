@@ -287,8 +287,9 @@ def options(**kwargs):
     """
 
     def decorator(func):
-        def set_options(factory):
-            factory.Ray_Options = kwargs
+        def set_options(node_class):
+            node_class.Ray_Options = kwargs
+            return node_class
 
         return DecoratorFunction(func, set_options)
 
