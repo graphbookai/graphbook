@@ -110,7 +110,7 @@ class UrlSource(SourceStep):
         self.url = url
 
     def load(self):
-        return {"url": self.url}
+        return {"url": [self.url]}
 
     def route(self, data: dict) -> str:
         return "url"
@@ -207,4 +207,15 @@ def _():
     
     scrape_website.param("api_key", personal_info)
     scrape_website.param("max_depth", crawl_params)
-    scrape_website.bind(url_source)
+    scrape_website.bind(url_source, "url")
+    
+if __name__ == "__main__":
+    # Run the workflow
+    g.run()
+    
+    try:
+        import time
+        time.sleep(9999)
+    except KeyboardInterrupt:
+        pass
+

@@ -119,7 +119,7 @@ def _():
     scrape_page = g.step(ScrapePage)
     
     url_source.param("url", "https://www.graphbook.ai/")
-    personal_info.param("api_key", "fc-2f55841837434c39b7906be5be1c5fe0")
+    personal_info.param("api_key", "<API_KEY_HERE>")
     
     scrape_page.param("api_key", personal_info)
     scrape_page.bind(url_source, "url")
