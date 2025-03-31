@@ -21,10 +21,14 @@ def switch_parent(child_class, parent_class):
     can change the parent class of a class at runtime.
     """
     child_class_dict = dict(child_class.__dict__)
+    # Just copy vars
+    for key, value in list(child_class_dict.items()):
+        if callable(value):
+            del child_class_dict[key]
     child_class = type(
         child_class.__name__,
         (parent_class,),
-        deepcopy(child_class_dict),
+        {**deepcopy(child_class_dict)},
     )
 
     return child_class
@@ -60,6 +64,11 @@ def step(name: Optional[str] = None, event: Optional[str] = None):
         cls = create_type(steps.Step)
         cls.build_meta["main_func"] = "on_data" if event is None else event
 
+        def super_call(self, **kwargs):
+            steps.Step.__init__(self)
+
+        cls.build_meta["super_call"] = super_call
+
         while isinstance(func, DecoratorFunction):
             cls = func.fn(cls, **func.kwargs)
             func = func.next
@@ -80,25 +89,21 @@ def step(name: Optional[str] = None, event: Optional[str] = None):
         super_call = cls.build_meta.get("super_call")
         init_call = cls.build_meta.get("init_call")
 
-        def cls_init(cls, **kwargs):
-            if super_call:
-                super_call(cls, **kwargs)
-            else:
-                super().__init__(cls)
-            for key, param in cls.Parameters.items():
+        def cls_init(self, **kwargs):
+            super_call(self, **kwargs)
+            for key, param in self.Parameters.items():
                 value = kwargs.get(key) or param.get("default")
                 if value is None and param.get("required"):
                     raise ValueError(f"Parameter {key} is required")
-                cast_as = cls.build_meta["parameter_type_casts"][key]
+                cast_as = self.build_meta["parameter_type_casts"][key]
                 if cast_as is not None:
                     value = cast_as(value)
-                setattr(cls, key, value)
+                setattr(self, key, value)
             if init_call:
-                init_call(cls, **kwargs)
+                init_call(self, **kwargs)
 
         setattr(cls, "__init__", cls_init)
         setattr(cls, cls.build_meta["main_func"], func)
-        del cls.build_meta
 
         return cls
 
@@ -237,11 +242,18 @@ def source(is_generator=True):
 
     def decorator(func):
         def set_source(step_class: steps.Step):
+            base_class = steps.GeneratorSourceStep if is_generator else steps.SourceStep
             step_class = switch_parent(
                 step_class,
-                steps.GeneratorSourceStep if is_generator else steps.SourceStep,
+                base_class,
             )
             step_class.build_meta["main_func"] = "load"
+
+            def super_call(self, **kwargs):
+                base_class.__init__(self)
+
+            step_class.build_meta["super_call"] = super_call
+
             return step_class
 
         return DecoratorFunction(func, set_source)
@@ -341,9 +353,9 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
 
             step_class.build_meta["main_func"] = "on_item_batch"
 
-            def super_call(cls, **kwargs):
-                super.__init__(
-                    cls, batch_size=kwargs["batch_size"], item_key=kwargs["item_key"]
+            def super_call(self, **kwargs):
+                steps.BatchStep.__init__(
+                    self, batch_size=kwargs["batch_size"], item_key=kwargs["item_key"]
                 )
 
             step_class.build_meta["super_call"] = super_call
@@ -375,7 +387,15 @@ def resource(name):
 
     def decorator(func):
         cls = create_type(resources.Resource)
+        cls.Parameters = (
+            {}
+        )  # since resources.Resource already starts off with {"val": {...}}
         cls.build_meta["main_func"] = "value"
+
+        def super_call(self, **kwargs):
+            steps.Step.__init__(self)
+
+        cls.build_meta["super_call"] = super_call
 
         while isinstance(func, DecoratorFunction):
             cls = func.fn(cls, **func.kwargs)
@@ -394,20 +414,26 @@ def resource(name):
         cls.__doc__ = func.__doc__
         cls.Category = category
 
-        def cls_init(cls, **kwargs):
-            super().__init__(cls)
-            for key, param in cls.Parameters.items():
+        super_call = cls.build_meta.get("super_call")
+        init_call = cls.build_meta.get("init_call")
+
+        def cls_init(self, **kwargs):
+            super_call(self, **kwargs)
+            for key, param in self.Parameters.items():
                 value = kwargs.get(key) or param.get("default")
                 if value is None and param.get("required"):
                     raise ValueError(f"Parameter {key} is required")
-                cast_as = cls.build_meta["parameter_type_casts"][key]
+                cast_as = self.build_meta["parameter_type_casts"][key]
                 if cast_as is not None:
                     value = cast_as(value)
-                setattr(cls, key, value)
+                setattr(self, key, value)
+            if init_call:
+                init_call(self, **kwargs)
 
         setattr(cls, "__init__", cls_init)
         setattr(cls, cls.build_meta["main_func"], func)
-        del cls.build_meta
+
+        return cls
 
     return decorator
 
@@ -473,6 +499,11 @@ def prompt(get_prompt: callable = None):
                 step_class.get_prompt = get_prompt
 
             step_class.build_meta["main_func"] = "on_prompt_response"
+
+            def super_call(self, **kwargs):
+                steps.PromptStep.__init__(self)
+
+            step_class.build_meta["super_call"] = super_call
 
             return step_class
 
