@@ -12,25 +12,6 @@ class ExtractSchema(BaseModel):
     is_open_source: bool
     is_in_yc: bool
 
-def scrape_mission(url: str, firecrawl_app: FirecrawlApp) -> str:
-    """
-    Scrapes a web page for the mission statement using Firecrawl.
-
-    Args:
-        url (str): The URL of the page to scrape.
-        firecrawl_app (FirecrawlApp): Instance of pre-authenticated FirecrawlApp.
-    
-    Returns:
-        str: The mission statement scraped from the page.
-    """
-    scrape_results = firecrawl_app.scrape_url(url, {
-        'formats': ['json'],
-        'jsonOptions': {
-            'schema': ExtractSchema.model_json_schema(),
-        }
-    })
-    return scrape_results['json']['company_mission']
-
 class UrlSource(SourceStep):
     """Stores a web page URL for use in a workflow.
 
@@ -81,7 +62,7 @@ class PersonalInfo(Resource):
         return self.api_key
 
 
-class ScrapePage(Step):
+class ScrapeMission(Step):
     """
     Scrapes a web page for the mission statement using Firecrawl.
 
@@ -93,36 +74,38 @@ class ScrapePage(Step):
     Parameters = {
         "api_key": {"type": "resource"},
     }
-    Outputs = ["mission_statement"]
+    Outputs = ["out"]
     Category = "Custom"
     def __init__(self, api_key: str):
         super().__init__()
-        self.mission_statement = None
         self.api_key = api_key
 
     def on_data(self, url: str):
         # Firecrawl scrape
         app = FirecrawlApp(api_key=self.api_key)
-        self.mission_statement = scrape_mission(url, app)
+        scrape_results = app.scrape_url(url, {
+            'formats': ['json'],
+            'jsonOptions': {
+                'schema': ExtractSchema.model_json_schema(),
+            }
+        })
+        mission_statement = scrape_results['json']['company_mission']
         
-        self.log(f"Mission statement found from {url} using the key {self.api_key}")
-        self.log(f"Scraped mission statement: {self.mission_statement}")
-
-    def route(self, data: dict) -> str:
-        return "mission_statement"
+        self.log(f"Scraped mission statement: {mission_statement}")
+        return mission_statement
 
 g = gb.Graph()
 @g()
 def _():
     url_source = g.step(UrlSource)
     personal_info = g.resource(PersonalInfo)
-    scrape_page = g.step(ScrapePage)
+    scrape_mission = g.step(ScrapeMission)
     
     url_source.param("url", "https://www.graphbook.ai/")
     personal_info.param("api_key", "<API_KEY_HERE>")
     
-    scrape_page.param("api_key", personal_info)
-    scrape_page.bind(url_source, "url")
+    scrape_mission.param("api_key", personal_info)
+    scrape_mission.bind(url_source, "url")
 
 if __name__ == "__main__":
     # Run the workflow

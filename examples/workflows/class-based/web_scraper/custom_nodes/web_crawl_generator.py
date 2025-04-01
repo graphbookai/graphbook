@@ -2,11 +2,7 @@ import requests
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
-import graphbook as gb
-from graphbook.core.steps import Step, GeneratorSourceStep
-from graphbook.core.resources import Resource
-from pydantic import BaseModel
-from firecrawl import FirecrawlApp
+from graphbook.core.steps import GeneratorSourceStep
 
 class WebCrawlGenerator(GeneratorSourceStep):
     """
@@ -79,79 +75,3 @@ class WebCrawlGenerator(GeneratorSourceStep):
         self.recursive_crawl(self.base_url, 0)
         for link in self.all_links:
             yield {"out": link}
-    
-class PersonalInfo(Resource):
-    """
-    This resource is used to store the personal information of the user. Currently,
-    this only contains the API key for the Firecrawl API.
-    
-    Args:
-        api_key (str): The API key for the Firecrawl API.
-    """
-    RequiresInput = False
-    Parameters = {
-        "api_key": {
-            "type": "string",
-            "default": "<API_KEY_HERE>"
-        }
-    }
-    Outputs = ["api_key"]
-    Category = "Custom"
-    def __init__(self, api_key):
-        super().__init__()
-        self.api_key = api_key
-
-    def value(self) -> str:
-        return self.api_key
-
-
-class ScrapeTitle(Step):
-    """
-    Scrapes a web page for its title using Firecrawl.
-
-    Args:
-        url (str): The URL of the page to scrape.
-        api_key (str): The Firecrawl API key.
-    """
-    RequiresInput = True
-    Parameters = {
-        "api_key": {"type": "resource"},
-    }
-    Outputs = ["out"]
-    Category = "Custom"
-    def __init__(self, api_key: str):
-        super().__init__()
-        self.api_key = api_key
-
-    def on_data(self, url: str):
-        # Firecrawl scrape
-        app = FirecrawlApp(api_key=self.api_key)
-        scrape_results = app.scrape_url(url)
-        page_title = scrape_results['metadata']['og:title']
-        
-        self.log(f"Scraped page title: {page_title}")
-        return page_title
-
-g = gb.Graph()
-@g()
-def _():
-    web_crawl_generator = g.step(WebCrawlGenerator)
-    personal_info = g.resource(PersonalInfo)
-    scrape_title = g.step(ScrapeTitle)
-    
-    web_crawl_generator.param("url", "https://www.graphbook.ai/")
-    web_crawl_generator.param("max_depth", 3)
-    personal_info.param("api_key", "<API_KEY_HERE>")
-    
-    scrape_title.param("api_key", personal_info)
-    scrape_title.bind(web_crawl_generator, "out")
-
-if __name__ == "__main__":
-    # Run the workflow
-    g.run()
-    
-    try:
-        import time
-        time.sleep(9999)
-    except KeyboardInterrupt:
-        pass
