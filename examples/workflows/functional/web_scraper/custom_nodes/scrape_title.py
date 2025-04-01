@@ -1,5 +1,5 @@
 from firecrawl import FirecrawlApp
-from graphbook import step, param, output, event
+from graphbook import step, param, output
 
 @step("Custom/ScrapeTitle") # Category/Name
 @param("api_key", type="resource")

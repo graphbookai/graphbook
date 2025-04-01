@@ -788,6 +788,9 @@ export function getNodeParams(nodes: Node[]) {
             if (param.type !== 'resource') {
                 acc[key] = param.value;
             }
+            if (param.type === 'dict') {
+                acc[key] = parseDictWidgetValue(param.value);
+            }
             return acc;
         }, {});
 
