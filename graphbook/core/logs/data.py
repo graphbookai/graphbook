@@ -766,7 +766,7 @@ class LogManager:
             if graph_id in self.watchers:
                 self.watchers[graph_id].stop()
 
-            log_file_path = self.log_dir / f"{graph_id}.log"
+            log_file_path = Path(self.log_dir) / f"{graph_id}.log"
 
             watcher = LogWatcher(graph_id, log_file_path, viewer_interface)
             self.watchers[graph_id] = watcher

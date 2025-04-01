@@ -30,6 +30,7 @@ import threading
 import time
 import atexit
 import traceback
+import cloudpickle
 
 
 @web.middleware
@@ -354,11 +355,12 @@ class AppServer(Server):
             data = await request.json()
             params = data.get("params")
             graph = get_py_as_graph((client.get_root_path() or Path(".")) / filename)
+
             client.exec(
                 {
                     "cmd": "py_run_all",
                     "filename": filename,
-                    "graph": graph,
+                    "graph": cloudpickle.dumps(graph),
                     "params": params,
                 },
             )
@@ -371,11 +373,14 @@ class AppServer(Server):
             step_id = request.match_info.get("id")
             data = await request.json()
             params = data.get("params")
+            graph = get_py_as_graph((client.get_root_path() or Path(".")) / filename)
+
             client.exec(
                 {
                     "cmd": "py_run",
                     "step_id": step_id,
                     "filename": filename,
+                    "graph": cloudpickle.dumps(graph),
                     "params": params,
                 },
             )
@@ -665,7 +670,7 @@ def start_app(args):
 def async_start(host, port, close_event=None, img_storage=None, client_pool=None):
     """
     Start a graphbook server asynchronously in a separate thread.
-    
+
     Args:
         host: Host to bind to
         port: Port to bind to
