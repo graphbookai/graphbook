@@ -1,6 +1,9 @@
 name: Publish Graphbook to Test PyPI
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:

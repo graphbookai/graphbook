@@ -7,7 +7,6 @@ from enum import Enum
 from pathlib import Path
 from graphbook.core.steps import Step, PromptStep, StepOutput
 from graphbook.core.resources import Resource
-from graphbook.core.decorators import get_steps, get_resources
 from graphbook.core.viewer import ViewManagerInterface
 from graphbook.core.plugins import setup_plugins
 from graphbook.core.utils import transform_json_log, ExecutionContext
@@ -85,21 +84,14 @@ class NodeCatalog:
                 mod = self._get_module(os.path.join(root, file))
 
                 # get node classes
-                for name, obj in inspect.getmembers(mod):
+                for _, obj in inspect.getmembers(mod):
                     if inspect.isclass(obj):
                         if issubclass(obj, Step):
-                            self.nodes["steps"][name] = obj
-                            updated_nodes["steps"][name] = True
+                            self.nodes["steps"][obj.__name__] = obj
+                            updated_nodes["steps"][obj.__name__] = True
                         if issubclass(obj, Resource):
-                            self.nodes["resources"][name] = obj
-                            updated_nodes["resources"][name] = True
-
-                for name, cls in get_steps().items():
-                    self.nodes["steps"][name] = cls
-                    updated_nodes["steps"][name] = True
-                for name, cls in get_resources().items():
-                    self.nodes["resources"][name] = cls
-                    updated_nodes["resources"][name] = True
+                            self.nodes["resources"][obj.__name__] = obj
+                            updated_nodes["resources"][obj.__name__] = True
 
         return updated_nodes
 

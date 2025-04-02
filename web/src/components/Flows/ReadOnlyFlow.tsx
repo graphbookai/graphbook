@@ -25,17 +25,12 @@ import type { Node, Edge } from 'reactflow';
 import { NotFoundFlow } from './NotFoundFlow.tsx';
 
 const { useToken } = theme;
-const helpString =
-    `
-<div align="center">
-    <img src="https://github.com/graphbookai/graphbook/blob/main/docs/_static/graphbook.png?raw=true" alt="Graphbook Logo" height="64">
-    <h1 style="margin: 0 0 10px 0">Welcome to Graphbook</h1>
-    <a href="https://github.com/graphbookai/graphbook">
-        <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/graphbookai/graphbook">
-    </a>
-</div>
+const NoDocFound = `
+### No documentation found.
 
-Read only views are currently in beta. Please report any issues to the [repo](https://github.com/graphbookai/graphbook).
+To add documentation use the Graph.md method.
+
+See our Graphbook docs at https://docs.graphbook.ai
 `;
 
 export default function ReadOnlyFlow({ filename }) {
@@ -43,6 +38,7 @@ export default function ReadOnlyFlow({ filename }) {
     const API = useAPI();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [doc, setDoc] = useState(null);
     const [notificationCtrl, notificationCtxt] = useNotificationInitializer();
     const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
     const graphState = useAPIMessageLastValue("graph_state", filename);
@@ -54,14 +50,14 @@ export default function ReadOnlyFlow({ filename }) {
     }), []);
 
     useEffect(() => {
-        const toReactFlow = (graphState): [Node[], Edge[]] => {
+        const toReactFlow = (G): [Node[], Edge[]] => {
             if (!graphState) {
                 return [[], []];
             }
 
             const nodes: Node[] = [];
             const edges: Edge[] = [];
-            Object.entries<any>(graphState).forEach(([nodeId, node]) => {
+            Object.entries<any>(G).forEach(([nodeId, node]) => {
                 Object.values<any>(node.parameters).forEach((param) => {
                     if (param.type !== "resource" && param.default !== undefined && param.value === undefined) {
                         param.value = param.default;
@@ -118,9 +114,11 @@ export default function ReadOnlyFlow({ filename }) {
             return [nodes, edges];
         }
 
-        const [nodes, edges] = toReactFlow(graphState);
+        const { G, doc } = graphState;
+        const [nodes, edges] = toReactFlow(G);
         setNodes(nodes);
         setEdges(edges);
+        setDoc(doc);
         isDimensionsInitialized.current = false;
     }, [graphState]);
 
@@ -171,7 +169,7 @@ export default function ReadOnlyFlow({ filename }) {
                             <div style={{ position: "absolute", top: 0, left: -10, transform: 'translateX(-100%)' }}>
                                 <ControlRow filename={filename} />
                             </div>
-                            <Docs helpString={helpString} />
+                            <Docs doc={doc || NoDocFound} />
                         </div>
                     </Space>
                     <Panel position='top-left'>
@@ -194,8 +192,6 @@ function ControlRow({ filename }) {
     const nodes = useNodes();
     const edges = useEdges();
     const { setNodes } = useReactFlow();
-
-    const notification = useNotification();
 
     const run = useCallback(async () => {
         if (!API) {
