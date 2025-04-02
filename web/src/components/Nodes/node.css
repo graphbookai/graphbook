@@ -326,6 +326,10 @@ textarea.code {
     height: auto !important;
 }
 
+.workflow-node img.ant-image-img {
+    width: auto;
+}
+
 .workflow-node .ant-tabs .ant-tabs-tab {
     font-size: 8px;
     padding: 0;

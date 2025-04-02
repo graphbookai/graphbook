@@ -574,9 +574,7 @@ class LogWatcher:
     def get_output(self, step_id: str, pin_id: str, index: int) -> Optional[Any]:
         """Get the output for a step and pin at a specific index."""
         key = (step_id, pin_id)
-        print("GET")
         if key in self.all_outputs and index < len(self.all_outputs[key]):
-            print("RET")
             return transform_json_log(self.all_outputs[key][index])
         return None
 

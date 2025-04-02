@@ -366,7 +366,7 @@ def batch(batch_size: int = 8, item_key: str = "", *, load_fn=None, dump_fn=None
     return decorator
 
 
-def resource(name):
+def resource(name: Optional[str] = None):
     """
     Marks a function as a resource that returns an object that can be used by other steps or resources.
 

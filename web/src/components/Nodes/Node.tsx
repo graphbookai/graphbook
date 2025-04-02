@@ -258,8 +258,7 @@ function ContentOverlay({ children }) {
         return null;
     }
 
-    const overlayStyle = {
-        width: '100%',
+    const overlayStyle: React.CSSProperties = {
         maxWidth: '400px',
         maxHeight: '400px',
         zIndex: 1,

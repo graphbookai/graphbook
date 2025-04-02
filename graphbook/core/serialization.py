@@ -174,14 +174,14 @@ class Graph:
         """
         Serializes the graph into a dictionary for the frontend
         """
-        G = {}
+        out = dict(doc=self.doc, G={})
         for node in self.nodes:
             try:
-                G[node.id] = node.serialize()
+                out["G"][node.id] = node.serialize()
             except:
                 print(f"Failed to serialize node {node.id}")
                 traceback.print_exc()
-        return G
+        return out
 
     def get_resources(self) -> List[GraphResourceWrapper]:
         """Returns all resources in the graph"""
@@ -290,9 +290,7 @@ class NoGraphFound(Exception):
 
 def get_py_as_workflow(filepath: str) -> dict:
     graph = get_py_as_graph(filepath)
-    G = graph.serialize()
-    doc = graph.doc
-    return {"G": G, "doc": doc}
+    return graph.serialize()
 
 
 def get_py_as_graph(filepath: str) -> Graph:
