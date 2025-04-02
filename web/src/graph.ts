@@ -787,7 +787,7 @@ export function getNodeParams(nodes: Node[]) {
         const params = Object.entries<any>(node.data.parameters).reduce((acc, [key, param]) => {
             if (param.type !== 'resource') {
                 acc[key] = param.value;
-            } if (param.type === 'dict') {
+            } else if (param.type === 'dict') {
                 acc[key] = parseDictWidgetValue(param.value);
             }
             return acc;
