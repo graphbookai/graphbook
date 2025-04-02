@@ -175,7 +175,7 @@ def train_step(ctx: Step, data):
         log_interval (int): Number of steps between logging the loss.
     """
     model: nn.Module = ctx.model
-    optimizer: optim.optimizer.Optimizer = ctx.optimizer
+    optimizer: optim.Optimizer = ctx.optimizer
 
     batch = data["batch"]
     images, labels = batch
