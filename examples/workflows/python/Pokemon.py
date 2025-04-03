@@ -29,7 +29,7 @@ This workflow uses a *convolutional neural network (CNN)* to classify incoming P
     step_1.param('item_key', "image")
     step_1.param('model', resource_4)
     step_1.param('image_processor', resource_5)
-    resource_2.param('val', """def my_favorite_pokemon(note: Note) -> bool:
+    resource_2.param('val', """def my_favorite_pokemon(note: dict) -> bool:
         return note["name"] in ["Pikachu", "Charmander", "Bulbasaur"]""")
     step_3.param('split_fn', resource_2)
     resource_4.param('model_name', "imjeffhi/pokemon_classifier")

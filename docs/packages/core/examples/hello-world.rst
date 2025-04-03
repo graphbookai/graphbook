@@ -56,15 +56,15 @@ Inside of your custom nodes directory, create a new Python file called `my_first
                     super().__init__()
                     self.prob = prob
 
-                def on_data(self, data: dict):
-                    self.log(data['message'])
+                def on_data(self, msg: str):
+                    self.log(msg)
 
-                def route(self, data: dict) -> str:
+                def route(self, msg: str) -> str:
                     if random.random() < self.prob:
                         return "A"
                     return "B"
 
-This is a simple step that takes a Note as input and logs an item inside of it called "message", and then, it forwards the Note to either of its output slots ("A" or "B") based on the probability provided.
+This is a simple step that takes a string as input and logs it, and then, it routes it to either of its output slots ("A" or "B") based on the probability provided.
 You can provide implementations for any of the methods/events listed in :class:`graphbook.steps.Step`.
 
 Next, go into the Graphbook UI, and create a new workflow by adding a new **.json** file.
@@ -111,7 +111,7 @@ Create a new file in the same directory called `my_first_source.py` and add the 
             @output("message")
             def my_first_source(ctx):
                 for _ in range(10):
-                    yield Note({"message": ctx.message})
+                    yield {"message": ctx.message}
 
     .. tab-item:: class
 
@@ -136,7 +136,7 @@ Create a new file in the same directory called `my_first_source.py` and add the 
 
                 def load(self):
                     return {
-                        "message": [Note({"message": self.message}) for _ in range(10)]
+                        "message": [self.message for _ in range(10)]
                     }
 
                 def route(self, data: dict) -> str:

@@ -18,7 +18,7 @@ You can build Ray DAGs in Python code using Graphbook's API which provides a wra
 * **Multi-Output Nodes**: All nodes have named output bindings that can be individually connected to by other nodes
 * **Node Documentation**: Docustring from each node class is displayed in the UI
 * **Monitoring**: Monitor logging and performance of each node in the UI
-* **Output Visualizations**: Visualize the structured Note outputs and images coming from each node.
+* **Output Visualizations**: Visualize outputs and images coming from each node.
 
 Although using Ray can make your applications more scalable, there are some limitations to be aware of. See :ref:`Ray_Limitations`.
 

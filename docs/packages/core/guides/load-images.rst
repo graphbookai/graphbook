@@ -35,9 +35,11 @@ Load by File Paths
             def image_source(ctx: Step):
                 for root, dirs, files in os.walk(ctx.img_path):
                     for file in files:
-                        yield Note({
-                            "img": utils.image(os.path.join(root, file))
-                        })
+                        yield {
+                            "out": {
+                                "img": utils.image(os.path.join(root, file))
+                            }
+                        }
 
     .. tab-item:: class
 
@@ -61,9 +63,11 @@ Load by File Paths
                 def load(self):
                     for root, dirs, files in os.walk(self.img_path):
                         for file in files:
-                            yield Note({
-                                "img": utils.image(os.path.join(root, file))
-                            })
+                            yield {
+                                "out": {
+                                    "img": utils.image(os.path.join(root, file))
+                                }
+                            }
 
 Load by PIL Images
 ==================
@@ -75,9 +79,11 @@ If you have a PIL Image object, you can similarly use :func:`graphbook.utils.ima
 
         from PIL import Image
         ...
-        yield Note({
-            "img": utils.image(Image.open(os.path.join(root, file)))
-        })
+        yield {
+            "out": {
+                "img": utils.image(Image.open(os.path.join(root, file)))
+            }
+        }
 
 Load without Generators
 =======================
@@ -145,9 +151,11 @@ If you an have an item containing an array of images, Graphbook can also render 
 
         # OK
         ...
-        yield Note({
-            "images": [utils.image(os.path.join(root, file)) for file in files] 
-        })
+        yield {
+            "out": {
+                "images": [utils.image(os.path.join(root, file)) for file in files]
+            }
+        }
 
 However, if your images are nested in a dictionary or under any other structure, it will not render them.
 
@@ -156,6 +164,8 @@ However, if your images are nested in a dictionary or under any other structure,
 
         # Not OK
         ...
-        yield Note({
-            "images": {file: utils.image(os.path.join(root, file)) for file in files}
-        })
+        yield {
+            "out": {
+                "images": {file: utils.image(os.path.join(root, file)) for file in files}
+            }
+        }

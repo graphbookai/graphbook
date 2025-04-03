@@ -20,7 +20,7 @@ You can document your nodes by writing a docstring right beneath the function he
         .. code-block:: python
             :caption: custom_nodes/documented_nodes.py
 
-            from graphbook import step, param, output, Note
+            from graphbook import step, param, output
 
             @step("Filter", event="route")
             @param("threshold", type="number", default=0.5)

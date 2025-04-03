@@ -140,7 +140,7 @@ Let's create the below BatchStep class that uses this model to classify the imag
 The above node will classify the images using the pre-trained model and output the predictions while also calculating its own accuracy given the labels on the images.
 It also specifies how the workers should load the images from disk onto Pytorch Tensors with the custom ``load_fn`` method which must return a PyTorch_ Tensor.
 Also, notice how the PokemonClassifier has a parameter called ``item_key``.
-This tells the BatchStep parent class what key should be batched upon receiving Notes.
+This tells the BatchStep parent class what key should be batched upon receiving a dict.
 
 .. warning::
 
@@ -158,8 +158,8 @@ When we clicked on "Step" in the dialogue menu, it didn't execute through the en
 Instead, it ran a single batch of images taken from the dataset.
 This is useful for debugging and testing.
 
-Filter Notes by Name
-====================
+Filter by Name
+==============
 
 In addition to limiting the number of images processed at a time, we can also filter what is fed into our PokemonClassifer node.
 We can do that by filtering the pokemon by their name.
@@ -267,5 +267,5 @@ Now, your final workflow should look like this:
     :align: center
 
 Congratulations! You have successfully created a Pokemon image classifier workflow using a pre-trained model from Huggingface.
-What if we need to use a model to generate outputs and supply our Notes with those outputs?
+What if we need to use a model to write or store outputs with parallelization?
 Follow the next guide to learn how.

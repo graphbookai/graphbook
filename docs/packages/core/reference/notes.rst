@@ -7,7 +7,7 @@ Notes
 
 .. rst-class:: lead
 
-    Below delivers the documentation details for Note, the atomical unit of data that flows across a Graphbook pipeline.
+    Below delivers the documentation details for Note, historically, the atomical unit of data that flowed across a Graphbook pipeline.
 
 .. warning::
 

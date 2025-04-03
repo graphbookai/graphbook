@@ -174,7 +174,7 @@ Lastly, connect your nodes like so:
     :align: center
 
 Make sure to specify the output directory in the RemoveBackground node, and where your image dataset is inside the LoadImageDataset node.
-Note that we use another built-in node called DumpJSONL that saves the resulting output Notes as serialized JSON lines to a file.
+Note that we use another built-in node called DumpJSONL that saves the resulting output dict as serialized JSON lines to a file.
 This is useful for us to check on our outputs later on.
 
 If you remember that game "Who's that Pokemon?" from the Pokemon TV show, you can now play it with your friends using these generated masks!
