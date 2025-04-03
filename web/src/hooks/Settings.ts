@@ -12,6 +12,7 @@ let settings = {
     monitorLogsShouldScrollToBottom: true,
     quickviewImageHeight: 100,
     nodeTabsDisplay: "BOTH",
+    useRayCluster: false,
 };
 
 const storedSettings = localStorage.getItem('settings');

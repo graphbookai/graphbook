@@ -24,6 +24,8 @@ import { ReactFlowInstance, Node, Edge, BackgroundVariant } from 'reactflow';
 import { ActiveOverlay } from '../ActiveOverlay.tsx';
 import { Docs } from '../Docs.tsx';
 import { NotFoundFlow } from './NotFoundFlow.tsx';
+import { SettingsEntrySwitch } from '../Settings.tsx';
+import { useSettings } from '../../hooks/Settings.ts';
 
 const { useToken } = theme;
 
@@ -248,15 +250,16 @@ function ControlRow() {
     const { setNodes } = useReactFlow();
     const filename = useFilename();
     const [runState, runStateShouldChange] = useRunState();
+    const [settings, setSettings] = useSettings();
 
     const run = useCallback(async () => {
         if (!API) {
             return;
         }
 
-        API.pyRunAll(filename, getNodeParams(nodes));
+        API.pyRunAll(filename, getNodeParams(nodes), settings.useRayCluster);
         runStateShouldChange();
-    }, [API, nodes, edges, filename]);
+    }, [API, nodes, edges, filename, settings.useRayCluster]);
 
     const pause = useCallback(() => {
         if (!API) {
@@ -288,6 +291,15 @@ function ControlRow() {
     return (
         <div className="control-row">
             <Flex gap="small">
+                <Flex align="center">
+                    <SettingsEntrySwitch
+                        name=""
+                        checkedText="Ray"
+                        uncheckedText="No Ray"
+                        onChange={(checked) => {setSettings('useRayCluster', checked);}}
+                        checked={settings.useRayCluster}
+                    />
+                </Flex>
                 <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
                 <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={isRunning || !API} />
                 {

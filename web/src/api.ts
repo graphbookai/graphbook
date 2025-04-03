@@ -287,8 +287,8 @@ export class ServerAPI {
         return await this.post('run', { graph, resources, filename });
     }
 
-    public async run(graph, resources, stepId, filename) {
-        return await this.post(`run/${stepId}`, { graph, resources, filename });
+    public async run(graph, resources, stepId, filename, useRayCluster) {
+        return await this.post(`run/${stepId}`, { graph, resources, filename, useRayCluster });
     }
 
     public async step(graph, resources, stepId, filename) {
@@ -327,12 +327,12 @@ export class ServerAPI {
         return await this.post(`param_run/${graphId}`, { params });
     }
 
-    public async pyRunAll(pyfile: string, params: any) {
-        return await this.post(`py_run/${pyfile}`, { params });
+    public async pyRunAll(pyfile: string, params: any, useRayCluster: boolean) {
+        return await this.post(`py_run/${pyfile}`, { params,  useRayCluster });
     }
 
-    public async pyRun(pyfile: string, stepId: string, params: any) {
-        return await this.post(`py_run/${pyfile}/${stepId}`, { params });
+    public async pyRun(pyfile: string, stepId: string, params: any, useRayCluster: boolean) {
+        return await this.post(`py_run/${pyfile}/${stepId}`, { params, useRayCluster });
     }
 
     public async pyStep(pyfile: string, stepId: string, params: any) {

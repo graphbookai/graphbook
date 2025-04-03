@@ -114,10 +114,10 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
                 })
                 return;
             }
-            API.run(graph, resources, id, filename);
+            API.run(graph, resources, id, filename, settings.useRayCluster);
         } else {
             const params = getNodeParams(nodes);
-            API.pyRun(filename, id, params);
+            API.pyRun(filename, id, params, settings.useRayCluster);
         }
         runStateShouldChange();
     }, [nodes, edges, API, notification, filename]);

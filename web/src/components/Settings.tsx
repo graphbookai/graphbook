@@ -54,6 +54,15 @@ export default function Settings() {
         setClientSetting('nodeTabsDisplay', value);
     }, []);
 
+    const setRayClusterAddress = useCallback((value) => {
+        setClientSetting('rayClusterAddress', value);
+    }, []);
+
+    const setRayLogsPath = useCallback((value) => {
+        setClientSetting('rayLogsPath', value);
+    }, []);
+
+
     return (
         <div style={{ height: '60vh', overflow: 'auto' }}>
             <Space direction='vertical' style={{ width: '100%' }}>
@@ -91,6 +100,10 @@ export default function Settings() {
                         onChange={setImageHeight}
                     />
                 </Flex>
+
+                <Title level={4}>Ray Settings</Title>
+                <SettingsEntryInput name="Ray Cluster Address" value={clientSettings.rayClusterAddress} onApply={setRayClusterAddress} />
+                <SettingsEntryInput name="Ray Logs Path" value={clientSettings.rayLogsPath} onApply={setRayLogsPath} />
             </Space>
         </div>
     );
@@ -122,7 +135,7 @@ function SettingsEntryInput({ name, value, ...optionalProps }) {
     );
 }
 
-function SettingsEntrySwitch({ name, checked, checkedText, uncheckedText, onChange }) {
+export function SettingsEntrySwitch({ name, checked, checkedText, uncheckedText, onChange }) {
     return (
         <Flex vertical>
             <Text>{name}</Text>
