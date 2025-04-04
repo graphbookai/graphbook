@@ -119,14 +119,9 @@ class WebInstanceProcessor:
             self.graph_state.handle_outputs(
                 step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
             )
-            
+
             self.event_handler.handle_time(step.id, time.time() - start_time)
-            
-            # Send outputs to event handler
-            for pin_id, output_list in outputs.items():
-                for output in output_list:
-                    self.event_handler.write_output(step.id, pin_id, output)
-                        
+
         return outputs
 
     def handle_steps(self, steps: List[Step]) -> bool:
@@ -198,17 +193,15 @@ class WebInstanceProcessor:
     def run(self, step_id: str = None):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.event_handler.handle_output(
-                resource_id, "resource", value
-            )
-        
+            self.event_handler.handle_output(resource_id, "resource", value)
+
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
             self.event_handler.handle_start(step.id)
             succeeded = self.try_execute_step_event(step, "on_start")
             if not succeeded:
                 return
-                
+
         self.setup_dataloader(steps)
         self.pause_event.clear()
         dag_is_active = True
@@ -229,17 +222,15 @@ class WebInstanceProcessor:
     def step(self, step_id: str = None):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
-            self.event_handler.handle_output(
-                resource_id, "resource", value
-            )
-                
+            self.event_handler.handle_output(resource_id, "resource", value)
+
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
             self.event_handler.handle_start(step.id)
             succeeded = self.try_execute_step_event(step, "on_start")
             if not succeeded:
                 return
-                
+
         self.setup_dataloader(steps)
         self.pause_event.clear()
         try:
