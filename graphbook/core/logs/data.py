@@ -155,17 +155,16 @@ class S3Writer:
         """Get the current position in the buffer."""
         if self.buffer.closed:
             self._renew_buffer()
-            
+
         return self.buffer.tell()
 
     def close(self):
         """Flush and close the buffer."""
-        print("!!!!!!Closing S3Writer!!!!!!")
         if not self.closed:
             self.flush()
             self.buffer.close()
             self.closed = True
-            
+
     def _renew_buffer(self):
         old_buffer = self.buffer
         self.buffer = io.BytesIO()
@@ -197,7 +196,6 @@ class LogWriter:
         Args:
             log_file_path: Path to the log file (can be a local path or an S3 URL)
         """
-        print("logwriter", log_file_path)
         self.is_s3 = is_s3_url(log_file_path)
         self.log_file_path = log_file_path
 
@@ -445,12 +443,6 @@ class LogWatcher:
                         # Update last position
                         self.last_position = file.tell()
 
-                        # Update the viewer with the latest metadata if available
-                        if self.latest_metadata and "graph" in self.latest_metadata:
-                            self.viewer.set_state(
-                                "graph_state", self.latest_metadata["graph"]
-                            )
-
                         # Update the viewer with the latest outputs
                         if self.outputs_updated:
                             for (
@@ -460,6 +452,15 @@ class LogWatcher:
                                 self.viewer.handle_output(step_id, pin_id, output)
                             # Clear latest outputs after sending to viewer
                             self.latest_outputs = {}
+
+                            # Update the queue size
+                            sizes = {}
+                            for (s_id, p_id), count in self.pin_output_counts.items():
+                                if s_id == step_id:
+                                    sizes[p_id] = count
+
+                            if sizes:
+                                self.viewer.handle_queue_size(step_id, sizes)
                     else:
                         try:
                             self.last_position = _check_file(file)
@@ -495,8 +496,6 @@ class LogWatcher:
         if data and isinstance(data, dict):
             self.latest_metadata = data
             if "graph" in data:
-                # Set the graph state for viewing
-                self.viewer.set_state("run_state", "finished")
                 self.viewer.set_state("graph_state", data["graph"])
 
     def _handle_image_entry(self, data):
@@ -532,7 +531,11 @@ class LogWatcher:
             print(f"Error processing image: {str(e)}")
 
     def _handle_output_entry(self, data):
-        """Handle an output entry from the log file."""
+        """
+        Handle an output entry from the log file.
+        Does not send data to the viewer to reduce network traffic.
+        Updates happen in _watch_loop.
+        """
         data = cloudpickle.loads(data)
         step_id = data["step_id"]
         pin_id = data["pin_id"]
@@ -551,15 +554,6 @@ class LogWatcher:
         # Update pin output counts
         count = self.pin_output_counts.get(key, 0) + 1
         self.pin_output_counts[key] = count
-
-        # Update the queue size
-        sizes = {}
-        for (s_id, p_id), count in self.pin_output_counts.items():
-            if s_id == step_id:
-                sizes[p_id] = count
-
-        if sizes:
-            self.viewer.handle_queue_size(step_id, sizes)
 
     def _handle_log_entry(self, data):
         """Handle a log entry from the log file."""
@@ -706,7 +700,7 @@ class LogManager:
         """
         self.is_s3 = is_s3_url(log_dir)
         self.log_dir = log_dir
-        
+
         if not self.is_s3:
             os.makedirs(self.log_dir, exist_ok=True)
 
