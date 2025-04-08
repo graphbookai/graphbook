@@ -87,6 +87,7 @@ def parse_s3_url(url: str) -> tuple:
 def _check_file(f: io.BufferedReader):
     """Check if the file is in the correct format."""
     marker = f.read(len(MARKER))
+
     if marker != MARKER:
         raise InvalidFileFormatError("Invalid file format. Not a Graphbook log file.")
 
@@ -465,6 +466,8 @@ class LogWatcher:
                         try:
                             self.last_position = _check_file(file)
                             self.file_initialized = True
+                            self.viewer.set_state("run_state", "finished")
+                            print(f"Tracking new log file: {self.log_file_path.name}")
                         except InvalidFileFormatError as e:
                             print(f"{self.log_file_path}: {str(e)}")
                             self.stop_event.set()
@@ -611,14 +614,10 @@ class LogDirectoryReader(TaskLoop):
 
         filename = filepath.name
         viewer = self.viewer_manager.new(filename)
-        viewer.set_state("run_state", "finished")
-
         watcher = LogWatcher(filename, filepath, viewer)
         self.viewers[filename] = viewer
         self.watchers[filename] = watcher
         watcher.start()
-
-        print(f"Tracking new log file: {filename}")
 
     def handle_deleted_file(self, filepath: str):
         """Handle a log file being deleted."""
@@ -656,7 +655,7 @@ class LogDirectoryReader(TaskLoop):
         self.observer.start()
         super().start()
 
-    def stop(self):
+    async def stop(self):
         """Stop watching the log directory and all log files."""
         # Stop all watchers
         for watcher in self.watchers.values():
@@ -667,7 +666,7 @@ class LogDirectoryReader(TaskLoop):
         self.observer.join()
 
         # Stop the task loop
-        super().stop()
+        await super().stop()
 
     def get_output(
         self, graph_id: str, step_id: str, pin_id: str, index: int

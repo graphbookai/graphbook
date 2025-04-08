@@ -16,6 +16,7 @@ from graphbook.logging import LogManager, LogDirectoryReader
 # Optional s3fs import for S3 support
 try:
     import s3fs
+
     S3_AVAILABLE = True
 except ImportError:
     S3_AVAILABLE = False
@@ -53,14 +54,14 @@ def parse_s3_url(url: str) -> Tuple[str, str]:
         if pth.startswith("/"):
             pth = pth[1:]
         return bucket, pth
-    
+
     # Handle https URLs
     parsed = urlparse(url)
     if ".s3." in parsed.netloc:
         bucket = parsed.netloc.split(".s3.")[0]
         pth = parsed.path
         return bucket, pth
-    
+
     raise ValueError(f"Invalid S3 URL: {url}")
 
 
@@ -106,28 +107,29 @@ class S3LogReader(LogDirectoryReader):
         """
         # We need to create a temporary directory to store downloaded files
         import tempfile
+
         self.temp_dir = tempfile.mkdtemp(prefix="graphbook_s3_logs_")
         super().__init__(self.temp_dir, queue, poll_interval, close_event)
-        
+
         # Parse the S3 URL
         if s3_url.endswith("/"):
             s3_url = s3_url[:-1]
         self.bucket_name, self.name = parse_s3_url(s3_url)
         print("Parsed S3 URL:", self.bucket_name, self.name)
         self.s3_url = s3_url
-        
+
         # Create S3 filesystem
         if not S3_AVAILABLE:
             raise ImportError(
                 "s3fs is required for S3 support. Install with 'pip install s3fs'"
             )
-        
+
         self.s3_fs = s3fs.S3FileSystem(anon=False)
-        
+
         # Initialize tracking of S3 object states
         self.s3_objects = {}  # Maps object key to last modified time
         self.is_file = self.name.endswith(".log")
-        
+
         # Create thread for syncing S3 objects
         self.sync_thread = None
         self.sync_stop_event = threading.Event()
@@ -136,12 +138,12 @@ class S3LogReader(LogDirectoryReader):
         """Stream an S3 object to the temp directory using s3fs."""
         try:
             local_path = Path(self.temp_dir) / Path(s3_path).name
-            
+
             # Stream the file from S3 to local filesystem
             with self.s3_fs.open(s3_path, "rb") as s3_file:
                 with open(local_path, "wb") as local_file:
                     local_file.write(s3_file.read())
-                    
+
             print(f"Wrote S3 object {s3_path} to {local_path}")
             return str(local_path)
         except Exception as e:
@@ -156,10 +158,13 @@ class S3LogReader(LogDirectoryReader):
                     # If monitoring a specific file
                     if self.s3_fs.exists(self.s3_url):
                         info = self.s3_fs.info(self.s3_url)
-                        last_modified = info.get('LastModified')
-                        
+                        last_modified = info.get("LastModified")
+
                         # If the file has been modified or doesn't exist locally, stream it
-                        if self.name not in self.s3_objects or self.s3_objects[self.name] != last_modified:
+                        if (
+                            self.name not in self.s3_objects
+                            or self.s3_objects[self.name] != last_modified
+                        ):
                             local_path = self._stream_s3_object(self.name)
                             if local_path:
                                 self.s3_objects[self.name] = last_modified
@@ -172,17 +177,20 @@ class S3LogReader(LogDirectoryReader):
                     # If monitoring a prefix (directory)
                     # s3fs glob to list all log files under the prefix
                     log_files = self.s3_fs.glob(f"{self.s3_url}/*.log")
-                    
+
                     for s3_file in log_files:
                         # Extract key from full s3 path
                         key = s3_file.replace(f"s3://{self.bucket_name}/", "")
-                        
+
                         # Get file info
                         info = self.s3_fs.info(s3_file)
-                        last_modified = info.get('LastModified')
-                        
+                        last_modified = info.get("LastModified")
+
                         # If the object has been modified or doesn't exist locally, stream it
-                        if key not in self.s3_objects or self.s3_objects[key] != last_modified:
+                        if (
+                            key not in self.s3_objects
+                            or self.s3_objects[key] != last_modified
+                        ):
                             local_path = self._stream_s3_object(key)
                             if local_path:
                                 self.s3_objects[key] = last_modified
@@ -191,7 +199,7 @@ class S3LogReader(LogDirectoryReader):
                                     self.handle_new_file(local_path)
             except Exception as e:
                 print(f"Error syncing S3 objects: {str(e)}")
-            
+
             # Sleep for the poll interval
             time.sleep(self.poll_interval)
 
@@ -201,25 +209,26 @@ class S3LogReader(LogDirectoryReader):
         self.sync_stop_event.clear()
         self.sync_thread = threading.Thread(target=self._sync_s3_objects, daemon=True)
         self.sync_thread.start()
-        
+
         # Start the directory reader
         super().start()
-        
+
         print(f"Watching S3 {'file' if self.is_file else 'prefix'}: {self.s3_url}")
 
-    def stop(self):
+    async def stop(self):
         """Stop watching the S3 bucket and clean up resources."""
         # Stop the sync thread
         if self.sync_thread is not None:
             self.sync_stop_event.set()
             self.sync_thread.join(timeout=1.0)
             self.sync_thread = None
-        
+
         # Stop the directory reader
-        super().stop()
-        
+        await super().stop()
+
         # Clean up the temp directory
         import shutil
+
         try:
             shutil.rmtree(self.temp_dir)
         except Exception as e:
@@ -230,7 +239,7 @@ def start_view(args):
     """Run the view mode with a simplified server setup."""
     log_path = args.log_path
     is_s3_path = False
-    
+
     if log_path:
         # Check if it's an S3 URL
         if isinstance(log_path, str) and is_s3_url(log_path):
@@ -244,7 +253,7 @@ def start_view(args):
         log_path = Path("logs")  # Default to the logs directory
         # Create it if it doesn't exist
         log_path.mkdir(exist_ok=True)
-        
+
     # Check if S3 is available when needed
     if is_s3_path and not S3_AVAILABLE:
         print("Error: S3 dependencies are not available.")
@@ -311,4 +320,4 @@ def start_view(args):
         close_event.set()
 
         if log_reader:
-            log_reader.stop()
+            loop.run_until_complete(log_reader.stop())
