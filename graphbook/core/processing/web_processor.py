@@ -98,7 +98,6 @@ class WebInstanceProcessor:
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             log(error_msg, "error")
-            self.event_handler.write_log(step.id, error_msg, "error")
             traceback.print_exc()
             return None
 
@@ -107,7 +106,6 @@ class WebInstanceProcessor:
                 if not len(step.Outputs) == 1:
                     error_msg = f"{step_output_err_res} Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value."
                     log(error_msg, "error")
-                    self.event_handler.write_log(step.id, error_msg, "error")
                     return None
                 outputs = {step.Outputs[0]: outputs}
 

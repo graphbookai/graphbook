@@ -51,7 +51,7 @@ export default function ReadOnlyFlow({ filename }) {
 
     useEffect(() => {
         const toReactFlow = (G): [Node[], Edge[]] => {
-            if (!graphState) {
+            if (!G) {
                 return [[], []];
             }
 
