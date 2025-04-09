@@ -300,12 +300,14 @@ class AppServer(Server):
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
+            use_ray_cluster = data.get("useRayCluster")
             client.exec(
                 {
                     "cmd": "run_all",
                     "graph": graph,
                     "resources": resources,
                     "filename": filename,
+                    "useRayCluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -318,6 +320,7 @@ class AppServer(Server):
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
+            use_ray_cluster = data.get("useRayCluster")
             client.exec(
                 {
                     "cmd": "run",
@@ -325,6 +328,7 @@ class AppServer(Server):
                     "resources": resources,
                     "step_id": step_id,
                     "filename": filename,
+                    "useRayCluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -354,6 +358,7 @@ class AppServer(Server):
             filename = request.match_info.get("filename")
             data = await request.json()
             params = data.get("params")
+            use_ray_cluster = data.get("useRayCluster")
             graph = get_py_as_graph((client.get_root_path() or Path(".")) / filename)
 
             client.exec(
@@ -362,6 +367,7 @@ class AppServer(Server):
                     "filename": filename,
                     "graph": cloudpickle.dumps(graph),
                     "params": params,
+                    "useRayCluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -373,6 +379,7 @@ class AppServer(Server):
             step_id = request.match_info.get("id")
             data = await request.json()
             params = data.get("params")
+            use_ray_cluster = data.get("useRayCluster")
             graph = get_py_as_graph((client.get_root_path() or Path(".")) / filename)
 
             client.exec(
@@ -382,6 +389,7 @@ class AppServer(Server):
                     "filename": filename,
                     "graph": cloudpickle.dumps(graph),
                     "params": params,
+                    "useRayCluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})

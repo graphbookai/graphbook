@@ -1,3 +1,6 @@
+import ray
+import ray.actor
+
 from ..steps import (
     Step,
     SourceStep,
@@ -12,7 +15,7 @@ from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from .state import GraphState, StepState, NodeInstantiationError
 from .event_handler import MemoryEventHandler
 from ..shm import MultiThreadedMemoryManager
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Tuple
 from pathlib import Path
 import queue
 import multiprocessing as mp
@@ -52,6 +55,9 @@ class WebInstanceProcessor:
         self.event_handler = None
         self.viewer = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
+        
+        if not ray.is_initialized():
+            ray.init()
 
     def handle_images(self, outputs: StepOutput):
         def try_add_image(item):
@@ -194,21 +200,39 @@ class WebInstanceProcessor:
             log(f"{type(e).__name__}: {str(e)}", "error")
             traceback.print_exc()
         return False
+    
+    def try_execute_ray_step_event(self, step_pair: Tuple[Step, ray.actor.ActorHandle], event: str):
+        ExecutionContext.update(node_id=step_pair[0].id)
+        ExecutionContext.update(node_name=step_pair[0].__class__.__name__)
+        try:
+            if hasattr(step_pair[0], event):
+                getattr(step_pair[1], event).bind().execute()
+                return True
+        except Exception as e:
+            log(f"{type(e).__name__}: {str(e)}", "error")
+            traceback.print_exc()
+        return False
 
-    def run(self, step_id: str = None):
+    def run(self, step_id: str = None, use_ray: bool = False):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
             self.event_handler.handle_output(
                 resource_id, "resource", value
             )
         
+        step_actor_pairs = []
         steps: List[Step] = self.graph_state.get_processing_steps(step_id)
         for step in steps:
             self.event_handler.handle_start(step.id)
-            succeeded = self.try_execute_step_event(step, "on_start")
+            if use_ray:
+                ray_step = convert_step_to_ray_actor(step)
+                step_actor_pairs.append((step, ray_step))
+                succeeded = self.try_execute_ray_step_event((step, ray_step), "on_start")
+            else:
+                succeeded = self.try_execute_step_event(step, "on_start")
             if not succeeded:
                 return
-                
+
         self.setup_dataloader(steps)
         self.pause_event.clear()
         dag_is_active = True
@@ -219,14 +243,20 @@ class WebInstanceProcessor:
                 and not self.close_event.is_set()
                 and not self.dataloader.is_failed()
             ):
-                dag_is_active = self.handle_steps(steps)
+                if use_ray:
+                    dag_is_active = self.ray_handle_steps(step_actor_pairs)
+                else:
+                    dag_is_active = self.handle_steps(steps)
         finally:
             self.event_handler.handle_end()
             self.dataloader.stop()
-            for step in steps:
-                self.try_execute_step_event(step, "on_end")
+            for i, step in enumerate(steps):
+                if use_ray:
+                    self.try_execute_ray_step_event((step, step_actor_pairs[i][1]), "on_end")
+                else:
+                    self.try_execute_step_event(step, "on_end")
 
-    def step(self, step_id: str = None):
+    def step(self, step_id: str = None, use_ray: bool = False):
         resource_values = self.graph_state.get_resource_values()
         for resource_id, value in resource_values.items():
             self.event_handler.handle_output(
@@ -309,10 +339,10 @@ class WebInstanceProcessor:
 
             cmd: str = work["cmd"]
             if cmd == "run_all" or cmd == "py_run_all":
-                self.run()
+                self.run(use_ray=work["useRayCluster"])
             elif cmd == "run" or cmd == "py_run":
-                self.run(work["step_id"])
-            elif cmd == "step" or cmd == "py_step":
+                self.run(work["step_id"], use_ray=work["useRayCluster"])
+            elif cmd == "step" or cmd == "py_step": #TODO
                 self.step(work["step_id"])
         finally:
             self.set_is_running(False)
@@ -370,3 +400,143 @@ class WebInstanceProcessor:
 
     def get_queue(self):
         return self.cmd_queue
+    
+    def ray_exec_step(
+        self, step_actor: ray.actor.ActorClass, step: Step, input: Optional[Any] = None, flush: bool = False
+    ) -> Optional[StepOutput]:
+        # Set execution context before executing step
+        # This needs to be done in the Ray worker process, not here
+        # So we'll pass the context info to the Ray actor
+        start_time = time.time()
+        # context = {
+        #     "node_id": step.id,
+        #     "node_name": step.__class__.__name__,
+        #     "event_handler": self.event_handler
+        # }
+        # # Initialize the context in the Ray actor
+        # step_actor.init_context.remote(context)
+        
+        start_time = time.time()
+        ExecutionContext.update(node_id=step.id)
+        ExecutionContext.update(node_name=step.__class__.__name__)
+        step_fn = step_actor.__call__ if not flush else step_actor.all
+        
+        try:
+            # Execute step using Ray
+            if input is None:
+                ray_output = step_fn.bind().execute()
+                outputs = ray.get(ray_output)
+            else:
+                if isinstance(step, AsyncStep):
+                    step_actor.in_q.bind(input).execute()
+                    ray_output = step_fn.bind().execute()
+                    outputs = ray.get(ray_output)
+                else:
+                    outputs = ray.get(step_fn.bind(input).execute())
+
+            # Handle outputs
+            if outputs:
+                if not isinstance(outputs, dict):
+                    if not len(step.Outputs) == 1:
+                        error_msg = f"Step output must be a dictionary, and dict values must be lists. Output was not a dict. This step has multiple outputs {step.Outputs} and cannot assume a single value."
+                        log(error_msg, "error")
+                        self.event_handler.write_log(step.id, error_msg, "error")
+                        return None
+                    outputs = {step.Outputs[0]: outputs}
+
+                for k, v in outputs.items():
+                    if not isinstance(v, list):
+                        outputs[k] = [v]
+
+                # Use Ray handler for image handling
+                # ray.get(self.ray_handler.handle_outputs.remote(step.id, outputs))
+                
+                # Update graph state
+                self.graph_state.handle_outputs(
+                    step.id, outputs if not self.copy_outputs else copy.deepcopy(outputs)
+                )
+                
+                self.event_handler.handle_time(step.id, time.time() - start_time)
+            
+                # Send outputs to event handler
+                for pin_id, output_list in outputs.items():
+                    for output in output_list:
+                        self.event_handler.write_output(step.id, pin_id, output)
+
+            return outputs
+
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            log(error_msg, "error")
+            self.event_handler.write_log(step.id, error_msg, "error")
+            traceback.print_exc()
+            return None
+        
+    def ray_handle_steps(self, step_actor_pairs: List[Tuple[Step, ray.actor.ActorHandle]]) -> bool:
+        is_active = False
+        
+        # Process steps using Ray
+        for step, ray_step in step_actor_pairs:
+            output = {}
+            if isinstance(step, GeneratorSourceStep):
+                output = self.ray_exec_step(ray_step, step)
+            elif isinstance(step, SourceStep):
+                if not self.graph_state.get_state(step, StepState.EXECUTED):
+                    output = self.ray_exec_step(ray_step, step)
+            else:
+                try:
+                    input = self.graph_state.get_input(step)
+                    is_active = True
+                except StopIteration:
+                    input = None
+
+                if isinstance(step, AsyncStep):
+                    if is_active:  # parent is active
+                        output = self.ray_exec_step(ray_step, step, input)
+                    else:
+                        output = self.ray_exec_step(ray_step, step, flush=True)
+                    is_active = is_active or ray.get(step.is_active.remote())
+                else:
+                    if input:
+                        output = self.ray_exec_step(ray_step, step, input)
+
+            if output is None:
+                if not self.continue_on_failure:
+                    return False
+                else:
+                    output = {}
+            else:
+                if not is_active:
+                    is_active = any(len(v) > 0 for v in output.values())
+
+        return is_active
+
+def convert_step_to_ray_actor(step: Step) -> ray.actor.ActorHandle:
+    """
+    Converts a Step instance to a Ray actor if it isn't already one.
+    
+    Args:
+        step: The Step instance to convert
+        
+    Returns:
+        The Ray actor handle for the step
+    """
+    if hasattr(step, '_graphbook_context'):
+        return step
+    
+    # Get inputs to step class constructor
+    params = list(step.Parameters.keys())
+    inputs = [getattr(step, param) for param in params]
+        
+    # Create Ray actor from step
+    step_actor = ray.remote(step.__class__).remote(*inputs)
+    
+    # Copy over any instance attributes
+    for attr, value in vars(step).items():
+        if attr != '_graphbook_context':
+            setattr(step_actor, attr, value)
+            
+    # Set the graphbook context to mark as converted
+    setattr(step_actor, '_graphbook_context', True)
+    
+    return step_actor
