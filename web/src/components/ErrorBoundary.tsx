@@ -1,6 +1,6 @@
 import React from 'react';
 import { Flex, Typography } from 'antd';
-const { Text, Link } = Typography;;
+const { Text, Link } = Typography;
 
 
 type ErrorBoundaryProps = {
