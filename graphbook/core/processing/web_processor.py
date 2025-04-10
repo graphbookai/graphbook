@@ -12,6 +12,7 @@ from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from .state import GraphState, StepState, NodeInstantiationError
 from .event_handler import MemoryEventHandler
 from ..shm import MultiThreadedMemoryManager
+from ..serialization import deserialize_client_json_to_graph
 from typing import List, Optional, Any, Dict
 from pathlib import Path
 import queue
@@ -290,9 +291,10 @@ class WebInstanceProcessor:
             filename: str = work["filename"]
             if filename.endswith(".py"):
                 graph = cloudpickle.loads(work["graph"])
-                self.graph_state.update_state_py(graph, work["params"])
+                params = work["params"]
             else:
-                self.graph_state.update_state(work["graph"], work["resources"])
+                graph, params = deserialize_client_json_to_graph(work["graph"], work["resources"], self.graph_state._node_catalog)
+            self.graph_state.update_state_py(graph, params)
             return True
         except NodeInstantiationError as e:
             traceback.print_exc()

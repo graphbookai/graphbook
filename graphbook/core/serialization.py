@@ -10,8 +10,7 @@ from copy import deepcopy
 from typing import List, Tuple, Dict, Any, Optional
 import graphbook.core.steps as steps
 import graphbook.core.resources as resources
-from graphbook.core.processing.graph_processor import Executor, DefaultExecutor
-
+from graphbook.core.processing.state import NodeCatalog
 
 class GraphNodeWrapper:
     """
@@ -233,7 +232,7 @@ class Graph:
 
     def run(
         self,
-        executor: Optional[Executor] = None,
+        executor = None,
         step_id: Optional[str] = None,
         start_web_server: bool = True,
         host: str = "localhost",
@@ -251,6 +250,7 @@ class Graph:
         """
         # Serialize the graph and pass it to the executor
         if executor is None:
+            from graphbook.core.processing.graph_processor import DefaultExecutor
             executor = DefaultExecutor()
 
         client_pool = executor.get_client_pool()
@@ -302,7 +302,61 @@ def get_py_as_graph(filepath: str) -> Graph:
         return workflow
     except KeyError:
         raise NoGraphFound(filepath)
+    
+def deserialize_client_json_to_graph(steps: dict, resources: dict, node_catalog: NodeCatalog) -> Graph:
+    """
+    Deserializes a JSON graph representation into a Graph object.
+    """
+    graph = Graph()
+    node_wrappers = {}
+    params = {}
 
+    step_ids = steps.keys()
+    resource_ids = resources.keys()
+    node_ids = list(step_ids) + list(resource_ids)
+    
+    nodes, _ = node_catalog.get_nodes()
+    step_hub = nodes["steps"]
+    resource_hub = nodes["resources"]
+    
+    for i, node_id in enumerate(node_ids):
+        if i < len(step_ids):
+            node_data = steps[node_id]
+            node_type = "step"
+        else:
+            node_data = resources[node_id]  
+            node_type = "resource"
+        node_name = node_data.get("name")
+        node_parameters: dict = node_data.get("parameters")
+        params[node_id] = node_parameters
+        
+        if node_type == "step":
+            node_class = step_hub.get(node_name)
+            if node_class is None:
+                raise ValueError(f"Step {node_name} not found in step hub")
+            node_wrapper = graph.step(node_class)
+        else:
+            node_class = resource_hub.get(node_name)
+            if node_class is None:
+                raise ValueError(f"Resource {node_name} not found in resource hub")
+            node_wrapper = graph.resource(node_class)
+            
+        node_wrapper.id = node_id
+        node_wrappers[node_id] = node_wrapper
+        
+        for key, param in node_parameters.items():
+            node_wrapper.param(key, param)
+        
+    # Second pass: bind steps
+    for step_id in step_ids:
+        step_data = steps[step_id]
+        step_inputs: List[dict] = step_data.get("inputs")
+        for input in step_inputs:
+            node_wrapper = node_wrappers.get(input.get("node"))
+            if hasattr(node_wrappers[step_id], "bind"):
+                node_wrappers[step_id].bind(node_wrapper, input["slot"])
+
+    return graph, params
 
 def deserialize_json_to_graph(json_data: dict) -> Graph:
     """

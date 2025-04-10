@@ -17,7 +17,7 @@ class WebCrawlGenerator(GeneratorSourceStep):
     """
     RequiresInput = False
     Parameters = {
-        "url": {
+        "base_url": {
             "type": "string",
             "default": "https://www.graphbook.ai/"
         },
@@ -29,9 +29,9 @@ class WebCrawlGenerator(GeneratorSourceStep):
     Outputs = ["out"]
     Category = "Custom"
     
-    def __init__(self, url: str, max_depth: int):
+    def __init__(self, base_url: str, max_depth: int):
         super().__init__()
-        self.base_url = url
+        self.base_url = base_url
         self.max_depth = max_depth
         
         # Prepare to crawl the web page
