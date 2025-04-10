@@ -5,6 +5,7 @@ import { FileFilled, AppstoreOutlined } from '@ant-design/icons';
 import { Tabs } from 'antd';
 import Filesystem from './Filesystem';
 import { usePluginPanels } from '../../hooks/Plugins';
+import ErrorBoundary from '../ErrorBoundary';
 
 export default function LeftPanel({ setWorkflow, setExecution, onBeginEdit }) {
     const panels = usePluginPanels();
@@ -14,7 +15,11 @@ export default function LeftPanel({ setWorkflow, setExecution, onBeginEdit }) {
             {
                 key: '0',
                 label: 'Explorer',
-                children: <Filesystem setWorkflow={setWorkflow} setExecution={setExecution} onBeginEdit={onBeginEdit} />,
+                children: (
+                    <ErrorBoundary>
+                        <Filesystem setWorkflow={setWorkflow} setExecution={setExecution} onBeginEdit={onBeginEdit} />
+                    </ErrorBoundary>
+                ),
                 icon: <FileFilled />,
             },
             ...pluginPanels

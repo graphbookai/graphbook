@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Flex, Image, theme, Typography, Space } from 'antd';
+import { Flex, Image, Typography, Space } from 'antd';
 import { useAPINodeMessageEffect, useLogSubscription } from '../../hooks/API';
 import { useFilename } from '../../hooks/Filename';
 import { getMediaPath } from '../../utils';
 import { useSettings } from '../../hooks/Settings';
 import { usePrompt, Prompt } from '../../hooks/Prompts';
-import type { LogEntry, ImageRef } from '../../utils';
+import type { ImageRef } from '../../utils';
 import { Node } from './Node';
 import Icon, {
     PictureOutlined,

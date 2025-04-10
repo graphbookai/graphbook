@@ -13,6 +13,7 @@ import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined, LoadingOutlined } from '@ant-design/icons';
 import { Graph, layoutDAG } from '../../graph.ts';
 import { SearchNode } from '../SearchNode.tsx';
+import { SafeNode } from '../Nodes/Node.tsx';
 import { Step } from '../Nodes/Step.tsx';
 import { Group, groupIfPossible } from '../Nodes/Group.tsx';
 import { getHandle, evalDragData } from '../../utils.ts';
@@ -133,11 +134,11 @@ function Flow({ initialNodes, initialEdges, filename }) {
     }, []);
 
     const nodeTypes = useMemo(() => ({
-        step: Step,
-        resource: Resource,
-        group: Group,
-        export: Export,
-        subflow: Subflow,
+        step: SafeNode(Step),
+        resource: SafeNode(Resource),
+        group: SafeNode(Group),
+        export: SafeNode(Export),
+        subflow: SafeNode(Subflow),
     }), []);
 
     const onInitReactFlow = useCallback((instance) => {
