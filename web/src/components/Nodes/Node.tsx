@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useNodes, useEdges, useReactFlow, useOnSelectionChange } from 'reactflow';
-import { Card, Flex, Button, Tabs, theme, Empty } from 'antd';
+import { Card, Flex, Button, Tabs, theme, Typography } from 'antd';
 import { ControlOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Widget, isWidgetType } from './widgets/Widgets';
 import { Graph, getNodeParams } from '../../graph';
@@ -11,10 +11,13 @@ import { nodeBorderStyle } from '../../styles';
 import { useNotification } from '../../hooks/Notification';
 import { SerializationErrorMessages } from '../Errors';
 import { InputHandle, OutputHandle } from './Handle';
-import type { Parameter } from '../../utils';
 import { useSettings } from '../../hooks/Settings';
+import ErrorBoundary from '../ErrorBoundary';
+import type { Parameter } from '../../utils';
+import type { NodeProps as ReactFlowNodeProps } from 'reactflow';
 
 const { useToken } = theme;
+const { Text, Link } = Typography;
 
 export type Pin = {
     id: string;
@@ -270,4 +273,35 @@ function ContentOverlay({ children }) {
             {children}
         </div>
     );
+}
+
+
+export function SafeNode(Component: React.FC<any>) {
+    const GetFallbackView = (props: ReactFlowNodeProps) => {
+        const { id, data } = props;
+        function FallbackView({ error }) {
+            const { token } = useToken();
+
+            return (
+                <Card className="workflow-node" style={{ border: `1px solid ${token.colorError}`, padding: '2px' }}>
+                    <Flex vertical justify='center' align='center'>
+                        <Text type="danger">This node has an error 😓</Text>
+                        <Text>ID: {id} | Name: {data.name}</Text>
+                        <Text>{typeof (error) === 'object' ? JSON.stringify(error) : error}</Text>
+                        <Link href="https://github.com/graphbookai/graphbook/issues" target="_blank">Report an issue</Link>
+                    </Flex>
+                </Card>
+            );
+        }
+
+        return FallbackView;
+    };
+
+    return function WrappedNode(props: ReactFlowNodeProps) {
+        return (
+            <ErrorBoundary fallback={GetFallbackView(props)}>
+                <Component {...props} />
+            </ErrorBoundary>
+        );
+    };
 }

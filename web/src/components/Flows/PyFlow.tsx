@@ -11,6 +11,7 @@ import ReactFlow, {
 import { Button, Flex, Space, theme } from 'antd';
 import { ClearOutlined, CaretRightOutlined, PauseOutlined, PartitionOutlined, LoadingOutlined } from '@ant-design/icons';
 import { layoutDAG, getNodeParams } from '../../graph.ts';
+import { SafeNode } from '../Nodes/Node.tsx';
 import { Step } from '../Nodes/Step.tsx';
 import { Resource } from '../Nodes/Resource.js';
 import { NodeContextMenu } from '../ContextMenu.tsx';
@@ -153,8 +154,8 @@ export default function Flow({ filename }) {
     }, [isLoading]);
 
     const nodeTypes = useMemo(() => ({
-        step: Step,
-        resource: Resource,
+        step: SafeNode(Step),
+        resource: SafeNode(Resource),
         // Unsupported. Cannot serialize yet
         // group: Group,  
         // export: Export,

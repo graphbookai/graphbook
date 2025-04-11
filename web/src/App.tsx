@@ -11,6 +11,7 @@ import { useSettings } from './hooks/Settings';
 import { API } from './api';
 import { useAPI } from './hooks/API';
 import { setGlobalFilename } from './hooks/Filename.ts';
+import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 const { Header, Content, Sider } = Layout;
 
@@ -106,14 +107,18 @@ function View() {
     return (
         <Layout style={{ height: '100vh' }}>
             <Header style={{ height: '40px', background: colorBgContainer, borderBottom: `1px solid ${colorBorder}` }}>
-                <TopPanel />
+                <ErrorBoundary horizontal>
+                    <TopPanel />
+                </ErrorBoundary>
             </Header>
             <Content style={{ height: '100%' }}>
                 <Layout style={{ width: '100vw', height: '100%' }}>
                     <Sider width={300} style={{ background: colorBgContainer }}>
                         <LeftPanel setWorkflow={setFile} setExecution={setReadonlyFile} onBeginEdit={setEditCode} />
                     </Sider>
-                    {mainView}
+                    <ErrorBoundary key={flowFile?.name}>
+                        {mainView}
+                    </ErrorBoundary>
                 </Layout>
             </Content>
         </Layout>

@@ -11,6 +11,7 @@ import ReactFlow, {
 import { Button, Flex, Space, theme } from 'antd';
 import { CaretRightOutlined, PartitionOutlined } from '@ant-design/icons';
 import { layoutDAG } from '../../graph.ts';
+import { SafeNode } from '../Nodes/Node.tsx';
 import { Step } from '../Nodes/Step.tsx';
 import { Resource } from '../Nodes/Resource.js';
 import { useAPI, useAPIMessageLastValue } from '../../hooks/API.ts';
@@ -45,8 +46,8 @@ export default function ReadOnlyFlow({ filename }) {
     const isDimensionsInitialized = useRef(false);
 
     const nodeTypes = useMemo(() => ({
-        step: Step,
-        resource: Resource,
+        step: SafeNode(Step),
+        resource: SafeNode(Resource),
     }), []);
 
     useEffect(() => {
