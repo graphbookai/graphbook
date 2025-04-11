@@ -120,7 +120,7 @@ export function Node({ id, style, name, inputs, parameters, outputs, selected, e
             API.pyRun(filename, id, params, settings.useRayCluster);
         }
         runStateShouldChange();
-    }, [nodes, edges, API, notification, filename]);
+    }, [nodes, edges, API, notification, filename, settings.useRayCluster]);
 
     const borderStyle = useMemo(() => nodeBorderStyle(token, errored, selected, parentSelected), [token, errored, selected, parentSelected]);
     const onTabClick = useCallback((key) => {

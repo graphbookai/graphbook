@@ -33,6 +33,7 @@ import { ActiveOverlay } from '../ActiveOverlay.tsx';
 import { Docs } from '../Docs.tsx';
 import { NotFoundFlow } from './NotFoundFlow.tsx';
 import { SettingsEntrySwitch } from '../Settings.tsx';
+import { useSettings } from '../../hooks/Settings.ts';
 
 const { useToken } = theme;
 const makeDroppable = (e) => e.preventDefault();
@@ -456,7 +457,7 @@ function ControlRow() {
     const notification = useNotification();
     const filename = useFilename();
     const [runState, runStateShouldChange] = useRunState();
-    const [useRayCluster, setUseRayCluster] = useState(false);
+    const [settings, setSettings] = useSettings();
 
     const run = useCallback(async () => {
         if (!API) {
@@ -472,9 +473,9 @@ function ControlRow() {
             })
             return;
         }
-        API.runAll(graph, resources, filename);
+        API.runAll(graph, resources, filename, settings.useRayCluster);
         runStateShouldChange();
-    }, [API, nodes, edges, notification, filename, useRayCluster]);
+    }, [API, nodes, edges, notification, filename, settings.useRayCluster]);
 
     const pause = useCallback(() => {
         if (!API) {
@@ -505,7 +506,16 @@ function ControlRow() {
     return (
         <div className="control-row">
             <Flex gap="small">
-                {/* <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} /> */}
+                <Flex align="center">
+                    <SettingsEntrySwitch
+                        name=""
+                        checkedText="Ray"
+                        uncheckedText="No Ray"
+                        onChange={(checked) => {setSettings('useRayCluster', checked);}}
+                        checked={settings.useRayCluster}
+                    />
+                </Flex>
+                <Button type="default" title="Layout" icon={<PartitionOutlined />} size={size} onClick={layout} disabled={!API} />
                 <Button type="default" title="Clear State + Outputs" icon={<ClearOutlined />} size={size} onClick={clear} disabled={isRunning|| !API} />
                 {
                     isRunning ? (
@@ -514,13 +524,6 @@ function ControlRow() {
                         <Button type="default" title="Run" icon={<CaretRightOutlined />} size={size} onClick={run} disabled={!API} />
                     )
                 }
-                <SettingsEntrySwitch
-                    name="Use Ray Cluster"
-                    checkedText="Yes"
-                    uncheckedText="No"
-                    onChange={(checked) => {setUseRayCluster(checked);}}
-                    checked={useRayCluster}
-                />
             </Flex>
         </div>
     );

@@ -283,8 +283,8 @@ export class ServerAPI {
     /**
      * Processor API
      */
-    public async runAll(graph, resources, filename) {
-        return await this.post('run', { graph, resources, filename });
+    public async runAll(graph, resources, filename, useRayCluster) {
+        return await this.post('run', { graph, resources, filename, useRayCluster });
     }
 
     public async run(graph, resources, stepId, filename, useRayCluster) {

@@ -300,12 +300,14 @@ class AppServer(Server):
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
+            use_ray_cluster = data.get("useRayCluster", False)
             client.exec(
                 {
                     "cmd": "run_all",
                     "graph": graph,
                     "resources": resources,
                     "filename": filename,
+                    "use_ray_cluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -318,6 +320,7 @@ class AppServer(Server):
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
+            use_ray_cluster = data.get("useRayCluster", False)
             client.exec(
                 {
                     "cmd": "run",
@@ -325,6 +328,7 @@ class AppServer(Server):
                     "resources": resources,
                     "step_id": step_id,
                     "filename": filename,
+                    "use_ray_cluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -337,6 +341,7 @@ class AppServer(Server):
             graph = data.get("graph", {})
             resources = data.get("resources", {})
             filename = data.get("filename", "")
+            use_ray_cluster = data.get("useRayCluster", False)
             client.exec(
                 {
                     "cmd": "step",
@@ -344,6 +349,7 @@ class AppServer(Server):
                     "resources": resources,
                     "step_id": step_id,
                     "filename": filename,
+                    "use_ray_cluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -355,6 +361,7 @@ class AppServer(Server):
             data = await request.json()
             params = data.get("params")
             graph = get_py_as_graph((client.get_root_path() or Path(".")) / filename)
+            use_ray_cluster = data.get("useRayCluster", False)
 
             client.exec(
                 {
@@ -362,6 +369,7 @@ class AppServer(Server):
                     "filename": filename,
                     "graph": cloudpickle.dumps(graph),
                     "params": params,
+                    "use_ray_cluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -374,6 +382,7 @@ class AppServer(Server):
             data = await request.json()
             params = data.get("params")
             graph = get_py_as_graph((client.get_root_path() or Path(".")) / filename)
+            use_ray_cluster = data.get("useRayCluster", False)
 
             client.exec(
                 {
@@ -382,6 +391,7 @@ class AppServer(Server):
                     "filename": filename,
                     "graph": cloudpickle.dumps(graph),
                     "params": params,
+                    "use_ray_cluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})
@@ -393,12 +403,15 @@ class AppServer(Server):
             step_id = request.match_info.get("id")
             data = await request.json()
             params = data.get("params")
+            use_ray_cluster = data.get("useRayCluster", False)
+
             client.exec(
                 {
                     "cmd": "py_step",
                     "step_id": step_id,
                     "filename": filename,
                     "params": params,
+                    "use_ray_cluster": use_ray_cluster,
                 },
             )
             return web.json_response({"success": True})

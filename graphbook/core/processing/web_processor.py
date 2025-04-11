@@ -12,7 +12,7 @@ from ..utils import MP_WORKER_TIMEOUT, transform_json_log, ExecutionContext
 from .state import GraphState, StepState, NodeInstantiationError
 from .event_handler import MemoryEventHandler
 from ..shm import MultiThreadedMemoryManager
-from ..serialization import deserialize_client_json_to_graph
+from ..serialization import Graph, deserialize_client_json_to_graph
 from typing import List, Optional, Any, Dict
 from pathlib import Path
 import queue
@@ -23,7 +23,6 @@ import time
 import copy
 import cloudpickle
 from PIL import Image
-
 step_output_err_res = "Step output must be a dictionary, and dict values must be lists."
 
 
@@ -53,6 +52,8 @@ class WebInstanceProcessor:
         self.event_handler = None
         self.viewer = None
         self.thread = th.Thread(target=self.start_loop, daemon=True)
+        self.graph: Graph = None
+        self.ray_executor = None
 
     def handle_images(self, outputs: StepOutput):
         def try_add_image(item):
@@ -290,11 +291,12 @@ class WebInstanceProcessor:
         try:
             filename: str = work["filename"]
             if filename.endswith(".py"):
-                graph = cloudpickle.loads(work["graph"])
+                self.graph = cloudpickle.loads(work["graph"])
                 params = work["params"]
             else:
-                graph, params = deserialize_client_json_to_graph(work["graph"], work["resources"], self.graph_state._node_catalog)
-            self.graph_state.update_state_py(graph, params)
+                self.graph, params = deserialize_client_json_to_graph(work["graph"], work["resources"], self.graph_state._node_catalog)
+            self.graph_state.update_state_py(self.graph, params)
+            self.graph.module_name = Path(filename).name
             return True
         except NodeInstantiationError as e:
             traceback.print_exc()
@@ -308,14 +310,33 @@ class WebInstanceProcessor:
         try:
             if not self.try_update_state(work):
                 return
+            
+            use_ray_cluster = work["use_ray_cluster"]
+            if use_ray_cluster and self.ray_executor is None:
+                from graphbook.ray.ray_executor import RayExecutor
+                self.ray_executor = RayExecutor()
 
             cmd: str = work["cmd"]
             if cmd == "run_all" or cmd == "py_run_all":
-                self.run()
+                if use_ray_cluster:
+                    out = self.ray_executor.run(self.graph, work["filename"])
+                    print("RAY OUTPUT:",out)
+                else:
+                    self.run()
             elif cmd == "run" or cmd == "py_run":
-                self.run(work["step_id"])
-            elif cmd == "step" or cmd == "py_step":
+                if use_ray_cluster:
+                    subgraph = self.graph.get_subgraph(work["step_id"])
+                    self.ray_executor.run(subgraph, work["step_id"])
+                else:
+                    self.run(work["step_id"])
+            elif cmd == "step" or cmd == "py_step": #TODO: Add ray cluster support
                 self.step(work["step_id"])
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
+            self.cleanup()
+            if not self.close_event.is_set():
+                traceback.print_exc()
         finally:
             self.set_is_running(False)
 

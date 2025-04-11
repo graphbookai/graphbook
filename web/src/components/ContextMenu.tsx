@@ -8,6 +8,7 @@ import { useAPI, clearNodeLogs } from '../hooks/API.ts';
 import { useNotification } from '../hooks/Notification.ts';
 import { SerializationErrorMessages } from './Errors.tsx';
 import { useFilename } from '../hooks/Filename.ts';
+import { useSettings } from '../hooks/Settings.ts';
 
 type NodeContextMenuProps = {
     nodeId: string;
@@ -25,6 +26,7 @@ export function NodeContextMenu({ nodeId, top, left, close, canEditGraph = true 
     const updateNodeInternals = useUpdateNodeInternals();
     const notification = useNotification();
     const filename = useFilename();
+    const [settings] = useSettings();
 
     const NODE_OPTIONS = useMemo(() => !node || !API ? [] : [
         {
@@ -102,7 +104,7 @@ export function NodeContextMenu({ nodeId, top, left, close, canEditGraph = true 
                 const nodes = getNodes();
                 
                 if (filename.endsWith('.py')) {
-                    API.pyRun(filename, node.id, getNodeParams(nodes));
+                    API.pyRun(filename, node.id, getNodeParams(nodes), settings.useRayCluster);
                 } else {
                     const edges = getEdges();
                     const [[graph, resources], errors] = await Graph.serializeForAPI(nodes, edges);
@@ -115,7 +117,7 @@ export function NodeContextMenu({ nodeId, top, left, close, canEditGraph = true 
                         })
                         return;
                     }
-                    API.run(graph, resources, node.id, filename);
+                    API.run(graph, resources, node.id, filename, settings.useRayCluster);
                 }
                 runStateShouldChange();
             }
