@@ -116,7 +116,7 @@ function View() {
                     <Sider width={300} style={{ background: colorBgContainer }}>
                         <LeftPanel setWorkflow={setFile} setExecution={setReadonlyFile} onBeginEdit={setEditCode} />
                     </Sider>
-                    <ErrorBoundary>
+                    <ErrorBoundary key={flowFile?.name}>
                         {mainView}
                     </ErrorBoundary>
                 </Layout>
