@@ -1,0 +1,172 @@
+"""Global session state for graphbook beta."""
+
+from __future__ import annotations
+
+import threading
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from typing import Any, Optional, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class LoggingBackend(Protocol):
+    """Protocol for logging backend extensions."""
+
+    def on_log(self, node: str, message: str, timestamp: float) -> None: ...
+    def on_metric(self, node: str, name: str, value: float, step: int) -> None: ...
+    def on_image(self, node: str, name: str, image_bytes: bytes, step: int) -> None: ...
+    def on_audio(self, node: str, name: str, audio_bytes: bytes, sr: int) -> None: ...
+    def on_node_start(self, node: str, params: dict) -> None: ...
+    def on_node_end(self, node: str, duration: float) -> None: ...
+    def flush(self) -> None: ...
+    def close(self) -> None: ...
+
+
+@dataclass
+class NodeInfo:
+    """Information about a registered node."""
+
+    name: str
+    func_name: str
+    docstring: Optional[str] = None
+    config_key: Optional[str] = None
+    exec_count: int = 0
+    is_source: bool = True  # starts as True, set to False when it receives an edge
+    params: dict = field(default_factory=dict)
+    logs: list = field(default_factory=list)
+    metrics: dict = field(default_factory=lambda: {})  # name -> [(step, value)]
+    errors: list = field(default_factory=list)
+    images: list = field(default_factory=list)
+    inspections: dict = field(default_factory=dict)  # name -> last inspection result
+    progress: Optional[dict] = None  # {current, total, name}
+
+
+@dataclass
+class DAGEdge:
+    """An edge in the DAG."""
+
+    source: str
+    target: str
+
+
+class SessionState:
+    """Global singleton managing all graphbook beta state."""
+
+    _instance: Optional[SessionState] = None
+    _lock = threading.Lock()
+
+    def __new__(cls) -> SessionState:
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(self) -> None:
+        if self._initialized:
+            return
+        self._initialized = True
+        self.nodes: dict[str, NodeInfo] = {}
+        self.edges: list[DAGEdge] = []
+        self._edge_set: set[tuple[str, str]] = set()
+        self.config: dict[str, Any] = {}
+        self.workflow_description: Optional[str] = None
+        self.backends: list[LoggingBackend] = []
+        self.port: int = 2048
+        self.server_process: Any = None
+        self._queue: Any = None
+        self._display: Any = None
+        self._initialized_display: bool = False
+        self._initialized_server: bool = False
+        self._lock_state = threading.Lock()
+
+    def ensure_display(self) -> None:
+        """Ensure the terminal display is created and started."""
+        if self._initialized_display:
+            return
+        from graphbook.beta.terminal.display import TerminalDisplay
+        if self._display is None:
+            self._display = TerminalDisplay()
+        self._display.start()
+        self._initialized_display = True
+
+    def register_node(self, node_id: str, func_name: str, docstring: Optional[str] = None, config_key: Optional[str] = None) -> NodeInfo:
+        """Register a new node or return existing one."""
+        with self._lock_state:
+            if node_id not in self.nodes:
+                self.nodes[node_id] = NodeInfo(
+                    name=node_id,
+                    func_name=func_name,
+                    docstring=docstring,
+                    config_key=config_key,
+                )
+            return self.nodes[node_id]
+
+    def add_edge(self, source: str, target: str) -> None:
+        """Add a DAG edge. Marks target as non-source."""
+        with self._lock_state:
+            key = (source, target)
+            if key not in self._edge_set:
+                self._edge_set.add(key)
+                self.edges.append(DAGEdge(source=source, target=target))
+                if target in self.nodes:
+                    self.nodes[target].is_source = False
+
+    def increment_count(self, node_id: str) -> None:
+        """Increment the execution count for a node."""
+        with self._lock_state:
+            if node_id in self.nodes:
+                self.nodes[node_id].exec_count += 1
+
+    def get_sources(self) -> list[str]:
+        """Return all nodes with in-degree 0."""
+        return [nid for nid, n in self.nodes.items() if n.is_source]
+
+    def get_graph_dict(self) -> dict:
+        """Return the graph as a serializable dictionary."""
+        return {
+            "nodes": {
+                nid: {
+                    "name": n.name,
+                    "func_name": n.func_name,
+                    "docstring": n.docstring,
+                    "config_key": n.config_key,
+                    "exec_count": n.exec_count,
+                    "is_source": n.is_source,
+                    "params": n.params,
+                    "progress": n.progress,
+                }
+                for nid, n in self.nodes.items()
+            },
+            "edges": [{"source": e.source, "target": e.target} for e in self.edges],
+            "workflow_description": self.workflow_description,
+        }
+
+    def reset(self) -> None:
+        """Reset all state. Primarily for testing."""
+        with self._lock_state:
+            self.nodes.clear()
+            self.edges.clear()
+            self._edge_set.clear()
+            self.config.clear()
+            self.workflow_description = None
+            self.backends.clear()
+            self._initialized_server = False
+
+    @classmethod
+    def reset_singleton(cls) -> None:
+        """Completely reset the singleton. For testing only."""
+        with cls._lock:
+            if cls._instance is not None:
+                cls._instance.reset()
+                cls._instance._initialized = False
+                cls._instance = None
+
+
+# ContextVar for tracking current executing node
+_current_node: ContextVar[Optional[str]] = ContextVar("current_node", default=None)
+
+
+def get_state() -> SessionState:
+    """Get the global session state."""
+    return SessionState()
