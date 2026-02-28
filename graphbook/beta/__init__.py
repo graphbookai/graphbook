@@ -11,7 +11,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Optional, TypeVar
+from typing import Any, Optional, TypeVar
 
 from graphbook.beta.core.decorators import step
 from graphbook.beta.core.tracker import track
@@ -93,16 +93,24 @@ def ask(
         except Exception:
             pass
 
+    # Pause the live display so it doesn't overwrite the prompt
+    display = state._display
+    if display is not None:
+        display.pause()
+
     # Fallback to terminal
     try:
         from rich.prompt import Prompt
         if options:
             return Prompt.ask(question, choices=options)
         return Prompt.ask(question)
-    except (ImportError, EOFError):
+    except EOFError:
         if options:
             return options[0]
         return ""
+    finally:
+        if display is not None:
+            display.resume()
 
 
 __all__ = [

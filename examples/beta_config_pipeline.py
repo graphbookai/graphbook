@@ -9,11 +9,12 @@ Demonstrates:
 - Full graph inspection via get_graph_dict()
 """
 
+import time
+
 import numpy as np
 
 import graphbook.beta as gb
-from graphbook.beta.core.state import get_state, SessionState
-from graphbook.beta.core.dag import get_dag_summary, get_topology_order
+from graphbook.beta.core.state import SessionState
 
 # Reset state so the example is self-contained
 SessionState.reset_singleton()
@@ -54,6 +55,7 @@ def generate_data(num_samples: int = 100, noise_level: float = 0.2, seed: int = 
     signal = np.sin(t) + noise_level * np.random.randn(num_samples)
     gb.log(f"Generated {num_samples} samples with noise_level={noise_level}, seed={seed}")
     gb.inspect(signal, "raw_signal")
+    time.sleep(0.5)
     return signal
 
 
@@ -66,6 +68,7 @@ def generate_metadata(num_samples: int = 100, seed: int = 0) -> dict:
     metadata = {"labels": labels, "timestamps": timestamps}
     gb.log(f"Generated metadata for {num_samples} samples")
     gb.inspect(labels, "labels")
+    time.sleep(0.5)
     return metadata
 
 
@@ -92,6 +95,7 @@ def normalize_data(
     clipped = np.clip(normalized, clip_min, clip_max)
     gb.log(f"Clipped to [{clip_min}, {clip_max}]")
     gb.inspect(clipped, "normalized_data")
+    time.sleep(0.5)
     return clipped
 
 
@@ -102,6 +106,7 @@ def filter_by_label(data: np.ndarray, metadata: dict, label: str = "A") -> np.nd
     filtered = data[mask]
     gb.log(f"Filtered to label='{label}': {mask.sum()}/{len(data)} samples")
     gb.inspect(filtered, f"filtered_{label}")
+    time.sleep(0.5)
     return filtered
 
 
@@ -141,6 +146,7 @@ def compute_statistics(
 - **Above threshold ({threshold})**: {stats['above_threshold']}
 """)
 
+    time.sleep(0.5)
     return stats
 
 
@@ -161,6 +167,7 @@ def generate_report(all_stats: dict, filtered_stats: dict) -> str:
     ]
     report = "\n".join(report_lines)
     gb.log(report)
+    time.sleep(0.5)
     return report
 
 
@@ -192,41 +199,7 @@ def run_analysis() -> str:
 def main():
     """Run the data processing pipeline."""
     report = run_analysis()
-
-    # Print the report
     print(report)
-
-    # Show pipeline structure
-    print("\n" + "=" * 50)
-    print("PIPELINE STRUCTURE")
-    print("=" * 50)
-    print(f"\nDAG: {get_dag_summary()}")
-    print(f"Topological order: {get_topology_order()}")
-
-    state = get_state()
-    print(f"\nNodes ({len(state.nodes)}):")
-    for nid, node in state.nodes.items():
-        source_tag = " [SOURCE]" if node.is_source else ""
-        config_tag = f" (config: {node.config_key})" if node.config_key else ""
-        print(f"  {node.func_name}{source_tag}{config_tag}: "
-              f"{node.exec_count}x, {len(node.logs)} logs")
-        if node.params:
-            print(f"    Injected params: {node.params}")
-
-    print(f"\nEdges ({len(state.edges)}):")
-    for edge in state.edges:
-        src = edge.source.split(".")[-1]
-        tgt = edge.target.split(".")[-1]
-        print(f"  {src} → {tgt}")
-
-    # Show workflow description
-    print(f"\nWorkflow description set: {'Yes' if state.workflow_description else 'No'}")
-
-    # Show graph dict (what MCP would return)
-    graph = state.get_graph_dict()
-    print(f"\nGraph dict: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges")
-    for node in graph["nodes"].values():
-        print(f"Node {node['func_name']}: (execute count: {node['exec_count']}) (config: {node['config_key']})")
 
 if __name__ == "__main__":
     main()

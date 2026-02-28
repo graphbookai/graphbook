@@ -9,14 +9,13 @@ Demonstrates:
 - Exception capture and enrichment
 """
 
-import math
 import random
 
 import numpy as np
 from PIL import Image
 
 import graphbook.beta as gb
-from graphbook.beta.core.state import get_state, SessionState
+from graphbook.beta.core.state import SessionState
 
 # Reset state so the example is self-contained
 SessionState.reset_singleton()
@@ -135,45 +134,15 @@ def run_experiment() -> dict:
     """
     dataset = create_dataset(num_samples=200, num_features=10)
     model = create_model(input_dim=10, hidden_dim=32)
-    history = train(dataset, model, epochs=1000000, batch_size=32)
+    history = train(dataset, model, epochs=100000, batch_size=32)
     return history
 
 
 def main():
     """Run the training pipeline."""
     history = run_experiment()
-
-    # # Print results
-    # print("\n" + "=" * 60)
-    # print("TRAINING RESULTS")
-    # print("=" * 60)
-    # print(f"\nFinal loss: {history['loss'][-1]:.4f}")
-    # print(f"Final accuracy: {history['accuracy'][-1]:.4f}")
-
-    # # Show metric history from state
-    # state = get_state()
-    # train_node = next((n for n in state.nodes.values() if n.func_name == "train"), None)
-    # if train_node and "loss" in train_node.metrics:
-    #     print(f"\nLoss history ({len(train_node.metrics['loss'])} entries):")
-    #     for step, value in train_node.metrics["loss"]:
-    #         print(f"  Step {step}: {value:.4f}")
-
-    # # Show inspections
-    # dataset_node = next((n for n in state.nodes.values() if n.func_name == "create_dataset"), None)
-    # if dataset_node:
-    #     print(f"\nInspections from create_dataset:")
-    #     for name, meta in dataset_node.inspections.items():
-    #         print(f"  {name}: shape={meta.get('shape')}, dtype={meta.get('dtype')}")
-
-    # # Show DAG
-    # from graphbook.beta.core.dag import get_dag_summary
-    # print(f"\nDAG: {get_dag_summary()}")
-    # print(f"Total nodes: {len(state.nodes)}")
-    # print(f"Total edges: {len(state.edges)}")
-
-    # # Show error tracking (no errors expected here)
-    # all_errors = [e for n in state.nodes.values() for e in n.errors]
-    # print(f"Errors captured: {len(all_errors)}")
+    print(f"\nFinal loss: {history['loss'][-1]:.4f}")
+    print(f"Final accuracy: {history['accuracy'][-1]:.4f}")
 
 
 if __name__ == "__main__":

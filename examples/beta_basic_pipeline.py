@@ -13,9 +13,10 @@ Key concept: DAG edges are inferred when one @step function calls another
 Source nodes are those with in-degree 0 (nothing calls them).
 """
 
+import time
+
 import graphbook.beta as gb
-from graphbook.beta.core.state import get_state, SessionState
-from graphbook.beta.core.dag import get_dag_summary, get_sources, get_topology_order
+from graphbook.beta.core.state import SessionState
 
 # Reset state so the example is self-contained
 SessionState.reset_singleton()
@@ -35,6 +36,7 @@ def clean_text(documents: list[dict]) -> list[dict]:
             "cleaned": True,
         }
         cleaned.append(cleaned_doc)
+        time.sleep(0.3)
     gb.log(f"Cleaned {len(cleaned)} documents")
     gb.inspect(cleaned, "cleaned_docs")
     return cleaned
@@ -55,6 +57,7 @@ def extract_keywords(documents: list[dict]) -> list[dict]:
         }
         results.append(result)
         gb.log(f"Found {len(found)} keywords in {doc['path']}")
+        time.sleep(0.3)
     return results
 
 
@@ -85,6 +88,7 @@ def run_pipeline(file_paths: list[str]) -> str:
         }
         documents.append(doc)
         gb.log(f"Loaded document: {path} ({doc['size']} bytes)")
+        time.sleep(0.3)
 
     # Pipeline: each call creates a DAG edge from run_pipeline → callee
     cleaned = clean_text(documents)
@@ -104,34 +108,8 @@ def main():
         "docs/appendix.txt",
     ]
 
-    # Execute — run_pipeline is the source node
     result = run_pipeline(file_paths)
-
-    # Print pipeline results
-    print("\n" + "=" * 60)
-    print("PIPELINE RESULTS")
-    print("=" * 60)
     print(f"\nSummary: {result}")
-
-    # Show inferred DAG
-    print(f"\nDAG topology: {get_dag_summary()}")
-    print(f"Source nodes: {get_sources()}")
-    print(f"Topological order: {get_topology_order()}")
-
-    # Show node details
-    state = get_state()
-    print(f"\nRegistered nodes: {len(state.nodes)}")
-    for node_id, node in state.nodes.items():
-        source_tag = " [SOURCE]" if node.is_source else ""
-        doc_preview = f"'{node.docstring[:60]}...'" if node.docstring and len(node.docstring) > 60 else f"'{node.docstring}'"
-        print(f"  {node.func_name}{source_tag}: {node.exec_count}x, "
-              f"{len(node.logs)} logs, doc={doc_preview}")
-
-    print(f"\nEdges ({len(state.edges)}):")
-    for edge in state.edges:
-        src = edge.source.split(".")[-1]
-        tgt = edge.target.split(".")[-1]
-        print(f"  {src} → {tgt}")
 
 
 if __name__ == "__main__":

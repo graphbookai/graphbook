@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import threading
 import time
 from typing import Optional
@@ -20,6 +21,8 @@ class TerminalDisplay:
         """
         self._refresh_rate = refresh_rate
         self._running = False
+        self._paused = threading.Event()
+        self._paused.set()  # starts unpaused
         self._thread: Optional[threading.Thread] = None
         self._live = None
 
@@ -32,12 +35,28 @@ class TerminalDisplay:
         self._running = True
         self._thread = threading.Thread(target=self._display_loop, daemon=True)
         self._thread.start()
+        atexit.register(self.stop)
 
     def stop(self) -> None:
         """Stop the terminal display."""
+        if not self._running:
+            return
         self._running = False
+        self._paused.set()  # unblock if paused so the thread can exit
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
+
+    def pause(self) -> None:
+        """Pause live rendering so the terminal is free for user input."""
+        if not self._running:
+            return
+        self._paused.clear()
+        # Give the display loop time to stop its Live context
+        time.sleep(0.15)
+
+    def resume(self) -> None:
+        """Resume live rendering after a pause."""
+        self._paused.set()
 
     def _display_loop(self) -> None:
         """Main display loop."""
@@ -47,11 +66,20 @@ class TerminalDisplay:
         console = Console()
         interval = 1.0 / self._refresh_rate
 
-        with Live(self._render(), console=console, refresh_per_second=self._refresh_rate) as live:
-            self._live = live
-            while self._running:
+        while self._running:
+            # Wait until unpaused (or stop is called)
+            self._paused.wait()
+            if not self._running:
+                break
+
+            with Live(self._render(), console=console, refresh_per_second=self._refresh_rate) as live:
+                self._live = live
+                while self._running and self._paused.is_set():
+                    live.update(self._render())
+                    time.sleep(interval)
+                # Final update before exiting the Live context
                 live.update(self._render())
-                time.sleep(interval)
+                self._live = None
 
     def _render(self):
         """Render the current state as a Rich renderable."""
@@ -73,7 +101,7 @@ class TerminalDisplay:
         if state.nodes:
             table = Table(show_header=False, box=None, padding=(0, 1))
             table.add_column("Node", style="bold", width=20)
-            table.add_column("Status", width=8)
+            table.add_column("Status", width=13)
             table.add_column("Progress", width=30)
 
             for node_id, node in state.nodes.items():
