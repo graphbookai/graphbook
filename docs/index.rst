@@ -114,6 +114,7 @@ Graphbook is completely free and open source and can be deployed anywhere. We of
 
    installing
    packages/core/index
+   packages/beta/index
    packages/logging/index
    packages/ray/index
    examples
