@@ -78,11 +78,13 @@ class SessionState:
         self._display: Any = None
         self._initialized_display: bool = False
         self._initialized_server: bool = False
+        self._client: Any = None  # DaemonClient when in server mode
+        self._mode: str = "local"  # "local" or "server"
         self._lock_state = threading.Lock()
 
     def ensure_display(self) -> None:
-        """Ensure the terminal display is created and started."""
-        if self._initialized_display:
+        """Ensure the terminal display is created and started (local mode only)."""
+        if self._initialized_display or self._mode == "server":
             return
         from graphbook.beta.terminal.display import TerminalDisplay
         if self._display is None:
@@ -90,8 +92,17 @@ class SessionState:
         self._display.start()
         self._initialized_display = True
 
+    def _send_to_client(self, event: dict) -> None:
+        """Forward an event to the DaemonClient if connected."""
+        if self._client is not None:
+            try:
+                self._client.send_event(event)
+            except Exception:
+                pass
+
     def register_node(self, node_id: str, func_name: str, docstring: Optional[str] = None, config_key: Optional[str] = None) -> NodeInfo:
         """Register a new node or return existing one."""
+        created = False
         with self._lock_state:
             if node_id not in self.nodes:
                 self.nodes[node_id] = NodeInfo(
@@ -100,10 +111,23 @@ class SessionState:
                     docstring=docstring,
                     config_key=config_key,
                 )
-            return self.nodes[node_id]
+                created = True
+        if created:
+            self._send_to_client({
+                "type": "node_register",
+                "node": node_id,
+                "data": {
+                    "node_id": node_id,
+                    "func_name": func_name,
+                    "docstring": docstring,
+                    "config_key": config_key,
+                },
+            })
+        return self.nodes[node_id]
 
     def add_edge(self, source: str, target: str) -> None:
         """Add a DAG edge. Marks target as non-source."""
+        added = False
         with self._lock_state:
             key = (source, target)
             if key not in self._edge_set:
@@ -111,12 +135,23 @@ class SessionState:
                 self.edges.append(DAGEdge(source=source, target=target))
                 if target in self.nodes:
                     self.nodes[target].is_source = False
+                added = True
+        if added:
+            self._send_to_client({
+                "type": "edge",
+                "data": {"source": source, "target": target},
+            })
 
     def increment_count(self, node_id: str) -> None:
         """Increment the execution count for a node."""
         with self._lock_state:
             if node_id in self.nodes:
                 self.nodes[node_id].exec_count += 1
+        self._send_to_client({
+            "type": "node_executed",
+            "node": node_id,
+            "data": {"node_id": node_id},
+        })
 
     def get_sources(self) -> list[str]:
         """Return all nodes with in-degree 0."""
@@ -152,6 +187,8 @@ class SessionState:
             self.workflow_description = None
             self.backends.clear()
             self._initialized_server = False
+            self._client = None
+            self._mode = "local"
 
     @classmethod
     def reset_singleton(cls) -> None:

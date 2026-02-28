@@ -40,7 +40,9 @@ Documentation = "https://docs.graphbook.ai"
 Repository = "https://github.com/graphbookai/graphbook"
 
 [project.scripts]
-graphbook = "graphbook.core.cli:main"
+graphbook-beta = "graphbook.beta.cli:main"
+graphbook = "graphbook.cli:main"
+
 
 [project.optional-dependencies]
 ray = ["ray>=2.41.0"]

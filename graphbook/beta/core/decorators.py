@@ -48,6 +48,12 @@ def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            # Auto-init on first step execution if env vars are set
+            try:
+                from graphbook.beta import _ensure_init
+                _ensure_init()
+            except ImportError:
+                pass
             state = get_state()
             state.ensure_display()
             parent = _current_node.get()

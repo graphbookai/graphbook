@@ -34,6 +34,8 @@ def log(message: str) -> None:
         except Exception:
             pass
 
+    state._send_to_client(entry)
+
     if state._queue is not None:
         try:
             state._queue.put_event(entry)
@@ -81,6 +83,8 @@ def log_metric(name: str, value: float, step: Optional[int] = None) -> None:
             backend.on_metric(node_id or "", name, value, step or 0)
         except Exception:
             pass
+
+    state._send_to_client(entry)
 
     if state._queue is not None:
         try:
@@ -188,6 +192,8 @@ def log_text(name: str, text: str) -> None:
     if node_id and node_id in state.nodes:
         state.nodes[node_id].logs.append(entry)
 
+    state._send_to_client(entry)
+
     if state._queue is not None:
         try:
             state._queue.put_event(entry)
@@ -259,6 +265,8 @@ def inspect(obj: Any, name: Optional[str] = None) -> dict:
     if node_id and node_id in state.nodes:
         state.nodes[node_id].inspections[name or "unnamed"] = metadata
 
+    state._send_to_client(entry)
+
     if state._queue is not None:
         try:
             state._queue.put_event(entry)
@@ -281,3 +289,7 @@ def md(description: str) -> None:
         state.workflow_description = description
     else:
         state.workflow_description += "\n\n" + description
+    state._send_to_client({
+        "type": "description",
+        "data": {"description": description},
+    })
