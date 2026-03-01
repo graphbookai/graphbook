@@ -32,6 +32,7 @@ dependencies = [
     "rich>=13.0.0",
     "uvicorn>=0.23.0",
     "websockets>=11.0",
+    "hydr8>=0.2.0",
 ]
 
 [project.urls]
@@ -41,7 +42,7 @@ Repository = "https://github.com/graphbookai/graphbook"
 
 [project.scripts]
 graphbook-beta = "graphbook.beta.cli:main"
-graphbook = "graphbook.cli:main"
+graphbook = "graphbook.core.cli:main"
 
 
 [project.optional-dependencies]

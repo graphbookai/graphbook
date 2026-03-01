@@ -7,6 +7,8 @@ import time
 import traceback
 from typing import Any, Callable, Optional, TypeVar, overload
 
+import hydr8
+
 from graphbook.beta.core.state import _current_node, get_state
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -46,6 +48,9 @@ def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
             config_key=config_key,
         )
 
+        # Delegate config injection to hydr8
+        injected_fn = hydr8.use(config_key)(fn) if config_key else fn
+
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Auto-init on first step execution if env vars are set
@@ -63,22 +68,18 @@ def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
                 if parent is not None:
                     state.add_edge(parent, node_id)
 
-                # Inject config if config_key is set
-                if config_key and config_key in state.config:
-                    cfg = state.config[config_key]
-                    if isinstance(cfg, dict):
-                        import inspect
-                        sig = inspect.signature(fn)
-                        for param_name, param in sig.parameters.items():
-                            if param_name in cfg and param_name not in kwargs:
-                                kwargs[param_name] = cfg[param_name]
-                        # Store params for visibility
+                # Store resolved config params for UI visibility
+                if config_key:
+                    try:
+                        cfg = dict(hydr8.use(config_key))
                         node_info = state.nodes.get(node_id)
                         if node_info:
                             node_info.params = {
                                 k: v for k, v in cfg.items()
                                 if isinstance(v, (str, int, float, bool, list, dict))
                             }
+                    except Exception:
+                        pass
 
                 # Notify backends
                 node_info = state.nodes.get(node_id)
@@ -91,7 +92,7 @@ def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
 
                 state.increment_count(node_id)
                 start_time = time.monotonic()
-                result = fn(*args, **kwargs)
+                result = injected_fn(*args, **kwargs)
                 duration = time.monotonic() - start_time
 
                 # Notify backends of completion

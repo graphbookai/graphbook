@@ -14,6 +14,8 @@ from __future__ import annotations
 import os
 from typing import Any, Literal, Optional, TypeVar
 
+from hydr8 import override
+
 from graphbook.beta.core.decorators import step
 from graphbook.beta.core.tracker import track
 from graphbook.beta.core.config import configure
@@ -199,6 +201,7 @@ __all__ = [
     "step",
     "track",
     "configure",
+    "override",
     "init",
     "log",
     "log_metric",

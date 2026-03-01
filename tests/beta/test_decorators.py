@@ -185,7 +185,7 @@ class TestDAGInference:
 
 
 class TestConfigInjection:
-    """Tests for hydr8-style config injection."""
+    """Tests for hydr8 config injection via @step."""
 
     def setup_method(self) -> None:
         SessionState.reset_singleton()
@@ -220,3 +220,39 @@ class TestConfigInjection:
 
         result = predict("input", model_name="vgg16")
         assert result == "vgg16"
+
+    def test_dot_path_injection(self) -> None:
+        """Dot-separated config paths should resolve nested keys."""
+        from graphbook.beta.core.config import configure
+
+        configure({
+            "db": {"postgres": {"host": "localhost", "port": 5432}},
+        })
+
+        @step("db.postgres")
+        def connect(host: str = "", port: int = 0):
+            return host, port
+
+        host, port = connect()
+        assert host == "localhost"
+        assert port == 5432
+
+    def test_override_context_manager(self) -> None:
+        """hydr8.override should temporarily replace config for testing."""
+        from graphbook.beta import override
+        from graphbook.beta.core.config import configure
+
+        configure({
+            "model": {"lr": 0.001},
+        })
+
+        @step("model")
+        def train(lr: float = 0.01):
+            return lr
+
+        assert train() == 0.001
+
+        with override({"model": {"lr": 0.1}}):
+            assert train() == 0.1
+
+        assert train() == 0.001
