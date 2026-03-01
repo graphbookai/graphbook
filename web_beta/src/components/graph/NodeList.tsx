@@ -1,0 +1,156 @@
+import { useStore } from '@/store'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
+import { NodeTabContainer } from '@/components/node-tabs/NodeTabContainer'
+
+interface NodeListProps {
+  runId: string
+}
+
+export function NodeList({ runId }: NodeListProps) {
+  const run = useStore(s => s.runs.get(runId))
+  const expandedNodeId = useStore(s => s.expandedNodeId)
+  const expandNode = useStore(s => s.expandNode)
+
+  const graph = run?.graph
+  if (!graph) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        <p className="text-sm">Loading nodes...</p>
+      </div>
+    )
+  }
+
+  const allNodeIds = Object.keys(graph.nodes)
+
+  // Separate DAG nodes from non-DAG nodes
+  const targetSet = new Set(graph.edges.map(e => e.target))
+  const sourceSet = new Set(graph.edges.map(e => e.source))
+  const dagNodeIds = allNodeIds.filter(id => sourceSet.has(id) || targetSet.has(id) || graph.nodes[id].is_source)
+  const nonDagNodeIds = allNodeIds.filter(id => !dagNodeIds.includes(id))
+
+  // Simple topological sort for DAG nodes
+  const sorted = topologicalSort(dagNodeIds, graph.edges)
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="p-3 space-y-2">
+        {sorted.map(nodeId => {
+          const node = graph.nodes[nodeId]
+          const isExpanded = expandedNodeId === nodeId
+          const hasErrors = (run?.errors ?? []).some(e => e.node_name === nodeId)
+
+          return (
+            <div key={nodeId} className={cn(
+              'border rounded-lg transition-colors',
+              hasErrors ? 'border-red-500' : 'border-border',
+            )}>
+              <button
+                className="w-full text-left px-4 py-3 hover:bg-accent/30 transition-colors"
+                onClick={() => expandNode(isExpanded ? null : nodeId)}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{node.func_name}</span>
+                  {node.exec_count > 0 && (
+                    <span className="text-xs text-muted-foreground">x{node.exec_count.toLocaleString()}</span>
+                  )}
+                </div>
+                {node.docstring && (
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{node.docstring.split('\n')[0]}</p>
+                )}
+                {node.progress && (
+                  <div className="mt-1.5 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all"
+                      style={{ width: `${(node.progress.current / node.progress.total) * 100}%` }}
+                    />
+                  </div>
+                )}
+              </button>
+              {isExpanded && (
+                <div className="border-t border-border">
+                  <NodeTabContainer runId={runId} nodeId={nodeId} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Non-DAG nodes */}
+        {nonDagNodeIds.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 pt-2">
+              <div className="h-px flex-1 bg-border border-dashed" />
+              <span className="text-xs text-muted-foreground">Not in DAG</span>
+              <div className="h-px flex-1 bg-border border-dashed" />
+            </div>
+            {nonDagNodeIds.map(nodeId => {
+              const node = graph.nodes[nodeId]
+              const isExpanded = expandedNodeId === nodeId
+
+              return (
+                <div key={nodeId} className="border border-dashed border-muted-foreground/40 rounded-lg opacity-80">
+                  <button
+                    className="w-full text-left px-4 py-3 hover:bg-accent/30 transition-colors"
+                    onClick={() => expandNode(isExpanded ? null : nodeId)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{node.func_name}</span>
+                      {node.exec_count > 0 && (
+                        <span className="text-xs text-muted-foreground">x{node.exec_count.toLocaleString()}</span>
+                      )}
+                    </div>
+                    {node.docstring && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{node.docstring.split('\n')[0]}</p>
+                    )}
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-border">
+                      <NodeTabContainer runId={runId} nodeId={nodeId} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </>
+        )}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function topologicalSort(nodeIds: string[], edges: { source: string; target: string }[]): string[] {
+  const adj = new Map<string, string[]>()
+  const inDegree = new Map<string, number>()
+  const nodeSet = new Set(nodeIds)
+
+  for (const id of nodeIds) {
+    adj.set(id, [])
+    inDegree.set(id, 0)
+  }
+  for (const e of edges) {
+    if (nodeSet.has(e.source) && nodeSet.has(e.target)) {
+      adj.get(e.source)?.push(e.target)
+      inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1)
+    }
+  }
+
+  const result: string[] = []
+  const queue = nodeIds.filter(id => (inDegree.get(id) ?? 0) === 0)
+
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    result.push(id)
+    for (const next of adj.get(id) ?? []) {
+      inDegree.set(next, (inDegree.get(next) ?? 0) - 1)
+      if ((inDegree.get(next) ?? 0) === 0) queue.push(next)
+    }
+  }
+
+  // Add any remaining (cycle participants)
+  for (const id of nodeIds) {
+    if (!result.includes(id)) result.push(id)
+  }
+
+  return result
+}

@@ -1,0 +1,107 @@
+import { memo } from 'react'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { useStore } from '@/store'
+import { cn } from '@/lib/utils'
+import { NodeTabContainer } from '@/components/node-tabs/NodeTabContainer'
+
+interface GraphbookNodeData {
+  nodeId: string
+  runId: string
+  inDag: boolean
+}
+
+export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps) {
+  const { nodeId, runId, inDag } = data as unknown as GraphbookNodeData
+  const run = useStore(s => s.runs.get(runId))
+  const expandedNodeId = useStore(s => s.expandedNodeId)
+  const isExpanded = expandedNodeId === id
+
+  const nodeInfo = run?.graph?.nodes[nodeId]
+  if (!nodeInfo) return null
+
+  const hasErrors = (run?.errors ?? []).some(e => e.node_name === nodeId)
+  const isRunning = run?.summary.status === 'running' && nodeInfo.exec_count > 0
+  const progress = nodeInfo.progress
+  const hasPendingAsk = run?.pendingAsks?.has(nodeId) ?? false
+
+  const borderColor = hasErrors
+    ? 'border-red-500'
+    : hasPendingAsk
+    ? 'border-amber-500'
+    : isRunning
+    ? 'border-blue-500'
+    : !inDag
+    ? 'border-dashed border-muted-foreground/40'
+    : 'border-border'
+
+  return (
+    <div className={cn(
+      'bg-card rounded-lg border-2 shadow-sm min-w-[240px] max-w-[320px] transition-all',
+      borderColor,
+      hasErrors && 'animate-shake',
+      isRunning && !hasErrors && 'shadow-blue-500/20',
+      hasPendingAsk && 'shadow-amber-500/30',
+    )}>
+      <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+
+      {/* Node header */}
+      <div className="px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium truncate">{nodeInfo.func_name}</span>
+          {nodeInfo.exec_count > 0 && (
+            <span className="text-xs text-muted-foreground shrink-0">
+              x{nodeInfo.exec_count.toLocaleString()}
+            </span>
+          )}
+        </div>
+        {nodeInfo.docstring && (
+          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{nodeInfo.docstring.split('\n')[0]}</p>
+        )}
+
+        {/* Config params */}
+        {Object.keys(nodeInfo.params).length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {Object.entries(nodeInfo.params).slice(0, 3).map(([k, v]) => (
+              <span key={k} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                {k}: {String(v)}
+              </span>
+            ))}
+            {Object.keys(nodeInfo.params).length > 3 && (
+              <span className="text-[10px] text-muted-foreground">+{Object.keys(nodeInfo.params).length - 3}</span>
+            )}
+          </div>
+        )}
+
+        {/* Progress bar */}
+        {progress && (
+          <div className="mt-2">
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-0.5">
+              <span>{progress.name ?? 'Progress'}</span>
+              <span>{Math.round((progress.current / progress.total) * 100)}%</span>
+            </div>
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Non-DAG indicator */}
+        {!inDag && (
+          <span className="text-[10px] text-muted-foreground mt-1 block">Not in DAG</span>
+        )}
+      </div>
+
+      {/* Expanded tab content */}
+      {isExpanded && (
+        <div className="border-t border-border">
+          <NodeTabContainer runId={runId} nodeId={nodeId} />
+        </div>
+      )}
+
+      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground !w-2 !h-2" />
+    </div>
+  )
+})

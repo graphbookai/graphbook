@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
 
+from fastapi import WebSocket, WebSocketDisconnect
 from graphbook.beta.server.protocol import MessageType, decode_batch
 
 
@@ -185,12 +186,9 @@ class DaemonState:
         async with self._lock:
             rid = run_id or self.active_run_id
             if not rid or rid not in self.runs:
-                # Create implicit run if none exists
-                if not rid:
-                    run = self.create_run("__direct__")
-                    rid = run.id
-                else:
-                    return
+                # Create run if it doesn't exist yet
+                run = self.create_run("__direct__", run_id=rid)
+                rid = run.id
 
             run = self.runs[rid]
             if run.status == "starting":
@@ -336,7 +334,7 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
     Returns:
         FastAPI application instance.
     """
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    from fastapi import FastAPI
     from fastapi.responses import JSONResponse
 
     from graphbook.beta.server.runner import PipelineRunner
@@ -365,6 +363,29 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
     app = FastAPI(title="Graphbook Daemon Server")
     app.state.daemon = state
     app.state.runner = runner
+
+    # CORS for development (Vite dev server)
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.types import ASGIApp, Receive, Scope, Send
+
+    class CORSWithWebSocket:
+        """Wraps CORSMiddleware but lets WebSocket connections pass through."""
+        def __init__(self, app: ASGIApp) -> None:
+            self.app = app
+            self.cors = CORSMiddleware(
+                app,
+                allow_origins=["*"],
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+
+        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+            if scope["type"] == "websocket":
+                await self.app(scope, receive, send)
+            else:
+                await self.cors(scope, receive, send)
+
+    app.add_middleware(CORSWithWebSocket)
 
     @app.get("/health")
     async def health():
@@ -554,5 +575,11 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
         except Exception:
             if ws in state._ws_clients:
                 state._ws_clients.remove(ws)
+
+    # Serve the web UI static files (must be last — catches all unmatched routes)
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.is_dir():
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="ui")
 
     return app

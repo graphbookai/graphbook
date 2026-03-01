@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Literal, Optional, TypeVar
 
 from hydr8 import override
@@ -51,32 +52,28 @@ def _ensure_init() -> None:
     if state._mode != "local" or state._client is not None:
         return
 
-    env_mode = os.environ.get("GRAPHBOOK_MODE")
-    env_port = os.environ.get("GRAPHBOOK_SERVER_PORT")
-    if env_mode or env_port:
-        # Auto-init with env-detected settings
-        init(mode="auto")
+    # Always try to connect to the daemon (auto mode).
+    # Env vars from `graphbook-beta run` take priority if present.
+    init(mode="auto")
 
-        # Replay pre-init state (nodes registered at import, md() calls, etc.)
-        if state._client is not None:
-            # Replay workflow description
-            if state.workflow_description:
-                state._send_to_client({
-                    "type": "description",
-                    "data": {"description": state.workflow_description},
-                })
-            # Replay node registrations
-            for nid, node in state.nodes.items():
-                state._send_to_client({
-                    "type": "node_register",
-                    "node": nid,
-                    "data": {
-                        "node_id": nid,
-                        "func_name": node.func_name,
-                        "docstring": node.docstring,
-                        "config_key": node.config_key,
-                    },
-                })
+    # Replay pre-init state (nodes registered at import, md() calls, etc.)
+    if state._client is not None:
+        if state.workflow_description:
+            state._send_to_client({
+                "type": "description",
+                "data": {"description": state.workflow_description},
+            })
+        for nid, node in state.nodes.items():
+            state._send_to_client({
+                "type": "node_register",
+                "node": nid,
+                "data": {
+                    "node_id": nid,
+                    "func_name": node.func_name,
+                    "docstring": node.docstring,
+                    "config_key": node.config_key,
+                },
+            })
 
 
 def init(
@@ -120,11 +117,19 @@ def init(
 
     resolved_mode = mode
 
+    # Generate a run_id if not provided by env (e.g. direct script execution)
+    run_id = env_run_id
+    if not run_id and resolved_mode != "local":
+        import sys
+        script = os.path.basename(sys.argv[0]) if sys.argv else "script"
+        script = os.path.splitext(script)[0]
+        run_id = f"{script}_{int(time.time())}"
+
     if resolved_mode == "auto":
         # Try to connect to daemon
         try:
             from graphbook.beta.core.client import DaemonClient
-            client = DaemonClient(host=host, port=port, run_id=env_run_id)
+            client = DaemonClient(host=host, port=port, run_id=run_id)
             if client.connect():
                 resolved_mode = "server"
                 state._client = client
@@ -134,7 +139,7 @@ def init(
             resolved_mode = "local"
     elif resolved_mode == "server":
         from graphbook.beta.core.client import DaemonClient
-        client = DaemonClient(host=host, port=port, run_id=env_run_id)
+        client = DaemonClient(host=host, port=port, run_id=run_id)
         if not client.connect():
             print(f"Warning: Could not connect to graphbook daemon at {host}:{port}. Falling back to local mode.")
             resolved_mode = "local"
