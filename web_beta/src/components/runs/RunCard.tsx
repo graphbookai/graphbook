@@ -29,20 +29,20 @@ export function RunCard({ run, selected, onClick }: RunCardProps) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <RunStatusBadge status={run.status} className="shrink-0" />
-            <span className="text-sm font-medium truncate block" title={scriptName}>{scriptName}</span>
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{duration}</span>
-            <span>·</span>
-            <span>{run.node_count} node{run.node_count !== 1 ? 's' : ''}</span>
-            {errorInfo && (
-              <>
+          <div className="text-sm font-medium truncate">{scriptName}</div>
+          <div className="mt-2 flex items-center justify-between">
+            <div className="flex gap-2 text-xs text-muted-foreground">
+                <span>{duration}</span>
                 <span>·</span>
-                <span className="text-red-500">{errorInfo}</span>
-              </>
-            )}
+                <span>{run.node_count} node{run.node_count !== 1 ? 's' : ''}</span>
+                {errorInfo && (
+                    <>
+                        <span>·</span>
+                        <span className="text-red-500">{errorInfo}</span>
+                    </>
+                )}
+            </div>
+            <RunStatusBadge status={run.status} />
           </div>
         </div>
       </div>

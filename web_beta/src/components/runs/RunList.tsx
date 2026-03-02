@@ -28,7 +28,7 @@ export function RunList() {
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className="h-full [&>div>div]:!block">
       <div className="p-2 space-y-1">
         {sortedRuns.map(run => (
           <RunCard
