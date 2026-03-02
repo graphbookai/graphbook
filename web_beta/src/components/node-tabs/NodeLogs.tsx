@@ -20,10 +20,17 @@ export function NodeLogs({ runId, nodeId }: NodeLogsProps) {
 
   // Filter logs for this node
   const allLogs = run?.logs ?? []
-  let nodeLogs = allLogs.filter(l => l.node === nodeId)
+  const allNodeLogs = allLogs.filter(l => l.node === nodeId)
 
   // Also include error entries as log-like entries
   const nodeErrors = (run?.errors ?? []).filter(e => e.node_name === nodeId)
+
+  // Early return only when there are truly no logs at all (unfiltered)
+  if (allNodeLogs.length === 0 && nodeErrors.length === 0) {
+    return <p className="text-xs text-muted-foreground">No logs for this node</p>
+  }
+
+  let nodeLogs = allNodeLogs
 
   if (levelFilter !== 'All') {
     const lvl = levelFilter.toLowerCase()
@@ -46,10 +53,6 @@ export function NodeLogs({ runId, nodeId }: NodeLogsProps) {
     if (!scrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     setAutoScroll(scrollHeight - scrollTop - clientHeight < 30)
-  }
-
-  if (nodeLogs.length === 0 && nodeErrors.length === 0) {
-    return <p className="text-xs text-muted-foreground">No logs for this node</p>
   }
 
   return (

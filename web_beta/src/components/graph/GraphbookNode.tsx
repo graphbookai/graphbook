@@ -4,6 +4,7 @@ import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { NodeTabContainer } from '@/components/node-tabs/NodeTabContainer'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 interface GraphbookNodeData {
   nodeId: string
@@ -109,7 +110,9 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
       {/* Expanded tab content */}
       {isExpanded && (
         <div className="border-t border-border">
-          <NodeTabContainer runId={runId} nodeId={nodeId} />
+          <ErrorBoundary label={`Node ${nodeId}`}>
+            <NodeTabContainer runId={runId} nodeId={nodeId} />
+          </ErrorBoundary>
         </div>
       )}
 

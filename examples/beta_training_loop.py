@@ -134,7 +134,7 @@ def run_experiment() -> dict:
     """
     dataset = create_dataset(num_samples=200, num_features=10)
     model = create_model(input_dim=10, hidden_dim=32)
-    history = train(dataset, model, epochs=100000, batch_size=32)
+    history = train(dataset, model, epochs=10000, batch_size=32)
     return history
 
 

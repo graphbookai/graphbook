@@ -7,6 +7,7 @@ export function useRunData(runId: string | null) {
   const setRunGraph = useStore(s => s.setRunGraph)
   const setRunLogs = useStore(s => s.setRunLogs)
   const setRunErrors = useStore(s => s.setRunErrors)
+  const setRunMetrics = useStore(s => s.setRunMetrics)
 
   const run = runId ? runs.get(runId) : undefined
 
@@ -17,8 +18,9 @@ export function useRunData(runId: string | null) {
       api.getRunGraph(runId).then(g => setRunGraph(runId, g)),
       api.getRunLogs(runId, { limit: 500 }).then(d => setRunLogs(runId, d.logs)),
       api.getRunErrors(runId).then(d => setRunErrors(runId, d.errors)),
+      api.getRunMetrics(runId).then(d => setRunMetrics(runId, d.metrics)),
     ]).catch(() => { /* Run may not exist yet */ })
-  }, [runId, run?.loaded, setRunGraph, setRunLogs, setRunErrors])
+  }, [runId, run?.loaded, setRunGraph, setRunLogs, setRunErrors, setRunMetrics])
 
   return run ?? null
 }

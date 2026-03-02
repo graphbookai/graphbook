@@ -24,7 +24,7 @@ export interface AskPrompt {
   receivedAt: Date
 }
 
-export type NodeTab = 'info' | 'logs' | 'metrics' | 'ask'
+export type NodeTab = 'info' | 'logs' | 'metrics' | 'images' | 'audio' | 'ask'
 
 export interface PinnedPanel {
   id: string
@@ -34,12 +34,30 @@ export interface PinnedPanel {
   title: string
 }
 
+export interface ImageEntry {
+  node: string
+  name: string
+  data: string // base64-encoded PNG
+  step: number | null
+  timestamp: number
+}
+
+export interface AudioEntry {
+  node: string
+  name: string
+  data: string // base64-encoded WAV
+  sr: number
+  timestamp: number
+}
+
 export interface RunState {
   summary: RunSummary
   graph: GraphData | null
   logs: LogEntry[]
   errors: ErrorEntry[]
   nodeMetrics: Record<string, Record<string, { step: number; value: number }[]>>
+  nodeImages: Record<string, ImageEntry[]>
+  nodeAudio: Record<string, AudioEntry[]>
   inspections: Record<string, Record<string, unknown>>
   pendingAsks: Map<string, AskPrompt>
   loaded: boolean
@@ -80,6 +98,7 @@ interface GraphbookStore {
   appendRunLog: (runId: string, log: LogEntry) => void
   setRunErrors: (runId: string, errors: ErrorEntry[]) => void
   appendRunError: (runId: string, error: ErrorEntry) => void
+  setRunMetrics: (runId: string, metrics: Record<string, Record<string, { step: number; value: number }[]>>) => void
   appendMetric: (runId: string, nodeId: string, name: string, step: number, value: number) => void
   updateNodeProgress: (runId: string, nodeId: string, progress: { current: number; total: number; name?: string } | null) => void
   updateNodeRegistration: (runId: string, data: Record<string, unknown>) => void
@@ -91,6 +110,7 @@ interface GraphbookStore {
   selectRun: (runId: string | null) => void
   toggleGraphNode: (nodeId: string) => void
   collapseAllGraphNodes: () => void
+  expandAllGraphNodes: () => void
   pinTab: (runId: string, nodeId: string, tab: NodeTab) => void
   unpinPanel: (panelId: string) => void
 
@@ -126,6 +146,8 @@ function ensureRun(state: GraphbookStore, runId: string): RunState {
       logs: [],
       errors: [],
       nodeMetrics: {},
+      nodeImages: {},
+      nodeAudio: {},
       inspections: {},
       pendingAsks: new Map(),
       loaded: false,
@@ -168,6 +190,8 @@ export const useStore = create<GraphbookStore>((set, get) => ({
           logs: [],
           errors: [],
           nodeMetrics: {},
+          nodeImages: {},
+          nodeAudio: {},
           inspections: {},
           pendingAsks: new Map(),
           loaded: false,
@@ -226,6 +250,13 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     const runs = new Map(state.runs)
     const run = runs.get(runId)
     if (run) run.errors = [...run.errors, error]
+    return { runs }
+  }),
+
+  setRunMetrics: (runId, metrics) => set(state => {
+    const runs = new Map(state.runs)
+    const run = runs.get(runId)
+    if (run) run.nodeMetrics = metrics
     return { runs }
   }),
 
@@ -350,11 +381,11 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     return { collapsedGraphNodes: next }
   }),
   collapseAllGraphNodes: () => set(state => {
-    // Add all current graph node IDs to collapsed set
     const selectedRun = state.selectedRunId ? state.runs.get(state.selectedRunId) : null
     const allIds = selectedRun?.graph ? Object.keys(selectedRun.graph.nodes) : []
     return { collapsedGraphNodes: new Set(allIds) }
   }),
+  expandAllGraphNodes: () => set({ collapsedGraphNodes: new Set<string>() }),
   pinTab: (runId, nodeId, tab) => set(state => {
     const run = state.runs.get(runId)
     const nodeName = run?.graph?.nodes[nodeId]?.func_name || nodeId
@@ -477,6 +508,50 @@ export const useStore = create<GraphbookStore>((set, get) => ({
 
         case 'edge':
           state.addEdge(runId, (data.source as string) ?? '', (data.target as string) ?? '')
+          break
+
+        case 'image':
+          if (nodeId) {
+            set(st => {
+              const runs = new Map(st.runs)
+              const r = runs.get(runId)
+              if (r) {
+                const imgs = { ...r.nodeImages }
+                if (!imgs[nodeId]) imgs[nodeId] = []
+                imgs[nodeId] = [...imgs[nodeId], {
+                  node: nodeId,
+                  name: (data.name as string) ?? '',
+                  data: (event.data as unknown as string) ?? '',
+                  step: (data.step as number) ?? null,
+                  timestamp: (event.timestamp as number) ?? Date.now() / 1000,
+                }]
+                r.nodeImages = imgs
+              }
+              return { runs }
+            })
+          }
+          break
+
+        case 'audio':
+          if (nodeId) {
+            set(st => {
+              const runs = new Map(st.runs)
+              const r = runs.get(runId)
+              if (r) {
+                const aud = { ...r.nodeAudio }
+                if (!aud[nodeId]) aud[nodeId] = []
+                aud[nodeId] = [...aud[nodeId], {
+                  node: nodeId,
+                  name: (data.name as string) ?? '',
+                  data: (event.data as unknown as string) ?? '',
+                  sr: (data.sr as number) ?? 16000,
+                  timestamp: (event.timestamp as number) ?? Date.now() / 1000,
+                }]
+                r.nodeAudio = aud
+              }
+              return { runs }
+            })
+          }
           break
 
         case 'inspection':

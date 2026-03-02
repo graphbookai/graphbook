@@ -13,6 +13,12 @@ export function RunCard({ run, selected, onClick }: RunCardProps) {
   const scriptName = run.script_path.split('/').pop() ?? run.script_path
   const duration = useRunDuration(run)
 
+  const startedAt = run.started_at
+    ? new Date(run.started_at).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      })
+    : null
+
   const errorInfo = run.status === 'crashed' && run.error_count > 0
     ? `${run.error_count} error${run.error_count > 1 ? 's' : ''}`
     : null
@@ -30,6 +36,7 @@ export function RunCard({ run, selected, onClick }: RunCardProps) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium truncate">{scriptName}</div>
+          {startedAt && <div className="text-xs text-muted-foreground mt-0.5">{startedAt}</div>}
           <div className="mt-2 flex items-center justify-between">
             <div className="flex gap-2 text-xs text-muted-foreground">
                 <span>{duration}</span>

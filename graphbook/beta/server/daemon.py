@@ -507,6 +507,17 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
             ]
         }
 
+    @app.get("/runs/{run_id}/metrics")
+    async def get_run_metrics(run_id: str):
+        if run_id not in state.runs:
+            return JSONResponse(status_code=404, content={"error": f"Run '{run_id}' not found"})
+        run = state.runs[run_id]
+        metrics: dict[str, dict[str, list]] = {}
+        for node_id, node in run.nodes.items():
+            if node.metrics:
+                metrics[node_id] = node.metrics
+        return {"metrics": metrics}
+
     @app.get("/runs/{run_id}/nodes/{name}")
     async def get_run_node(run_id: str, name: str):
         if run_id not in state.runs:

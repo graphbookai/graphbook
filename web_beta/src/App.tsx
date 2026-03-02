@@ -1,6 +1,7 @@
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { useStore } from '@/store'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
 import { RunDetailView } from '@/components/layout/RunDetailView'
@@ -31,10 +32,14 @@ export default function App() {
         /* Desktop: sidebar + detail */
         <div className="flex flex-1 overflow-hidden">
           <div className="w-64 shrink-0 overflow-hidden">
-            <Sidebar />
+            <ErrorBoundary label="Sidebar">
+              <Sidebar />
+            </ErrorBoundary>
           </div>
           <div className="flex-1 overflow-hidden">
-            <RunDetailView />
+            <ErrorBoundary label="RunDetailView">
+              <RunDetailView />
+            </ErrorBoundary>
           </div>
         </div>
       ) : (
@@ -42,11 +47,13 @@ export default function App() {
         <>
           <MobileNav />
           <div className="flex-1 overflow-hidden">
-            {selectedRunId ? (
-              <RunDetailView />
-            ) : (
-              <RunList />
-            )}
+            <ErrorBoundary label="MainContent">
+              {selectedRunId ? (
+                <RunDetailView />
+              ) : (
+                <RunList />
+              )}
+            </ErrorBoundary>
           </div>
         </>
       )}

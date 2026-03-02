@@ -93,6 +93,7 @@ export const api = {
     return get<{ logs: LogEntry[] }>(`/runs/${id}/logs${qs ? `?${qs}` : ''}`)
   },
   getRunErrors: (id: string) => get<{ errors: ErrorEntry[] }>(`/runs/${id}/errors`),
+  getRunMetrics: (id: string) => get<{ metrics: Record<string, Record<string, { step: number; value: number }[]>> }>(`/runs/${id}/metrics`),
   getRunNode: (id: string, name: string) => get<NodeDetail>(`/runs/${id}/nodes/${encodeURIComponent(name)}`),
 
   stopRun: (id: string) => post<{ run_id: string; status: string }>(`/runs/${id}/stop`, {}),

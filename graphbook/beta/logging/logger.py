@@ -103,6 +103,8 @@ def log_image(name: str, image: Any, step: Optional[int] = None) -> None:
     """
     from graphbook.beta.logging.serializers import serialize_image
 
+    import base64
+
     state = get_state()
     node_id = _current_node.get()
     timestamp = time.time()
@@ -112,7 +114,7 @@ def log_image(name: str, image: Any, step: Optional[int] = None) -> None:
         "type": "image",
         "node": node_id,
         "name": name,
-        "data": image_bytes,
+        "data": base64.b64encode(image_bytes).decode("ascii"),
         "step": step,
         "timestamp": timestamp,
     }
@@ -143,6 +145,8 @@ def log_audio(name: str, audio: Any, sr: int = 16000) -> None:
     """
     from graphbook.beta.logging.serializers import serialize_audio
 
+    import base64
+
     state = get_state()
     node_id = _current_node.get()
     timestamp = time.time()
@@ -152,7 +156,7 @@ def log_audio(name: str, audio: Any, sr: int = 16000) -> None:
         "type": "audio",
         "node": node_id,
         "name": name,
-        "data": audio_bytes,
+        "data": base64.b64encode(audio_bytes).decode("ascii"),
         "sr": sr,
         "timestamp": timestamp,
     }
