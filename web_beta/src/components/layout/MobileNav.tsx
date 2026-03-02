@@ -1,9 +1,9 @@
 import { useStore } from '@/store'
+import { useRunDuration } from '@/hooks/useRunDuration'
 import { ThemeToggle } from './ThemeToggle'
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RunStatusBadge } from '@/components/runs/RunStatusBadge'
-import { timeSince } from '@/lib/utils'
 
 export function MobileNav() {
   const selectedRunId = useStore(s => s.selectedRunId)
@@ -12,11 +12,10 @@ export function MobileNav() {
   const connected = useStore(s => s.connected)
 
   const run = selectedRunId ? runs.get(selectedRunId) : null
+  const duration = useRunDuration(run?.summary)
 
   if (run) {
     const scriptName = run.summary.script_path.split('/').pop() ?? run.summary.script_path
-    const startedAt = run.summary.started_at ? new Date(run.summary.started_at) : null
-    const duration = startedAt ? timeSince(startedAt) : '—'
 
     return (
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-background">

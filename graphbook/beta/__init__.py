@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import time
+import uuid
 from typing import Any, Literal, Optional, TypeVar
 
 from hydr8 import override
@@ -119,11 +120,11 @@ def init(
 
     # Generate a run_id if not provided by env (e.g. direct script execution)
     run_id = env_run_id
+    script_name: Optional[str] = None
     if not run_id and resolved_mode != "local":
         import sys
-        script = os.path.basename(sys.argv[0]) if sys.argv else "script"
-        script = os.path.splitext(script)[0]
-        run_id = f"{script}_{int(time.time())}"
+        script_name = os.path.basename(sys.argv[0]) if sys.argv else "script"
+        run_id = f"{uuid.uuid4().hex[:12]}"
 
     if resolved_mode == "auto":
         # Try to connect to daemon
@@ -145,6 +146,13 @@ def init(
             resolved_mode = "local"
         else:
             state._client = client
+
+    # Send run_start event so the daemon knows the script name
+    if state._client is not None and script_name:
+        state._send_to_client({
+            "type": "run_start",
+            "data": {"script_path": script_name},
+        })
 
     state._mode = resolved_mode
 

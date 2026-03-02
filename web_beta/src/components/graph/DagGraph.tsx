@@ -1,21 +1,27 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
+  useNodesInitialized,
   type Node,
   type Edge,
   type NodeTypes,
+  type NodeChange,
   BackgroundVariant,
 } from '@xyflow/react'
+import dagre from '@dagrejs/dagre'
 import '@xyflow/react/dist/style.css'
 import { useStore } from '@/store'
 import { GraphbookNode } from './GraphbookNode'
 import { GraphbookEdge } from './GraphbookEdge'
 import { GraphToolbar } from './GraphToolbar'
+import { DescriptionOverlay } from './DescriptionOverlay'
 
 interface DagGraphProps {
   runId: string
@@ -29,133 +35,162 @@ const edgeTypes = {
   graphbook: GraphbookEdge,
 }
 
-function layoutNodes(
-  graphNodes: Record<string, { name: string; is_source: boolean }>,
-  graphEdges: { source: string; target: string }[],
+const DEFAULT_WIDTH = 280
+const DEFAULT_HEIGHT = 100
+
+function runDagreLayout(
+  nodes: Node[],
+  edges: Edge[],
+  measured?: Map<string, { width: number; height: number }>,
 ): Node[] {
-  // Simple topological layout: sources at top, layered by depth
-  const adj = new Map<string, string[]>()
-  const inDegree = new Map<string, number>()
-  const allIds = Object.keys(graphNodes)
+  const g = new dagre.graphlib.Graph()
+  g.setGraph({ rankdir: 'TB', nodesep: 50, ranksep: 60 })
+  g.setDefaultEdgeLabel(() => ({}))
 
-  for (const id of allIds) {
-    adj.set(id, [])
-    inDegree.set(id, 0)
-  }
-  for (const e of graphEdges) {
-    adj.get(e.source)?.push(e.target)
-    inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1)
+  for (const node of nodes) {
+    const dims = measured?.get(node.id)
+    g.setNode(node.id, {
+      width: dims?.width ?? DEFAULT_WIDTH,
+      height: dims?.height ?? DEFAULT_HEIGHT,
+    })
   }
 
-  // BFS for layers
-  const layers: string[][] = []
-  const queue = allIds.filter(id => (inDegree.get(id) ?? 0) === 0)
-  const visited = new Set<string>()
+  for (const edge of edges) {
+    g.setEdge(edge.source, edge.target)
+  }
 
-  while (queue.length > 0) {
-    const layer = [...queue]
-    layers.push(layer)
-    queue.length = 0
-    for (const id of layer) {
-      visited.add(id)
-      for (const next of adj.get(id) ?? []) {
-        inDegree.set(next, (inDegree.get(next) ?? 0) - 1)
-        if ((inDegree.get(next) ?? 0) === 0 && !visited.has(next)) {
-          queue.push(next)
-        }
-      }
+  dagre.layout(g)
+
+  return nodes.map(node => {
+    const pos = g.node(node.id)
+    // dagre returns center coordinates; ReactFlow uses top-left
+    return {
+      ...node,
+      position: {
+        x: pos.x - pos.width / 2,
+        y: pos.y - pos.height / 2,
+      },
     }
-  }
-
-  // Add any unvisited nodes (cycles) as a final layer
-  const unvisited = allIds.filter(id => !visited.has(id))
-  if (unvisited.length > 0) layers.push(unvisited)
-
-  const nodes: Node[] = []
-  const nodeWidth = 280
-  const nodeHeight = 100
-  const xGap = 60
-  const yGap = 40
-
-  for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
-    const layer = layers[layerIdx]
-    const totalWidth = layer.length * nodeWidth + (layer.length - 1) * xGap
-    const startX = -totalWidth / 2
-
-    for (let i = 0; i < layer.length; i++) {
-      const id = layer[i]
-      const isInDag = visited.has(id)
-      nodes.push({
-        id,
-        type: 'graphbook',
-        position: {
-          x: startX + i * (nodeWidth + xGap),
-          y: layerIdx * (nodeHeight + yGap),
-        },
-        data: {
-          nodeId: id,
-          runId: id, // Will be overridden
-          inDag: isInDag,
-        },
-      })
-    }
-  }
-
-  return nodes
+  })
 }
 
-export function DagGraph({ runId }: DagGraphProps) {
-  const runState = useStore(s => s.runs.get(runId))
-  const storedPositions = useStore(s => s.nodePositions.get(runId))
-  const updateNodePosition = useStore(s => s.updateNodePosition)
-  const expandNode = useStore(s => s.expandNode)
+function getMeasuredDimensions(nodes: Node[]): Map<string, { width: number; height: number }> {
+  const dims = new Map<string, { width: number; height: number }>()
+  for (const n of nodes) {
+    if (n.measured?.width && n.measured?.height) {
+      dims.set(n.id, { width: n.measured.width, height: n.measured.height })
+    }
+  }
+  return dims
+}
 
+function DagGraphInner({ runId }: DagGraphProps) {
+  const runState = useStore(s => s.runs.get(runId))
+  const updateNodePosition = useStore(s => s.updateNodePosition)
   const graph = runState?.graph
 
-  const initialNodes = useMemo(() => {
-    if (!graph) return []
-    const layouted = layoutNodes(graph.nodes, graph.edges)
-    return layouted.map(n => {
-      const stored = storedPositions?.get(n.id)
-      return {
-        ...n,
-        position: stored ?? n.position,
-        data: { ...n.data, runId },
-      }
-    })
-  }, [graph, runId, storedPositions])
+  const { fitView, getNodes } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
+  const [nodes, setNodes, onNodesChange] = useNodesState([] as Node[])
+  const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[])
 
-  const initialEdges = useMemo<Edge[]>(() => {
-    if (!graph) return []
-    return graph.edges.map((e, i) => ({
+  const initialLayoutDone = useRef(false)
+  const edgesRef = useRef<Edge[]>([])
+  const layoutTimerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // Build base nodes and edges from graph data
+  const { baseNodes, baseEdges } = useMemo(() => {
+    if (!graph) return { baseNodes: [] as Node[], baseEdges: [] as Edge[] }
+    const targetSet = new Set(graph.edges.map(e => e.target))
+    const sourceSet = new Set(graph.edges.map(e => e.source))
+
+    const baseNodes: Node[] = Object.keys(graph.nodes).map(id => ({
+      id,
+      type: 'graphbook' as const,
+      position: { x: 0, y: 0 },
+      data: {
+        nodeId: id,
+        runId,
+        inDag: sourceSet.has(id) || targetSet.has(id) || graph.nodes[id].is_source,
+      },
+    }))
+
+    const baseEdges: Edge[] = graph.edges.map(e => ({
       id: `${e.source}->${e.target}`,
       source: e.source,
       target: e.target,
       type: 'graphbook',
       data: { runId },
     }))
+
+    return { baseNodes, baseEdges }
   }, [graph, runId])
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  // Set initial nodes/edges with default-size dagre layout
+  useEffect(() => {
+    if (baseNodes.length === 0) {
+      setNodes([])
+      setEdges([])
+      return
+    }
+    const laid = runDagreLayout(baseNodes, baseEdges)
+    setNodes(laid)
+    setEdges(baseEdges)
+    edgesRef.current = baseEdges
+    initialLayoutDone.current = false
+  }, [baseNodes, baseEdges, setNodes, setEdges])
 
-  // Sync when graph data changes
-  useMemo(() => {
-    setNodes(initialNodes)
-    setEdges(initialEdges)
-  }, [initialNodes, initialEdges, setNodes, setEdges])
+  // After initial measurement, re-layout with real dimensions
+  useEffect(() => {
+    if (!nodesInitialized || initialLayoutDone.current || nodes.length === 0) return
+
+    const currentNodes = getNodes()
+    const dims = getMeasuredDimensions(currentNodes)
+    if (dims.size === currentNodes.length) {
+      initialLayoutDone.current = true
+      const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
+      setNodes(laid)
+      requestAnimationFrame(() => fitView({ duration: 200 }))
+    }
+  }, [nodesInitialized, nodes.length, getNodes, setNodes, fitView])
+
+  // Detect dimension changes (from expand/collapse) and re-layout
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    onNodesChange(changes)
+    if (!initialLayoutDone.current) return
+
+    const hasDimChange = changes.some(c => c.type === 'dimensions')
+    if (hasDimChange) {
+      clearTimeout(layoutTimerRef.current)
+      layoutTimerRef.current = setTimeout(() => {
+        const currentNodes = getNodes()
+        const dims = getMeasuredDimensions(currentNodes)
+        if (dims.size > 0) {
+          const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
+          setNodes(laid)
+        }
+      }, 50)
+    }
+  }, [onNodesChange, getNodes, setNodes])
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(layoutTimerRef.current)
+  }, [])
+
+  const onResetLayout = useCallback(() => {
+    const currentNodes = getNodes()
+    const dims = getMeasuredDimensions(currentNodes)
+    if (dims.size > 0) {
+      const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
+      setNodes(laid)
+      requestAnimationFrame(() => fitView({ duration: 200 }))
+    }
+  }, [getNodes, setNodes, fitView])
 
   const onNodeDragStop = useCallback((_: unknown, node: Node) => {
     updateNodePosition(runId, node.id, node.position)
   }, [runId, updateNodePosition])
-
-  const onNodeClick = useCallback((_: unknown, node: Node) => {
-    expandNode(node.id)
-  }, [expandNode])
-
-  const onPaneClick = useCallback(() => {
-    expandNode(null)
-  }, [expandNode])
 
   if (!graph) {
     return (
@@ -170,11 +205,9 @@ export function DagGraph({ runId }: DagGraphProps) {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
@@ -189,8 +222,17 @@ export function DagGraph({ runId }: DagGraphProps) {
           nodeColor={() => 'oklch(0.556 0 0)'}
           maskColor="rgba(0, 0, 0, 0.3)"
         />
+        <GraphToolbar onResetLayout={onResetLayout} />
       </ReactFlow>
-      <GraphToolbar runId={runId} />
+      <DescriptionOverlay runId={runId} />
     </div>
+  )
+}
+
+export function DagGraph({ runId }: DagGraphProps) {
+  return (
+    <ReactFlowProvider>
+      <DagGraphInner runId={runId} />
+    </ReactFlowProvider>
   )
 }

@@ -49,32 +49,60 @@ if __name__ == "__main__":
     run()
 ```
 
-Running this produces a Rich terminal display showing the DAG, node execution counts, logs, and progress bars. The DAG edges (`run → load_data → transform`) are inferred automatically from the call graph — no manual wiring required.
+Running this produces a Rich terminal display showing the DAG, node execution counts, logs, and progress bars. The DAG edges (`run → load_data`, `load_data → transform`) are inferred automatically from data flow — no manual wiring required.
 
 ## Core Concepts
 
 ### `@gb.step()` — Register a function as a DAG node
 
-Every function decorated with `@gb.step()` becomes a node in the pipeline DAG. When one `@step` function calls another, graphbook records a directed edge between them.
+Every function decorated with `@gb.step()` becomes a node in the pipeline DAG. Edges are inferred from **data flow**: when a step's return value is passed as an argument to another step, an edge is created from the producer to the consumer.
 
 ```python
 @gb.step()
-def preprocess(data):
-    ...
+def load_data():
+    return [1, 2, 3]
 
 @gb.step()
-def train(data):
-    preprocessed = preprocess(data)  # edge: train → preprocess
+def transform(data):
+    return [x * 2 for x in data]
+
+@gb.step()
+def run():
+    records = load_data()        # edge: run → load_data (no data dependency)
+    result = transform(records)  # edge: load_data → transform (data flows from load_data)
+    return result
+```
+
+When a child step receives no step-produced arguments, the edge falls back to the calling parent step.
+
+You can use it in several ways:
+
+```python
+@gb.step              # bare decorator
+@gb.step()            # with parentheses
+@gb.step("model")     # with a config key (see Configuration below)
+@gb.step(depends_on=[other_step])  # with explicit dependencies
+```
+
+### `depends_on` — Explicit dependency declaration
+
+Some dependencies cannot be detected automatically (shared mutable state, class attributes, global variables). Use `depends_on` to declare these explicitly:
+
+```python
+@gb.step()
+def setup():
+    """Initialize shared resources."""
+    ...
+
+@gb.step(depends_on=[setup])
+def process():
+    """Uses resources initialized by setup."""
     ...
 ```
 
-You can use it in three ways:
+`depends_on` accepts a list of step functions or node ID strings. Explicit dependencies are added alongside any auto-detected data-flow edges.
 
-```python
-@gb.step          # bare decorator
-@gb.step()        # with parentheses
-@gb.step("model") # with a config key (see Configuration below)
-```
+> **Limitation**: Graphbook tracks data flow via argument passing (`id()`-based return value tracking). Dependencies through shared mutable state, class attributes, closures, or global variables are **not** automatically detected. Use `depends_on` for these cases.
 
 ### `gb.log(message)` — Text logging
 
@@ -395,7 +423,7 @@ if __name__ == "__main__":
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `step` | `@step()`, `@step(config_key)` | Register a function as a DAG node |
+| `step` | `@step()`, `@step(config_key)`, `@step(depends_on=[...])` | Register a function as a DAG node |
 | `log` | `log(message: str)` | Log a text message |
 | `log_metric` | `log_metric(name, value, step=None)` | Log a scalar metric |
 | `log_image` | `log_image(name, image, step=None)` | Log an image |

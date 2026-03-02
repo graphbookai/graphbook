@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { timeSince } from '@/lib/utils'
+import { useRunDuration } from '@/hooks/useRunDuration'
 import { RunStatusBadge } from './RunStatusBadge'
 import type { RunSummary } from '@/lib/api'
 
@@ -11,8 +11,7 @@ interface RunCardProps {
 
 export function RunCard({ run, selected, onClick }: RunCardProps) {
   const scriptName = run.script_path.split('/').pop() ?? run.script_path
-  const startedAt = run.started_at ? new Date(run.started_at) : null
-  const duration = startedAt ? timeSince(startedAt) : '—'
+  const duration = useRunDuration(run)
 
   const errorInfo = run.status === 'crashed' && run.error_count > 0
     ? `${run.error_count} error${run.error_count > 1 ? 's' : ''}`
@@ -30,9 +29,9 @@ export function RunCard({ run, selected, onClick }: RunCardProps) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <RunStatusBadge status={run.status} />
-            <span className="text-sm font-medium truncate">{scriptName}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <RunStatusBadge status={run.status} className="shrink-0" />
+            <span className="text-sm font-medium truncate block" title={scriptName}>{scriptName}</span>
           </div>
           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
             <span>{duration}</span>

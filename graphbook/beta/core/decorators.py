@@ -19,20 +19,44 @@ def step(func: F) -> F: ...
 
 
 @overload
-def step(config_key: Optional[str] = None) -> Callable[[F], F]: ...
+def step(
+    config_key: Optional[str] = None,
+    depends_on: Optional[list[Any]] = None,
+) -> Callable[[F], F]: ...
 
 
-def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
+def step(
+    func: Optional[Any] = None,
+    config_key: Optional[str] = None,
+    depends_on: Optional[list[Any]] = None,
+) -> Any:
     """Decorator that registers a function as a DAG node.
 
-    Can be used as:
+    Can be used as::
+
         @gb.step
         @gb.step()
         @gb.step("config_key")
+        @gb.step(depends_on=[other_step])
+
+    DAG edges are inferred automatically from data flow: when a step's
+    return value is passed as an argument to another step, an edge is
+    created from the producer to the consumer. When no data dependency
+    is detected, the edge falls back to the calling step (parent).
+
+    For dependencies that cannot be detected automatically (shared mutable
+    state, class attributes, globals), use ``depends_on``::
+
+        @gb.step(depends_on=[foo])
+        def bar(self):
+            # bar depends on foo via shared state, not via arguments
+            ...
 
     Args:
         func: The function to decorate (when used without parentheses).
         config_key: Optional config key for hydr8-style param injection.
+        depends_on: Optional list of step functions or node ID strings
+            that this step depends on. Creates explicit edges.
 
     Returns:
         The decorated function.
@@ -48,12 +72,21 @@ def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
             config_key=config_key,
         )
 
+        # Resolve depends_on to node ID strings at decoration time
+        depends_on_ids: list[str] = []
+        if depends_on:
+            for dep in depends_on:
+                if callable(dep):
+                    depends_on_ids.append(dep.__qualname__)
+                else:
+                    depends_on_ids.append(str(dep))
+
         # Delegate config injection to hydr8
         injected_fn = hydr8.use(config_key)(fn) if config_key else fn
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Auto-init on first step execution if env vars are set
+            # Auto-init on first step execution
             try:
                 from graphbook.beta import _ensure_init
                 _ensure_init()
@@ -64,8 +97,19 @@ def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
             parent = _current_node.get()
             token = _current_node.set(node_id)
             try:
-                # Record DAG edge
-                if parent is not None:
+                # Record DAG edges (data-flow-aware)
+                # 1. Explicit depends_on edges (always added)
+                if depends_on_ids:
+                    for dep in depends_on_ids:
+                        state.add_edge(dep, node_id)
+
+                # 2. Auto-detected data-flow edges from arguments
+                producers = state.find_producers(args, kwargs)
+                if producers:
+                    for producer in producers:
+                        state.add_edge(producer, node_id)
+                elif parent is not None and not depends_on_ids:
+                    # 3. Fallback to parent edge only if no deps found
                     state.add_edge(parent, node_id)
 
                 # Store resolved config params for UI visibility
@@ -94,6 +138,9 @@ def step(func: Optional[Any] = None, config_key: Optional[str] = None) -> Any:
                 start_time = time.monotonic()
                 result = injected_fn(*args, **kwargs)
                 duration = time.monotonic() - start_time
+
+                # Track return value for data-flow edge inference
+                state.track_return(node_id, result)
 
                 # Notify backends of completion
                 for backend in state.backends:

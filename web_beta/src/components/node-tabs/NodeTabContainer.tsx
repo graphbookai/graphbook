@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useStore, type NodeTab } from '@/store'
 import { cn } from '@/lib/utils'
 import { Pin } from 'lucide-react'
@@ -17,9 +18,8 @@ const tabs: { key: NodeTab; label: string }[] = [
 ]
 
 export function NodeTabContainer({ runId, nodeId }: NodeTabContainerProps) {
-  const activeTab = useStore(s => s.activeNodeTab)
-  const setActiveNodeTab = useStore(s => s.setActiveNodeTab)
-  const pinCurrentTab = useStore(s => s.pinCurrentTab)
+  const [activeTab, setActiveTab] = useState<NodeTab>('info')
+  const pinTab = useStore(s => s.pinTab)
   const run = useStore(s => s.runs.get(runId))
 
   const hasPendingAsk = run?.pendingAsks?.has(nodeId) ?? false
@@ -40,7 +40,7 @@ export function NodeTabContainer({ runId, nodeId }: NodeTabContainerProps) {
               )}
               onClick={(e) => {
                 e.stopPropagation()
-                setActiveNodeTab(tab.key)
+                setActiveTab(tab.key)
               }}
             >
               {tab.label}
@@ -56,7 +56,7 @@ export function NodeTabContainer({ runId, nodeId }: NodeTabContainerProps) {
           className="h-7 w-7 mr-1"
           onClick={(e) => {
             e.stopPropagation()
-            pinCurrentTab()
+            pinTab(runId, nodeId, activeTab)
           }}
           title="Pin this tab"
         >

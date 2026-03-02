@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { NodeTabContainer } from '@/components/node-tabs/NodeTabContainer'
 
 interface GraphbookNodeData {
@@ -13,8 +14,9 @@ interface GraphbookNodeData {
 export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps) {
   const { nodeId, runId, inDag } = data as unknown as GraphbookNodeData
   const run = useStore(s => s.runs.get(runId))
-  const expandedNodeId = useStore(s => s.expandedNodeId)
-  const isExpanded = expandedNodeId === id
+  const isCollapsed = useStore(s => s.collapsedGraphNodes.has(id))
+  const toggleGraphNode = useStore(s => s.toggleGraphNode)
+  const isExpanded = !isCollapsed
 
   const nodeInfo = run?.graph?.nodes[nodeId]
   if (!nodeInfo) return null
@@ -42,12 +44,22 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
       isRunning && !hasErrors && 'shadow-blue-500/20',
       hasPendingAsk && 'shadow-amber-500/30',
     )}>
-      <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+      {!nodeInfo.is_source && (
+        <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+      )}
 
       {/* Node header */}
-      <div className="px-3 py-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium truncate">{nodeInfo.func_name}</span>
+      <div
+        className="px-3 py-2 cursor-pointer select-none"
+        onClick={() => toggleGraphNode(id)}
+      >
+        <div className="flex items-center gap-1.5">
+          {isExpanded ? (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )}
+          <span className="text-sm font-medium truncate flex-1">{nodeInfo.func_name}</span>
           {nodeInfo.exec_count > 0 && (
             <span className="text-xs text-muted-foreground shrink-0">
               x{nodeInfo.exec_count.toLocaleString()}
@@ -55,12 +67,12 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
           )}
         </div>
         {nodeInfo.docstring && (
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{nodeInfo.docstring.split('\n')[0]}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 ml-5 line-clamp-1">{nodeInfo.docstring.split('\n')[0]}</p>
         )}
 
         {/* Config params */}
         {Object.keys(nodeInfo.params).length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
+          <div className="mt-1.5 ml-5 flex flex-wrap gap-1">
             {Object.entries(nodeInfo.params).slice(0, 3).map(([k, v]) => (
               <span key={k} className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
                 {k}: {String(v)}
@@ -74,7 +86,7 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
 
         {/* Progress bar */}
         {progress && (
-          <div className="mt-2">
+          <div className="mt-2 ml-5">
             <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-0.5">
               <span>{progress.name ?? 'Progress'}</span>
               <span>{Math.round((progress.current / progress.total) * 100)}%</span>
@@ -90,7 +102,7 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
 
         {/* Non-DAG indicator */}
         {!inDag && (
-          <span className="text-[10px] text-muted-foreground mt-1 block">Not in DAG</span>
+          <span className="text-[10px] text-muted-foreground mt-1 ml-5 block">Not in DAG</span>
         )}
       </div>
 

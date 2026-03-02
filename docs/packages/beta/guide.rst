@@ -9,32 +9,62 @@ This guide walks through building observable Python pipelines with Graphbook Bet
 Decorating Functions with ``@gb.step()``
 =========================================
 
-The ``@gb.step()`` decorator is the core primitive. It registers a function as a node in the pipeline DAG. When one ``@step`` function calls another, graphbook records a directed edge between them.
+The ``@gb.step()`` decorator is the core primitive. It registers a function as a node in the pipeline DAG. Edges are inferred from **data flow**: when a step's return value is passed as an argument to another step, an edge is created from the producer to the consumer.
 
 .. code-block:: python
 
     import graphbook.beta as gb
 
     @gb.step()
-    def preprocess(data):
-        """Clean and normalize raw data."""
-        gb.log(f"Preprocessing {len(data)} items")
-        return [item.strip().lower() for item in data]
+    def load_data():
+        """Load raw data."""
+        return [1, 2, 3]
 
     @gb.step()
-    def analyze(data):
-        """Run analysis on preprocessed data."""
-        preprocessed = preprocess(data)  # Creates edge: analyze → preprocess
-        gb.log(f"Analyzing {len(preprocessed)} items")
-        return {"count": len(preprocessed)}
+    def transform(data):
+        """Transform data."""
+        return [x * 2 for x in data]
 
-The decorator can be used in three forms:
+    @gb.step()
+    def run():
+        records = load_data()        # edge: run → load_data (no data dep)
+        result = transform(records)  # edge: load_data → transform (data flow)
+        return result
+
+When a child step receives no step-produced arguments, the edge falls back to the calling parent step.
+
+The decorator can be used in several forms:
 
 .. code-block:: python
 
-    @gb.step            # bare (no parentheses)
-    @gb.step()           # empty parentheses
-    @gb.step("config_key")  # with a config key for parameter injection
+    @gb.step                       # bare (no parentheses)
+    @gb.step()                     # empty parentheses
+    @gb.step("config_key")         # with a config key for parameter injection
+    @gb.step(depends_on=[setup])   # with explicit dependencies
+
+
+Explicit Dependencies with ``depends_on``
+------------------------------------------
+
+Some dependencies cannot be detected automatically — shared mutable state, class attributes, closures, or global variables. Use ``depends_on`` to declare these explicitly:
+
+.. code-block:: python
+
+    @gb.step()
+    def setup():
+        """Initialize shared resources."""
+        ...
+
+    @gb.step(depends_on=[setup])
+    def process():
+        """Uses resources initialized by setup."""
+        ...
+
+``depends_on`` accepts a list of step functions or node ID strings. Explicit dependencies are added alongside any auto-detected data-flow edges.
+
+.. note::
+
+    Graphbook tracks data flow via argument passing (``id()``-based return value tracking). Dependencies through shared mutable state, class attributes, closures, or global variables are **not** automatically detected. Use ``depends_on`` for these cases.
 
 
 Logging

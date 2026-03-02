@@ -80,6 +80,7 @@ class SessionState:
         self._initialized_server: bool = False
         self._client: Any = None  # DaemonClient when in server mode
         self._mode: str = "local"  # "local" or "server"
+        self._return_origins: dict[int, str] = {}  # id(value) -> producing node_id
         self._lock_state = threading.Lock()
 
     def ensure_display(self) -> None:
@@ -142,6 +143,45 @@ class SessionState:
                 "data": {"source": source, "target": target},
             })
 
+    def track_return(self, node_id: str, value: Any) -> None:
+        """Record that a return value was produced by a given node.
+
+        Tracks id(value) and, for tuples/lists/dicts, also tracks
+        id(element) for each element one level deep. Skips None.
+        """
+        if value is None:
+            return
+        with self._lock_state:
+            self._return_origins[id(value)] = node_id
+            if isinstance(value, (tuple, list)):
+                for item in value:
+                    if item is not None:
+                        self._return_origins[id(item)] = node_id
+            elif isinstance(value, dict):
+                for v in value.values():
+                    if v is not None:
+                        self._return_origins[id(v)] = node_id
+
+    def find_producers(self, args: tuple, kwargs: dict) -> set[str]:
+        """Find which steps produced the given arguments.
+
+        Checks id() of each arg and kwarg value against _return_origins.
+
+        Returns:
+            Set of node_id strings for steps that produced any of the arguments.
+        """
+        producers: set[str] = set()
+        with self._lock_state:
+            for arg in args:
+                origin = self._return_origins.get(id(arg))
+                if origin is not None:
+                    producers.add(origin)
+            for v in kwargs.values():
+                origin = self._return_origins.get(id(v))
+                if origin is not None:
+                    producers.add(origin)
+        return producers
+
     def increment_count(self, node_id: str) -> None:
         """Increment the execution count for a node."""
         with self._lock_state:
@@ -183,6 +223,7 @@ class SessionState:
             self.nodes.clear()
             self.edges.clear()
             self._edge_set.clear()
+            self._return_origins.clear()
             self.config.clear()
             self.workflow_description = None
             self.backends.clear()

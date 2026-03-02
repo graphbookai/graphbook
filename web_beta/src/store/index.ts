@@ -56,15 +56,18 @@ interface GraphbookStore {
   selectedRunId: string | null
   activeRunId: string | null
 
-  // Node interaction
-  expandedNodeId: string | null
-  activeNodeTab: NodeTab
+  // Node interaction (graph view)
+  collapsedGraphNodes: Set<string>
 
   // Pinned panels
   pinnedPanels: PinnedPanel[]
 
   // Node positions (per run, session-only)
   nodePositions: Map<string, Map<string, { x: number; y: number }>>
+
+  // Node list panel (desktop)
+  nodeListCollapsed: boolean
+  toggleNodeList: () => void
 
   // Theme
   theme: 'dark' | 'light'
@@ -86,11 +89,9 @@ interface GraphbookStore {
   setWorkflowDescription: (runId: string, description: string) => void
 
   selectRun: (runId: string | null) => void
-  expandNode: (nodeId: string | null, tab?: NodeTab) => void
-  collapseNode: () => void
-  setActiveNodeTab: (tab: NodeTab) => void
-
-  pinCurrentTab: () => void
+  toggleGraphNode: (nodeId: string) => void
+  collapseAllGraphNodes: () => void
+  pinTab: (runId: string, nodeId: string, tab: NodeTab) => void
   unpinPanel: (panelId: string) => void
 
   updateNodePosition: (runId: string, nodeId: string, pos: { x: number; y: number }) => void
@@ -110,7 +111,7 @@ function ensureRun(state: GraphbookStore, runId: string): RunState {
     run = {
       summary: {
         id: runId,
-        script_path: '__direct__',
+        script_path: 'direct',
         args: [],
         status: 'running',
         started_at: new Date().toISOString(),
@@ -143,12 +144,14 @@ export const useStore = create<GraphbookStore>((set, get) => ({
   selectedRunId: null,
   activeRunId: null,
 
-  expandedNodeId: null,
-  activeNodeTab: 'info',
+  collapsedGraphNodes: new Set<string>(),
 
   pinnedPanels: [],
 
   nodePositions: new Map(),
+
+  nodeListCollapsed: false,
+  toggleNodeList: () => set(state => ({ nodeListCollapsed: !state.nodeListCollapsed })),
 
   theme: 'dark',
 
@@ -336,22 +339,31 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     return { runs }
   }),
 
-  selectRun: (runId) => set({ selectedRunId: runId, expandedNodeId: null }),
-  expandNode: (nodeId, tab) => set({ expandedNodeId: nodeId, activeNodeTab: tab ?? 'info' }),
-  collapseNode: () => set({ expandedNodeId: null }),
-  setActiveNodeTab: (tab) => set({ activeNodeTab: tab }),
-
-  pinCurrentTab: () => set(state => {
-    const { expandedNodeId, activeNodeTab, selectedRunId } = state
-    if (!expandedNodeId || !selectedRunId) return state
-    const run = state.runs.get(selectedRunId)
-    const nodeName = run?.graph?.nodes[expandedNodeId]?.func_name || expandedNodeId
+  selectRun: (runId) => set({ selectedRunId: runId }),
+  toggleGraphNode: (nodeId) => set(state => {
+    const next = new Set(state.collapsedGraphNodes)
+    if (next.has(nodeId)) {
+      next.delete(nodeId)
+    } else {
+      next.add(nodeId)
+    }
+    return { collapsedGraphNodes: next }
+  }),
+  collapseAllGraphNodes: () => set(state => {
+    // Add all current graph node IDs to collapsed set
+    const selectedRun = state.selectedRunId ? state.runs.get(state.selectedRunId) : null
+    const allIds = selectedRun?.graph ? Object.keys(selectedRun.graph.nodes) : []
+    return { collapsedGraphNodes: new Set(allIds) }
+  }),
+  pinTab: (runId, nodeId, tab) => set(state => {
+    const run = state.runs.get(runId)
+    const nodeName = run?.graph?.nodes[nodeId]?.func_name || nodeId
     const panel: PinnedPanel = {
-      id: `${selectedRunId}:${expandedNodeId}:${activeNodeTab}:${Date.now()}`,
-      runId: selectedRunId,
-      nodeId: expandedNodeId,
-      tab: activeNodeTab,
-      title: `${nodeName} — ${activeNodeTab.charAt(0).toUpperCase() + activeNodeTab.slice(1)}`,
+      id: `${runId}:${nodeId}:${tab}:${Date.now()}`,
+      runId,
+      nodeId,
+      tab,
+      title: `${nodeName} — ${tab.charAt(0).toUpperCase() + tab.slice(1)}`,
     }
     return { pinnedPanels: [...state.pinnedPanels, panel] }
   }),
@@ -485,6 +497,32 @@ export const useStore = create<GraphbookStore>((set, get) => ({
             options: (data.options as string[]) ?? null,
             timeoutSeconds: (data.timeout_seconds as number) ?? null,
             receivedAt: new Date(),
+          })
+          break
+
+        case 'run_start':
+          set(st => {
+            const runs = new Map(st.runs)
+            const r = runs.get(runId)
+            if (r) {
+              const scriptPath = (data.script_path as string) ?? ''
+              if (scriptPath) r.summary.script_path = scriptPath
+            }
+            return { runs }
+          })
+          break
+
+        case 'run_completed':
+          set(st => {
+            const runs = new Map(st.runs)
+            const r = runs.get(runId)
+            if (r) {
+              const exitCode = (data.exit_code as number) ?? 0
+              r.summary.status = exitCode === 0 ? 'completed' : 'crashed'
+              r.summary.exit_code = exitCode
+              r.summary.ended_at = new Date().toISOString()
+            }
+            return { runs }
           })
           break
       }

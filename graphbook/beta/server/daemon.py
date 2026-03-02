@@ -186,8 +186,8 @@ class DaemonState:
         async with self._lock:
             rid = run_id or self.active_run_id
             if not rid or rid not in self.runs:
-                # Create run if it doesn't exist yet
-                run = self.create_run("__direct__", run_id=rid)
+                # Create run if it doesn't exist yet (script_path updated by run_start event)
+                run = self.create_run("direct", run_id=rid)
                 rid = run.id
 
             run = self.runs[rid]
@@ -306,6 +306,19 @@ class DaemonState:
 
         elif etype == "config":
             run.config = event.get("data", {})
+
+        elif etype == "run_start":
+            data = event.get("data", {})
+            script_path = data.get("script_path", "")
+            if script_path:
+                run.script_path = script_path
+
+        elif etype == "run_completed":
+            data = event.get("data", {})
+            exit_code = data.get("exit_code", 0)
+            run.status = "completed" if exit_code == 0 else "crashed"
+            run.exit_code = exit_code
+            run.ended_at = datetime.now()
 
     def mark_run_completed(self, run_id: str, exit_code: int = 0) -> None:
         """Mark a run as completed."""

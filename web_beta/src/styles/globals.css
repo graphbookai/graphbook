@@ -86,6 +86,20 @@
   background-color: oklch(0.145 0 0);
 }
 
+.dark .react-flow__controls-button {
+  background-color: oklch(0.205 0 0);
+  border-color: oklch(0.3 0 0);
+  fill: oklch(0.985 0 0);
+}
+
+.dark .react-flow__controls-button:hover {
+  background-color: oklch(0.269 0 0);
+}
+
+.dark .react-flow__minimap {
+  background-color: oklch(0.205 0 0);
+}
+
 /* Status animations */
 @keyframes pulse-running {
   0%, 100% { opacity: 1; }

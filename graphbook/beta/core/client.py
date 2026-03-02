@@ -93,6 +93,12 @@ class DaemonClient:
 
     def disconnect(self) -> None:
         """Disconnect from the daemon and flush remaining events."""
+        # Send run_completed event before flushing
+        if self._connected:
+            self._queue.put({
+                "type": "run_completed",
+                "data": {"exit_code": 0},
+            })
         self._running = False
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3.0)
