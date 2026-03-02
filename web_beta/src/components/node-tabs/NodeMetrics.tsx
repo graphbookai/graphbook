@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useStore } from '@/store'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
@@ -6,22 +7,45 @@ interface NodeMetricsProps {
   nodeId: string
 }
 
-export function NodeMetrics({ runId, nodeId }: NodeMetricsProps) {
-  const run = useStore(s => s.runs.get(runId))
-  const metrics = run?.nodeMetrics[nodeId]
+const MAX_DISPLAY_POINTS = 500
 
-  if (!metrics || Object.keys(metrics).length === 0) {
+function downsample(series: { step: number; value: number }[]): { step: number; value: number }[] {
+  if (series.length <= MAX_DISPLAY_POINTS) return series
+  const step = Math.ceil(series.length / MAX_DISPLAY_POINTS)
+  const result: { step: number; value: number }[] = []
+  for (let i = 0; i < series.length; i += step) {
+    result.push(series[i])
+  }
+  // Always include the last point
+  if (result[result.length - 1] !== series[series.length - 1]) {
+    result.push(series[series.length - 1])
+  }
+  return result
+}
+
+export function NodeMetrics({ runId, nodeId }: NodeMetricsProps) {
+  const metrics = useStore(s => s.runs.get(runId)?.nodeMetrics[nodeId])
+
+  const metricEntries = useMemo(() => {
+    if (!metrics) return []
+    return Object.entries(metrics).map(([name, series]) => ({
+      name,
+      data: downsample(series),
+    }))
+  }, [metrics])
+
+  if (metricEntries.length === 0) {
     return <p className="text-xs text-muted-foreground">No metrics for this node</p>
   }
 
   return (
     <div className="space-y-4">
-      {Object.entries(metrics).map(([name, series]) => (
+      {metricEntries.map(({ name, data }) => (
         <div key={name}>
           <span className="text-xs font-medium text-foreground">{name}</span>
           <div className="h-[120px] mt-1">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={series}>
+              <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0 0)" />
                 <XAxis
                   dataKey="step"
@@ -52,7 +76,7 @@ export function NodeMetrics({ runId, nodeId }: NodeMetricsProps) {
                   stroke="#3b82f6"
                   strokeWidth={1.5}
                   dot={false}
-                  animationDuration={300}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>

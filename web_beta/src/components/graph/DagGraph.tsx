@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -12,7 +12,6 @@ import {
   type Node,
   type Edge,
   type NodeTypes,
-  type NodeChange,
   BackgroundVariant,
 } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
@@ -34,6 +33,8 @@ const nodeTypes: NodeTypes = {
 const edgeTypes = {
   graphbook: GraphbookEdge,
 }
+
+export const DragContext = createContext<string | null>(null)
 
 const DEFAULT_WIDTH = 280
 const DEFAULT_HEIGHT = 100
@@ -96,26 +97,38 @@ function DagGraphInner({ runId }: DagGraphProps) {
 
   const initialLayoutDone = useRef(false)
   const edgesRef = useRef<Edge[]>([])
-  const layoutTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
-  // Build base nodes and edges from graph data
+  // Keep a ref to graph so the memo can read latest data without depending on the object ref
+  const graphRef = useRef(graph)
+  graphRef.current = graph
+
+  // Stable key that only changes when graph topology (node set or edge set) changes
+  const structureKey = useMemo(() => {
+    if (!graph) return ''
+    const nodeKeys = Object.keys(graph.nodes).sort().join(',')
+    const edgeKeys = graph.edges.map(e => `${e.source}->${e.target}`).sort().join(',')
+    return `${nodeKeys}|${edgeKeys}`
+  }, [graph])
+
+  // Build base nodes and edges — only recomputes on structural changes, not exec_count/progress
   const { baseNodes, baseEdges } = useMemo(() => {
-    if (!graph) return { baseNodes: [] as Node[], baseEdges: [] as Edge[] }
-    const targetSet = new Set(graph.edges.map(e => e.target))
-    const sourceSet = new Set(graph.edges.map(e => e.source))
+    const g = graphRef.current
+    if (!g) return { baseNodes: [] as Node[], baseEdges: [] as Edge[] }
+    const targetSet = new Set(g.edges.map(e => e.target))
+    const sourceSet = new Set(g.edges.map(e => e.source))
 
-    const baseNodes: Node[] = Object.keys(graph.nodes).map(id => ({
+    const baseNodes: Node[] = Object.keys(g.nodes).map(id => ({
       id,
       type: 'graphbook' as const,
       position: { x: 0, y: 0 },
       data: {
         nodeId: id,
         runId,
-        inDag: sourceSet.has(id) || targetSet.has(id) || graph.nodes[id].is_source,
+        inDag: sourceSet.has(id) || targetSet.has(id) || g.nodes[id].is_source,
       },
     }))
 
-    const baseEdges: Edge[] = graph.edges.map(e => ({
+    const baseEdges: Edge[] = g.edges.map(e => ({
       id: `${e.source}->${e.target}`,
       source: e.source,
       target: e.target,
@@ -124,7 +137,8 @@ function DagGraphInner({ runId }: DagGraphProps) {
     }))
 
     return { baseNodes, baseEdges }
-  }, [graph, runId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [structureKey, runId])
 
   // Set initial nodes/edges with default-size dagre layout
   useEffect(() => {
@@ -154,29 +168,24 @@ function DagGraphInner({ runId }: DagGraphProps) {
     }
   }, [nodesInitialized, nodes.length, getNodes, setNodes, fitView])
 
-  // Detect dimension changes (from expand/collapse) and re-layout
-  const handleNodesChange = useCallback((changes: NodeChange[]) => {
-    onNodesChange(changes)
-    if (!initialLayoutDone.current) return
+  // Relayout only when explicitly triggered (expand/collapse/reset), not on content growth
+  const layoutTrigger = useStore(s => s.layoutTrigger)
 
-    const hasDimChange = changes.some(c => c.type === 'dimensions')
-    if (hasDimChange) {
-      clearTimeout(layoutTimerRef.current)
-      layoutTimerRef.current = setTimeout(() => {
-        const currentNodes = getNodes()
-        const dims = getMeasuredDimensions(currentNodes)
-        if (dims.size > 0) {
-          const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
-          setNodes(laid)
-        }
-      }, 50)
-    }
-  }, [onNodesChange, getNodes, setNodes])
-
-  // Clean up timer on unmount
   useEffect(() => {
-    return () => clearTimeout(layoutTimerRef.current)
-  }, [])
+    if (!initialLayoutDone.current || layoutTrigger === 0) return
+
+    // Delay for React to measure new dimensions after expand/collapse
+    const timer = setTimeout(() => {
+      const currentNodes = getNodes()
+      const dims = getMeasuredDimensions(currentNodes)
+      if (dims.size > 0) {
+        const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
+        setNodes(laid)
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [layoutTrigger, getNodes, setNodes])
 
   const onResetLayout = useCallback(() => {
     const currentNodes = getNodes()
@@ -188,7 +197,14 @@ function DagGraphInner({ runId }: DagGraphProps) {
     }
   }, [getNodes, setNodes, fitView])
 
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
+
+  const onNodeDragStart = useCallback((_: unknown, node: Node) => {
+    setDraggingNodeId(node.id)
+  }, [])
+
   const onNodeDragStop = useCallback((_: unknown, node: Node) => {
+    setDraggingNodeId(null)
     updateNodePosition(runId, node.id, node.position)
   }, [runId, updateNodePosition])
 
@@ -201,31 +217,34 @@ function DagGraphInner({ runId }: DagGraphProps) {
   }
 
   return (
-    <div className="h-full w-full relative">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDragStop={onNodeDragStop}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        minZoom={0.1}
-        maxZoom={2}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} className="!bg-background" />
-        <Controls className="!bg-card !border-border !shadow-sm" />
-        <MiniMap
-          className="!bg-card !border-border"
-          nodeColor={() => 'oklch(0.556 0 0)'}
-          maskColor="rgba(0, 0, 0, 0.3)"
-        />
-        <GraphToolbar onResetLayout={onResetLayout} />
-      </ReactFlow>
-      <DescriptionOverlay runId={runId} />
-    </div>
+    <DragContext.Provider value={draggingNodeId}>
+      <div className="h-full w-full relative">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          minZoom={0.1}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={16} size={1} className="!bg-background" />
+          <Controls className="!bg-card !border-border !shadow-sm" />
+          <MiniMap
+            className="!bg-card !border-border"
+            nodeColor={() => 'oklch(0.556 0 0)'}
+            maskColor="rgba(0, 0, 0, 0.3)"
+          />
+          <GraphToolbar onResetLayout={onResetLayout} />
+        </ReactFlow>
+        <DescriptionOverlay runId={runId} />
+      </div>
+    </DragContext.Provider>
   )
 }
 

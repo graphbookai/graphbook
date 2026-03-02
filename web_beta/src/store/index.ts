@@ -76,6 +76,7 @@ interface GraphbookStore {
 
   // Node interaction (graph view)
   collapsedGraphNodes: Set<string>
+  layoutTrigger: number
 
   // Pinned panels
   pinnedPanels: PinnedPanel[]
@@ -111,6 +112,7 @@ interface GraphbookStore {
   toggleGraphNode: (nodeId: string) => void
   collapseAllGraphNodes: () => void
   expandAllGraphNodes: () => void
+  requestLayout: () => void
   pinTab: (runId: string, nodeId: string, tab: NodeTab) => void
   unpinPanel: (panelId: string) => void
 
@@ -167,6 +169,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
   activeRunId: null,
 
   collapsedGraphNodes: new Set<string>(),
+  layoutTrigger: 0,
 
   pinnedPanels: [],
 
@@ -378,14 +381,15 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     } else {
       next.add(nodeId)
     }
-    return { collapsedGraphNodes: next }
+    return { collapsedGraphNodes: next, layoutTrigger: state.layoutTrigger + 1 }
   }),
   collapseAllGraphNodes: () => set(state => {
     const selectedRun = state.selectedRunId ? state.runs.get(state.selectedRunId) : null
     const allIds = selectedRun?.graph ? Object.keys(selectedRun.graph.nodes) : []
-    return { collapsedGraphNodes: new Set(allIds) }
+    return { collapsedGraphNodes: new Set(allIds), layoutTrigger: state.layoutTrigger + 1 }
   }),
-  expandAllGraphNodes: () => set({ collapsedGraphNodes: new Set<string>() }),
+  expandAllGraphNodes: () => set(state => ({ collapsedGraphNodes: new Set<string>(), layoutTrigger: state.layoutTrigger + 1 })),
+  requestLayout: () => set(state => ({ layoutTrigger: state.layoutTrigger + 1 })),
   pinTab: (runId, nodeId, tab) => set(state => {
     const run = state.runs.get(runId)
     const nodeName = run?.graph?.nodes[nodeId]?.func_name || nodeId
@@ -445,162 +449,260 @@ export const useStore = create<GraphbookStore>((set, get) => ({
   }),
 
   processWsEvents: (runId, events) => {
-    const state = get()
-    ensureRun(state, runId)
-    for (const event of events) {
-      const etype = event.type
-      const nodeId = event.node as string | undefined
-      const data = (event.data ?? event) as Record<string, unknown>
+    // Single batched set() — avoids N re-renders per WS batch
+    set(state => {
+      const runs = new Map(state.runs)
 
-      switch (etype) {
-        case 'log':
-          state.appendRunLog(runId, {
-            timestamp: (event.timestamp as number) ?? Date.now() / 1000,
-            node: nodeId ?? null,
-            message: (event.message as string) ?? (data.message as string) ?? '',
-            level: (event.level as string) ?? 'info',
-          })
-          break
-
-        case 'metric':
-          if (nodeId) {
-            state.appendMetric(
-              runId,
-              nodeId,
-              (event.name as string) ?? (data.name as string) ?? '',
-              (event.step as number) ?? (data.step as number) ?? 0,
-              (event.value as number) ?? (data.value as number) ?? 0,
-            )
-          }
-          break
-
-        case 'progress':
-          if (nodeId) {
-            state.updateNodeProgress(runId, nodeId, data as { current: number; total: number })
-          }
-          break
-
-        case 'error':
-          state.appendRunError(runId, {
-            timestamp: (data.timestamp as number) ?? Date.now() / 1000,
-            node_name: (data.node as string) ?? nodeId ?? '',
-            node_docstring: (data.docstring as string) ?? null,
-            exception_type: (data.type as string) ?? '',
-            exception_message: (data.error as string) ?? '',
-            traceback: (data.traceback as string) ?? '',
-            execution_count: (data.exec_count as number) ?? 0,
-            params: (data.params as Record<string, unknown>) ?? {},
-            last_logs: (data.last_logs as string[]) ?? [],
-          })
-          break
-
-        case 'node_register':
-          state.updateNodeRegistration(runId, data)
-          break
-
-        case 'node_executed': {
-          const nid = (data.node_id as string) ?? nodeId ?? ''
-          if (nid) state.incrementNodeExecution(runId, nid)
-          const caller = data.caller as string | undefined
-          if (caller && nid) state.addEdge(runId, caller, nid)
-          break
+      // Ensure the run exists
+      let run = runs.get(runId)
+      if (!run) {
+        run = {
+          summary: {
+            id: runId,
+            script_path: 'direct',
+            args: [],
+            status: 'running',
+            started_at: new Date().toISOString(),
+            ended_at: null,
+            exit_code: null,
+            node_count: 0,
+            edge_count: 0,
+            log_count: 0,
+            error_count: 0,
+          },
+          graph: null,
+          logs: [],
+          errors: [],
+          nodeMetrics: {},
+          nodeImages: {},
+          nodeAudio: {},
+          inspections: {},
+          pendingAsks: new Map(),
+          loaded: false,
         }
-
-        case 'edge':
-          state.addEdge(runId, (data.source as string) ?? '', (data.target as string) ?? '')
-          break
-
-        case 'image':
-          if (nodeId) {
-            set(st => {
-              const runs = new Map(st.runs)
-              const r = runs.get(runId)
-              if (r) {
-                const imgs = { ...r.nodeImages }
-                if (!imgs[nodeId]) imgs[nodeId] = []
-                imgs[nodeId] = [...imgs[nodeId], {
-                  node: nodeId,
-                  name: (data.name as string) ?? '',
-                  data: (event.data as unknown as string) ?? '',
-                  step: (data.step as number) ?? null,
-                  timestamp: (event.timestamp as number) ?? Date.now() / 1000,
-                }]
-                r.nodeImages = imgs
-              }
-              return { runs }
-            })
-          }
-          break
-
-        case 'audio':
-          if (nodeId) {
-            set(st => {
-              const runs = new Map(st.runs)
-              const r = runs.get(runId)
-              if (r) {
-                const aud = { ...r.nodeAudio }
-                if (!aud[nodeId]) aud[nodeId] = []
-                aud[nodeId] = [...aud[nodeId], {
-                  node: nodeId,
-                  name: (data.name as string) ?? '',
-                  data: (event.data as unknown as string) ?? '',
-                  sr: (data.sr as number) ?? 16000,
-                  timestamp: (event.timestamp as number) ?? Date.now() / 1000,
-                }]
-                r.nodeAudio = aud
-              }
-              return { runs }
-            })
-          }
-          break
-
-        case 'inspection':
-          if (nodeId) {
-            state.updateInspection(runId, nodeId, (data.name as string) ?? 'unnamed', data)
-          }
-          break
-
-        case 'description':
-          state.setWorkflowDescription(runId, (data.description as string) ?? '')
-          break
-
-        case 'ask_prompt':
-          state.addAskPrompt(runId, {
-            askId: (data.ask_id as string) ?? `ask_${Date.now()}`,
-            nodeName: (data.node_name as string) ?? nodeId ?? '',
-            question: (data.question as string) ?? '',
-            options: (data.options as string[]) ?? null,
-            timeoutSeconds: (data.timeout_seconds as number) ?? null,
-            receivedAt: new Date(),
-          })
-          break
-
-        case 'run_start':
-          set(st => {
-            const runs = new Map(st.runs)
-            const r = runs.get(runId)
-            if (r) {
-              const scriptPath = (data.script_path as string) ?? ''
-              if (scriptPath) r.summary.script_path = scriptPath
-            }
-            return { runs }
-          })
-          break
-
-        case 'run_completed':
-          set(st => {
-            const runs = new Map(st.runs)
-            const r = runs.get(runId)
-            if (r) {
-              const exitCode = (data.exit_code as number) ?? 0
-              r.summary.status = exitCode === 0 ? 'completed' : 'crashed'
-              r.summary.exit_code = exitCode
-              r.summary.ended_at = new Date().toISOString()
-            }
-            return { runs }
-          })
-          break
       }
-    }
+      // Clone run so selectors see a new reference
+      run = { ...run }
+      runs.set(runId, run)
+
+      // Accumulate new logs/errors so we can spread once at the end
+      const newLogs: LogEntry[] = []
+      const newErrors: ErrorEntry[] = []
+
+      for (const event of events) {
+        const etype = event.type
+        const nodeId = event.node as string | undefined
+        const data = (event.data ?? event) as Record<string, unknown>
+
+        switch (etype) {
+          case 'log':
+            newLogs.push({
+              timestamp: (event.timestamp as number) ?? Date.now() / 1000,
+              node: nodeId ?? null,
+              message: (event.message as string) ?? (data.message as string) ?? '',
+              level: (event.level as string) ?? 'info',
+            })
+            break
+
+          case 'metric':
+            if (nodeId) {
+              const name = (event.name as string) ?? (data.name as string) ?? ''
+              const step = (event.step as number) ?? (data.step as number) ?? 0
+              const value = (event.value as number) ?? (data.value as number) ?? 0
+              if (!run.nodeMetrics[nodeId]) run.nodeMetrics[nodeId] = {}
+              if (!run.nodeMetrics[nodeId][name]) run.nodeMetrics[nodeId][name] = []
+              run.nodeMetrics[nodeId][name] = [...run.nodeMetrics[nodeId][name], { step, value }]
+            }
+            break
+
+          case 'progress':
+            if (nodeId && run.graph?.nodes[nodeId]) {
+              // New node object so primitive selectors detect the change; graph ref stays stable
+              run.graph.nodes[nodeId] = {
+                ...run.graph.nodes[nodeId],
+                progress: data as { current: number; total: number; name?: string },
+              }
+            }
+            break
+
+          case 'error':
+            newErrors.push({
+              timestamp: (data.timestamp as number) ?? Date.now() / 1000,
+              node_name: (data.node as string) ?? nodeId ?? '',
+              node_docstring: (data.docstring as string) ?? null,
+              exception_type: (data.type as string) ?? '',
+              exception_message: (data.error as string) ?? '',
+              traceback: (data.traceback as string) ?? '',
+              execution_count: (data.exec_count as number) ?? 0,
+              params: (data.params as Record<string, unknown>) ?? {},
+              last_logs: (data.last_logs as string[]) ?? [],
+            })
+            break
+
+          case 'node_register': {
+            const nid = (data.node_id as string) || ''
+            if (!run.graph) {
+              run.graph = { nodes: {}, edges: [], workflow_description: null }
+            }
+            if (!run.graph.nodes[nid]) {
+              // Structural change — new graph object
+              run.graph = {
+                ...run.graph,
+                nodes: {
+                  ...run.graph.nodes,
+                  [nid]: {
+                    name: nid,
+                    func_name: (data.func_name as string) || '',
+                    docstring: (data.docstring as string) || null,
+                    config_key: (data.config_key as string) || null,
+                    exec_count: 0,
+                    is_source: true,
+                    params: {},
+                    progress: null,
+                  },
+                },
+              }
+              run.summary.node_count = Object.keys(run.graph.nodes).length
+            }
+            break
+          }
+
+          case 'node_executed': {
+            const nid = (data.node_id as string) ?? nodeId ?? ''
+            if (nid && run.graph?.nodes[nid]) {
+              // New node object for selector detection; graph ref stays stable
+              run.graph.nodes[nid] = {
+                ...run.graph.nodes[nid],
+                exec_count: run.graph.nodes[nid].exec_count + 1,
+              }
+            }
+            const caller = data.caller as string | undefined
+            if (caller && nid && run.graph) {
+              const exists = run.graph.edges.some(e => e.source === caller && e.target === nid)
+              if (!exists) {
+                // Structural change — new graph object
+                run.graph = {
+                  ...run.graph,
+                  edges: [...run.graph.edges, { source: caller, target: nid }],
+                  nodes: {
+                    ...run.graph.nodes,
+                    ...(run.graph.nodes[nid] ? {
+                      [nid]: { ...run.graph.nodes[nid], is_source: false },
+                    } : {}),
+                  },
+                }
+                run.summary.edge_count = run.graph.edges.length
+              }
+            }
+            break
+          }
+
+          case 'edge': {
+            const source = (data.source as string) ?? ''
+            const target = (data.target as string) ?? ''
+            if (run.graph) {
+              const exists = run.graph.edges.some(e => e.source === source && e.target === target)
+              if (!exists) {
+                run.graph = {
+                  ...run.graph,
+                  edges: [...run.graph.edges, { source, target }],
+                  nodes: {
+                    ...run.graph.nodes,
+                    ...(run.graph.nodes[target] ? {
+                      [target]: { ...run.graph.nodes[target], is_source: false },
+                    } : {}),
+                  },
+                }
+                run.summary.edge_count = run.graph.edges.length
+              }
+            }
+            break
+          }
+
+          case 'image':
+            if (nodeId) {
+              if (!run.nodeImages[nodeId]) run.nodeImages[nodeId] = []
+              run.nodeImages[nodeId] = [...run.nodeImages[nodeId], {
+                node: nodeId,
+                name: (data.name as string) ?? '',
+                data: (event.data as unknown as string) ?? '',
+                step: (data.step as number) ?? null,
+                timestamp: (event.timestamp as number) ?? Date.now() / 1000,
+              }]
+            }
+            break
+
+          case 'audio':
+            if (nodeId) {
+              if (!run.nodeAudio[nodeId]) run.nodeAudio[nodeId] = []
+              run.nodeAudio[nodeId] = [...run.nodeAudio[nodeId], {
+                node: nodeId,
+                name: (data.name as string) ?? '',
+                data: (event.data as unknown as string) ?? '',
+                sr: (data.sr as number) ?? 16000,
+                timestamp: (event.timestamp as number) ?? Date.now() / 1000,
+              }]
+            }
+            break
+
+          case 'inspection':
+            if (nodeId) {
+              if (!run.inspections[nodeId]) run.inspections[nodeId] = {}
+              run.inspections[nodeId] = { ...run.inspections[nodeId], [(data.name as string) ?? 'unnamed']: data }
+            }
+            break
+
+          case 'description':
+            if (run.graph) {
+              run.graph = { ...run.graph, workflow_description: (data.description as string) ?? '' }
+            }
+            break
+
+          case 'ask_prompt': {
+            const asks = new Map(run.pendingAsks)
+            const askId = (data.ask_id as string) ?? `ask_${Date.now()}`
+            asks.set(askId, {
+              askId,
+              nodeName: (data.node_name as string) ?? nodeId ?? '',
+              question: (data.question as string) ?? '',
+              options: (data.options as string[]) ?? null,
+              timeoutSeconds: (data.timeout_seconds as number) ?? null,
+              receivedAt: new Date(),
+            })
+            run.pendingAsks = asks
+            break
+          }
+
+          case 'run_start': {
+            const scriptPath = (data.script_path as string) ?? ''
+            if (scriptPath) {
+              run.summary = { ...run.summary, script_path: scriptPath }
+            }
+            break
+          }
+
+          case 'run_completed': {
+            const exitCode = (data.exit_code as number) ?? 0
+            run.summary = {
+              ...run.summary,
+              status: exitCode === 0 ? 'completed' : 'crashed',
+              exit_code: exitCode,
+              ended_at: new Date().toISOString(),
+            }
+            break
+          }
+        }
+      }
+
+      // Batch-append accumulated logs and errors
+      if (newLogs.length > 0) {
+        run.logs = [...run.logs, ...newLogs]
+      }
+      if (newErrors.length > 0) {
+        run.errors = [...run.errors, ...newErrors]
+      }
+
+      return { runs }
+    })
   },
 }))

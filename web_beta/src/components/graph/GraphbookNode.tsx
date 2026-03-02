@@ -1,10 +1,11 @@
-import { memo } from 'react'
+import { memo, useContext } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { NodeTabContainer } from '@/components/node-tabs/NodeTabContainer'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { DragContext } from './DagGraph'
 
 interface GraphbookNodeData {
   nodeId: string
@@ -14,18 +15,22 @@ interface GraphbookNodeData {
 
 export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps) {
   const { nodeId, runId, inDag } = data as unknown as GraphbookNodeData
-  const run = useStore(s => s.runs.get(runId))
+
+  // Granular selectors — only re-render when THIS node's data changes, not on every log/metric append
+  const nodeInfo = useStore(s => s.runs.get(runId)?.graph?.nodes[nodeId] ?? null)
+  const hasErrors = useStore(s => (s.runs.get(runId)?.errors ?? []).some(e => e.node_name === nodeId))
+  const runStatus = useStore(s => s.runs.get(runId)?.summary.status ?? null)
+  const hasPendingAsk = useStore(s => s.runs.get(runId)?.pendingAsks?.has(nodeId) ?? false)
   const isCollapsed = useStore(s => s.collapsedGraphNodes.has(id))
   const toggleGraphNode = useStore(s => s.toggleGraphNode)
+  const draggingNodeId = useContext(DragContext)
+  const isDragging = draggingNodeId === id
   const isExpanded = !isCollapsed
 
-  const nodeInfo = run?.graph?.nodes[nodeId]
   if (!nodeInfo) return null
 
-  const hasErrors = (run?.errors ?? []).some(e => e.node_name === nodeId)
-  const isRunning = run?.summary.status === 'running' && nodeInfo.exec_count > 0
+  const isRunning = runStatus === 'running' && nodeInfo.exec_count > 0
   const progress = nodeInfo.progress
-  const hasPendingAsk = run?.pendingAsks?.has(nodeId) ?? false
 
   const borderColor = hasErrors
     ? 'border-red-500'
@@ -107,13 +112,16 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
         )}
       </div>
 
-      {/* Expanded tab content */}
-      {isExpanded && (
+      {/* Expanded tab content — hidden during drag for performance */}
+      {isExpanded && !isDragging && (
         <div className="border-t border-border">
           <ErrorBoundary label={`Node ${nodeId}`}>
             <NodeTabContainer runId={runId} nodeId={nodeId} />
           </ErrorBoundary>
         </div>
+      )}
+      {isExpanded && isDragging && (
+        <div className="border-t border-border h-[40px]" />
       )}
 
       <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground !w-2 !h-2" />

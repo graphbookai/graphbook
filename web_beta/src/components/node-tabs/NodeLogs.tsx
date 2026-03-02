@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore } from '@/store'
 import { formatTimestamp } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -12,48 +13,92 @@ interface NodeLogsProps {
 const levels = ['All', 'Info', 'Warn', 'Error'] as const
 
 export function NodeLogs({ runId, nodeId }: NodeLogsProps) {
-  const run = useStore(s => s.runs.get(runId))
+  const logs = useStore(s => s.runs.get(runId)?.logs ?? [])
+  const errors = useStore(s => s.runs.get(runId)?.errors ?? [])
   const [search, setSearch] = useState('')
   const [levelFilter, setLevelFilter] = useState<string>('All')
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
 
-  // Filter logs for this node
-  const allLogs = run?.logs ?? []
-  const allNodeLogs = allLogs.filter(l => l.node === nodeId)
+  const nodeErrors = useMemo(() => errors.filter(e => e.node_name === nodeId), [errors, nodeId])
 
-  // Also include error entries as log-like entries
-  const nodeErrors = (run?.errors ?? []).filter(e => e.node_name === nodeId)
+  const nodeLogs = useMemo(() => {
+    let filtered = logs.filter(l => l.node === nodeId)
+    if (levelFilter !== 'All') {
+      const lvl = levelFilter.toLowerCase()
+      filtered = filtered.filter(l => l.level === lvl)
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      filtered = filtered.filter(l => l.message.toLowerCase().includes(q))
+    }
+    return filtered
+  }, [logs, nodeId, levelFilter, search])
+
+  const allNodeLogs = useMemo(() => logs.filter(l => l.node === nodeId), [logs, nodeId])
 
   // Early return only when there are truly no logs at all (unfiltered)
   if (allNodeLogs.length === 0 && nodeErrors.length === 0) {
     return <p className="text-xs text-muted-foreground">No logs for this node</p>
   }
 
-  let nodeLogs = allNodeLogs
+  return (
+    <NodeLogsInner
+      nodeLogs={nodeLogs}
+      nodeErrors={nodeErrors}
+      search={search}
+      setSearch={setSearch}
+      levelFilter={levelFilter}
+      setLevelFilter={setLevelFilter}
+      scrollRef={scrollRef}
+      autoScroll={autoScroll}
+      setAutoScroll={setAutoScroll}
+    />
+  )
+}
 
-  if (levelFilter !== 'All') {
-    const lvl = levelFilter.toLowerCase()
-    nodeLogs = nodeLogs.filter(l => l.level === lvl)
-  }
+interface NodeLogsInnerProps {
+  nodeLogs: { timestamp: number; node: string | null; message: string; level: string }[]
+  nodeErrors: { exception_type: string; exception_message: string; traceback: string }[]
+  search: string
+  setSearch: (v: string) => void
+  levelFilter: string
+  setLevelFilter: (v: string) => void
+  scrollRef: React.RefObject<HTMLDivElement | null>
+  autoScroll: boolean
+  setAutoScroll: (v: boolean) => void
+}
 
-  if (search) {
-    const q = search.toLowerCase()
-    nodeLogs = nodeLogs.filter(l => l.message.toLowerCase().includes(q))
-  }
+function NodeLogsInner({
+  nodeLogs,
+  nodeErrors,
+  search,
+  setSearch,
+  levelFilter,
+  setLevelFilter,
+  scrollRef,
+  autoScroll,
+  setAutoScroll,
+}: NodeLogsInnerProps) {
+  const virtualizer = useVirtualizer({
+    count: nodeLogs.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 20,
+    overscan: 20,
+  })
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
-    if (autoScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (autoScroll && nodeLogs.length > 0) {
+      virtualizer.scrollToIndex(nodeLogs.length - 1, { align: 'end' })
     }
-  }, [nodeLogs.length, autoScroll])
+  }, [nodeLogs.length, autoScroll, virtualizer])
 
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (!scrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     setAutoScroll(scrollHeight - scrollTop - clientHeight < 30)
-  }
+  }, [scrollRef, setAutoScroll])
 
   return (
     <div className="space-y-2">
@@ -85,20 +130,37 @@ export function NodeLogs({ runId, nodeId }: NodeLogsProps) {
         </div>
       </div>
 
-      {/* Log entries */}
-      <div ref={scrollRef} className="max-h-[200px] overflow-auto space-y-0.5" onScroll={handleScroll}>
-        {nodeLogs.map((log, i) => (
-          <div key={i} className={cn(
-            'text-xs font-mono py-0.5 px-1 rounded',
-            log.level === 'error' && 'bg-red-500/10 text-red-400',
-            log.level === 'warning' && 'text-yellow-400',
-          )}>
-            <span className="text-muted-foreground mr-2">{formatTimestamp(log.timestamp)}</span>
-            <span>{log.message}</span>
-          </div>
-        ))}
+      {/* Virtualized log entries */}
+      <div ref={scrollRef} className="max-h-[200px] overflow-auto" onScroll={handleScroll}>
+        <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+          {virtualizer.getVirtualItems().map(virtualItem => {
+            const log = nodeLogs[virtualItem.index]
+            return (
+              <div
+                key={virtualItem.index}
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+                className={cn(
+                  'text-xs font-mono py-0.5 px-1 rounded',
+                  log.level === 'error' && 'bg-red-500/10 text-red-400',
+                  log.level === 'warning' && 'text-yellow-400',
+                )}
+              >
+                <span className="text-muted-foreground mr-2">{formatTimestamp(log.timestamp)}</span>
+                <span>{log.message}</span>
+              </div>
+            )
+          })}
+        </div>
 
-        {/* Error tracebacks */}
+        {/* Error tracebacks (outside virtualizer — typically few, variable height) */}
         {nodeErrors.map((err, i) => (
           <div key={`err-${i}`} className="text-xs bg-red-500/10 rounded p-2 mt-1">
             <div className="font-medium text-red-400">
@@ -119,7 +181,9 @@ export function NodeLogs({ runId, nodeId }: NodeLogsProps) {
           className="text-[10px] text-blue-400 hover:underline"
           onClick={() => {
             setAutoScroll(true)
-            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+            if (nodeLogs.length > 0) {
+              virtualizer.scrollToIndex(nodeLogs.length - 1, { align: 'end' })
+            }
           }}
         >
           Jump to latest
