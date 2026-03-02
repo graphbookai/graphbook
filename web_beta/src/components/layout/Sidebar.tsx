@@ -1,6 +1,6 @@
 import { useStore } from '@/store'
 import { RunList } from '@/components/runs/RunList'
-import { ThemeToggle } from './ThemeToggle'
+import { SettingsPanel } from './SettingsPanel'
 import { Wifi, WifiOff } from 'lucide-react'
 
 export function Sidebar() {
@@ -17,7 +17,7 @@ export function Sidebar() {
           ) : (
             <WifiOff className="h-4 w-4 text-muted-foreground" />
           )}
-          <ThemeToggle />
+          <SettingsPanel />
         </div>
       </div>
 

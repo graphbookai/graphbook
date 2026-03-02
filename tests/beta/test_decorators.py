@@ -295,16 +295,16 @@ class TestDataFlowEdges:
         pipeline()
         edges = self._edge_set()
 
-        # pipeline -> load_data (fallback: no step-produced args)
+        # pipeline -> load_data (parent: no step-produced args)
         assert (self._nid("pipeline"), self._nid("load_data")) in edges
         # load_data -> transform (data-flow)
         assert (self._nid("load_data"), self._nid("transform")) in edges
         # transform -> aggregate (data-flow)
         assert (self._nid("transform"), self._nid("aggregate")) in edges
-        # Parent edges should NOT exist for transform and aggregate
-        assert (self._nid("pipeline"), self._nid("transform")) not in edges
-        assert (self._nid("pipeline"), self._nid("aggregate")) not in edges
-        assert len(get_state().edges) == 3
+        # Parent edges also exist alongside data-flow edges
+        assert (self._nid("pipeline"), self._nid("transform")) in edges
+        assert (self._nid("pipeline"), self._nid("aggregate")) in edges
+        assert len(get_state().edges) == 5
 
     def test_fan_out_fan_in(self) -> None:
         """Multiple producers feeding into one consumer."""
@@ -339,7 +339,11 @@ class TestDataFlowEdges:
         assert (self._nid("source"), self._nid("process_b")) in edges
         assert (self._nid("process_a"), self._nid("merge")) in edges
         assert (self._nid("process_b"), self._nid("merge")) in edges
-        assert len(get_state().edges) == 5
+        # Parent edges alongside data-flow
+        assert (self._nid("pipeline"), self._nid("process_a")) in edges
+        assert (self._nid("pipeline"), self._nid("process_b")) in edges
+        assert (self._nid("pipeline"), self._nid("merge")) in edges
+        assert len(get_state().edges) == 8
 
     def test_fallback_to_parent_when_no_data_dependency(self) -> None:
         """When a step receives no step-produced args, fall back to parent."""
@@ -382,6 +386,9 @@ class TestDataFlowEdges:
 
         assert (self._nid("create"), self._nid("use_first")) in edges
         assert (self._nid("create"), self._nid("use_second")) in edges
+        # Parent edges
+        assert (self._nid("pipeline"), self._nid("use_first")) in edges
+        assert (self._nid("pipeline"), self._nid("use_second")) in edges
 
     def test_dict_value_tracking(self) -> None:
         """Dict values should be tracked as produced by the step."""
@@ -402,6 +409,8 @@ class TestDataFlowEdges:
         edges = self._edge_set()
 
         assert (self._nid("create_dataset"), self._nid("train")) in edges
+        # Parent edge
+        assert (self._nid("pipeline"), self._nid("train")) in edges
 
     def test_none_return_not_tracked(self) -> None:
         """Steps returning None should not create false edges."""
@@ -448,7 +457,9 @@ class TestDataFlowEdges:
         assert (self._nid("pipeline"), self._nid("load")) in edges
         assert (self._nid("load"), self._nid("process")) in edges
         assert (self._nid("process"), self._nid("helper")) in edges
-        assert len(get_state().edges) == 3
+        # Parent edge alongside data-flow
+        assert (self._nid("pipeline"), self._nid("process")) in edges
+        assert len(get_state().edges) == 4
 
     def test_depends_on_with_function_refs(self) -> None:
         """depends_on with function references should create explicit edges."""

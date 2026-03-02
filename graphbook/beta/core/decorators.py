@@ -39,10 +39,10 @@ def step(
         @gb.step("config_key")
         @gb.step(depends_on=[other_step])
 
-    DAG edges are inferred automatically from data flow: when a step's
-    return value is passed as an argument to another step, an edge is
-    created from the producer to the consumer. When no data dependency
-    is detected, the edge falls back to the calling step (parent).
+    DAG edges are inferred automatically. The calling step (parent) always
+    gets an edge to the callee. Additionally, when a step's return value
+    is passed as an argument to another step, a data-flow edge is created
+    from the producer to the consumer.
 
     For dependencies that cannot be detected automatically (shared mutable
     state, class attributes, globals), use ``depends_on``::
@@ -105,11 +105,11 @@ def step(
 
                 # 2. Auto-detected data-flow edges from arguments
                 producers = state.find_producers(args, kwargs)
-                if producers:
-                    for producer in producers:
-                        state.add_edge(producer, node_id)
-                elif parent is not None and not depends_on_ids:
-                    # 3. Fallback to parent edge only if no deps found
+                for producer in producers:
+                    state.add_edge(producer, node_id)
+
+                # 3. Always add parent (call-graph) edge when no explicit depends_on
+                if parent is not None and not depends_on_ids:
                     state.add_edge(parent, node_id)
 
                 # Store resolved config params for UI visibility

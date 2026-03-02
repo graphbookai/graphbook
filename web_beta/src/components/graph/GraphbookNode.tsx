@@ -23,6 +23,7 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
   const hasPendingAsk = useStore(s => s.runs.get(runId)?.pendingAsks?.has(nodeId) ?? false)
   const isCollapsed = useStore(s => s.collapsedGraphNodes.has(id))
   const toggleGraphNode = useStore(s => s.toggleGraphNode)
+  const hideTabsOnDrag = useStore(s => s.settings.hideTabsOnDrag)
   const draggingNodeId = useContext(DragContext)
   const isDragging = draggingNodeId === id
   const isExpanded = !isCollapsed
@@ -112,15 +113,15 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
         )}
       </div>
 
-      {/* Expanded tab content — hidden during drag for performance */}
-      {isExpanded && !isDragging && (
+      {/* Expanded tab content — optionally hidden during drag for performance */}
+      {isExpanded && !(isDragging && hideTabsOnDrag) && (
         <div className="border-t border-border">
           <ErrorBoundary label={`Node ${nodeId}`}>
             <NodeTabContainer runId={runId} nodeId={nodeId} />
           </ErrorBoundary>
         </div>
       )}
-      {isExpanded && isDragging && (
+      {isExpanded && isDragging && hideTabsOnDrag && (
         <div className="border-t border-border h-[40px]" />
       )}
 

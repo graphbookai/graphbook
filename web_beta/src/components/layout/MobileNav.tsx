@@ -1,6 +1,6 @@
 import { useStore } from '@/store'
 import { useRunDuration } from '@/hooks/useRunDuration'
-import { ThemeToggle } from './ThemeToggle'
+import { SettingsPanel } from './SettingsPanel'
 import { ArrowLeft, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RunStatusBadge } from '@/components/runs/RunStatusBadge'
@@ -35,7 +35,7 @@ export function MobileNav() {
           ) : (
             <WifiOff className="h-4 w-4 text-muted-foreground" />
           )}
-          <ThemeToggle />
+          <SettingsPanel />
         </div>
       </div>
     )
@@ -50,7 +50,7 @@ export function MobileNav() {
         ) : (
           <WifiOff className="h-4 w-4 text-muted-foreground" />
         )}
-        <ThemeToggle />
+        <SettingsPanel />
       </div>
     </div>
   )

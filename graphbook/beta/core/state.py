@@ -80,7 +80,7 @@ class SessionState:
         self._initialized_server: bool = False
         self._client: Any = None  # DaemonClient when in server mode
         self._mode: str = "local"  # "local" or "server"
-        self._return_origins: dict[int, str] = {}  # id(value) -> producing node_id
+        self._return_origins: dict[int, tuple[str, Any]] = {}  # id(value) -> (producing node_id, value ref)
         self._lock_state = threading.Lock()
 
     def ensure_display(self) -> None:
@@ -148,24 +148,29 @@ class SessionState:
 
         Tracks id(value) and, for tuples/lists/dicts, also tracks
         id(element) for each element one level deep. Skips None.
+
+        Stores (node_id, value_ref) so find_producers can verify identity
+        and avoid false matches from id() reuse after garbage collection.
         """
         if value is None:
             return
         with self._lock_state:
-            self._return_origins[id(value)] = node_id
+            self._return_origins[id(value)] = (node_id, value)
             if isinstance(value, (tuple, list)):
                 for item in value:
                     if item is not None:
-                        self._return_origins[id(item)] = node_id
+                        self._return_origins[id(item)] = (node_id, item)
             elif isinstance(value, dict):
                 for v in value.values():
                     if v is not None:
-                        self._return_origins[id(v)] = node_id
+                        self._return_origins[id(v)] = (node_id, v)
 
     def find_producers(self, args: tuple, kwargs: dict) -> set[str]:
         """Find which steps produced the given arguments.
 
-        Checks id() of each arg and kwarg value against _return_origins.
+        Checks id() of each arg/kwarg against _return_origins, then verifies
+        with an identity check (``is``) to guard against id() reuse after
+        garbage collection.
 
         Returns:
             Set of node_id strings for steps that produced any of the arguments.
@@ -173,13 +178,13 @@ class SessionState:
         producers: set[str] = set()
         with self._lock_state:
             for arg in args:
-                origin = self._return_origins.get(id(arg))
-                if origin is not None:
-                    producers.add(origin)
+                entry = self._return_origins.get(id(arg))
+                if entry is not None and entry[1] is arg:
+                    producers.add(entry[0])
             for v in kwargs.values():
-                origin = self._return_origins.get(id(v))
-                if origin is not None:
-                    producers.add(origin)
+                entry = self._return_origins.get(id(v))
+                if entry is not None and entry[1] is v:
+                    producers.add(entry[0])
         return producers
 
     def increment_count(self, node_id: str) -> None:

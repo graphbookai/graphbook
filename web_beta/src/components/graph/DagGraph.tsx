@@ -88,6 +88,8 @@ function getMeasuredDimensions(nodes: Node[]): Map<string, { width: number; heig
 function DagGraphInner({ runId }: DagGraphProps) {
   const runState = useStore(s => s.runs.get(runId))
   const updateNodePosition = useStore(s => s.updateNodePosition)
+  const showMinimap = useStore(s => s.settings.showMinimap)
+  const showControls = useStore(s => s.settings.showControls)
   const graph = runState?.graph
 
   const { fitView, getNodes } = useReactFlow()
@@ -234,12 +236,14 @@ function DagGraphInner({ runId }: DagGraphProps) {
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={16} size={1} className="!bg-background" />
-          <Controls className="!bg-card !border-border !shadow-sm" />
-          <MiniMap
-            className="!bg-card !border-border"
-            nodeColor={() => 'oklch(0.556 0 0)'}
-            maskColor="rgba(0, 0, 0, 0.3)"
-          />
+          {showControls && <Controls className="!bg-card !border-border !shadow-sm" />}
+          {showMinimap && (
+            <MiniMap
+              className="!bg-card !border-border"
+              nodeColor={() => 'oklch(0.556 0 0)'}
+              maskColor="rgba(0, 0, 0, 0.3)"
+            />
+          )}
           <GraphToolbar onResetLayout={onResetLayout} />
         </ReactFlow>
         <DescriptionOverlay runId={runId} />

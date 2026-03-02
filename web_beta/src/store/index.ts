@@ -24,6 +24,46 @@ export interface AskPrompt {
   receivedAt: Date
 }
 
+export interface Settings {
+  theme: 'dark' | 'light'
+  showMinimap: boolean
+  showControls: boolean
+  collapseNodesByDefault: boolean
+  hideTabsOnDrag: boolean
+}
+
+const SETTINGS_KEY = 'gb_settings'
+
+const DEFAULT_SETTINGS: Settings = {
+  theme: 'dark',
+  showMinimap: true,
+  showControls: true,
+  collapseNodesByDefault: false,
+  hideTabsOnDrag: false,
+}
+
+function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return { ...DEFAULT_SETTINGS, ...parsed }
+    }
+  } catch { /* ignore */ }
+  return { ...DEFAULT_SETTINGS }
+}
+
+function saveSettings(settings: Settings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+  } catch { /* ignore */ }
+}
+
+const initialSettings = loadSettings()
+
+// Apply persisted theme on load
+document.documentElement.classList.toggle('dark', initialSettings.theme === 'dark')
+
 export type NodeTab = 'info' | 'logs' | 'metrics' | 'images' | 'audio' | 'ask'
 
 export interface PinnedPanel {
@@ -88,8 +128,8 @@ interface GraphbookStore {
   nodeListCollapsed: boolean
   toggleNodeList: () => void
 
-  // Theme
-  theme: 'dark' | 'light'
+  // Settings
+  settings: Settings
 
   // Actions
   setRuns: (summaries: RunSummary[], activeRunId: string | null) => void
@@ -122,7 +162,7 @@ interface GraphbookStore {
   addAskPrompt: (runId: string, prompt: AskPrompt) => void
   removeAskPrompt: (runId: string, askId: string) => void
 
-  toggleTheme: () => void
+  updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void
 
   processWsEvents: (runId: string, events: WsEvent[]) => void
 }
@@ -178,7 +218,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
   nodeListCollapsed: false,
   toggleNodeList: () => set(state => ({ nodeListCollapsed: !state.nodeListCollapsed })),
 
-  theme: 'dark',
+  settings: initialSettings,
 
   setRuns: (summaries, activeRunId) => set(state => {
     const runs = new Map(state.runs)
@@ -442,10 +482,13 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     return { runs }
   }),
 
-  toggleTheme: () => set(state => {
-    const next = state.theme === 'dark' ? 'light' : 'dark'
-    document.documentElement.classList.toggle('dark', next === 'dark')
-    return { theme: next }
+  updateSetting: (key, value) => set(state => {
+    const next = { ...state.settings, [key]: value }
+    saveSettings(next)
+    if (key === 'theme') {
+      document.documentElement.classList.toggle('dark', next.theme === 'dark')
+    }
+    return { settings: next }
   }),
 
   processWsEvents: (runId, events) => {
@@ -485,9 +528,10 @@ export const useStore = create<GraphbookStore>((set, get) => ({
       run = { ...run }
       runs.set(runId, run)
 
-      // Accumulate new logs/errors so we can spread once at the end
+      // Accumulate new logs/errors/collapsed so we can spread once at the end
       const newLogs: LogEntry[] = []
       const newErrors: ErrorEntry[] = []
+      const newCollapsedIds: string[] = []
 
       for (const event of events) {
         const etype = event.type
@@ -563,6 +607,9 @@ export const useStore = create<GraphbookStore>((set, get) => ({
                 },
               }
               run.summary.node_count = Object.keys(run.graph.nodes).length
+              if (state.settings.collapseNodesByDefault) {
+                newCollapsedIds.push(nid)
+              }
             }
             break
           }
@@ -700,6 +747,13 @@ export const useStore = create<GraphbookStore>((set, get) => ({
       }
       if (newErrors.length > 0) {
         run.errors = [...run.errors, ...newErrors]
+      }
+
+      // Collapse newly registered nodes if setting is enabled
+      if (newCollapsedIds.length > 0) {
+        const next = new Set(state.collapsedGraphNodes)
+        for (const id of newCollapsedIds) next.add(id)
+        return { runs, collapsedGraphNodes: next }
       }
 
       return { runs }
