@@ -21,7 +21,7 @@ class MessageType(str, Enum):
     ERROR = "error"
     NODE_REGISTER = "node_register"
     EDGE = "edge"
-    ASK = "ask"
+    ASK = "ask_prompt"
     ASK_RESPONSE = "ask_response"
     GRAPH_UPDATE = "graph_update"
     HEALTH = "health"

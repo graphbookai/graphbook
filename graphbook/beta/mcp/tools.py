@@ -362,7 +362,14 @@ async def write_source_code(
 async def ask_user(question: str, options: Optional[list[str]] = None, server_url: str = _DEFAULT_URL) -> dict[str, Any]:
     """Send a question to the terminal UI for human input."""
     try:
-        event = {"type": "ask", "question": question, "options": options, "timestamp": time.time()}
+        import uuid
+        event = {
+            "type": "ask_prompt",
+            "ask_id": str(uuid.uuid4()),
+            "question": question,
+            "options": options,
+            "timestamp": time.time(),
+        }
         return _post(f"{server_url}/events", [event])
     except Exception as e:
         return {"error": str(e)}

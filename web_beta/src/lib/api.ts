@@ -100,6 +100,11 @@ export const api = {
   startRun: (scriptPath: string, args?: string[]) =>
     post<{ run_id: string; pid: number; status: string }>('/run', { script_path: scriptPath, args: args ?? [] }),
 
+  getRunAsks: (id: string) => get<{ pending: Array<{
+    ask_id: string; node?: string; node_name?: string; question?: string;
+    options?: string[] | null; timeout_seconds?: number | null;
+  }> }>(`/runs/${id}/asks`),
+
   respondToAsk: (runId: string, askId: string, response: string) =>
     post(`/runs/${runId}/ask/${askId}/respond`, { response }),
 }

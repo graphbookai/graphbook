@@ -83,6 +83,8 @@ class Run:
     errors: list[ErrorEntry] = field(default_factory=list)
     metrics: dict[str, list] = field(default_factory=dict)
     inspections: dict[str, Any] = field(default_factory=dict)
+    pending_asks: dict[str, dict] = field(default_factory=dict)
+    ask_responses: dict[str, str] = field(default_factory=dict)
     source_hash: Optional[str] = None
     workflow_description: Optional[str] = None
     config: dict = field(default_factory=dict)
@@ -296,6 +298,11 @@ class DaemonState:
             run.inspections[name] = data
             if node_id and node_id in run.nodes:
                 run.nodes[node_id].inspections[name] = data
+
+        elif etype == "ask_prompt":
+            ask_id = event.get("ask_id") or event.get("data", {}).get("ask_id", "")
+            if ask_id:
+                run.pending_asks[ask_id] = event
 
         elif etype == "description":
             desc = event.get("data", {}).get("description", "")
@@ -533,6 +540,41 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
             "recent_logs": n.logs[-20:], "errors": n.errors,
             "metrics": n.metrics, "inspections": n.inspections, "progress": n.progress,
         }
+
+    # --- Ask / respond endpoints ---
+
+    def _get_run_or_404(run_id: str):
+        if run_id not in state.runs:
+            return None, JSONResponse(status_code=404, content={"error": f"Run '{run_id}' not found"})
+        return state.runs[run_id], None
+
+    @app.get("/runs/{run_id}/asks")
+    async def get_run_asks(run_id: str):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        return {"pending": list(run.pending_asks.values())}
+
+    @app.get("/runs/{run_id}/ask/{ask_id}/respond")
+    async def get_ask_response(run_id: str, ask_id: str):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        if ask_id in run.ask_responses:
+            return {"status": "answered", "response": run.ask_responses[ask_id]}
+        if ask_id in run.pending_asks:
+            return {"status": "pending"}
+        return JSONResponse(status_code=404, content={"error": f"Ask '{ask_id}' not found"})
+
+    @app.post("/runs/{run_id}/ask/{ask_id}/respond")
+    async def post_ask_response(run_id: str, ask_id: str, body: dict):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        response = body.get("response", "")
+        run.ask_responses[ask_id] = response
+        run.pending_asks.pop(ask_id, None)
+        return {"status": "ok"}
 
     # Backward-compatible endpoints (use latest run)
     @app.get("/graph")
