@@ -175,6 +175,22 @@ MCP_TOOLS = [
         },
     },
     {
+        "name": "graphbook_wait_for_event",
+        "description": "Block until a pipeline event occurs or timeout. Returns event details on match, or timeout status.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeout": {"type": "number", "description": "Max seconds to wait (default 300)."},
+                "events": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Event types to wait for: error, completed, ask_prompt (default all three).",
+                },
+                "run_id": {"type": "string", "description": "Run ID. Uses latest run if omitted."},
+            },
+        },
+    },
+    {
         "name": "graphbook_ask_user",
         "description": "Send a question to the user via the terminal dashboard.",
         "inputSchema": {
@@ -208,6 +224,7 @@ async def handle_tool_call(name: str, arguments: dict[str, Any], server_url: str
         "graphbook_get_run_history": lambda a: tools.get_run_history(server_url),
         "graphbook_get_source_code": lambda a: tools.get_source_code(a["file_path"], server_url),
         "graphbook_write_source_code": lambda a: tools.write_source_code(a["file_path"], a.get("content"), a.get("patches"), server_url),
+        "graphbook_wait_for_event": lambda a: tools.wait_for_event(a.get("timeout", 300), a.get("events"), a.get("run_id"), server_url),
         "graphbook_ask_user": lambda a: tools.ask_user(a["question"], a.get("options"), server_url),
     }
     handler = handlers.get(name)

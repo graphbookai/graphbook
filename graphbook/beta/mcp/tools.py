@@ -359,6 +359,48 @@ async def write_source_code(
     return {"error": "Either 'content' or 'patches' must be provided"}
 
 
+async def wait_for_event(
+    timeout: float = 300,
+    events: Optional[list[str]] = None,
+    run_id: Optional[str] = None,
+    server_url: str = _DEFAULT_URL,
+) -> dict[str, Any]:
+    """Block until a pipeline event occurs or timeout elapses.
+
+    Args:
+        timeout: Max seconds to wait (default 300).
+        events: Event types to wait for (default: error, completed, ask_prompt).
+        run_id: Run ID. Uses latest run if omitted.
+    """
+    if events is None:
+        events = ["error", "completed", "ask_prompt"]
+
+    # Resolve run_id to latest if not provided
+    if not run_id:
+        try:
+            runs = _get(f"{server_url}/runs")
+            active = runs.get("active_run")
+            if active:
+                run_id = active
+            else:
+                run_list = runs.get("runs", [])
+                if run_list:
+                    run_id = run_list[-1]["id"]
+                else:
+                    return {"error": "No runs found"}
+        except Exception as e:
+            return {"error": f"Could not resolve run_id: {e}"}
+
+    types_str = ",".join(events)
+    since = time.time()
+    url = f"{server_url}/runs/{run_id}/events/wait?types={types_str}&timeout={timeout}&since={since}"
+
+    try:
+        return _get(url, timeout=timeout + 5)
+    except Exception as e:
+        return {"error": f"wait_for_event failed: {e}"}
+
+
 async def ask_user(question: str, options: Optional[list[str]] = None, server_url: str = _DEFAULT_URL) -> dict[str, Any]:
     """Send a question to the terminal UI for human input."""
     try:
