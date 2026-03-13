@@ -16,5 +16,5 @@ docs:
 
 package: web
 	cp -r web/dist graphbook/web
-	poetry build
+	uv build
 	rm -r graphbook/web

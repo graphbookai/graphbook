@@ -12,15 +12,12 @@ jobs:
       group: larger-runners
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          pipx install poetry
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Set up Test PyPI Repository
-        run: |
-          poetry config repositories.test-pypi https://test.pypi.org/legacy/
       - name: Build and Publish
         run: |
           make package
-          poetry publish -r test-pypi -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.TEST_PYPI_PASSWORD }}
+          uv publish --index-url https://test.pypi.org/legacy/ --token ${{ secrets.TEST_PYPI_PASSWORD }}

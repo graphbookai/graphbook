@@ -5,7 +5,7 @@ Installing
 
 Requirements
 ============
-#. Python 3.9+
+#. Python 3.10+
 
 Install from PyPI
 =================
@@ -33,15 +33,14 @@ Install from Source
 
     If you wish to run graphbook in development mode, visit the :ref:`contributing` section.
 
-.. _Poetry: https://python-poetry.org/docs/
+.. _uv: https://docs.astral.sh/uv/
 .. _Node.js: https://nodejs.org/
 
-Installing from source requires Poetry_ and Node.js_.
+Installing from source requires uv_ and Node.js_.
 
 #. Clone the repository
 #. ``cd graphbook``
 #. ``make web``
-#. ``poetry install```
-#. ``poetry shell``
+#. ``uv sync``
 #. cd into the directory you want to create your workflows in
 #. ``<PATH_TO_REPO>/scripts/graphbook``
