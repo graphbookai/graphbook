@@ -9,16 +9,10 @@ Demonstrates:
 - Exception capture and enrichment
 """
 
-import random
-
 import numpy as np
 from PIL import Image
-
 import graphbook.beta as gb
-from graphbook.beta.core.state import SessionState
 
-# Reset state so the example is self-contained
-SessionState.reset_singleton()
 
 gb.md("A simulated ML training loop that trains a classifier and logs metrics, inspections, and sample images.")
 

@@ -81,6 +81,8 @@ class SessionState:
         self._client: Any = None  # DaemonClient when in server mode
         self._mode: str = "local"  # "local" or "server"
         self._return_origins: dict[int, tuple[str, Any]] = {}  # id(value) -> (producing node_id, value ref)
+        self._node_parents: dict[str, Optional[str]] = {}  # node_id -> parent node_id
+        self.dag_strategy: str = "object"
         self._lock_state = threading.Lock()
 
     def ensure_display(self) -> None:
@@ -165,26 +167,38 @@ class SessionState:
                     if v is not None:
                         self._return_origins[id(v)] = (node_id, v)
 
-    def find_producers(self, args: tuple, kwargs: dict) -> set[str]:
-        """Find which steps produced the given arguments.
+    def find_producers(
+        self, args: tuple, kwargs: dict, parent: Optional[str] = None,
+    ) -> set[str]:
+        """Find which sibling steps produced the given arguments.
 
         Checks id() of each arg/kwarg against _return_origins, then verifies
         with an identity check (``is``) to guard against id() reuse after
         garbage collection.
 
+        Only returns producers that are **siblings** of the current node
+        (share the same *parent*).  This ensures data-flow edges are short:
+        an object creates one edge per hop and does not skip levels.
+
         Returns:
-            Set of node_id strings for steps that produced any of the arguments.
+            Set of node_id strings for sibling steps that produced any
+            of the arguments.
         """
         producers: set[str] = set()
         with self._lock_state:
             for arg in args:
                 entry = self._return_origins.get(id(arg))
                 if entry is not None and entry[1] is arg:
-                    producers.add(entry[0])
+                    producer_id = entry[0]
+                    # Only include if producer is a sibling (same parent)
+                    if self._node_parents.get(producer_id) == parent:
+                        producers.add(producer_id)
             for v in kwargs.values():
                 entry = self._return_origins.get(id(v))
                 if entry is not None and entry[1] is v:
-                    producers.add(entry[0])
+                    producer_id = entry[0]
+                    if self._node_parents.get(producer_id) == parent:
+                        producers.add(producer_id)
         return producers
 
     def increment_count(self, node_id: str) -> None:
@@ -229,6 +243,8 @@ class SessionState:
             self.edges.clear()
             self._edge_set.clear()
             self._return_origins.clear()
+            self._node_parents.clear()
+            self.dag_strategy = "object"
             self.config.clear()
             self.workflow_description = None
             self.backends.clear()

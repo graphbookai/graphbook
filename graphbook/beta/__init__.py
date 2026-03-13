@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
+import logging as _stdlib_logging
 from typing import Any, Literal, Optional, TypeVar
 
 from hydr8 import override
@@ -35,7 +36,7 @@ from graphbook.beta.logging.logger import (
 T = TypeVar("T")
 
 _auto_init_done = False
-
+logger = _stdlib_logging.getLogger(__name__)
 
 def _ensure_init() -> None:
     """Lazily auto-initialize when GRAPHBOOK_MODE env vars are detected.
@@ -83,6 +84,7 @@ def init(
     mode: Literal["auto", "server", "local"] = "auto",
     backends: Optional[list[Any]] = None,
     terminal: bool = True,
+    dag_strategy: Literal["object", "stack", "both", "none"] = "object",
 ) -> None:
     """Initialize graphbook beta.
 
@@ -98,9 +100,14 @@ def init(
         mode: 'auto', 'server', or 'local'.
         backends: Optional list of LoggingBackend instances.
         terminal: Whether to show Rich terminal display in local mode.
+        dag_strategy: How DAG edges are inferred between steps.
+            'object' (default) uses sibling data-flow edges with parent
+            fallback. 'stack' uses caller-to-callee edges only. 'both'
+            is the union of object and stack edges.
     """
     state = get_state()
     state.port = port
+    state.dag_strategy = dag_strategy
 
     if backends:
         state.backends.extend(backends)

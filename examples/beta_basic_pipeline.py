@@ -14,12 +14,8 @@ Source nodes are those with in-degree 0 (nothing calls them).
 """
 
 import time
-
 import graphbook.beta as gb
-from graphbook.beta.core.state import SessionState
 
-# Reset state so the example is self-contained
-SessionState.reset_singleton()
 
 # Describe the workflow for AI agents
 gb.md("A simple text processing pipeline that loads documents, cleans them, and extracts keywords.")

@@ -39,10 +39,11 @@ def step(
         @gb.step("config_key")
         @gb.step(depends_on=[other_step])
 
-    DAG edges are inferred automatically. The calling step (parent) always
-    gets an edge to the callee. Additionally, when a step's return value
-    is passed as an argument to another step, a data-flow edge is created
-    from the producer to the consumer.
+    DAG edges are inferred automatically from data flow between
+    **sibling** steps (steps sharing the same parent/caller). An object
+    creates one edge per hop—if step X produces a value that flows
+    through step Y to step A, the edges are X→Y and Y→A, never X→A.
+    When no sibling data-flow is detected, a parent edge is used.
 
     For dependencies that cannot be detected automatically (shared mutable
     state, class attributes, globals), use ``depends_on``::
@@ -103,14 +104,29 @@ def step(
                     for dep in depends_on_ids:
                         state.add_edge(dep, node_id)
 
-                # 2. Auto-detected data-flow edges from arguments
-                producers = state.find_producers(args, kwargs)
-                for producer in producers:
-                    state.add_edge(producer, node_id)
+                # Record this node's parent for sibling filtering
+                state._node_parents[node_id] = parent
+                strategy = state.dag_strategy
 
-                # 3. Always add parent (call-graph) edge when no explicit depends_on
-                if parent is not None and not depends_on_ids:
-                    state.add_edge(parent, node_id)
+                # 2. Strategy-dependent edge inference
+                if strategy == "none":
+                    pass
+                elif strategy == "stack":
+                    if parent is not None:
+                        state.add_edge(parent, node_id)
+                elif strategy == "both":
+                    if parent is not None:
+                        state.add_edge(parent, node_id)
+                    producers = state.find_producers(args, kwargs, parent)
+                    for producer in producers:
+                        state.add_edge(producer, node_id)
+                else:  # "object" (default)
+                    producers = state.find_producers(args, kwargs, parent)
+                    if producers:
+                        for producer in producers:
+                            state.add_edge(producer, node_id)
+                    elif parent is not None and not depends_on_ids:
+                        state.add_edge(parent, node_id)
 
                 # Store resolved config params for UI visibility
                 if config_key:

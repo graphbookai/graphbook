@@ -10,14 +10,9 @@ Demonstrates:
 """
 
 import time
-
 import numpy as np
-
 import graphbook.beta as gb
-from graphbook.beta.core.state import SessionState
 
-# Reset state so the example is self-contained
-SessionState.reset_singleton()
 
 # Configuration for the pipeline
 config = {

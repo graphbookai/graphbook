@@ -8,12 +8,8 @@ Demonstrates:
 """
 
 import time
-
 import graphbook.beta as gb
-from graphbook.beta.core.state import SessionState
 
-# Reset state so the example is self-contained
-SessionState.reset_singleton()
 
 gb.md("An interactive pipeline that asks the user for input at key decision points.")
 

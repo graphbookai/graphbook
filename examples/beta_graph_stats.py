@@ -15,11 +15,8 @@ then inspect the resulting state.
 import time
 
 import graphbook.beta as gb
-from graphbook.beta.core.state import get_state, SessionState
+from graphbook.beta.core.state import get_state
 from graphbook.beta.core.dag import get_dag_summary, get_sources, get_topology_order
-
-# Reset state so the example is self-contained
-SessionState.reset_singleton()
 
 
 # --- Small pipeline to generate some state ---
