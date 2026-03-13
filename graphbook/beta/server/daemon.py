@@ -86,11 +86,14 @@ class Run:
     errors: list[ErrorEntry] = field(default_factory=list)
     metrics: dict[str, list] = field(default_factory=dict)
     inspections: dict[str, Any] = field(default_factory=dict)
+    pending_asks: dict[str, dict] = field(default_factory=dict)
+    ask_responses: dict[str, str] = field(default_factory=dict)
     source_hash: Optional[str] = None
     workflow_description: Optional[str] = None
     config: dict = field(default_factory=dict)
     stdout_lines: list[str] = field(default_factory=list)
     stderr_lines: list[str] = field(default_factory=list)
+    significant_events: list[dict] = field(default_factory=list)
 
     def get_graph(self) -> dict:
         """Return the DAG as a serializable dict."""
@@ -140,6 +143,7 @@ class DaemonState:
         self.active_run_id: Optional[str] = None
         self._ws_clients: list[Any] = []
         self._lock = asyncio.Lock()
+        self._event_notify: asyncio.Condition = asyncio.Condition()
 
     def create_run(
         self,
@@ -208,6 +212,10 @@ class DaemonState:
                 if ws in self._ws_clients:
                     self._ws_clients.remove(ws)
 
+        # Notify any waiters of new significant events
+        async with self._event_notify:
+            self._event_notify.notify_all()
+
     def _process_event(self, run: Run, event: dict) -> None:
         """Process a single event into run state."""
         etype = event.get("type", "")
@@ -257,6 +265,12 @@ class DaemonState:
             run.errors.append(error)
             if node:
                 node.errors.append(data)
+            run.significant_events.append({
+                "type": "error",
+                "timestamp": error.timestamp,
+                "node": error.node_name,
+                "message": error.exception_message,
+            })
 
         elif etype == "node_register":
             data = event.get("data", {})
@@ -333,6 +347,17 @@ class DaemonState:
             if node_id and node_id in run.nodes:
                 run.nodes[node_id].inspections[name] = data
 
+        elif etype == "ask_prompt":
+            ask_id = event.get("ask_id") or event.get("data", {}).get("ask_id", "")
+            if ask_id:
+                run.pending_asks[ask_id] = event
+                run.significant_events.append({
+                    "type": "ask_prompt",
+                    "timestamp": event.get("timestamp", time.time()),
+                    "ask_id": ask_id,
+                    "question": event.get("question", event.get("data", {}).get("question", "")),
+                })
+
         elif etype == "description":
             desc = event.get("data", {}).get("description", "")
             if run.workflow_description:
@@ -355,6 +380,12 @@ class DaemonState:
             run.status = "completed" if exit_code == 0 else "crashed"
             run.exit_code = exit_code
             run.ended_at = datetime.now()
+            run.significant_events.append({
+                "type": "run_completed",
+                "timestamp": time.time(),
+                "exit_code": exit_code,
+                "status": run.status,
+            })
 
     def mark_run_completed(self, run_id: str, exit_code: int = 0) -> None:
         """Mark a run as completed."""
@@ -569,6 +600,87 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
             "recent_logs": n.logs[-20:], "errors": n.errors,
             "metrics": n.metrics, "inspections": n.inspections, "progress": n.progress,
         }
+
+    # --- Ask / respond endpoints ---
+
+    def _get_run_or_404(run_id: str):
+        if run_id not in state.runs:
+            return None, JSONResponse(status_code=404, content={"error": f"Run '{run_id}' not found"})
+        return state.runs[run_id], None
+
+    @app.get("/runs/{run_id}/asks")
+    async def get_run_asks(run_id: str):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        return {"pending": list(run.pending_asks.values())}
+
+    @app.get("/runs/{run_id}/ask/{ask_id}/respond")
+    async def get_ask_response(run_id: str, ask_id: str):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        if ask_id in run.ask_responses:
+            return {"status": "answered", "response": run.ask_responses[ask_id]}
+        if ask_id in run.pending_asks:
+            return {"status": "pending"}
+        return JSONResponse(status_code=404, content={"error": f"Ask '{ask_id}' not found"})
+
+    @app.post("/runs/{run_id}/ask/{ask_id}/respond")
+    async def post_ask_response(run_id: str, ask_id: str, body: dict):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        response = body.get("response", "")
+        run.ask_responses[ask_id] = response
+        run.pending_asks.pop(ask_id, None)
+        return {"status": "ok"}
+
+    # --- Event wait endpoint ---
+
+    @app.get("/runs/{run_id}/events/wait")
+    async def wait_for_event(
+        run_id: str,
+        types: str = "error,run_completed,ask_prompt",
+        timeout: float = 300,
+        since: float = 0,
+    ):
+        if run_id not in state.runs:
+            return JSONResponse(status_code=404, content={"error": f"Run '{run_id}' not found"})
+
+        wanted = set(t.strip() for t in types.split(","))
+        deadline = asyncio.get_event_loop().time() + timeout
+
+        def _find_match() -> Optional[dict]:
+            run = state.runs[run_id]
+            for evt in run.significant_events:
+                if evt["type"] in wanted and evt.get("timestamp", 0) > since:
+                    return evt
+            return None
+
+        # Check for existing matching events first
+        match = _find_match()
+        if match:
+            return {"status": "event", "event": match}
+
+        # Wait for new events with condition variable
+        async with state._event_notify:
+            while True:
+                remaining = deadline - asyncio.get_event_loop().time()
+                if remaining <= 0:
+                    break
+                try:
+                    await asyncio.wait_for(
+                        state._event_notify.wait(), timeout=remaining
+                    )
+                except asyncio.TimeoutError:
+                    break
+                match = _find_match()
+                if match:
+                    return {"status": "event", "event": match}
+
+        run = state.runs[run_id]
+        return {"status": "timeout", "run_status": run.status}
 
     # Backward-compatible endpoints (use latest run)
     @app.get("/graph")

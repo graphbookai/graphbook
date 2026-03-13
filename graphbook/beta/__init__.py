@@ -22,7 +22,7 @@ from hydr8 import override
 from graphbook.beta.core.decorators import step
 from graphbook.beta.core.tracker import track
 from graphbook.beta.core.config import configure
-from graphbook.beta.core.state import get_state, LoggingBackend
+from graphbook.beta.core.state import _current_node, get_state, LoggingBackend
 from graphbook.beta.logging.logger import (
     log,
     log_metric,
@@ -177,7 +177,11 @@ def ask(
     options: Optional[list[str]] = None,
     timeout: Optional[float] = None,
 ) -> str:
-    """Ask a question via MCP or terminal fallback.
+    """Ask a question via the web UI or terminal fallback.
+
+    In server mode, sends an ask_prompt event to the daemon and polls
+    for a response from the web UI.  In local mode, falls back to a
+    Rich terminal prompt.
 
     Args:
         question: The question to ask.
@@ -186,23 +190,49 @@ def ask(
 
     Returns:
         The response string.
+
+    Raises:
+        TimeoutError: If timeout expires with no response (server mode only).
     """
     state = get_state()
+    client = getattr(state, "_client", None)
 
-    # In server mode, send ask event to daemon
-    if hasattr(state, '_client') and state._client and state._client.is_connected():
-        state._client.send_event({
-            "type": "ask",
+    # Server mode: send event and poll for web UI response
+    if client and client.is_connected():
+        ask_id = str(uuid.uuid4())
+        node_name = _current_node.get() or ""
+        run_id = getattr(client, "_run_id", None) or ""
+
+        client.send_event({
+            "type": "ask_prompt",
+            "ask_id": ask_id,
+            "node": node_name,
+            "node_name": node_name,
             "question": question,
             "options": options,
+            "timeout_seconds": timeout,
         })
+        client.flush()
 
-    # Pause the live display so it doesn't overwrite the prompt
-    display = state._display
+        poll_path = f"/runs/{run_id}/ask/{ask_id}/respond"
+        poll_interval = 0.5
+        deadline = time.monotonic() + timeout if timeout else None
+
+        while True:
+            if deadline and time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"No response to ask '{question}' within {timeout}s"
+                )
+            time.sleep(poll_interval)
+            resp = client.get(poll_path)
+            if resp and resp.get("status") == "answered":
+                return resp["response"]
+
+    # Local mode: terminal fallback
+    display = getattr(state, "_display", None)
     if display is not None:
         display.pause()
 
-    # Fallback to terminal
     try:
         from rich.prompt import Prompt
         if options:

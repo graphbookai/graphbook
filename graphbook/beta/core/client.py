@@ -191,6 +191,41 @@ class DaemonClient:
                         self._queue.put(event)
                 return
 
+    def flush(self) -> None:
+        """Force-flush the current event buffer immediately.
+
+        Blocks until all queued events have been sent. Useful for
+        time-sensitive events like ask prompts that shouldn't wait
+        for the next batch interval.
+        """
+        # Drain the queue into the buffer
+        while not self._queue.empty():
+            try:
+                event = self._queue.get_nowait()
+                self._buffer.append(event)
+            except queue.Empty:
+                break
+        self._do_flush()
+
+    def get(self, path: str) -> Optional[dict[str, Any]]:
+        """Send a GET request to the daemon and return the JSON response.
+
+        Args:
+            path: URL path (e.g. "/runs/run_1/ask/abc/respond").
+
+        Returns:
+            Parsed JSON dict, or None on error.
+        """
+        try:
+            url = f"{self._base_url}{path}"
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=5.0) as resp:
+                if resp.status == 200:
+                    return json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            pass
+        return None
+
     def try_reconnect(self) -> bool:
         """Manually attempt reconnection."""
         if self._connected:

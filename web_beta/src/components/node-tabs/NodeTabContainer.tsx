@@ -24,7 +24,12 @@ export function NodeTabContainer({ runId, nodeId }: NodeTabContainerProps) {
   const pinTab = useStore(s => s.pinTab)
   const run = useStore(s => s.runs.get(runId))
 
-  const hasPendingAsk = run?.pendingAsks?.has(nodeId) ?? false
+  const hasPendingAsk = useMemo(() => {
+    const asks = run?.pendingAsks
+    if (!asks || asks.size === 0) return false
+    for (const a of asks.values()) { if (a.nodeName === nodeId) return true }
+    return false
+  }, [run?.pendingAsks, nodeId])
   const hasMetrics = !!run?.nodeMetrics?.[nodeId] && Object.keys(run.nodeMetrics[nodeId]).length > 0
   const hasImages = (run?.nodeImages?.[nodeId]?.length ?? 0) > 0
   const hasAudio = (run?.nodeAudio?.[nodeId]?.length ?? 0) > 0

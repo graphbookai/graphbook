@@ -20,7 +20,12 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
   const nodeInfo = useStore(s => s.runs.get(runId)?.graph?.nodes[nodeId] ?? null)
   const hasErrors = useStore(s => (s.runs.get(runId)?.errors ?? []).some(e => e.node_name === nodeId))
   const runStatus = useStore(s => s.runs.get(runId)?.summary.status ?? null)
-  const hasPendingAsk = useStore(s => s.runs.get(runId)?.pendingAsks?.has(nodeId) ?? false)
+  const hasPendingAsk = useStore(s => {
+    const asks = s.runs.get(runId)?.pendingAsks
+    if (!asks || asks.size === 0) return false
+    for (const a of asks.values()) { if (a.nodeName === nodeId) return true }
+    return false
+  })
   const isCollapsed = useStore(s => s.collapsedGraphNodes.has(id))
   const toggleGraphNode = useStore(s => s.toggleGraphNode)
   const hideTabsOnDrag = useStore(s => s.settings.hideTabsOnDrag)
