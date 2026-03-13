@@ -113,7 +113,7 @@ def train(dataset: dict, model: dict, epochs: int = 10, batch_size: int = 16) ->
         if epoch % 3 == 0:
             sample_img = generate_sample_image(epoch)
             pil_img = Image.fromarray(sample_img)
-            gb.log_image(f"sample_epoch_{epoch}", pil_img, step=epoch)
+            gb.log_image(pil_img, name=f"sample_epoch_{epoch}", step=epoch)
             gb.log(f"Logged sample image for epoch {epoch}")
 
     return history

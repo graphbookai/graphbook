@@ -8,11 +8,12 @@ from typing import Any, Optional
 from graphbook.beta.core.state import _current_node, get_state
 
 
-def log(message: str) -> None:
+def log(message: str, *, step: Optional[int] = None) -> None:
     """Log a text message to the current node.
 
     Args:
         message: The message to log.
+        step: Optional step counter.
     """
     state = get_state()
     node_id = _current_node.get()
@@ -22,6 +23,7 @@ def log(message: str) -> None:
         "type": "log",
         "node": node_id,
         "message": message,
+        "step": step,
         "timestamp": timestamp,
     }
 
@@ -93,7 +95,7 @@ def log_metric(name: str, value: float, step: Optional[int] = None) -> None:
             pass
 
 
-def log_image(name: str, image: Any, step: Optional[int] = None) -> None:
+def log_image(image: Any, *, name: Optional[str] = None, step: Optional[int] = None) -> None:
     """Log an image (PIL, numpy array, or torch tensor).
 
     Args:
@@ -128,6 +130,8 @@ def log_image(name: str, image: Any, step: Optional[int] = None) -> None:
         except Exception:
             pass
 
+    state._send_to_client(entry)
+
     if state._queue is not None:
         try:
             state._queue.put_event(entry)
@@ -135,7 +139,7 @@ def log_image(name: str, image: Any, step: Optional[int] = None) -> None:
             pass
 
 
-def log_audio(name: str, audio: Any, sr: int = 16000) -> None:
+def log_audio(audio: Any, sr: int = 16000, *, name: Optional[str] = None, step: Optional[int] = None) -> None:
     """Log audio data.
 
     Args:
@@ -158,14 +162,20 @@ def log_audio(name: str, audio: Any, sr: int = 16000) -> None:
         "name": name,
         "data": base64.b64encode(audio_bytes).decode("ascii"),
         "sr": sr,
+        "step": step,
         "timestamp": timestamp,
     }
+
+    if node_id and node_id in state.nodes:
+        state.nodes[node_id].audio.append({"name": name, "step": step, "sr": sr, "timestamp": timestamp})
 
     for backend in state.backends:
         try:
             backend.on_audio(node_id or "", name, audio_bytes, sr)
         except Exception:
             pass
+
+    state._send_to_client(entry)
 
     if state._queue is not None:
         try:

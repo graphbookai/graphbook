@@ -87,7 +87,17 @@ export interface AudioEntry {
   name: string
   data: string // base64-encoded WAV
   sr: number
+  step: number | null
   timestamp: number
+}
+
+export type TimelineMode = 'time' | 'step'
+
+export interface TimelineState {
+  mode: TimelineMode
+  timeStart: number | null
+  timeEnd: number | null
+  step: number | null
 }
 
 export interface RunState {
@@ -127,6 +137,12 @@ interface GraphbookStore {
   // Node list panel (desktop)
   nodeListCollapsed: boolean
   toggleNodeList: () => void
+
+  // Timeline
+  timeline: TimelineState
+  setTimelineMode: (mode: TimelineMode) => void
+  setTimeRange: (start: number | null, end: number | null) => void
+  setTimelineStep: (step: number | null) => void
 
   // Settings
   settings: Settings
@@ -217,6 +233,11 @@ export const useStore = create<GraphbookStore>((set, get) => ({
 
   nodeListCollapsed: false,
   toggleNodeList: () => set(state => ({ nodeListCollapsed: !state.nodeListCollapsed })),
+
+  timeline: { mode: 'time', timeStart: null, timeEnd: null, step: null },
+  setTimelineMode: (mode) => set(state => ({ timeline: { ...state.timeline, mode } })),
+  setTimeRange: (start, end) => set(state => ({ timeline: { ...state.timeline, timeStart: start, timeEnd: end } })),
+  setTimelineStep: (step) => set(state => ({ timeline: { ...state.timeline, step } })),
 
   settings: initialSettings,
 
@@ -545,6 +566,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
               node: nodeId ?? null,
               message: (event.message as string) ?? (data.message as string) ?? '',
               level: (event.level as string) ?? 'info',
+              step: (event.step as number) ?? null,
             })
             break
 
@@ -687,9 +709,20 @@ export const useStore = create<GraphbookStore>((set, get) => ({
                 name: (data.name as string) ?? '',
                 data: (event.data as unknown as string) ?? '',
                 sr: (data.sr as number) ?? 16000,
+                step: (data.step as number) ?? null,
                 timestamp: (event.timestamp as number) ?? Date.now() / 1000,
               }]
             }
+            break
+
+          case 'text':
+            newLogs.push({
+              timestamp: (event.timestamp as number) ?? Date.now() / 1000,
+              node: nodeId ?? null,
+              message: `[${(data.name as string) ?? ''}] ${(data.content as string) ?? (event.content as unknown as string) ?? ''}`,
+              level: 'info',
+              step: (event.step as number) ?? null,
+            })
             break
 
           case 'inspection':

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useStore } from '@/store'
+import { useTimelineFilter } from '@/hooks/useTimelineFilter'
 import { formatTimestamp } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { Search } from 'lucide-react'
@@ -19,6 +20,7 @@ export function NodeLogs({ runId, nodeId }: NodeLogsProps) {
   const [levelFilter, setLevelFilter] = useState<string>('All')
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
+  const timelineFilter = useTimelineFilter()
 
   const nodeErrors = useMemo(() => errors.filter(e => e.node_name === nodeId), [errors, nodeId])
 
@@ -32,8 +34,11 @@ export function NodeLogs({ runId, nodeId }: NodeLogsProps) {
       const q = search.toLowerCase()
       filtered = filtered.filter(l => l.message.toLowerCase().includes(q))
     }
+    if (timelineFilter) {
+      filtered = filtered.filter(l => timelineFilter.matchEntry(l))
+    }
     return filtered
-  }, [logs, nodeId, levelFilter, search])
+  }, [logs, nodeId, levelFilter, search, timelineFilter])
 
   const allNodeLogs = useMemo(() => logs.filter(l => l.node === nodeId), [logs, nodeId])
 

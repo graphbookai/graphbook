@@ -101,6 +101,37 @@ class ServerState:
                 if tgt in self.nodes:
                     self.nodes[tgt]["is_source"] = False
 
+        elif event_type == "image":
+            if node_id and node_id in self.nodes:
+                if "images" not in self.nodes[node_id]:
+                    self.nodes[node_id]["images"] = []
+                self.nodes[node_id]["images"].append({
+                    "name": event.get("name", ""),
+                    "data": event.get("data", ""),
+                    "step": event.get("step"),
+                    "timestamp": event.get("timestamp", time.time()),
+                })
+
+        elif event_type == "audio":
+            if node_id and node_id in self.nodes:
+                if "audio" not in self.nodes[node_id]:
+                    self.nodes[node_id]["audio"] = []
+                self.nodes[node_id]["audio"].append({
+                    "name": event.get("name", ""),
+                    "data": event.get("data", ""),
+                    "sr": event.get("sr", 16000),
+                    "step": event.get("step"),
+                    "timestamp": event.get("timestamp", time.time()),
+                })
+
+        elif event_type == "text":
+            # Store as a log entry (same as log_text() does locally)
+            self.logs.append(event)
+            if node_id and node_id in self.nodes:
+                if "logs" not in self.nodes[node_id]:
+                    self.nodes[node_id]["logs"] = []
+                self.nodes[node_id]["logs"].append(event)
+
         elif event_type == "inspection":
             if node_id and node_id in self.nodes:
                 data = event.get("data", {})

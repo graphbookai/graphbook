@@ -37,6 +37,7 @@ class NodeInfo:
     metrics: dict = field(default_factory=lambda: {})  # name -> [(step, value)]
     errors: list = field(default_factory=list)
     images: list = field(default_factory=list)
+    audio: list = field(default_factory=list)
     inspections: dict = field(default_factory=dict)  # name -> last inspection result
     progress: Optional[dict] = None  # {current, total, name}
 

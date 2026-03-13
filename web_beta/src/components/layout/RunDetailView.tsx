@@ -5,6 +5,7 @@ import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { DagGraph } from '@/components/graph/DagGraph'
 import { NodeList } from '@/components/graph/NodeList'
 import { PinnedPanelStack } from '@/components/layout/PinnedPanelStack'
+import { TimelineScrubber } from '@/components/timeline/TimelineScrubber'
 import { RunStatusBadge } from '@/components/runs/RunStatusBadge'
 import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -101,6 +102,9 @@ export function RunDetailView() {
           <NodeList runId={selectedRunId} />
         )}
       </div>
+
+      {/* Timeline scrubber */}
+      <TimelineScrubber runId={selectedRunId} />
 
       {/* Pinned panel stack */}
       {pinnedPanels.length > 0 && (

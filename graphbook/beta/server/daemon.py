@@ -30,6 +30,7 @@ class LogEntry:
     message: str
     level: str = "info"
     type: str = "log"
+    step: Optional[int] = None
     extra: dict = field(default_factory=dict)
 
 
@@ -61,6 +62,8 @@ class NodeState:
     logs: list[dict] = field(default_factory=list)
     metrics: dict[str, list] = field(default_factory=dict)
     errors: list[dict] = field(default_factory=list)
+    images: list[dict] = field(default_factory=list)
+    audio: list[dict] = field(default_factory=list)
     inspections: dict[str, Any] = field(default_factory=dict)
     progress: Optional[dict] = None
 
@@ -216,6 +219,7 @@ class DaemonState:
                 node=node_id,
                 message=event.get("message", ""),
                 level=event.get("level", "info"),
+                step=event.get("step"),
             )
             run.logs.append(entry)
             if node_id and node_id in run.nodes:
@@ -289,6 +293,38 @@ class DaemonState:
                 run.edges.append({"source": src, "target": tgt})
                 if tgt in run.nodes:
                     run.nodes[tgt].is_source = False
+
+        elif etype == "image":
+            if node_id and node_id in run.nodes:
+                run.nodes[node_id].images.append({
+                    "name": event.get("name", ""),
+                    "data": event.get("data", ""),
+                    "step": event.get("step"),
+                    "timestamp": event.get("timestamp", time.time()),
+                })
+
+        elif etype == "audio":
+            if node_id and node_id in run.nodes:
+                run.nodes[node_id].audio.append({
+                    "name": event.get("name", ""),
+                    "data": event.get("data", ""),
+                    "sr": event.get("sr", 16000),
+                    "step": event.get("step"),
+                    "timestamp": event.get("timestamp", time.time()),
+                })
+
+        elif etype == "text":
+            # Store as a log entry (same as log_text() does locally)
+            entry = LogEntry(
+                timestamp=event.get("timestamp", time.time()),
+                node=node_id,
+                message=f"[{event.get('name', '')}] {event.get('content', '')}",
+                level="info",
+                type="text",
+            )
+            run.logs.append(entry)
+            if node_id and node_id in run.nodes:
+                run.nodes[node_id].logs.append(event)
 
         elif etype == "inspection":
             data = event.get("data", {})

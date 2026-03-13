@@ -50,6 +50,7 @@ export interface LogEntry {
   node: string | null
   message: string
   level: string
+  step: number | null
 }
 
 export interface ErrorEntry {

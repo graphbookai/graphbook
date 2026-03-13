@@ -1,4 +1,6 @@
+import { useMemo } from 'react'
 import { useStore } from '@/store'
+import { useTimelineFilter } from '@/hooks/useTimelineFilter'
 import { formatTimestamp } from '@/lib/utils'
 
 interface NodeImagesProps {
@@ -7,7 +9,13 @@ interface NodeImagesProps {
 }
 
 export function NodeImages({ runId, nodeId }: NodeImagesProps) {
-  const images = useStore(s => s.runs.get(runId)?.nodeImages[nodeId]) ?? []
+  const allImages = useStore(s => s.runs.get(runId)?.nodeImages[nodeId]) ?? []
+  const timelineFilter = useTimelineFilter()
+
+  const images = useMemo(() => {
+    if (!timelineFilter) return allImages
+    return allImages.filter(img => timelineFilter.matchEntry(img))
+  }, [allImages, timelineFilter])
 
   if (images.length === 0) {
     return <p className="text-xs text-muted-foreground">No images for this node</p>
