@@ -7,10 +7,10 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from graphbook.beta.core.decorators import step
+from graphbook.beta.core.decorators import fn
 
 
-@step()
+@fn()
 def augment(
     image: np.ndarray,
     hflip: bool = False,

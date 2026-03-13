@@ -19,21 +19,21 @@ The top-level module provides all the public functions you need. Import it as:
 Decorators
 ----------
 
-.. function:: gb.step(func=None, depends_on=None)
+.. function:: gb.fn(func=None, depends_on=None)
 
-    Register a function as a DAG node. When one ``@step``-decorated function calls another, a directed edge is recorded between them.
+    Register a function as a DAG node. When one ``@fn``-decorated function calls another, a directed edge is recorded between them.
 
     :param func: The function to decorate (when used without parentheses).
-    :param depends_on: Optional list of step functions or node ID strings that this step depends on.
+    :param depends_on: Optional list of decorated functions or node ID strings that this node depends on.
     :returns: The decorated function (unchanged behavior, with observability added).
 
     Usage forms:
 
     .. code-block:: python
 
-        @gb.step           # bare decorator
-        @gb.step()          # with empty parentheses
-        @gb.step("model")   # with config key
+        @gb.fn           # bare decorator
+        @gb.fn()          # with empty parentheses
+        @gb.fn(depends_on=[setup])  # with explicit dependencies
 
     The node ID is derived from the function's ``__qualname__``. The function's docstring becomes the node's description.
 
@@ -78,6 +78,21 @@ Logging Functions
     :param name: The text name/label.
     :param text: The text/Markdown content.
 
+.. function:: gb.log_cfg(cfg: dict[str, Any]) -> None
+
+    Log configuration for the current node. Merges *cfg* into the node's ``params`` dict so the Info tab displays all configuration in one place.
+
+    :param cfg: A flat or nested dictionary of configuration values. Only JSON-serializable values (str, int, float, bool, list, dict) are retained.
+
+    Multiple calls within the same node merge dictionaries (later calls win on key conflicts).
+
+    .. code-block:: python
+
+        @gb.fn()
+        def train(lr=0.001, epochs=50):
+            gb.log_cfg({"lr": lr, "epochs": epochs})
+            ...
+
 
 Inspection
 ----------
@@ -112,23 +127,6 @@ Progress Tracking
     :returns: A ``TrackedIterable`` that yields items and reports progress.
 
 
-Configuration
--------------
-
-.. function:: gb.configure(config: dict[str, Any]) -> None
-
-    Set the global configuration dictionary. Values are injected into ``@gb.step("key")`` functions whose parameter names match keys in the config sub-dictionary.
-
-    :param config: A nested dictionary of configuration values.
-
-    .. code-block:: python
-
-        gb.configure({
-            "model": {"lr": 0.001, "epochs": 50},
-            "data": {"path": "/data/train"},
-        })
-
-
 Workflow Description
 --------------------
 
@@ -160,7 +158,7 @@ Initialization
 
     .. note::
 
-        You rarely need to call ``init()`` explicitly. When using ``graphbook-beta run``, the SDK auto-initializes from environment variables on the first ``@step`` execution.
+        You rarely need to call ``init()`` explicitly. When using ``graphbook-beta run``, the SDK auto-initializes from environment variables on the first ``@fn`` execution.
 
 
 Human-in-the-Loop
@@ -183,7 +181,7 @@ State Access
 
     Get the global session state singleton. Advanced usage — most users won't need this.
 
-    :returns: The ``SessionState`` instance containing all nodes, edges, config, and backends.
+    :returns: The ``SessionState`` instance containing all nodes, edges, and backends.
 
 
 Protocol: ``LoggingBackend``

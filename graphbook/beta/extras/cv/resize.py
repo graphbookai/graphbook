@@ -6,10 +6,10 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 
-from graphbook.beta.core.decorators import step
+from graphbook.beta.core.decorators import fn
 
 
-@step()
+@fn()
 def resize(
     image: np.ndarray,
     size: Union[int, Tuple[int, int]] = 224,

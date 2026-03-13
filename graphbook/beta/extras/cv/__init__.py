@@ -2,7 +2,7 @@
 
 Install with: pip install graphbook[cv]
 
-Provides pre-built @step decorated functions for common CV operations.
+Provides pre-built @fn decorated functions for common CV operations.
 """
 
 from graphbook.beta.extras.cv.resize import resize

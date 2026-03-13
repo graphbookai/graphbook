@@ -5,22 +5,12 @@ from graphbook.core.decorators import (
     output,
     resource,
     event,
-    get_steps,
-    get_resources,
-    StepClassFactory,
-    ResourceClassFactory,
 )
 from graphbook.core import steps
 
 
 class TestStepDecorators:
     """Test the step decorator functionality."""
-
-    def setup_method(self):
-        """Reset the global state before each test."""
-        # Call get_steps and get_resources to clear the global state
-        get_steps()
-        get_resources()
 
     def test_basic_step_decorator(self):
         """Test that a basic step can be created with the step decorator."""
@@ -30,12 +20,11 @@ class TestStepDecorators:
             data["processed"] = True
             return data
 
-        steps_dict = get_steps()
-        assert "BasicStep" in steps_dict
-        assert steps_dict["BasicStep"].Category == "Test"
+        assert basic_step.__name__ == "BasicStep"
+        assert basic_step.Category == "Test"
 
         # Test the step functionality
-        step_instance = steps_dict["BasicStep"]()
+        step_instance = basic_step()
         test_data = {}
         result = step_instance(test_data)
         assert "out" in result
@@ -47,27 +36,24 @@ class TestStepDecorators:
         @step("Test/ParamStep")
         @param("value", "number", default=42, description="Test value")
         def param_step(ctx, data):
-            print(dir(ctx))
             data["value"] = ctx.value
             return data
 
-        steps_dict = get_steps()
-        assert "ParamStep" in steps_dict
-        step_class = steps_dict["ParamStep"]
+        assert param_step.__name__ == "ParamStep"
 
         # Check parameter metadata
-        assert "value" in step_class.Parameters
-        assert step_class.Parameters["value"]["default"] == 42
-        assert step_class.Parameters["value"]["description"] == "Test value"
+        assert "value" in param_step.Parameters
+        assert param_step.Parameters["value"]["default"] == 42
+        assert param_step.Parameters["value"]["description"] == "Test value"
 
         # Test the step with default parameter
-        step_instance = step_class()
+        step_instance = param_step()
         test_data = {}
         result = step_instance(test_data)
         assert result["out"][0]["value"] == 42
 
         # Test the step with custom parameter
-        step_instance = step_class(value=100)
+        step_instance = param_step(value=100)
         test_data = {}
         result = step_instance(test_data)
         assert result["out"][0]["value"] == 100
@@ -81,15 +67,13 @@ class TestStepDecorators:
             for i in range(3):
                 yield {"out": [{"value": i}]}
 
-        steps_dict = get_steps()
-        assert "SourceStep" in steps_dict
-        step_class = steps_dict["SourceStep"]
+        assert source_step.__name__ == "SourceStep"
 
         # Check that it's a source step
-        assert issubclass(step_class, steps.GeneratorSourceStep)
+        assert issubclass(source_step, steps.GeneratorSourceStep)
 
         # Test the source step functionality
-        step_instance = step_class()
+        step_instance = source_step()
         result1 = step_instance()
         assert result1["out"][0]["value"] == 0
 
@@ -112,15 +96,13 @@ class TestStepDecorators:
                 return "success"
             return "failure"
 
-        steps_dict = get_steps()
-        assert "OutputStep" in steps_dict
-        step_class = steps_dict["OutputStep"]
+        assert output_step.__name__ == "OutputStep"
 
         # Check output slots
-        assert step_class.Outputs == ["success", "failure"]
+        assert output_step.Outputs == ["success", "failure"]
 
         # Test routing to success
-        step_instance = step_class()
+        step_instance = output_step()
         success_data = {"success": True}
         result = step_instance(success_data)
         assert "success" in result
@@ -150,12 +132,10 @@ class TestStepDecorators:
             data["initialized"] = ctx.initialized
             return data
 
-        steps_dict = get_steps()
-        assert "EventStep" in steps_dict
-        step_class = steps_dict["EventStep"]
+        assert event_step.__name__ == "EventStep"
 
         # Test events
-        step_instance = step_class()
+        step_instance = event_step()
         assert step_instance.initialized is True
 
         test_data = {}
@@ -169,11 +149,6 @@ class TestStepDecorators:
 class TestResourceDecorators:
     """Test the resource decorator functionality."""
 
-    def setup_method(self):
-        """Reset the global state before each test."""
-        get_steps()
-        get_resources()
-
     def test_basic_resource_decorator(self):
         """Test that a basic resource can be created with the resource decorator."""
 
@@ -181,12 +156,11 @@ class TestResourceDecorators:
         def simple_resource(ctx):
             return "resource_value"
 
-        resources_dict = get_resources()
-        assert "SimpleResource" in resources_dict
-        assert resources_dict["SimpleResource"].Category == "Test"
+        assert simple_resource.__name__ == "SimpleResource"
+        assert simple_resource.Category == "Test"
 
         # Test the resource value
-        resource_instance = resources_dict["SimpleResource"]()
+        resource_instance = simple_resource()
         assert resource_instance.value() == "resource_value"
 
     def test_resource_with_parameters(self):
@@ -197,66 +171,17 @@ class TestResourceDecorators:
         def param_resource(ctx):
             return f"Resource: {ctx.name}"
 
-        resources_dict = get_resources()
-        assert "ParamResource" in resources_dict
-        resource_class = resources_dict["ParamResource"]
+        assert param_resource.__name__ == "ParamResource"
 
         # Check parameter metadata
-        assert "name" in resource_class.Parameters
-        assert resource_class.Parameters["name"]["default"] == "default_name"
-        assert resource_class.Parameters["name"]["description"] == "Resource name"
+        assert "name" in param_resource.Parameters
+        assert param_resource.Parameters["name"]["default"] == "default_name"
+        assert param_resource.Parameters["name"]["description"] == "Resource name"
 
         # Test the resource with default parameter
-        resource_instance = resource_class()
+        resource_instance = param_resource()
         assert resource_instance.value() == "Resource: default_name"
 
         # Test the resource with custom parameter
-        resource_instance = resource_class(name="custom_name")
+        resource_instance = param_resource(name="custom_name")
         assert resource_instance.value() == "Resource: custom_name"
-
-
-class TestClassFactories:
-    """Test the NodeClassFactory classes directly."""
-
-    def test_step_class_factory(self):
-        """Test the StepClassFactory directly."""
-        factory = StepClassFactory("TestStep", "Test")
-        factory.param("value", "number", default=10)
-        factory.event("on_data", lambda ctx, data: data.update({"processed": True}))
-        factory.doc("Test step docstring")
-
-        step_class = factory.build()
-
-        # Check class properties
-        assert step_class.__name__ == "TestStep"
-        assert step_class.Category == "Test"
-        assert step_class.__doc__ == "Test step docstring"
-        assert "value" in step_class.Parameters
-
-        # Test instance
-        step_instance = step_class(value=20)
-        assert step_instance.value == 20
-
-        test_data = {}
-        step_instance.on_data(test_data)
-        assert test_data["processed"] is True
-
-    def test_resource_class_factory(self):
-        """Test the ResourceClassFactory directly."""
-        factory = ResourceClassFactory("TestResource", "Test")
-        factory.param("config", "string", default="default_config")
-        factory.event("value", lambda ctx: f"Resource with config: {ctx.config}")
-        factory.doc("Test resource docstring")
-
-        resource_class = factory.build()
-
-        # Check class properties
-        assert resource_class.__name__ == "TestResource"
-        assert resource_class.Category == "Test"
-        assert resource_class.__doc__ == "Test resource docstring"
-        assert "config" in resource_class.Parameters
-
-        # Test instance
-        resource_instance = resource_class(config="custom_config")
-        assert resource_instance.config == "custom_config"
-        assert resource_instance.value() == "Resource with config: custom_config"

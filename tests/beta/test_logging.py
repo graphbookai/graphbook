@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from graphbook.beta.core.state import SessionState, get_state, _current_node
-from graphbook.beta.core.decorators import step
+from graphbook.beta.core.decorators import fn
 from graphbook.beta.logging.logger import log, log_metric, log_text, md
 from graphbook.beta.core.config import log_cfg
 
@@ -18,7 +18,7 @@ class TestLogging:
 
     def test_log_inside_step(self) -> None:
         """log() inside a step should attach to that node."""
-        @step()
+        @fn()
         def my_step():
             log("hello world")
 
@@ -30,7 +30,7 @@ class TestLogging:
 
     def test_log_metric_inside_step(self) -> None:
         """log_metric() should store metrics on the node."""
-        @step()
+        @fn()
         def train():
             log_metric("loss", 0.5, step=0)
             log_metric("loss", 0.3, step=1)
@@ -46,7 +46,7 @@ class TestLogging:
 
     def test_log_text(self) -> None:
         """log_text() should store text entries."""
-        @step()
+        @fn()
         def report():
             log_text("summary", "## Results\nAll good!")
 
@@ -85,7 +85,7 @@ class TestLogNumpy:
         except ImportError:
             pytest.skip("numpy not installed")
 
-        @step()
+        @fn()
         def check_array():
             arr = np.zeros((3, 224, 224), dtype=np.float32)
             log(arr)
@@ -104,7 +104,7 @@ class TestLogNumpy:
 
     def test_log_numpy_preserves_string(self) -> None:
         """log() with a plain string should still work as before."""
-        @step()
+        @fn()
         def my_step():
             log("plain text message")
 
@@ -122,7 +122,7 @@ class TestLogCfg:
 
     def test_log_cfg_stores_params(self) -> None:
         """log_cfg() should store config in node params."""
-        @step()
+        @fn()
         def train():
             log_cfg({"lr": 0.001, "batch_size": 32})
 
@@ -134,7 +134,7 @@ class TestLogCfg:
 
     def test_log_cfg_merges(self) -> None:
         """Multiple log_cfg() calls should merge into one dict."""
-        @step()
+        @fn()
         def train():
             log_cfg({"lr": 0.001})
             log_cfg({"batch_size": 32})
@@ -147,7 +147,7 @@ class TestLogCfg:
 
     def test_log_cfg_later_call_overwrites(self) -> None:
         """Later log_cfg() calls should overwrite conflicting keys."""
-        @step()
+        @fn()
         def train():
             log_cfg({"lr": 0.001, "epochs": 10})
             log_cfg({"lr": 0.01})
@@ -160,7 +160,7 @@ class TestLogCfg:
 
     def test_log_cfg_filters_non_serializable(self) -> None:
         """log_cfg() should only keep JSON-serializable values."""
-        @step()
+        @fn()
         def train():
             log_cfg({"lr": 0.001, "callback": lambda x: x})
 

@@ -6,7 +6,7 @@ import pytest
 
 from graphbook.beta.core.state import SessionState, get_state
 from graphbook.beta.core.tracker import track
-from graphbook.beta.core.decorators import step
+from graphbook.beta.core.decorators import fn
 
 
 class TestTracker:
@@ -38,7 +38,7 @@ class TestTracker:
 
     def test_track_updates_progress(self) -> None:
         """track() should update progress on the bound node."""
-        @step()
+        @fn()
         def process_data():
             results = []
             for item in track([1, 2, 3], name="data"):

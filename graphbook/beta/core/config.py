@@ -8,11 +8,11 @@ from graphbook.beta.core.state import _current_node, get_state
 
 
 def log_cfg(cfg: dict[str, Any]) -> None:
-    """Log configuration for the current step.
+    """Log configuration for the current node.
 
     Merges *cfg* into the current node's ``params`` dict so the
     info tab displays all configuration in one place.  Calling
-    ``log_cfg`` multiple times within the same step merges
+    ``log_cfg`` multiple times within the same node merges
     the dictionaries together (later calls win on key conflicts).
 
     Args:
@@ -22,7 +22,7 @@ def log_cfg(cfg: dict[str, Any]) -> None:
 
     Example::
 
-        @gb.step()
+        @gb.fn()
         def train(data):
             gb.log_cfg({"model": "resnet50", "batch_size": 32})
             gb.log_cfg({"lr": 0.001})

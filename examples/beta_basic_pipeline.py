@@ -1,15 +1,15 @@
 """Example 1: Basic Pipeline with DAG Inference and Logging
 
 Demonstrates:
-- @gb.step() decorator with automatic DAG edge inference
+- @gb.fn() decorator with automatic DAG edge inference
 - Automatic source node detection (in-degree 0)
 - gb.log() for text logging
 - gb.track() for progress tracking
 - gb.md() for workflow-level documentation
 - gb.inspect() for object metadata
 
-Key concept: DAG edges are inferred when one @step function calls another
-@step function. The caller becomes the parent, and the callee becomes the child.
+Key concept: DAG edges are inferred when one @fn function calls another
+@fn function. The caller becomes the parent, and the callee becomes the child.
 Source nodes are those with in-degree 0 (nothing calls them).
 """
 
@@ -21,7 +21,7 @@ import graphbook.beta as gb
 gb.md("A simple text processing pipeline that loads documents, cleans them, and extracts keywords.")
 
 
-@gb.step()
+@gb.fn()
 def clean_text(documents: list[dict]) -> list[dict]:
     """Clean and normalize document text by lowering case and stripping whitespace."""
     cleaned = []
@@ -38,7 +38,7 @@ def clean_text(documents: list[dict]) -> list[dict]:
     return cleaned
 
 
-@gb.step()
+@gb.fn()
 def extract_keywords(documents: list[dict]) -> list[dict]:
     """Extract keywords from cleaned documents using simple word frequency."""
     keywords_list = ["python", "ai", "machine", "learning", "data", "science"]
@@ -57,7 +57,7 @@ def extract_keywords(documents: list[dict]) -> list[dict]:
     return results
 
 
-@gb.step()
+@gb.fn()
 def summarize(results: list[dict]) -> str:
     """Generate a summary report of keyword extraction results."""
     total_keywords = sum(r["keyword_count"] for r in results)
@@ -67,7 +67,7 @@ def summarize(results: list[dict]) -> str:
     return summary
 
 
-@gb.step()
+@gb.fn()
 def run_pipeline(file_paths: list[str]) -> str:
     """Run the full text processing pipeline end-to-end.
 

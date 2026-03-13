@@ -6,10 +6,10 @@ from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-from graphbook.beta.core.decorators import step
+from graphbook.beta.core.decorators import fn
 
 
-@step()
+@fn()
 def normalize(
     image: np.ndarray,
     mean: Sequence[float] = (0.485, 0.456, 0.406),
@@ -42,7 +42,7 @@ def normalize(
     return result
 
 
-@step()
+@fn()
 def to_tensor(image: np.ndarray) -> "Any":
     """Convert a numpy image to a PyTorch tensor.
 
@@ -72,7 +72,7 @@ def to_tensor(image: np.ndarray) -> "Any":
     return torch.from_numpy(image.copy())
 
 
-@step()
+@fn()
 def detect_edges(
     image: np.ndarray,
     method: str = "canny",
@@ -113,7 +113,7 @@ def detect_edges(
         raise ValueError(f"Unknown edge detection method: {method}")
 
 
-@step()
+@fn()
 def draw_boxes(
     image: np.ndarray,
     boxes: list,
@@ -148,7 +148,7 @@ def draw_boxes(
     return result
 
 
-@step()
+@fn()
 def color_convert(
     image: np.ndarray,
     conversion: str = "bgr2rgb",

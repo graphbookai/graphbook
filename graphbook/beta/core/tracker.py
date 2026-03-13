@@ -33,7 +33,7 @@ class TrackedIterable(Iterator[T]):
             except (TypeError, AttributeError):
                 pass
 
-        # If not inside a step, create an implicit node
+        # If not inside a @fn node, create an implicit node
         state = get_state()
         if self._node_id is None and self._name:
             self._node_id = f"_track_{self._name}"

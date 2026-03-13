@@ -1,35 +1,35 @@
-"""Tests for the @step decorator and DAG inference."""
+"""Tests for the @fn decorator and DAG inference."""
 
 from __future__ import annotations
 
 import pytest
 
 from graphbook.beta.core.state import SessionState, _current_node, get_state
-from graphbook.beta.core.decorators import step
+from graphbook.beta.core.decorators import fn
 from graphbook.beta.core.dag import get_sources, get_topology_order, get_dag_summary
 
 
-class TestStepDecorator:
-    """Tests for the @gb.step() decorator."""
+class TestFnDecorator:
+    """Tests for the @gb.fn() decorator."""
 
     def setup_method(self) -> None:
         """Reset state before each test."""
         SessionState.reset_singleton()
 
-    def test_step_registers_node(self) -> None:
-        """@step should register the function as a node."""
-        @step()
+    def test_fn_registers_node(self) -> None:
+        """@fn should register the function as a node."""
+        @fn()
         def my_func():
             """My docstring."""
             return 42
 
         state = get_state()
-        assert "TestStepDecorator.test_step_registers_node.<locals>.my_func" in state.nodes or \
+        assert "TestFnDecorator.test_fn_registers_node.<locals>.my_func" in state.nodes or \
                any("my_func" in nid for nid in state.nodes)
 
-    def test_step_captures_docstring(self) -> None:
-        """@step should capture the function's docstring."""
-        @step()
+    def test_fn_captures_docstring(self) -> None:
+        """@fn should capture the function's docstring."""
+        @fn()
         def documented_func():
             """This is a documented function."""
             pass
@@ -38,9 +38,9 @@ class TestStepDecorator:
         node = next(n for n in state.nodes.values() if n.func_name == "documented_func")
         assert node.docstring == "This is a documented function."
 
-    def test_step_without_parens(self) -> None:
-        """@step without parentheses should work."""
-        @step
+    def test_fn_without_parens(self) -> None:
+        """@fn without parentheses should work."""
+        @fn
         def bare_func():
             return 1
 
@@ -50,9 +50,9 @@ class TestStepDecorator:
         node = next(n for n in state.nodes.values() if n.func_name == "bare_func")
         assert node.exec_count == 1
 
-    def test_step_increments_count(self) -> None:
+    def test_fn_increments_count(self) -> None:
         """Each call should increment the execution count."""
-        @step()
+        @fn()
         def counter_func():
             return True
 
@@ -64,26 +64,26 @@ class TestStepDecorator:
         node = next(n for n in state.nodes.values() if n.func_name == "counter_func")
         assert node.exec_count == 3
 
-    def test_step_preserves_return_value(self) -> None:
-        """@step should not modify the return value."""
-        @step()
+    def test_fn_preserves_return_value(self) -> None:
+        """@fn should not modify the return value."""
+        @fn()
         def add(a, b):
             return a + b
 
         assert add(2, 3) == 5
 
-    def test_step_preserves_exceptions(self) -> None:
-        """@step should re-raise exceptions."""
-        @step()
+    def test_fn_preserves_exceptions(self) -> None:
+        """@fn should re-raise exceptions."""
+        @fn()
         def failing_func():
             raise ValueError("test error")
 
         with pytest.raises(ValueError, match="test error"):
             failing_func()
 
-    def test_step_captures_errors(self) -> None:
-        """@step should capture error info when exceptions occur."""
-        @step()
+    def test_fn_captures_errors(self) -> None:
+        """@fn should capture error info when exceptions occur."""
+        @fn()
         def error_func():
             """A function that errors."""
             raise RuntimeError("something broke")
@@ -106,7 +106,7 @@ class TestDAGInference:
 
     def test_single_node_is_source(self) -> None:
         """A single node with no callers should be a source."""
-        @step()
+        @fn()
         def standalone():
             return 1
 
@@ -116,12 +116,12 @@ class TestDAGInference:
         assert node.is_source is True
 
     def test_dag_edge_inference(self) -> None:
-        """Calling a step from another step should create an edge."""
-        @step()
+        """Calling a node from another node should create an edge."""
+        @fn()
         def producer():
             return consumer()
 
-        @step()
+        @fn()
         def consumer():
             return 42
 
@@ -137,15 +137,15 @@ class TestDAGInference:
 
     def test_linear_dag(self) -> None:
         """A -> B -> C should create proper edges and sources."""
-        @step()
+        @fn()
         def step_a():
             return step_b()
 
-        @step()
+        @fn()
         def step_b():
             return step_c()
 
-        @step()
+        @fn()
         def step_c():
             return "done"
 
@@ -160,11 +160,11 @@ class TestDAGInference:
 
     def test_dag_summary(self) -> None:
         """get_dag_summary should return topology string."""
-        @step()
+        @fn()
         def load():
             return process()
 
-        @step()
+        @fn()
         def process():
             return "done"
 
@@ -174,17 +174,17 @@ class TestDAGInference:
         assert "→" in summary or "load" in summary
 
 
-class TestLogCfgWithStep:
-    """Tests for log_cfg() working with @step."""
+class TestLogCfgWithFn:
+    """Tests for log_cfg() working with @fn."""
 
     def setup_method(self) -> None:
         SessionState.reset_singleton()
 
     def test_log_cfg_shows_in_node_params(self) -> None:
-        """log_cfg() inside a step should populate node.params."""
+        """log_cfg() inside a node should populate node.params."""
         from graphbook.beta.core.config import log_cfg
 
-        @step()
+        @fn()
         def train():
             log_cfg({"model_name": "resnet18", "batch_size": 16})
             return "done"
@@ -199,7 +199,7 @@ class TestLogCfgWithStep:
         """Multiple log_cfg() calls merge params."""
         from graphbook.beta.core.config import log_cfg
 
-        @step()
+        @fn()
         def train():
             log_cfg({"model_name": "resnet18"})
             log_cfg({"batch_size": 16})
@@ -226,20 +226,20 @@ class TestDataFlowEdges:
         return next(nid for nid, n in state.nodes.items() if n.func_name == func_name)
 
     def test_linear_data_flow(self) -> None:
-        """Sequential steps passing outputs should create data-flow edges."""
-        @step()
+        """Sequential nodes passing outputs should create data-flow edges."""
+        @fn()
         def load_data():
             return [1, 2, 3]
 
-        @step()
+        @fn()
         def transform(data):
             return [x * 2 for x in data]
 
-        @step()
+        @fn()
         def aggregate(data):
             return sum(data)
 
-        @step()
+        @fn()
         def pipeline():
             records = load_data()
             transformed = transform(records)
@@ -261,23 +261,23 @@ class TestDataFlowEdges:
 
     def test_fan_out_fan_in(self) -> None:
         """Multiple producers feeding into one consumer."""
-        @step()
+        @fn()
         def source():
             return {"data": [1, 2, 3]}
 
-        @step()
+        @fn()
         def process_a(data):
             return {"a": sum(data["data"])}
 
-        @step()
+        @fn()
         def process_b(data):
             return {"b": len(data["data"])}
 
-        @step()
+        @fn()
         def merge(a_result, b_result):
             return {**a_result, **b_result}
 
-        @step()
+        @fn()
         def pipeline():
             data = source()
             a = process_a(data)
@@ -296,12 +296,12 @@ class TestDataFlowEdges:
         assert len(get_state().edges) == 5
 
     def test_fallback_to_parent_when_no_data_dependency(self) -> None:
-        """When a step receives no step-produced args, fall back to parent."""
-        @step()
+        """When a node receives no node-produced args, fall back to parent."""
+        @fn()
         def child():
             return 42
 
-        @step()
+        @fn()
         def parent_step():
             return child()
 
@@ -312,20 +312,20 @@ class TestDataFlowEdges:
         assert len(get_state().edges) == 1
 
     def test_destructured_tuple_returns(self) -> None:
-        """Tuple elements should be tracked as produced by the step."""
-        @step()
+        """Tuple elements should be tracked as produced by the node."""
+        @fn()
         def create():
             return ([1, 2], [3, 4])
 
-        @step()
+        @fn()
         def use_first(x):
             return sum(x)
 
-        @step()
+        @fn()
         def use_second(y):
             return sum(y)
 
-        @step()
+        @fn()
         def pipeline():
             a, b = create()
             use_first(a)
@@ -339,16 +339,16 @@ class TestDataFlowEdges:
         assert (self._nid("create"), self._nid("use_second")) in edges
 
     def test_dict_value_tracking(self) -> None:
-        """Dict values should be tracked as produced by the step."""
-        @step()
+        """Dict values should be tracked as produced by the node."""
+        @fn()
         def create_dataset():
             return {"X": [1, 2], "y": [0, 1]}
 
-        @step()
+        @fn()
         def train(features, labels):
             return len(features) + len(labels)
 
-        @step()
+        @fn()
         def pipeline():
             dataset = create_dataset()
             return train(dataset["X"], dataset["y"])
@@ -360,16 +360,16 @@ class TestDataFlowEdges:
         assert (self._nid("create_dataset"), self._nid("train")) in edges
 
     def test_none_return_not_tracked(self) -> None:
-        """Steps returning None should not create false edges."""
-        @step()
+        """Nodes returning None should not create false edges."""
+        @fn()
         def void_step():
             return None
 
-        @step()
+        @fn()
         def another_step(x=None):
             return 42
 
-        @step()
+        @fn()
         def pipeline():
             void_step()
             return another_step()
@@ -381,19 +381,19 @@ class TestDataFlowEdges:
 
     def test_mixed_data_flow_and_nested_calls(self) -> None:
         """Data-flow edges and nested-call edges should coexist."""
-        @step()
+        @fn()
         def load():
             return [1, 2, 3]
 
-        @step()
+        @fn()
         def process(data):
             return helper()
 
-        @step()
+        @fn()
         def helper():
             return "done"
 
-        @step()
+        @fn()
         def pipeline():
             data = load()
             return process(data)
@@ -410,15 +410,15 @@ class TestDataFlowEdges:
 
     def test_depends_on_with_function_refs(self) -> None:
         """depends_on with function references should create explicit edges."""
-        @step()
+        @fn()
         def foo():
             return 1
 
-        @step(depends_on=[foo])
+        @fn(depends_on=[foo])
         def bar():
             return 2
 
-        @step()
+        @fn()
         def pipeline():
             foo()
             bar()
@@ -432,7 +432,7 @@ class TestDataFlowEdges:
 
     def test_depends_on_with_strings(self) -> None:
         """depends_on with string node IDs should create explicit edges."""
-        @step()
+        @fn()
         def alpha():
             return 1
 
@@ -441,11 +441,11 @@ class TestDataFlowEdges:
             if n.func_name == "alpha"
         )
 
-        @step(depends_on=[alpha_id])
+        @fn(depends_on=[alpha_id])
         def beta():
             return 2
 
-        @step()
+        @fn()
         def pipeline():
             alpha()
             beta()
@@ -457,19 +457,19 @@ class TestDataFlowEdges:
 
     def test_depends_on_combined_with_auto_detection(self) -> None:
         """depends_on and auto-detected data-flow should both create edges."""
-        @step()
+        @fn()
         def setup():
             return "config"
 
-        @step()
+        @fn()
         def load():
             return [1, 2, 3]
 
-        @step(depends_on=[setup])
+        @fn(depends_on=[setup])
         def process(data):
             return sum(data)
 
-        @step()
+        @fn()
         def pipeline():
             setup()
             data = load()
@@ -492,20 +492,20 @@ class TestDataFlowEdges:
         train passes it to train_step (hop 2: train -> train_step).
         No long-range edge create_model -> train_step should exist.
         """
-        @step()
+        @fn()
         def create_model():
             return {"weights": [1, 2, 3]}
 
-        @step()
+        @fn()
         def train_step(model, batch):
             return sum(model["weights"]) + sum(batch)
 
-        @step()
+        @fn()
         def train(model):
-            batch = [10, 20]  # local data, not from a step
+            batch = [10, 20]  # local data, not from a node
             return train_step(model, batch)
 
-        @step()
+        @fn()
         def run_experiment():
             model = create_model()
             return train(model)
@@ -524,16 +524,16 @@ class TestDataFlowEdges:
         assert len(get_state().edges) == 3
 
     def test_sibling_data_flow_creates_edge(self) -> None:
-        """Data-flow edges connect siblings (steps sharing same parent)."""
-        @step()
+        """Data-flow edges connect siblings (nodes sharing same parent)."""
+        @fn()
         def produce():
             return [1, 2, 3]
 
-        @step()
+        @fn()
         def consume(data):
             return sum(data)
 
-        @step()
+        @fn()
         def orchestrator():
             data = produce()
             return consume(data)
@@ -573,15 +573,15 @@ class TestDAGStrategy:
         state = get_state()
         state.dag_strategy = "stack"
 
-        @step()
+        @fn()
         def load():
             return [1, 2, 3]
 
-        @step()
+        @fn()
         def transform(data):
             return [x * 2 for x in data]
 
-        @step()
+        @fn()
         def pipeline():
             data = load()
             return transform(data)
@@ -601,19 +601,19 @@ class TestDAGStrategy:
         state = get_state()
         state.dag_strategy = "stack"
 
-        @step()
+        @fn()
         def source():
             return {"data": [1, 2]}
 
-        @step()
+        @fn()
         def branch_a(data):
             return sum(data["data"])
 
-        @step()
+        @fn()
         def branch_b(data):
             return len(data["data"])
 
-        @step()
+        @fn()
         def pipeline():
             data = source()
             branch_a(data)
@@ -635,15 +635,15 @@ class TestDAGStrategy:
         state = get_state()
         state.dag_strategy = "both"
 
-        @step()
+        @fn()
         def load():
             return [1, 2, 3]
 
-        @step()
+        @fn()
         def transform(data):
             return [x * 2 for x in data]
 
-        @step()
+        @fn()
         def pipeline():
             data = load()
             return transform(data)
@@ -663,19 +663,19 @@ class TestDAGStrategy:
         state = get_state()
         state.dag_strategy = "both"
 
-        @step()
+        @fn()
         def setup():
             return "config"
 
-        @step()
+        @fn()
         def load():
             return [1, 2, 3]
 
-        @step(depends_on=[setup])
+        @fn(depends_on=[setup])
         def process(data):
             return sum(data)
 
-        @step()
+        @fn()
         def pipeline():
             setup()
             data = load()
@@ -696,15 +696,15 @@ class TestDAGStrategy:
         state = get_state()
         state.dag_strategy = "none"
 
-        @step()
+        @fn()
         def load():
             return [1, 2, 3]
 
-        @step()
+        @fn()
         def transform(data):
             return [x * 2 for x in data]
 
-        @step()
+        @fn()
         def pipeline():
             data = load()
             return transform(data)

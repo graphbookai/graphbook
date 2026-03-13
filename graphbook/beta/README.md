@@ -1,6 +1,6 @@
 # Graphbook Beta
 
-Lightweight observability for Python programs. Decorate your functions with `@gb.step()`, and graphbook automatically infers a DAG from your call graph, captures logs, metrics, inspections, and errors — all queryable in real time via CLI, MCP tools, or a Rich terminal dashboard.
+Lightweight observability for Python programs. Decorate your functions with `@gb.fn()`, and graphbook automatically infers a DAG from your call graph, captures logs, metrics, inspections, and errors — all queryable in real time via CLI, MCP tools, or a Rich terminal dashboard.
 
 ## Installation
 
@@ -19,7 +19,7 @@ graphbook-beta --help
 ```python
 import graphbook.beta as gb
 
-@gb.step()
+@gb.fn()
 def load_data(path: str = "data.csv") -> list[dict]:
     """Load records from a file."""
     records = [{"id": i, "value": i * 0.5} for i in range(100)]
@@ -27,7 +27,7 @@ def load_data(path: str = "data.csv") -> list[dict]:
     gb.inspect(records, "raw_records")
     return records
 
-@gb.step()
+@gb.fn()
 def transform(records: list[dict]) -> list[dict]:
     """Normalize values."""
     out = []
@@ -37,7 +37,7 @@ def transform(records: list[dict]) -> list[dict]:
     gb.log_metric("record_count", float(len(out)))
     return out
 
-@gb.step()
+@gb.fn()
 def run():
     """Main pipeline entry point."""
     records = load_data()
@@ -53,35 +53,34 @@ Running this produces a Rich terminal display showing the DAG, node execution co
 
 ## Core Concepts
 
-### `@gb.step()` — Register a function as a DAG node
+### `@gb.fn()` — Register a function as a DAG node
 
-Every function decorated with `@gb.step()` becomes a node in the pipeline DAG. Edges are inferred from **data flow**: when a step's return value is passed as an argument to another step, an edge is created from the producer to the consumer.
+Every function decorated with `@gb.fn()` becomes a node in the pipeline DAG. Edges are inferred from **data flow**: when a node's return value is passed as an argument to another node, an edge is created from the producer to the consumer.
 
 ```python
-@gb.step()
+@gb.fn()
 def load_data():
     return [1, 2, 3]
 
-@gb.step()
+@gb.fn()
 def transform(data):
     return [x * 2 for x in data]
 
-@gb.step()
+@gb.fn()
 def run():
     records = load_data()        # edge: run → load_data (no data dependency)
     result = transform(records)  # edge: load_data → transform (data flows from load_data)
     return result
 ```
 
-When a child step receives no step-produced arguments, the edge falls back to the calling parent step.
+When a child node receives no node-produced arguments, the edge falls back to the calling parent node.
 
 You can use it in several ways:
 
 ```python
-@gb.step              # bare decorator
-@gb.step()            # with parentheses
-@gb.step("model")     # with a config key (see Configuration below)
-@gb.step(depends_on=[other_step])  # with explicit dependencies
+@gb.fn              # bare decorator
+@gb.fn()            # with parentheses
+@gb.fn(depends_on=[other_fn])  # with explicit dependencies
 ```
 
 ### `depends_on` — Explicit dependency declaration
@@ -89,18 +88,18 @@ You can use it in several ways:
 Some dependencies cannot be detected automatically (shared mutable state, class attributes, global variables). Use `depends_on` to declare these explicitly:
 
 ```python
-@gb.step()
+@gb.fn()
 def setup():
     """Initialize shared resources."""
     ...
 
-@gb.step(depends_on=[setup])
+@gb.fn(depends_on=[setup])
 def process():
     """Uses resources initialized by setup."""
     ...
 ```
 
-`depends_on` accepts a list of step functions or node ID strings. Explicit dependencies are added alongside any auto-detected data-flow edges.
+`depends_on` accepts a list of decorated functions or node ID strings. Explicit dependencies are added alongside any auto-detected data-flow edges.
 
 > **Limitation**: Graphbook tracks data flow via argument passing (`id()`-based return value tracking). Dependencies through shared mutable state, class attributes, closures, or global variables are **not** automatically detected. Use `depends_on` for these cases.
 
@@ -109,7 +108,7 @@ def process():
 Log a message to the current node. Messages appear in the terminal dashboard and are queryable via MCP tools.
 
 ```python
-@gb.step()
+@gb.fn()
 def train(data):
     gb.log(f"Training on {len(data)} samples")
     for epoch in range(10):
@@ -122,7 +121,7 @@ def train(data):
 Log scalar metrics with automatic step counting. Useful for loss curves, accuracy, or any time series.
 
 ```python
-@gb.step()
+@gb.fn()
 def train(model, data):
     for epoch in range(100):
         loss = train_one_epoch(model, data)
@@ -130,12 +129,25 @@ def train(model, data):
         gb.log_metric("lr", optimizer.param_groups[0]["lr"])
 ```
 
+### `gb.log_cfg(cfg)` — Configuration logging
+
+Log configuration for the current node. Values are displayed in the Info tab.
+
+```python
+@gb.fn()
+def train(lr=0.001, epochs=50):
+    gb.log_cfg({"lr": lr, "epochs": epochs})
+    ...
+```
+
+Multiple `log_cfg()` calls within the same node merge their dictionaries.
+
 ### `gb.inspect(obj, name=None)` — Object metadata
 
 Inspect any object to log its metadata (shape, dtype, device, min/max/mean) without logging raw data. Works with PyTorch tensors, NumPy arrays, pandas DataFrames, and plain Python objects.
 
 ```python
-@gb.step()
+@gb.fn()
 def forward(model, batch):
     output = model(batch)
     gb.inspect(output, "model_output")
@@ -148,33 +160,33 @@ def forward(model, batch):
 Wrap any iterable for tqdm-like progress tracking. The progress bar renders in the terminal dashboard and updates in real time.
 
 ```python
-@gb.step()
+@gb.fn()
 def process(items):
     for item in gb.track(items, name="processing"):
         transform(item)
 ```
 
-### `gb.log_image(name, image)` — Image logging
+### `gb.log_image(image, name=None, step=None)` — Image logging
 
 Log images (PIL, NumPy arrays, or PyTorch tensors) for visual inspection.
 
 ```python
-@gb.step()
+@gb.fn()
 def augment(image):
     augmented = apply_transforms(image)
-    gb.log_image("augmented", augmented)
+    gb.log_image(augmented, name="augmented")
     return augmented
 ```
 
-### `gb.log_audio(name, audio, sr=16000)` — Audio logging
+### `gb.log_audio(audio, sr=16000, name=None, step=None)` — Audio logging
 
 Log audio data for playback and analysis.
 
 ```python
-@gb.step()
+@gb.fn()
 def synthesize(text):
     waveform = tts_model(text)
-    gb.log_audio("output", waveform, sr=22050)
+    gb.log_audio(waveform, sr=22050, name="output")
     return waveform
 ```
 
@@ -183,7 +195,7 @@ def synthesize(text):
 Log formatted text or Markdown content.
 
 ```python
-@gb.step()
+@gb.fn()
 def report(stats):
     gb.log_text("summary", f"""## Results
 - **Accuracy**: {stats['acc']:.2%}
@@ -204,33 +216,12 @@ and exports predictions to a JSON file.
 """)
 ```
 
-### `gb.configure(config)` — Configuration injection
-
-Pass a nested config dictionary. Functions decorated with `@gb.step("key")` automatically receive matching parameters from the config.
-
-```python
-gb.configure({
-    "model": {"lr": 0.001, "epochs": 50, "batch_size": 32},
-    "data": {"path": "/data/train", "augment": True},
-})
-
-@gb.step("model")
-def train(lr: float = 0.01, epochs: int = 10, batch_size: int = 16):
-    # lr=0.001, epochs=50, batch_size=32 are injected from config
-    ...
-
-@gb.step("data")
-def load(path: str = ".", augment: bool = False):
-    # path="/data/train", augment=True are injected from config
-    ...
-```
-
 ### `gb.ask(question, options=None, timeout=None)` — Human-in-the-loop
 
 Pause the pipeline and ask the user a question via MCP or the terminal.
 
 ```python
-@gb.step()
+@gb.fn()
 def review(predictions):
     answer = gb.ask(
         "Model accuracy is 73%. Continue training?",
@@ -340,14 +331,14 @@ An AI agent can use these tools to autonomously run and debug pipelines:
 
 ```
 ┌──────────────┐     ┌──────────────────┐     ┌────────────────┐
-│  Your Python  │────▶│  Graphbook SDK   │────▶│  Daemon Server │
-│   Pipeline    │     │  (@step, log,    │     │  (FastAPI,     │
+│  Your Python  │────>│  Graphbook SDK   │────>│  Daemon Server │
+│   Pipeline    │     │  (@fn, log,      │     │  (FastAPI,     │
 │              │     │   inspect, ...)  │     │   port 2048)   │
 └──────────────┘     └──────────────────┘     └───────┬────────┘
                                                        │
                                     ┌──────────────────┼──────────────────┐
                                     │                  │                  │
-                              ┌─────▼─────┐     ┌─────▼─────┐     ┌─────▼─────┐
+                              ┌─────v─────┐     ┌─────v─────┐     ┌─────v─────┐
                               │   CLI     │     │ MCP Tools │     │  Terminal  │
                               │ graphbook-│     │ (Claude)  │     │ Dashboard  │
                               │   beta    │     │           │     │  (Rich)    │
@@ -373,14 +364,10 @@ gb.md("""
 Train a simple classifier on MNIST with configurable hyperparameters.
 """)
 
-gb.configure({
-    "model": {"hidden_size": 128, "dropout": 0.2},
-    "training": {"lr": 0.001, "epochs": 10, "batch_size": 64},
-})
-
-@gb.step("model")
-def build_model(hidden_size: int = 64, dropout: float = 0.1) -> nn.Module:
+@gb.fn()
+def build_model(hidden_size: int = 128, dropout: float = 0.2) -> nn.Module:
     """Build a simple feedforward classifier."""
+    gb.log_cfg({"hidden_size": hidden_size, "dropout": dropout})
     model = nn.Sequential(
         nn.Flatten(),
         nn.Linear(784, hidden_size),
@@ -392,9 +379,10 @@ def build_model(hidden_size: int = 64, dropout: float = 0.1) -> nn.Module:
     gb.inspect(model, "model")
     return model
 
-@gb.step("training")
-def train(lr: float = 0.01, epochs: int = 5, batch_size: int = 32):
+@gb.fn()
+def train(lr: float = 0.001, epochs: int = 10, batch_size: int = 64):
     """Train the model on MNIST."""
+    gb.log_cfg({"lr": lr, "epochs": epochs, "batch_size": batch_size})
     model = build_model()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
@@ -423,16 +411,16 @@ if __name__ == "__main__":
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `step` | `@step()`, `@step(depends_on=[...])` | Register a function as a DAG node |
+| `fn` | `@fn()`, `@fn(depends_on=[...])` | Register a function as a DAG node |
 | `log` | `log(message: str)` | Log a text message |
 | `log_metric` | `log_metric(name, value, step=None)` | Log a scalar metric |
-| `log_image` | `log_image(name, image, step=None)` | Log an image |
-| `log_audio` | `log_audio(name, audio, sr=16000)` | Log audio data |
+| `log_cfg` | `log_cfg(cfg: dict)` | Log node configuration to Info tab |
+| `log_image` | `log_image(image, name=None, step=None)` | Log an image |
+| `log_audio` | `log_audio(audio, sr=16000, name=None, step=None)` | Log audio data |
 | `log_text` | `log_text(name, text)` | Log rich text / Markdown |
 | `inspect` | `inspect(obj, name=None) -> dict` | Inspect object metadata |
 | `track` | `track(iterable, name=None, total=None)` | Progress tracking |
 | `md` | `md(description: str)` | Set workflow description |
-| `configure` | `configure(config: dict)` | Set config for injection |
 | `init` | `init(port, host, mode, backends, terminal)` | Manual initialization |
 | `ask` | `ask(question, options=None, timeout=None)` | Human-in-the-loop prompt |
 | `get_state` | `get_state() -> SessionState` | Access the global state singleton |

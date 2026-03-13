@@ -18,9 +18,9 @@ class TestMCPObservationTools:
         """Should return workflow description and node docstrings."""
         from graphbook.beta.mcp.tools import get_description
         from graphbook.beta.core.state import get_state
-        from graphbook.beta.core.decorators import step
+        from graphbook.beta.core.decorators import fn
 
-        @step()
+        @fn()
         def my_func():
             """A documented function."""
             pass
@@ -28,7 +28,7 @@ class TestMCPObservationTools:
         state = get_state()
         state.workflow_description = "Test workflow"
 
-        result = await get_description()
+        result = await get_description(server_url="http://localhost:19999")
         assert result["workflow_description"] == "Test workflow"
         assert any("A documented function" in (v or "") for v in result["node_descriptions"].values())
 

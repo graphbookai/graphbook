@@ -1,4 +1,4 @@
-"""The @step decorator for graphbook beta."""
+"""The @fn decorator for graphbook beta."""
 
 from __future__ import annotations
 
@@ -13,16 +13,16 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 @overload
-def step(func: F) -> F: ...
+def fn(func: F) -> F: ...
 
 
 @overload
-def step(
+def fn(
     depends_on: Optional[list[Any]] = None,
 ) -> Callable[[F], F]: ...
 
 
-def step(
+def fn(
     func: Optional[Any] = None,
     depends_on: Optional[list[Any]] = None,
 ) -> Any:
@@ -30,39 +30,39 @@ def step(
 
     Can be used as::
 
-        @gb.step
-        @gb.step()
-        @gb.step(depends_on=[other_step])
+        @gb.fn
+        @gb.fn()
+        @gb.fn(depends_on=[other_fn])
 
     DAG edges are inferred automatically from data flow between
-    **sibling** steps (steps sharing the same parent/caller). An object
-    creates one edge per hop—if step X produces a value that flows
-    through step Y to step A, the edges are X→Y and Y→A, never X→A.
+    **sibling** nodes (nodes sharing the same parent/caller). An object
+    creates one edge per hop—if node X produces a value that flows
+    through node Y to node A, the edges are X->Y and Y->A, never X->A.
     When no sibling data-flow is detected, a parent edge is used.
 
     For dependencies that cannot be detected automatically (shared mutable
     state, class attributes, globals), use ``depends_on``::
 
-        @gb.step(depends_on=[foo])
+        @gb.fn(depends_on=[foo])
         def bar(self):
             # bar depends on foo via shared state, not via arguments
             ...
 
     Args:
         func: The function to decorate (when used without parentheses).
-        depends_on: Optional list of step functions or node ID strings
-            that this step depends on. Creates explicit edges.
+        depends_on: Optional list of decorated functions or node ID strings
+            that this node depends on. Creates explicit edges.
 
     Returns:
         The decorated function.
     """
-    def decorator(fn: F) -> F:
-        node_id = fn.__qualname__
-        docstring = fn.__doc__
+    def decorator(f: F) -> F:
+        node_id = f.__qualname__
+        docstring = f.__doc__
         state = get_state()
         state.register_node(
             node_id=node_id,
-            func_name=fn.__name__,
+            func_name=f.__name__,
             docstring=docstring,
         )
 
@@ -75,9 +75,9 @@ def step(
                 else:
                     depends_on_ids.append(str(dep))
 
-        @functools.wraps(fn)
+        @functools.wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Auto-init on first step execution
+            # Auto-init on first execution
             try:
                 from graphbook.beta import _ensure_init
                 _ensure_init()
@@ -129,7 +129,7 @@ def step(
 
                 state.increment_count(node_id)
                 start_time = time.monotonic()
-                result = fn(*args, **kwargs)
+                result = f(*args, **kwargs)
                 duration = time.monotonic() - start_time
 
                 # Track return value for data-flow edge inference
@@ -175,12 +175,12 @@ def step(
 
         return wrapper  # type: ignore
 
-    # Handle @step, @step()
+    # Handle @fn, @fn()
     if func is None:
         return decorator
     if callable(func):
         return decorator(func)
     raise TypeError(
-        f"step() got an unexpected positional argument {func!r}. "
-        "Use @gb.step or @gb.step() instead."
+        f"fn() got an unexpected positional argument {func!r}. "
+        "Use @gb.fn or @gb.fn() instead."
     )

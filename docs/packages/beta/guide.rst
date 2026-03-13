@@ -3,43 +3,43 @@
 Guide
 #####
 
-This guide walks through building observable Python pipelines with Graphbook Beta, from basic usage to advanced features like configuration injection, MCP integration, and custom logging backends.
+This guide walks through building observable Python pipelines with Graphbook Beta, from basic usage to advanced features like MCP integration and custom logging backends.
 
 
-Decorating Functions with ``@gb.step()``
+Decorating Functions with ``@gb.fn()``
 =========================================
 
-The ``@gb.step()`` decorator is the core primitive. It registers a function as a node in the pipeline DAG. Edges are inferred from **data flow**: when a step's return value is passed as an argument to another step, an edge is created from the producer to the consumer.
+The ``@gb.fn()`` decorator is the core primitive. It registers a function as a node in the pipeline DAG. Edges are inferred from **data flow**: when a node's return value is passed as an argument to another node, an edge is created from the producer to the consumer.
 
 .. code-block:: python
 
     import graphbook.beta as gb
 
-    @gb.step()
+    @gb.fn()
     def load_data():
         """Load raw data."""
         return [1, 2, 3]
 
-    @gb.step()
+    @gb.fn()
     def transform(data):
         """Transform data."""
         return [x * 2 for x in data]
 
-    @gb.step()
+    @gb.fn()
     def run():
         records = load_data()        # edge: run → load_data (no data dep)
         result = transform(records)  # edge: load_data → transform (data flow)
         return result
 
-When a child step receives no step-produced arguments, the edge falls back to the calling parent step.
+When a child node receives no node-produced arguments, the edge falls back to the calling parent node.
 
 The decorator can be used in several forms:
 
 .. code-block:: python
 
-    @gb.step                       # bare (no parentheses)
-    @gb.step()                     # empty parentheses
-    @gb.step(depends_on=[setup])   # with explicit dependencies
+    @gb.fn                       # bare (no parentheses)
+    @gb.fn()                     # empty parentheses
+    @gb.fn(depends_on=[setup])   # with explicit dependencies
 
 
 Explicit Dependencies with ``depends_on``
@@ -49,17 +49,17 @@ Some dependencies cannot be detected automatically — shared mutable state, cla
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def setup():
         """Initialize shared resources."""
         ...
 
-    @gb.step(depends_on=[setup])
+    @gb.fn(depends_on=[setup])
     def process():
         """Uses resources initialized by setup."""
         ...
 
-``depends_on`` accepts a list of step functions or node ID strings. Explicit dependencies are added alongside any auto-detected data-flow edges.
+``depends_on`` accepts a list of decorated functions or node ID strings. Explicit dependencies are added alongside any auto-detected data-flow edges.
 
 .. note::
 
@@ -78,7 +78,7 @@ Text Logs
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def train(model, data):
         gb.log("Starting training...")
         for epoch in range(10):
@@ -92,7 +92,7 @@ Scalar Metrics
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def train(model, data):
         for epoch in range(100):
             loss = train_epoch(model, data)
@@ -107,7 +107,7 @@ Images
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def augment(image):
         result = apply_transforms(image)
         gb.log_image("augmented", result)
@@ -120,7 +120,7 @@ Audio
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def synthesize(text):
         waveform = tts_model(text)
         gb.log_audio("speech", waveform, sr=22050)
@@ -133,12 +133,26 @@ Rich Text
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def summarize(stats):
         gb.log_text("report", f"""## Results
     - **Accuracy**: {stats['acc']:.2%}
     - **Loss**: {stats['loss']:.4f}
     """)
+
+Configuration
+-------------
+
+``gb.log_cfg(cfg)`` logs configuration for the current node. Values are displayed in the Info tab:
+
+.. code-block:: python
+
+    @gb.fn()
+    def train(lr=0.001, epochs=50):
+        gb.log_cfg({"lr": lr, "epochs": epochs})
+        ...
+
+Multiple ``log_cfg()`` calls within the same node merge their dictionaries.
 
 
 Object Inspection
@@ -148,7 +162,7 @@ Object Inspection
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def forward(model, batch):
         output = model(batch)
         gb.inspect(output, "model_output")
@@ -165,7 +179,7 @@ Progress Tracking
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def process(items):
         results = []
         for item in gb.track(items, name="processing"):
@@ -178,31 +192,6 @@ If the iterable has a ``__len__``, the total is auto-detected. Otherwise you can
 
     for batch in gb.track(dataloader, name="training", total=len(dataloader)):
         ...
-
-
-Configuration Injection
-========================
-
-``gb.configure(config)`` sets a global configuration dictionary. Functions decorated with ``@gb.step("key")`` have matching config values injected into their parameters automatically:
-
-.. code-block:: python
-
-    gb.configure({
-        "model": {"lr": 0.001, "epochs": 50, "hidden_size": 256},
-        "data": {"path": "/data/train", "batch_size": 64},
-    })
-
-    @gb.step("model")
-    def train(lr: float = 0.01, epochs: int = 10, hidden_size: int = 128):
-        # lr=0.001, epochs=50, hidden_size=256 are injected from config["model"]
-        ...
-
-    @gb.step("data")
-    def load(path: str = ".", batch_size: int = 32):
-        # path="/data/train", batch_size=64 are injected from config["data"]
-        ...
-
-The config key is the first positional argument to ``@gb.step()``. Only parameters whose names match keys in the config sub-dictionary are injected. Default values are used for any parameters not in the config.
 
 
 Workflow Description
@@ -229,7 +218,7 @@ Human-in-the-Loop
 
 .. code-block:: python
 
-    @gb.step()
+    @gb.fn()
     def review(predictions):
         answer = gb.ask(
             "Model accuracy is 73%. Continue training?",
@@ -265,7 +254,7 @@ You can also trigger server mode manually:
 Auto Mode
 ---------
 
-The default mode is ``auto``. On initialization, graphbook checks for a running daemon — if found, it uses server mode; otherwise it falls back to local mode. This is what happens when you call ``gb.init()`` without arguments, or when the ``@step`` decorator triggers auto-initialization from environment variables.
+The default mode is ``auto``. On initialization, graphbook checks for a running daemon — if found, it uses server mode; otherwise it falls back to local mode. This is what happens when you call ``gb.init()`` without arguments, or when the ``@fn`` decorator triggers auto-initialization from environment variables.
 
 
 Custom Logging Backends
@@ -343,14 +332,10 @@ Complete Example: Data Processing Pipeline
 
     gb.md("# Data Processing Pipeline\nGenerate, normalize, filter, and analyze data.")
 
-    gb.configure({
-        "data": {"num_samples": 200, "noise": 0.1, "seed": 42},
-        "processing": {"method": "standard", "clip_min": -3.0, "clip_max": 3.0},
-    })
-
-    @gb.step("data")
-    def generate(num_samples: int = 100, noise: float = 0.2, seed: int = 0):
+    @gb.fn()
+    def generate(num_samples: int = 200, noise: float = 0.1, seed: int = 42):
         """Generate synthetic signal data."""
+        gb.log_cfg({"num_samples": num_samples, "noise": noise, "seed": seed})
         np.random.seed(seed)
         t = np.linspace(0, 4 * np.pi, num_samples)
         signal = np.sin(t) + noise * np.random.randn(num_samples)
@@ -358,9 +343,10 @@ Complete Example: Data Processing Pipeline
         gb.inspect(signal, "raw_signal")
         return signal
 
-    @gb.step("processing")
-    def normalize(data, method: str = "standard", clip_min: float = -5, clip_max: float = 5):
+    @gb.fn()
+    def normalize(data, method: str = "standard", clip_min: float = -3.0, clip_max: float = 3.0):
         """Normalize and clip the signal."""
+        gb.log_cfg({"method": method, "clip_min": clip_min, "clip_max": clip_max})
         if method == "standard":
             data = (data - data.mean()) / (data.std() + 1e-8)
         data = np.clip(data, clip_min, clip_max)
@@ -368,7 +354,7 @@ Complete Example: Data Processing Pipeline
         gb.inspect(data, "normalized")
         return data
 
-    @gb.step()
+    @gb.fn()
     def analyze(data):
         """Compute statistics on the processed data."""
         stats = {"mean": float(data.mean()), "std": float(data.std()), "n": len(data)}
@@ -377,7 +363,7 @@ Complete Example: Data Processing Pipeline
         gb.log_metric("std", stats["std"])
         return stats
 
-    @gb.step()
+    @gb.fn()
     def run():
         """Main entry point."""
         data = generate()

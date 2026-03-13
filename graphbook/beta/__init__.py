@@ -3,7 +3,7 @@
 Usage:
     import graphbook.beta as gb
 
-    @gb.step()
+    @gb.fn()
     def my_function():
         gb.log("hello")
         gb.log_metric("loss", 0.5)
@@ -17,7 +17,7 @@ import uuid
 import logging as _stdlib_logging
 from typing import Any, Literal, Optional, TypeVar
 
-from graphbook.beta.core.decorators import step
+from graphbook.beta.core.decorators import fn
 from graphbook.beta.core.tracker import track
 from graphbook.beta.core.config import log_cfg
 from graphbook.beta.core.state import _current_node, get_state, LoggingBackend
@@ -38,7 +38,7 @@ logger = _stdlib_logging.getLogger(__name__)
 def _ensure_init() -> None:
     """Lazily auto-initialize when GRAPHBOOK_MODE env vars are detected.
 
-    Called by the @step decorator wrapper on first execution. If the user
+    Called by the @fn decorator wrapper on first execution. If the user
     already called gb.init(), this is a no-op.
     """
     global _auto_init_done
@@ -244,7 +244,7 @@ def ask(
 
 
 __all__ = [
-    "step",
+    "fn",
     "track",
     "log_cfg",
     "init",

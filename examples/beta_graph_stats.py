@@ -21,7 +21,7 @@ from graphbook.beta.core.dag import get_dag_summary, get_sources, get_topology_o
 
 # --- Small pipeline to generate some state ---
 
-@gb.step("model")
+@gb.fn()
 def load_data(path: str = "data.csv", limit: int = 100) -> list[dict]:
     """Load raw records from a data source."""
     records = [{"id": i, "value": i * 0.5} for i in range(limit)]
@@ -31,7 +31,7 @@ def load_data(path: str = "data.csv", limit: int = 100) -> list[dict]:
     return records
 
 
-@gb.step()
+@gb.fn()
 def transform(records: list[dict]) -> list[dict]:
     """Normalize values and tag each record."""
     transformed = []
@@ -43,7 +43,7 @@ def transform(records: list[dict]) -> list[dict]:
     return transformed
 
 
-@gb.step()
+@gb.fn()
 def aggregate(records: list[dict]) -> dict:
     """Compute summary statistics over the transformed dataset."""
     values = [r["value"] for r in records]
@@ -60,7 +60,7 @@ def aggregate(records: list[dict]) -> dict:
     return stats
 
 
-@gb.step()
+@gb.fn()
 def run(path: str = "data.csv") -> dict:
     """Top-level runner: load → transform → aggregate."""
     records = load_data(path=path)

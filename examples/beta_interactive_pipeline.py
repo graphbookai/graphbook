@@ -14,7 +14,7 @@ import graphbook.beta as gb
 gb.md("An interactive pipeline that asks the user for input at key decision points.")
 
 
-@gb.step()
+@gb.fn()
 def collect_preferences() -> dict:
     """Gather user preferences to configure the pipeline."""
     name = gb.ask("What is your name?")
@@ -26,7 +26,7 @@ def collect_preferences() -> dict:
     return {"name": name, "mode": mode}
 
 
-@gb.step()
+@gb.fn()
 def generate_data(mode: str) -> list[float]:
     """Generate data with size based on the chosen mode."""
     sizes = {"fast": 10, "balanced": 50, "thorough": 200}
@@ -37,7 +37,7 @@ def generate_data(mode: str) -> list[float]:
     return data
 
 
-@gb.step()
+@gb.fn()
 def process(data: list[float]) -> dict:
     """Process the data and compute summary statistics."""
     result = {
@@ -50,7 +50,7 @@ def process(data: list[float]) -> dict:
     return result
 
 
-@gb.step()
+@gb.fn()
 def review_results(prefs: dict, result: dict) -> str:
     """Present results and ask the user whether to accept or retry."""
     gb.log(f"Results for {prefs['name']}: count={result['count']}, mean={result['mean']:.2f}")
@@ -63,7 +63,7 @@ def review_results(prefs: dict, result: dict) -> str:
     return decision
 
 
-@gb.step()
+@gb.fn()
 def run_pipeline() -> dict:
     """Interactive pipeline: collect preferences, generate, process, review."""
     prefs = collect_preferences()

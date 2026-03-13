@@ -2,7 +2,7 @@
 
 Demonstrates:
 - gb.log_cfg() for logging step configuration to the info tab
-- @gb.step() to register pipeline steps
+- @gb.fn() to register pipeline steps
 - gb.log() for text and tensor-like object logging
 - gb.log_text() for rich markdown logging
 - Multiple source nodes and branching DAG
@@ -24,7 +24,7 @@ via `gb.log_cfg()` — each step declares what it was configured with.
 """)
 
 
-@gb.step()
+@gb.fn()
 def generate_data(num_samples: int = 100, noise_level: float = 0.2, seed: int = 0) -> np.ndarray:
     """Generate synthetic time-series data with configurable noise level."""
     gb.log_cfg({"num_samples": num_samples, "noise_level": noise_level, "seed": seed})
@@ -37,7 +37,7 @@ def generate_data(num_samples: int = 100, noise_level: float = 0.2, seed: int = 
     return signal
 
 
-@gb.step()
+@gb.fn()
 def generate_metadata(num_samples: int = 100, seed: int = 0) -> dict:
     """Generate metadata labels for each data sample."""
     gb.log_cfg({"num_samples": num_samples, "seed": seed})
@@ -51,7 +51,7 @@ def generate_metadata(num_samples: int = 100, seed: int = 0) -> dict:
     return metadata
 
 
-@gb.step()
+@gb.fn()
 def normalize_data(
     data: np.ndarray,
     method: str = "standard",
@@ -79,7 +79,7 @@ def normalize_data(
     return clipped
 
 
-@gb.step()
+@gb.fn()
 def filter_by_label(data: np.ndarray, metadata: dict, label: str = "A") -> np.ndarray:
     """Filter data points to only include those matching a specific label."""
     mask = metadata["labels"] == label
@@ -90,7 +90,7 @@ def filter_by_label(data: np.ndarray, metadata: dict, label: str = "A") -> np.nd
     return filtered
 
 
-@gb.step()
+@gb.fn()
 def compute_statistics(
     data: np.ndarray,
     top_k: int = 10,
@@ -131,7 +131,7 @@ def compute_statistics(
     return stats
 
 
-@gb.step()
+@gb.fn()
 def generate_report(all_stats: dict, filtered_stats: dict) -> str:
     """Generate a final comparison report between full and filtered datasets."""
     report_lines = [
@@ -152,11 +152,11 @@ def generate_report(all_stats: dict, filtered_stats: dict) -> str:
     return report
 
 
-@gb.step()
+@gb.fn()
 def run_analysis() -> str:
     """Top-level analysis runner that orchestrates data generation, processing, and reporting.
 
-    This is the source node. Calling other @step functions from here creates
+    This is the source node. Calling other @fn functions from here creates
     DAG edges automatically: run_analysis -> generate_data, run_analysis -> normalize_data, etc.
     """
     # Data generation

@@ -4,7 +4,7 @@ Demonstrates:
 - gb.log_metric() for tracking loss, accuracy over steps
 - gb.inspect() for examining tensor-like objects
 - gb.log_image() for logging generated images
-- @gb.step() on training functions
+- @gb.fn() on training functions
 - Metric history accessible via the state API
 - Exception capture and enrichment
 """
@@ -17,7 +17,7 @@ import graphbook.beta as gb
 gb.md("A simulated ML training loop that trains a classifier and logs metrics, inspections, and sample images.")
 
 
-@gb.step()
+@gb.fn()
 def create_dataset(num_samples: int = 100, num_features: int = 10) -> dict:
     """Create a synthetic classification dataset with random features and labels."""
     X = np.random.randn(num_samples, num_features).astype(np.float32)
@@ -28,7 +28,7 @@ def create_dataset(num_samples: int = 100, num_features: int = 10) -> dict:
     return {"X": X, "y": y}
 
 
-@gb.step()
+@gb.fn()
 def create_model(input_dim: int = 10, hidden_dim: int = 32) -> dict:
     """Initialize model weights with random values."""
     weights = {
@@ -42,7 +42,7 @@ def create_model(input_dim: int = 10, hidden_dim: int = 32) -> dict:
     return weights
 
 
-@gb.step()
+@gb.fn()
 def train_step(model: dict, batch_X: np.ndarray, batch_y: np.ndarray, lr: float = 0.01) -> tuple:
     """Run a single forward pass and compute binary cross-entropy loss."""
     # Forward pass (simplified)
@@ -63,7 +63,7 @@ def train_step(model: dict, batch_X: np.ndarray, batch_y: np.ndarray, lr: float 
     return float(loss), float(accuracy)
 
 
-@gb.step()
+@gb.fn()
 def generate_sample_image(epoch: int) -> np.ndarray:
     """Generate a sample visualization image showing training progress."""
     # Create a simple gradient image that changes with epoch
@@ -76,7 +76,7 @@ def generate_sample_image(epoch: int) -> np.ndarray:
     return img
 
 
-@gb.step()
+@gb.fn()
 def train(dataset: dict, model: dict, epochs: int = 10, batch_size: int = 16) -> dict:
     """Train the model for multiple epochs with mini-batch gradient descent."""
     X, y = dataset["X"], dataset["y"]
@@ -119,7 +119,7 @@ def train(dataset: dict, model: dict, epochs: int = 10, batch_size: int = 16) ->
     return history
 
 
-@gb.step()
+@gb.fn()
 def run_experiment() -> dict:
     """Top-level experiment runner that orchestrates dataset creation, model init, and training.
 
