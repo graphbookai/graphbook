@@ -69,7 +69,7 @@ async def get_node_status(name: str, run_id: Optional[str] = None, server_url: s
             "docstring": node.docstring, "exec_count": node.exec_count,
             "is_source": node.is_source, "params": node.params,
             "recent_logs": node.logs[-20:], "errors": node.errors,
-            "progress": node.progress, "inspections": node.inspections,
+            "progress": node.progress,
         }
 
 
@@ -175,45 +175,6 @@ async def get_description(server_url: str = _DEFAULT_URL) -> dict[str, Any]:
         "node_descriptions": {nid: n.docstring for nid, n in state.nodes.items() if n.docstring},
     }
 
-
-async def inspect_object(name: str, node: Optional[str] = None, server_url: str = _DEFAULT_URL) -> dict[str, Any]:
-    """Get the last inspection result for a named object."""
-    # Try daemon first — check node inspections via node status endpoint
-    try:
-        if node:
-            result = _get(f"{server_url}/nodes/{node}")
-            if "error" not in result:
-                inspections = result.get("inspections", {})
-                if name in inspections:
-                    return {"node": node, "inspection": inspections[name]}
-                return {"error": f"Inspection '{name}' not found in node '{node}'"}
-        else:
-            # Search all nodes in latest run graph
-            graph = _get(f"{server_url}/graph")
-            for nid, ndata in graph.get("nodes", {}).items():
-                # Get full node with inspections
-                try:
-                    node_detail = _get(f"{server_url}/nodes/{nid}")
-                    inspections = node_detail.get("inspections", {})
-                    if name in inspections:
-                        return {"node": nid, "inspection": inspections[name]}
-                except Exception:
-                    continue
-            return {"error": f"Inspection '{name}' not found"}
-    except Exception:
-        pass
-    # Fallback to local state
-    from graphbook.beta.core.state import get_state
-    state = get_state()
-    if node:
-        node_info = state.nodes.get(node)
-        if node_info and name in node_info.inspections:
-            return {"node": node, "inspection": node_info.inspections[name]}
-        return {"error": f"Inspection '{name}' not found in node '{node}'"}
-    for nid, n in state.nodes.items():
-        if name in n.inspections:
-            return {"node": nid, "inspection": n.inspections[name]}
-    return {"error": f"Inspection '{name}' not found"}
 
 
 # ─── Action Tools ────────────────────────────────────────────────────────────

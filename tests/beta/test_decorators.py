@@ -146,7 +146,7 @@ class TestDAGInference:
         assert consumer_node.is_source is False
 
     def test_linear_dag(self) -> None:
-        """A → B → C should create proper edges and sources."""
+        """A -> B -> C should create proper edges and sources."""
         @step()
         def step_a():
             return step_b()
@@ -184,78 +184,41 @@ class TestDAGInference:
         assert "→" in summary or "load" in summary
 
 
-class TestConfigInjection:
-    """Tests for hydr8 config injection via @step."""
+class TestLogCfgWithStep:
+    """Tests for log_cfg() working with @step."""
 
     def setup_method(self) -> None:
         SessionState.reset_singleton()
 
-    def test_config_injection(self) -> None:
-        """Config values should be injected into step params."""
-        from graphbook.beta.core.config import configure
+    def test_log_cfg_shows_in_node_params(self) -> None:
+        """log_cfg() inside a step should populate node.params."""
+        from graphbook.beta.core.config import log_cfg
 
-        configure({
-            "model": {"model_name": "resnet18", "batch_size": 16},
-        })
+        @step()
+        def train():
+            log_cfg({"model_name": "resnet18", "batch_size": 16})
+            return "done"
 
-        @step("model")
-        def predict(x, model_name: str = "resnet50", batch_size: int = 32):
-            return model_name, batch_size
+        train()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "train")
+        assert node.params["model_name"] == "resnet18"
+        assert node.params["batch_size"] == 16
 
-        name, bs = predict("input")
-        assert name == "resnet18"
-        assert bs == 16
+    def test_log_cfg_merges_across_calls(self) -> None:
+        """Multiple log_cfg() calls merge params."""
+        from graphbook.beta.core.config import log_cfg
 
-    def test_config_does_not_override_explicit_args(self) -> None:
-        """Explicit kwargs should not be overridden by config."""
-        from graphbook.beta.core.config import configure
+        @step()
+        def train():
+            log_cfg({"model_name": "resnet18"})
+            log_cfg({"batch_size": 16})
+            return "done"
 
-        configure({
-            "model": {"model_name": "resnet18"},
-        })
-
-        @step("model")
-        def predict(x, model_name: str = "resnet50"):
-            return model_name
-
-        result = predict("input", model_name="vgg16")
-        assert result == "vgg16"
-
-    def test_dot_path_injection(self) -> None:
-        """Dot-separated config paths should resolve nested keys."""
-        from graphbook.beta.core.config import configure
-
-        configure({
-            "db": {"postgres": {"host": "localhost", "port": 5432}},
-        })
-
-        @step("db.postgres")
-        def connect(host: str = "", port: int = 0):
-            return host, port
-
-        host, port = connect()
-        assert host == "localhost"
-        assert port == 5432
-
-    def test_override_context_manager(self) -> None:
-        """hydr8.override should temporarily replace config for testing."""
-        from graphbook.beta import override
-        from graphbook.beta.core.config import configure
-
-        configure({
-            "model": {"lr": 0.001},
-        })
-
-        @step("model")
-        def train(lr: float = 0.01):
-            return lr
-
-        assert train() == 0.001
-
-        with override({"model": {"lr": 0.1}}):
-            assert train() == 0.1
-
-        assert train() == 0.001
+        train()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "train")
+        assert node.params == {"model_name": "resnet18", "batch_size": 16}
 
 
 class TestDataFlowEdges:

@@ -38,7 +38,6 @@ class NodeInfo:
     errors: list = field(default_factory=list)
     images: list = field(default_factory=list)
     audio: list = field(default_factory=list)
-    inspections: dict = field(default_factory=dict)  # name -> last inspection result
     progress: Optional[dict] = None  # {current, total, name}
 
 
@@ -252,10 +251,6 @@ class SessionState:
             self._initialized_server = False
             self._client = None
             self._mode = "local"
-        # Reset hydr8 global config
-        import hydr8
-        from omegaconf import OmegaConf
-        hydr8.init(OmegaConf.create({}))
 
     @classmethod
     def reset_singleton(cls) -> None:

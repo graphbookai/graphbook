@@ -6,7 +6,8 @@ import pytest
 
 from graphbook.beta.core.state import SessionState, get_state, _current_node
 from graphbook.beta.core.decorators import step
-from graphbook.beta.logging.logger import log, log_metric, log_text, inspect, md
+from graphbook.beta.logging.logger import log, log_metric, log_text, md
+from graphbook.beta.core.config import log_cfg
 
 
 class TestLogging:
@@ -55,31 +56,6 @@ class TestLogging:
         assert len(node.logs) == 1
         assert node.logs[0]["content"] == "## Results\nAll good!"
 
-    def test_inspect_dict(self) -> None:
-        """inspect() should capture metadata about objects."""
-        @step()
-        def analyze():
-            data = {"a": 1, "b": 2, "c": 3}
-            result = inspect(data, "my_dict")
-            return result
-
-        metadata = analyze()
-        assert metadata["type"] == "dict"
-        assert metadata["length"] == 3
-        assert metadata["name"] == "my_dict"
-
-    def test_inspect_stores_on_node(self) -> None:
-        """inspect() should store the result on the node."""
-        @step()
-        def check():
-            inspect([1, 2, 3, 4], "my_list")
-
-        check()
-        state = get_state()
-        node = next(n for n in state.nodes.values() if n.func_name == "check")
-        assert "my_list" in node.inspections
-        assert node.inspections["my_list"]["length"] == 4
-
     def test_md_sets_workflow_description(self) -> None:
         """md() should set the workflow-level description."""
         md("This is a test workflow")
@@ -91,18 +67,19 @@ class TestLogging:
         md("Part 1")
         md("Part 2")
         state = get_state()
+        assert state.workflow_description is not None
         assert "Part 1" in state.workflow_description
         assert "Part 2" in state.workflow_description
 
 
-class TestInspectNumpy:
-    """Tests for inspect() with numpy arrays."""
+class TestLogNumpy:
+    """Tests for log() with numpy arrays."""
 
     def setup_method(self) -> None:
         SessionState.reset_singleton()
 
-    def test_inspect_numpy_array(self) -> None:
-        """inspect() should capture shape and dtype for numpy arrays."""
+    def test_log_numpy_array(self) -> None:
+        """log() should format numpy arrays with shape, dtype, and stats."""
         try:
             import numpy as np
         except ImportError:
@@ -111,10 +88,84 @@ class TestInspectNumpy:
         @step()
         def check_array():
             arr = np.zeros((3, 224, 224), dtype=np.float32)
-            return inspect(arr, "image")
+            log(arr)
 
-        metadata = check_array()
-        assert metadata["shape"] == [3, 224, 224]
-        assert metadata["dtype"] == "float32"
-        assert "min" in metadata
-        assert "max" in metadata
+        check_array()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "check_array")
+        assert len(node.logs) == 1
+        msg = node.logs[0]["message"]
+        assert "ndarray" in msg
+        assert "(3, 224, 224)" in msg
+        assert "float32" in msg
+        assert "min:" in msg
+        assert "max:" in msg
+        assert "mean:" in msg
+
+    def test_log_numpy_preserves_string(self) -> None:
+        """log() with a plain string should still work as before."""
+        @step()
+        def my_step():
+            log("plain text message")
+
+        my_step()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "my_step")
+        assert node.logs[0]["message"] == "plain text message"
+
+
+class TestLogCfg:
+    """Tests for gb.log_cfg()."""
+
+    def setup_method(self) -> None:
+        SessionState.reset_singleton()
+
+    def test_log_cfg_stores_params(self) -> None:
+        """log_cfg() should store config in node params."""
+        @step()
+        def train():
+            log_cfg({"lr": 0.001, "batch_size": 32})
+
+        train()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "train")
+        assert node.params["lr"] == 0.001
+        assert node.params["batch_size"] == 32
+
+    def test_log_cfg_merges(self) -> None:
+        """Multiple log_cfg() calls should merge into one dict."""
+        @step()
+        def train():
+            log_cfg({"lr": 0.001})
+            log_cfg({"batch_size": 32})
+
+        train()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "train")
+        assert node.params["lr"] == 0.001
+        assert node.params["batch_size"] == 32
+
+    def test_log_cfg_later_call_overwrites(self) -> None:
+        """Later log_cfg() calls should overwrite conflicting keys."""
+        @step()
+        def train():
+            log_cfg({"lr": 0.001, "epochs": 10})
+            log_cfg({"lr": 0.01})
+
+        train()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "train")
+        assert node.params["lr"] == 0.01
+        assert node.params["epochs"] == 10
+
+    def test_log_cfg_filters_non_serializable(self) -> None:
+        """log_cfg() should only keep JSON-serializable values."""
+        @step()
+        def train():
+            log_cfg({"lr": 0.001, "callback": lambda x: x})
+
+        train()
+        state = get_state()
+        node = next(n for n in state.nodes.values() if n.func_name == "train")
+        assert "lr" in node.params
+        assert "callback" not in node.params

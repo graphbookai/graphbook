@@ -33,13 +33,6 @@ class TestMCPObservationTools:
         assert any("A documented function" in (v or "") for v in result["node_descriptions"].values())
 
     @pytest.mark.asyncio
-    async def test_inspect_object_not_found(self) -> None:
-        """Should return error when inspection not found."""
-        from graphbook.beta.mcp.tools import inspect_object
-        result = await inspect_object("nonexistent")
-        assert "error" in result
-
-    @pytest.mark.asyncio
     async def test_get_metrics_not_found(self) -> None:
         """Should return error when node not found."""
         from graphbook.beta.mcp.tools import get_metrics

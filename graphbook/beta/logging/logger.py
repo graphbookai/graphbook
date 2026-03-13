@@ -3,18 +3,87 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from graphbook.beta.core.state import _current_node, get_state
 
 
-def log(message: str, *, step: Optional[int] = None) -> None:
-    """Log a text message to the current node.
+def _is_tensor_like(obj: Any) -> bool:
+    """Check if obj is a numpy ndarray or torch Tensor."""
+    type_name = type(obj).__name__
+    module = type(obj).__module__ or ""
+    if type_name == "ndarray" and "numpy" in module:
+        return True
+    if type_name == "Tensor" and "torch" in module:
+        return True
+    return False
+
+
+def _format_tensor(obj: Any) -> str:
+    """Format a tensor-like object into a readable markdown string.
+
+    Includes type, shape, dtype, and basic statistics (min/max/mean)
+    so the log tab in the UI displays it nicely.
+    """
+    parts: list[str] = []
+    type_name = type(obj).__name__
+    module = type(obj).__module__ or ""
+
+    # Header
+    if "torch" in module:
+        parts.append(f"**Tensor** (`torch.{type_name}`)")
+    else:
+        parts.append(f"**ndarray** (`numpy.{type_name}`)")
+
+    # Shape
+    if hasattr(obj, "shape"):
+        parts.append(f"  shape: `{tuple(obj.shape)}`")
+
+    # Dtype
+    if hasattr(obj, "dtype"):
+        parts.append(f"  dtype: `{obj.dtype}`")
+
+    # Device (torch only)
+    if hasattr(obj, "device"):
+        parts.append(f"  device: `{obj.device}`")
+
+    # Requires grad (torch only)
+    if hasattr(obj, "requires_grad"):
+        parts.append(f"  requires_grad: `{obj.requires_grad}`")
+
+    # Statistics
+    try:
+        if hasattr(obj, "min") and hasattr(obj, "max"):
+            min_val = float(obj.min())
+            max_val = float(obj.max())
+            parts.append(f"  min: `{min_val:.6g}`, max: `{max_val:.6g}`")
+        if hasattr(obj, "mean"):
+            mean_val = float(obj.mean())
+            parts.append(f"  mean: `{mean_val:.6g}`")
+    except Exception:
+        pass
+
+    return "\n".join(parts)
+
+
+def log(message: Union[str, Any], *, step: Optional[int] = None) -> None:
+    """Log a message to the current node.
+
+    Accepts plain strings as well as tensor-like objects (numpy
+    ndarray, torch Tensor).  Tensor-like objects are automatically
+    formatted with shape, dtype, and basic statistics so they
+    display nicely in the UI log tab.
 
     Args:
-        message: The message to log.
+        message: The message string, or a tensor/ndarray to format.
         step: Optional step counter.
     """
+    if _is_tensor_like(message):
+        message = _format_tensor(message)
+
+    if not isinstance(message, str):
+        message = str(message)
+
     state = get_state()
     node_id = _current_node.get()
     timestamp = time.time()
@@ -213,81 +282,6 @@ def log_text(name: str, text: str) -> None:
             state._queue.put_event(entry)
         except Exception:
             pass
-
-
-def inspect(obj: Any, name: Optional[str] = None) -> dict:
-    """Inspect an object and log its metadata (shape, dtype, etc.).
-
-    Does NOT log raw data — only metadata.
-
-    Args:
-        obj: The object to inspect.
-        name: Optional name for the inspection.
-
-    Returns:
-        Dictionary of metadata about the object.
-    """
-    state = get_state()
-    node_id = _current_node.get()
-    timestamp = time.time()
-
-    metadata: dict[str, Any] = {"name": name, "type": type(obj).__name__}
-
-    # Shape
-    if hasattr(obj, "shape"):
-        metadata["shape"] = list(obj.shape)
-    elif hasattr(obj, "__len__"):
-        try:
-            metadata["length"] = len(obj)
-        except Exception:
-            pass
-
-    # Dtype
-    if hasattr(obj, "dtype"):
-        metadata["dtype"] = str(obj.dtype)
-
-    # Device (for torch tensors)
-    if hasattr(obj, "device"):
-        metadata["device"] = str(obj.device)
-
-    # Requires grad (for torch tensors)
-    if hasattr(obj, "requires_grad"):
-        metadata["requires_grad"] = obj.requires_grad
-
-    # Min/max/mean for numeric types
-    try:
-        if hasattr(obj, "min") and hasattr(obj, "max"):
-            metadata["min"] = float(obj.min())
-            metadata["max"] = float(obj.max())
-        if hasattr(obj, "mean"):
-            metadata["mean"] = float(obj.mean())
-    except Exception:
-        pass
-
-    # DataFrame info
-    if hasattr(obj, "columns") and hasattr(obj, "dtypes"):
-        metadata["columns"] = list(obj.columns)
-        metadata["dtypes"] = {str(k): str(v) for k, v in obj.dtypes.items()}
-
-    entry = {
-        "type": "inspection",
-        "node": node_id,
-        "data": metadata,
-        "timestamp": timestamp,
-    }
-
-    if node_id and node_id in state.nodes:
-        state.nodes[node_id].inspections[name or "unnamed"] = metadata
-
-    state._send_to_client(entry)
-
-    if state._queue is not None:
-        try:
-            state._queue.put_event(entry)
-        except Exception:
-            pass
-
-    return metadata
 
 
 def md(description: str) -> None:

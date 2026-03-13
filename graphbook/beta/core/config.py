@@ -1,33 +1,47 @@
-"""Configuration management wrapping hydr8."""
+"""Configuration logging for graphbook beta."""
 
 from __future__ import annotations
 
 from typing import Any
 
-import hydr8
-from omegaconf import DictConfig, OmegaConf
-
-from graphbook.beta.core.state import get_state
+from graphbook.beta.core.state import _current_node, get_state
 
 
-def configure(config: dict[str, Any] | DictConfig) -> None:
-    """Set the global configuration dictionary.
+def log_cfg(cfg: dict[str, Any]) -> None:
+    """Log configuration for the current step.
 
-    Config values are injected into @step functions via hydr8.
-    Only serializable values (str, int, float, bool, list, dict) are shown in the UI.
+    Merges *cfg* into the current node's ``params`` dict so the
+    info tab displays all configuration in one place.  Calling
+    ``log_cfg`` multiple times within the same step merges
+    the dictionaries together (later calls win on key conflicts).
 
     Args:
-        config: A nested dictionary or OmegaConf DictConfig of configuration values.
+        cfg: A flat or nested dictionary of configuration values.
+             Only JSON-serializable values (str, int, float, bool,
+             list, dict) are retained.
 
-    Example:
-        gb.configure({
-            "model": {"model_name": "resnet50", "batch_size": 32},
-            "data": {"path": "/data/imagenet"},
-        })
+    Example::
+
+        @gb.step()
+        def train(data):
+            gb.log_cfg({"model": "resnet50", "batch_size": 32})
+            gb.log_cfg({"lr": 0.001})
+            # info tab shows: model=resnet50, batch_size=32, lr=0.001
     """
     state = get_state()
-    state.config = config if isinstance(config, dict) else OmegaConf.to_container(config, resolve=True)
-    if isinstance(config, DictConfig):
-        hydr8.init(config)
-    else:
-        hydr8.init(OmegaConf.create(config))
+    node_id = _current_node.get()
+
+    filtered = {
+        k: v for k, v in cfg.items()
+        if isinstance(v, (str, int, float, bool, list, dict))
+    }
+
+    if node_id and node_id in state.nodes:
+        node_info = state.nodes[node_id]
+        node_info.params = {**node_info.params, **filtered}
+
+    state._send_to_client({
+        "type": "config",
+        "node": node_id,
+        "data": filtered,
+    })

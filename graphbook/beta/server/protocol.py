@@ -16,7 +16,6 @@ class MessageType(str, Enum):
     IMAGE = "image"
     AUDIO = "audio"
     TEXT = "text"
-    INSPECTION = "inspection"
     PROGRESS = "progress"
     ERROR = "error"
     NODE_REGISTER = "node_register"

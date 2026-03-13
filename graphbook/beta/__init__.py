@@ -17,11 +17,9 @@ import uuid
 import logging as _stdlib_logging
 from typing import Any, Literal, Optional, TypeVar
 
-from hydr8 import override
-
 from graphbook.beta.core.decorators import step
 from graphbook.beta.core.tracker import track
-from graphbook.beta.core.config import configure
+from graphbook.beta.core.config import log_cfg
 from graphbook.beta.core.state import _current_node, get_state, LoggingBackend
 from graphbook.beta.logging.logger import (
     log,
@@ -29,7 +27,6 @@ from graphbook.beta.logging.logger import (
     log_image,
     log_audio,
     log_text,
-    inspect,
     md,
 )
 
@@ -91,8 +88,8 @@ def init(
     Mode detection (when mode='auto'):
     1. Check environment variables (set by 'graphbook run')
     2. Check for daemon at host:port
-    3. If found → server mode (stream events to daemon)
-    4. If not found → local mode (in-process rich terminal only)
+    3. If found -> server mode (stream events to daemon)
+    4. If not found -> local mode (in-process rich terminal only)
 
     Args:
         port: Daemon server port (default 2048).
@@ -250,15 +247,13 @@ def ask(
 __all__ = [
     "step",
     "track",
-    "configure",
-    "override",
+    "log_cfg",
     "init",
     "log",
     "log_metric",
     "log_image",
     "log_audio",
     "log_text",
-    "inspect",
     "md",
     "ask",
     "get_state",

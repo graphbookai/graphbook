@@ -1,8 +1,9 @@
-"""Example 3: Data Processing Pipeline with Config Injection
+"""Example 3: Data Processing Pipeline with Config Logging
 
 Demonstrates:
-- gb.configure() for hydr8-style config injection
-- @gb.step("config_key") to inject config values into function parameters
+- gb.log_cfg() for logging step configuration to the info tab
+- @gb.step("config_key") to organize steps by concern
+- gb.log() for text and tensor-like object logging
 - gb.log_text() for rich markdown logging
 - Multiple source nodes and branching DAG
 - Error capture with enriched tracebacks
@@ -14,42 +15,24 @@ import numpy as np
 import graphbook.beta as gb
 
 
-# Configuration for the pipeline
-config = {
-    "data": {
-        "num_samples": 50,
-        "noise_level": 0.1,
-        "seed": 42,
-    },
-    "processing": {
-        "method": "standard",
-        "clip_min": -3.0,
-        "clip_max": 3.0,
-    },
-    "analysis": {
-        "top_k": 5,
-        "threshold": 0.5,
-    },
-}
-
-gb.configure(config)
 gb.md("""
 # Data Processing Pipeline
 
 This pipeline generates synthetic data, processes it through normalization
-and filtering, then runs statistical analysis. Configuration is injected
-via `gb.configure()` — no hardcoded values in the processing functions.
+and filtering, then runs statistical analysis. Configuration is logged
+via `gb.log_cfg()` — each step declares what it was configured with.
 """)
 
 
 @gb.step("data")
 def generate_data(num_samples: int = 100, noise_level: float = 0.2, seed: int = 0) -> np.ndarray:
     """Generate synthetic time-series data with configurable noise level."""
+    gb.log_cfg({"num_samples": num_samples, "noise_level": noise_level, "seed": seed})
     np.random.seed(seed)
     t = np.linspace(0, 4 * np.pi, num_samples)
     signal = np.sin(t) + noise_level * np.random.randn(num_samples)
     gb.log(f"Generated {num_samples} samples with noise_level={noise_level}, seed={seed}")
-    gb.inspect(signal, "raw_signal")
+    gb.log(signal)
     time.sleep(0.5)
     return signal
 
@@ -57,12 +40,13 @@ def generate_data(num_samples: int = 100, noise_level: float = 0.2, seed: int = 
 @gb.step("data")
 def generate_metadata(num_samples: int = 100, seed: int = 0) -> dict:
     """Generate metadata labels for each data sample."""
+    gb.log_cfg({"num_samples": num_samples, "seed": seed})
     np.random.seed(seed + 1)
     labels = np.random.choice(["A", "B", "C"], size=num_samples)
     timestamps = np.arange(num_samples, dtype=np.float64)
     metadata = {"labels": labels, "timestamps": timestamps}
     gb.log(f"Generated metadata for {num_samples} samples")
-    gb.inspect(labels, "labels")
+    gb.log(labels)
     time.sleep(0.5)
     return metadata
 
@@ -75,6 +59,7 @@ def normalize_data(
     clip_max: float = 5.0,
 ) -> np.ndarray:
     """Normalize data using the configured method and clip to range."""
+    gb.log_cfg({"method": method, "clip_min": clip_min, "clip_max": clip_max})
     if method == "standard":
         mean, std = data.mean(), data.std()
         normalized = (data - mean) / (std + 1e-8)
@@ -89,7 +74,7 @@ def normalize_data(
 
     clipped = np.clip(normalized, clip_min, clip_max)
     gb.log(f"Clipped to [{clip_min}, {clip_max}]")
-    gb.inspect(clipped, "normalized_data")
+    gb.log(clipped)
     time.sleep(0.5)
     return clipped
 
@@ -100,7 +85,7 @@ def filter_by_label(data: np.ndarray, metadata: dict, label: str = "A") -> np.nd
     mask = metadata["labels"] == label
     filtered = data[mask]
     gb.log(f"Filtered to label='{label}': {mask.sum()}/{len(data)} samples")
-    gb.inspect(filtered, f"filtered_{label}")
+    gb.log(filtered)
     time.sleep(0.5)
     return filtered
 
@@ -112,6 +97,7 @@ def compute_statistics(
     threshold: float = 0.0,
 ) -> dict:
     """Compute descriptive statistics and find top-K values above threshold."""
+    gb.log_cfg({"top_k": top_k, "threshold": threshold})
     stats = {
         "mean": float(data.mean()),
         "std": float(data.std()),
@@ -171,7 +157,7 @@ def run_analysis() -> str:
     """Top-level analysis runner that orchestrates data generation, processing, and reporting.
 
     This is the source node. Calling other @step functions from here creates
-    DAG edges automatically: run_analysis → generate_data, run_analysis → normalize_data, etc.
+    DAG edges automatically: run_analysis -> generate_data, run_analysis -> normalize_data, etc.
     """
     # Data generation
     data = generate_data()

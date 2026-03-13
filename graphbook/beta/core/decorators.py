@@ -7,8 +7,6 @@ import time
 import traceback
 from typing import Any, Callable, Optional, TypeVar, overload
 
-import hydr8
-
 from graphbook.beta.core.state import _current_node, get_state
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -55,7 +53,7 @@ def step(
 
     Args:
         func: The function to decorate (when used without parentheses).
-        config_key: Optional config key for hydr8-style param injection.
+        config_key: Optional config key stored on the node for UI display.
         depends_on: Optional list of step functions or node ID strings
             that this step depends on. Creates explicit edges.
 
@@ -81,9 +79,6 @@ def step(
                     depends_on_ids.append(dep.__qualname__)
                 else:
                     depends_on_ids.append(str(dep))
-
-        # Delegate config injection to hydr8
-        injected_fn = hydr8.use(config_key)(fn) if config_key else fn
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -128,19 +123,6 @@ def step(
                     elif parent is not None and not depends_on_ids:
                         state.add_edge(parent, node_id)
 
-                # Store resolved config params for UI visibility
-                if config_key:
-                    try:
-                        cfg = dict(hydr8.use(config_key))
-                        node_info = state.nodes.get(node_id)
-                        if node_info:
-                            node_info.params = {
-                                k: v for k, v in cfg.items()
-                                if isinstance(v, (str, int, float, bool, list, dict))
-                            }
-                    except Exception:
-                        pass
-
                 # Notify backends
                 node_info = state.nodes.get(node_id)
                 params = node_info.params if node_info else {}
@@ -152,7 +134,7 @@ def step(
 
                 state.increment_count(node_id)
                 start_time = time.monotonic()
-                result = injected_fn(*args, **kwargs)
+                result = fn(*args, **kwargs)
                 duration = time.monotonic() - start_time
 
                 # Track return value for data-flow edge inference

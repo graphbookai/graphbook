@@ -49,62 +49,63 @@ class TestProtocol:
         assert MessageType.METRIC.value == "metric"
         assert MessageType.PROGRESS.value == "progress"
         assert MessageType.ERROR.value == "error"
-        assert MessageType.ASK.value == "ask"
+        assert MessageType.ASK.value == "ask_prompt"
 
 
-class TestServerState:
-    """Tests for the in-memory server state."""
+class TestDaemonIngest:
+    """Tests for the daemon state event ingestion."""
 
     @pytest.mark.asyncio
     async def test_ingest_log_event(self) -> None:
-        """Server state should ingest log events."""
-        from graphbook.beta.server.app import ServerState
+        """Daemon state should ingest log events."""
+        from graphbook.beta.server.daemon import DaemonState
 
-        state = ServerState()
-        # Register a node first
-        await state.ingest_batch([{
+        state = DaemonState()
+        state.create_run("test.py", run_id="r1")
+        await state.ingest_events([{
             "type": "node_register",
             "data": {"node_id": "my_node", "func_name": "my_func"},
-        }])
-        assert "my_node" in state.nodes
+        }], "r1")
+        assert "my_node" in state.runs["r1"].nodes
 
-        # Log an event
-        await state.ingest_batch([{
+        await state.ingest_events([{
             "type": "log",
             "node": "my_node",
             "message": "test log",
-        }])
-        assert len(state.logs) == 1
+        }], "r1")
+        assert len(state.runs["r1"].logs) == 1
 
     @pytest.mark.asyncio
     async def test_ingest_edge(self) -> None:
-        """Server state should track edges."""
-        from graphbook.beta.server.app import ServerState
+        """Daemon state should track edges."""
+        from graphbook.beta.server.daemon import DaemonState
 
-        state = ServerState()
-        await state.ingest_batch([
+        state = DaemonState()
+        state.create_run("test.py", run_id="r1")
+        await state.ingest_events([
             {"type": "node_register", "data": {"node_id": "a", "func_name": "a"}},
             {"type": "node_register", "data": {"node_id": "b", "func_name": "b"}},
-        ])
-        await state.ingest_batch([{
+        ], "r1")
+        await state.ingest_events([{
             "type": "edge",
             "data": {"source": "a", "target": "b"},
-        }])
-        assert len(state.edges) == 1
-        assert state.nodes["b"]["is_source"] is False
+        }], "r1")
+        assert len(state.runs["r1"].edges) == 1
+        assert state.runs["r1"].nodes["b"].is_source is False
 
     @pytest.mark.asyncio
     async def test_ingest_error(self) -> None:
-        """Server state should capture errors."""
-        from graphbook.beta.server.app import ServerState
+        """Daemon state should capture errors."""
+        from graphbook.beta.server.daemon import DaemonState
 
-        state = ServerState()
-        await state.ingest_batch([
+        state = DaemonState()
+        state.create_run("test.py", run_id="r1")
+        await state.ingest_events([
             {"type": "node_register", "data": {"node_id": "err_node", "func_name": "err"}},
-        ])
-        await state.ingest_batch([{
+        ], "r1")
+        await state.ingest_events([{
             "type": "error",
             "node": "err_node",
             "data": {"error": "something went wrong", "type": "RuntimeError"},
-        }])
-        assert len(state.nodes["err_node"]["errors"]) == 1
+        }], "r1")
+        assert len(state.runs["r1"].nodes["err_node"].errors) == 1

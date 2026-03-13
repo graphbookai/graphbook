@@ -76,18 +76,6 @@ MCP_TOOLS = [
         "description": "Get workflow-level description and all node docstrings.",
         "inputSchema": {"type": "object", "properties": {}},
     },
-    {
-        "name": "graphbook_inspect_object",
-        "description": "Get the last inspection result for a named object (shape, dtype, etc.).",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "The inspection name."},
-                "node": {"type": "string", "description": "Optional node to search in."},
-            },
-            "required": ["name"],
-        },
-    },
     # ── Action Tools ──
     {
         "name": "graphbook_run_pipeline",
@@ -215,7 +203,6 @@ async def handle_tool_call(name: str, arguments: dict[str, Any], server_url: str
         "graphbook_get_metrics": lambda a: tools.get_metrics(a["node"], a.get("name"), server_url),
         "graphbook_get_errors": lambda a: tools.get_errors(a.get("run_id"), server_url),
         "graphbook_get_description": lambda a: tools.get_description(server_url),
-        "graphbook_inspect_object": lambda a: tools.inspect_object(a["name"], a.get("node"), server_url),
         # Action
         "graphbook_run_pipeline": lambda a: tools.run_pipeline(a["script_path"], a.get("args"), a.get("name"), server_url),
         "graphbook_stop_pipeline": lambda a: tools.stop_pipeline(a["run_id"], server_url),

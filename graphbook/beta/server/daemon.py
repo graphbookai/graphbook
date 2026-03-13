@@ -45,7 +45,6 @@ class ErrorEntry:
     traceback: str
     execution_count: int
     params: dict = field(default_factory=dict)
-    last_inspections: dict = field(default_factory=dict)
     last_logs: list[str] = field(default_factory=list)
 
 
@@ -64,7 +63,6 @@ class NodeState:
     errors: list[dict] = field(default_factory=list)
     images: list[dict] = field(default_factory=list)
     audio: list[dict] = field(default_factory=list)
-    inspections: dict[str, Any] = field(default_factory=dict)
     progress: Optional[dict] = None
 
 
@@ -85,7 +83,6 @@ class Run:
     logs: list[LogEntry] = field(default_factory=list)
     errors: list[ErrorEntry] = field(default_factory=list)
     metrics: dict[str, list] = field(default_factory=dict)
-    inspections: dict[str, Any] = field(default_factory=dict)
     pending_asks: dict[str, dict] = field(default_factory=dict)
     ask_responses: dict[str, str] = field(default_factory=dict)
     source_hash: Optional[str] = None
@@ -259,7 +256,6 @@ class DaemonState:
                 traceback=data.get("traceback", ""),
                 execution_count=node.exec_count if node else data.get("exec_count", 0),
                 params=node.params if node else data.get("params", {}),
-                last_inspections=node.inspections if node else {},
                 last_logs=[l.get("message", "") for l in (node.logs[-5:] if node else [])],
             )
             run.errors.append(error)
@@ -339,13 +335,6 @@ class DaemonState:
             run.logs.append(entry)
             if node_id and node_id in run.nodes:
                 run.nodes[node_id].logs.append(event)
-
-        elif etype == "inspection":
-            data = event.get("data", {})
-            name = data.get("name", "unnamed")
-            run.inspections[name] = data
-            if node_id and node_id in run.nodes:
-                run.nodes[node_id].inspections[name] = data
 
         elif etype == "ask_prompt":
             ask_id = event.get("ask_id") or event.get("data", {}).get("ask_id", "")
@@ -598,7 +587,7 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
             "config_key": n.config_key, "exec_count": n.exec_count,
             "is_source": n.is_source, "params": n.params,
             "recent_logs": n.logs[-20:], "errors": n.errors,
-            "metrics": n.metrics, "inspections": n.inspections, "progress": n.progress,
+            "metrics": n.metrics, "progress": n.progress,
         }
 
     # --- Ask / respond endpoints ---
