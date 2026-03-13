@@ -19,12 +19,12 @@ The top-level module provides all the public functions you need. Import it as:
 Decorators
 ----------
 
-.. function:: gb.step(func=None, config_key=None)
+.. function:: gb.step(func=None, depends_on=None)
 
     Register a function as a DAG node. When one ``@step``-decorated function calls another, a directed edge is recorded between them.
 
     :param func: The function to decorate (when used without parentheses).
-    :param config_key: Optional config key for automatic parameter injection via ``gb.configure()``.
+    :param depends_on: Optional list of step functions or node ID strings that this step depends on.
     :returns: The decorated function (unchanged behavior, with observability added).
 
     Usage forms:

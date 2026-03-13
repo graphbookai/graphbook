@@ -35,7 +35,6 @@ export interface GraphData {
     name: string
     func_name: string
     docstring: string | null
-    config_key: string | null
     exec_count: number
     is_source: boolean
     params: Record<string, unknown>
@@ -69,7 +68,6 @@ export interface NodeDetail {
   name: string
   func_name: string
   docstring: string | null
-  config_key: string | null
   exec_count: number
   is_source: boolean
   params: Record<string, unknown>

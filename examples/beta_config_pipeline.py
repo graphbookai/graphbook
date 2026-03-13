@@ -2,7 +2,7 @@
 
 Demonstrates:
 - gb.log_cfg() for logging step configuration to the info tab
-- @gb.step("config_key") to organize steps by concern
+- @gb.step() to register pipeline steps
 - gb.log() for text and tensor-like object logging
 - gb.log_text() for rich markdown logging
 - Multiple source nodes and branching DAG
@@ -24,7 +24,7 @@ via `gb.log_cfg()` — each step declares what it was configured with.
 """)
 
 
-@gb.step("data")
+@gb.step()
 def generate_data(num_samples: int = 100, noise_level: float = 0.2, seed: int = 0) -> np.ndarray:
     """Generate synthetic time-series data with configurable noise level."""
     gb.log_cfg({"num_samples": num_samples, "noise_level": noise_level, "seed": seed})
@@ -37,7 +37,7 @@ def generate_data(num_samples: int = 100, noise_level: float = 0.2, seed: int = 
     return signal
 
 
-@gb.step("data")
+@gb.step()
 def generate_metadata(num_samples: int = 100, seed: int = 0) -> dict:
     """Generate metadata labels for each data sample."""
     gb.log_cfg({"num_samples": num_samples, "seed": seed})
@@ -51,7 +51,7 @@ def generate_metadata(num_samples: int = 100, seed: int = 0) -> dict:
     return metadata
 
 
-@gb.step("processing")
+@gb.step()
 def normalize_data(
     data: np.ndarray,
     method: str = "standard",
@@ -90,7 +90,7 @@ def filter_by_label(data: np.ndarray, metadata: dict, label: str = "A") -> np.nd
     return filtered
 
 
-@gb.step("analysis")
+@gb.step()
 def compute_statistics(
     data: np.ndarray,
     top_k: int = 10,

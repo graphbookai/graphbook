@@ -423,7 +423,7 @@ if __name__ == "__main__":
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `step` | `@step()`, `@step(config_key)`, `@step(depends_on=[...])` | Register a function as a DAG node |
+| `step` | `@step()`, `@step(depends_on=[...])` | Register a function as a DAG node |
 | `log` | `log(message: str)` | Log a text message |
 | `log_metric` | `log_metric(name, value, step=None)` | Log a scalar metric |
 | `log_image` | `log_image(name, image, step=None)` | Log an image |

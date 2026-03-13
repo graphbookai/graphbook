@@ -101,11 +101,10 @@ def main():
     print("=" * 60)
     for node_id, node in state.nodes.items():
         source_tag = " [SOURCE]" if node.is_source else ""
-        config_tag = f" (config: {node.config_key})" if node.config_key else ""
         doc_preview = ""
         if node.docstring:
             doc_preview = node.docstring[:60] + ("..." if len(node.docstring) > 60 else "")
-        print(f"\n  {node.func_name}{source_tag}{config_tag}")
+        print(f"\n  {node.func_name}{source_tag}")
         print(f"    exec_count: {node.exec_count}")
         print(f"    docstring:  {doc_preview!r}")
         print(f"    logs:       {len(node.logs)} entries")
@@ -149,7 +148,7 @@ def main():
     print(f"  {len(graph['nodes'])} nodes, {len(graph['edges'])} edges")
     for nid, node in graph["nodes"].items():
         print(f"  {node['func_name']}: exec_count={node['exec_count']}, "
-              f"config={node['config_key']}, is_source={node['is_source']}")
+              f"is_source={node['is_source']}")
 
     # --- Final result ---
     print(f"\n{'=' * 60}")

@@ -54,7 +54,6 @@ class NodeState:
     name: str
     func_name: str
     docstring: Optional[str] = None
-    config_key: Optional[str] = None
     exec_count: int = 0
     is_source: bool = True
     params: dict = field(default_factory=dict)
@@ -100,7 +99,6 @@ class Run:
                     "name": n.name,
                     "func_name": n.func_name,
                     "docstring": n.docstring,
-                    "config_key": n.config_key,
                     "exec_count": n.exec_count,
                     "is_source": n.is_source,
                     "params": n.params,
@@ -276,7 +274,6 @@ class DaemonState:
                     name=nid,
                     func_name=data.get("func_name", ""),
                     docstring=data.get("docstring"),
-                    config_key=data.get("config_key"),
                 )
 
         elif etype == "node_executed":
@@ -355,7 +352,10 @@ class DaemonState:
                 run.workflow_description = desc
 
         elif etype == "config":
-            run.config = event.get("data", {})
+            cfg = event.get("data", {})
+            run.config = cfg
+            if node_id and node_id in run.nodes:
+                run.nodes[node_id].params.update(cfg)
 
         elif etype == "run_start":
             data = event.get("data", {})
@@ -584,7 +584,7 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
         n = run.nodes[name]
         return {
             "name": n.name, "func_name": n.func_name, "docstring": n.docstring,
-            "config_key": n.config_key, "exec_count": n.exec_count,
+            "exec_count": n.exec_count,
             "is_source": n.is_source, "params": n.params,
             "recent_logs": n.logs[-20:], "errors": n.errors,
             "metrics": n.metrics, "progress": n.progress,

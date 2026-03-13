@@ -50,16 +50,6 @@ class TestStepDecorator:
         node = next(n for n in state.nodes.values() if n.func_name == "bare_func")
         assert node.exec_count == 1
 
-    def test_step_with_config_key(self) -> None:
-        """@step('key') should store the config key."""
-        @step("model")
-        def model_func():
-            pass
-
-        state = get_state()
-        node = next(n for n in state.nodes.values() if n.func_name == "model_func")
-        assert node.config_key == "model"
-
     def test_step_increments_count(self) -> None:
         """Each call should increment the execution count."""
         @step()

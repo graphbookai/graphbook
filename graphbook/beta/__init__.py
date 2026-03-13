@@ -70,7 +70,6 @@ def _ensure_init() -> None:
                     "node_id": nid,
                     "func_name": node.func_name,
                     "docstring": node.docstring,
-                    "config_key": node.config_key,
                 },
             })
 

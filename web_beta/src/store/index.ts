@@ -6,7 +6,6 @@ export interface NodeState {
   name: string
   funcName: string
   docstring: string | null
-  configKey: string | null
   params: Record<string, unknown>
   executionCount: number
   isSource: boolean
@@ -363,7 +362,6 @@ export const useStore = create<GraphbookStore>((set, get) => ({
           name: nodeId,
           func_name: (data.func_name as string) || '',
           docstring: (data.docstring as string) || null,
-          config_key: (data.config_key as string) || null,
           exec_count: 0,
           is_source: true,
           params: {},
@@ -620,7 +618,6 @@ export const useStore = create<GraphbookStore>((set, get) => ({
                     name: nid,
                     func_name: (data.func_name as string) || '',
                     docstring: (data.docstring as string) || null,
-                    config_key: (data.config_key as string) || null,
                     exec_count: 0,
                     is_source: true,
                     params: {},
@@ -729,6 +726,15 @@ export const useStore = create<GraphbookStore>((set, get) => ({
             if (nodeId) {
               if (!run.inspections[nodeId]) run.inspections[nodeId] = {}
               run.inspections[nodeId] = { ...run.inspections[nodeId], [(data.name as string) ?? 'unnamed']: data }
+            }
+            break
+
+          case 'config':
+            if (nodeId && run.graph?.nodes[nodeId]) {
+              run.graph.nodes[nodeId] = {
+                ...run.graph.nodes[nodeId],
+                params: { ...run.graph.nodes[nodeId].params, ...(data as Record<string, unknown>) },
+              }
             }
             break
 

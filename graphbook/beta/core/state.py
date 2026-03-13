@@ -29,7 +29,6 @@ class NodeInfo:
     name: str
     func_name: str
     docstring: Optional[str] = None
-    config_key: Optional[str] = None
     exec_count: int = 0
     is_source: bool = True  # starts as True, set to False when it receives an edge
     params: dict = field(default_factory=dict)
@@ -103,7 +102,7 @@ class SessionState:
             except Exception:
                 pass
 
-    def register_node(self, node_id: str, func_name: str, docstring: Optional[str] = None, config_key: Optional[str] = None) -> NodeInfo:
+    def register_node(self, node_id: str, func_name: str, docstring: Optional[str] = None) -> NodeInfo:
         """Register a new node or return existing one."""
         created = False
         with self._lock_state:
@@ -112,7 +111,6 @@ class SessionState:
                     name=node_id,
                     func_name=func_name,
                     docstring=docstring,
-                    config_key=config_key,
                 )
                 created = True
         if created:
@@ -123,7 +121,6 @@ class SessionState:
                     "node_id": node_id,
                     "func_name": func_name,
                     "docstring": docstring,
-                    "config_key": config_key,
                 },
             })
         return self.nodes[node_id]
@@ -224,7 +221,6 @@ class SessionState:
                     "name": n.name,
                     "func_name": n.func_name,
                     "docstring": n.docstring,
-                    "config_key": n.config_key,
                     "exec_count": n.exec_count,
                     "is_source": n.is_source,
                     "params": n.params,

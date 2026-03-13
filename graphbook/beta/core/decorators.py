@@ -18,14 +18,12 @@ def step(func: F) -> F: ...
 
 @overload
 def step(
-    config_key: Optional[str] = None,
     depends_on: Optional[list[Any]] = None,
 ) -> Callable[[F], F]: ...
 
 
 def step(
     func: Optional[Any] = None,
-    config_key: Optional[str] = None,
     depends_on: Optional[list[Any]] = None,
 ) -> Any:
     """Decorator that registers a function as a DAG node.
@@ -34,7 +32,6 @@ def step(
 
         @gb.step
         @gb.step()
-        @gb.step("config_key")
         @gb.step(depends_on=[other_step])
 
     DAG edges are inferred automatically from data flow between
@@ -53,7 +50,6 @@ def step(
 
     Args:
         func: The function to decorate (when used without parentheses).
-        config_key: Optional config key stored on the node for UI display.
         depends_on: Optional list of step functions or node ID strings
             that this step depends on. Creates explicit edges.
 
@@ -68,7 +64,6 @@ def step(
             node_id=node_id,
             func_name=fn.__name__,
             docstring=docstring,
-            config_key=config_key,
         )
 
         # Resolve depends_on to node ID strings at decoration time
@@ -180,10 +175,12 @@ def step(
 
         return wrapper  # type: ignore
 
-    # Handle @step, @step(), @step("key")
+    # Handle @step, @step()
     if func is None:
         return decorator
     if callable(func):
         return decorator(func)
-    # func is actually the config_key string
-    return step(config_key=func)
+    raise TypeError(
+        f"step() got an unexpected positional argument {func!r}. "
+        "Use @gb.step or @gb.step() instead."
+    )

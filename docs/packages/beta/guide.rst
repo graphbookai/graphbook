@@ -39,7 +39,6 @@ The decorator can be used in several forms:
 
     @gb.step                       # bare (no parentheses)
     @gb.step()                     # empty parentheses
-    @gb.step("config_key")         # with a config key for parameter injection
     @gb.step(depends_on=[setup])   # with explicit dependencies
 
 
