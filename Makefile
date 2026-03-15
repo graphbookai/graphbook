@@ -21,5 +21,5 @@ docs:
 package: web web-beta
 	cp -r web/dist graphbook/web
 	cp -r web_beta/dist/* graphbook/beta/server/static/
-	poetry build
+	uv build
 	rm -r graphbook/web

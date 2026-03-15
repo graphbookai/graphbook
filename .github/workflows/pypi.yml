@@ -9,12 +9,12 @@ jobs:
       group: larger-runners
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          pipx install poetry
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - name: Build and Publish
         run: |
           make package
-          poetry publish -u ${{ secrets.PYPI_USERNAME }} -p ${{ secrets.PYPI_PASSWORD }}
+          uv publish --token ${{ secrets.PYPI_PASSWORD }}

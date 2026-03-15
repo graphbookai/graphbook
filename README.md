@@ -133,10 +133,9 @@ Graphbook is in active development and very much welcomes contributors. If you w
 
 ### Run Graphbook in Development Mode
 This is a guide on how to run Graphbook in development mode. If you are simply using Graphbook, view the [Getting Started](#getting-started) section.
-You can use any other virtual environment solution, but it is highly adviced to use [poetry](https://python-poetry.org/docs/) since our dependencies are specified in poetry's format.
+You can use any other virtual environment solution, but it is highly advised to use [uv](https://docs.astral.sh/uv/) since our dependencies are managed with uv.
 1. Clone the repo and `cd graphbook`
-1. `poetry install --with dev`
-1. `poetry shell`
+1. `uv sync --group dev`
 1. `python graphbook/core/cli.py`
 1. `cd web`
 1. `deno install`

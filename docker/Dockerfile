@@ -14,23 +14,19 @@ RUN apt install -y \
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash
 RUN apt install -y nodejs
 
-# Setup python and poetry
+# Setup python and uv
 RUN ln -s /usr/bin/python3.10 /usr/bin/python
-RUN curl -sSL https://install.python-poetry.org | python
-ENV PATH=$PATH:/root/.local/bin
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH=$PATH:/root/.cargo/bin
 
-# # Setup app
+# Setup app
 WORKDIR /app
 ENV \
   PIP_NO_CACHE_DIR=off \
   PIP_DISABLE_PIP_VERSION_CHECK=on \
-  PIP_DEFAULT_TIMEOUT=60 \
-  POETRY_NO_INTERACTION=1 \
-  POETRY_VIRTUALENVS_CREATE=false \
-  POETRY_VERSION=1.8.4 \
-  POETRY_CACHE_DIR=/tmp/poetry_cache
-COPY pyproject.toml poetry.lock README.md ./
-RUN poetry install --no-root --no-directory --no-interaction --no-ansi --with peer && rm -rf $POETRY_CACHE_DIR
+  PIP_DEFAULT_TIMEOUT=60
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --no-dev --frozen && rm -rf /root/.cache/uv
 COPY Makefile .
 COPY web web
 RUN make web
