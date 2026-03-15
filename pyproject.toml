@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "graphbook"
-version = "0.14.0-beta.1"
+version = "0.14.0-beta.2"
 authors = [
     {name = "Richard Franklin", email = "rsamf@graphbook.ai"}
 ]
@@ -73,3 +73,6 @@ peer = [
     "torchvision>=0.18.1",
     "s3fs>=2024.4.0",
 ]
+
+[tool.hatch.build.force-include]
+"graphbook/beta/server/static" = "graphbook/beta/server/static"
