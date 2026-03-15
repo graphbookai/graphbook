@@ -20,6 +20,7 @@ docs:
 
 package: web web-beta
 	cp -r web/dist graphbook/web
+	mkdir -p graphbook/beta/server/static
 	cp -r web_beta/dist/* graphbook/beta/server/static/
 	uv build
 	rm -r graphbook/web

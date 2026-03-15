@@ -1130,7 +1130,7 @@ wheels = [
 
 [[package]]
 name = "graphbook"
-version = "0.14.0b2"
+version = "0.14.0b3"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
