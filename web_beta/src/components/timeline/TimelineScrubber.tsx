@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '@/store'
 import { useTimelineBounds, type TimelineEvent } from '@/hooks/useTimelineBounds'
 import { Switch } from '@/components/ui/switch'
@@ -8,6 +8,9 @@ const DOT_COLORS: Record<TimelineEvent['type'], string> = {
   image: '#22c55e',  // green
   audio: '#f97316',  // orange
 }
+
+const DOT_MARGIN = 8 // px margin so dots don't touch edges (time track)
+const STEP_TRACK_PAD = 12 // px padding so step dots/ticks don't touch edge marks
 
 interface TimelineScrubberProps {
   runId: string
@@ -43,7 +46,7 @@ export function TimelineScrubber({ runId }: TimelineScrubberProps) {
   const isStepMode = timeline.mode === 'step'
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-t border-border bg-background shrink-0 h-14">
+    <div className="flex items-center gap-3 px-4 py-2 border-t border-border bg-background shrink-0 h-24">
       <div className="flex items-center gap-1.5 shrink-0">
         <span className="text-[10px] text-muted-foreground">Time</span>
         <Switch
@@ -95,6 +98,35 @@ export function TimelineScrubber({ runId }: TimelineScrubberProps) {
   )
 }
 
+// --- Tick generation ---
+
+function generateTicks(min: number, max: number, targetCount: number = 8): number[] {
+  const range = max - min
+  if (range <= 0) return []
+  const rawStep = range / targetCount
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)))
+  const norm = rawStep / mag
+  let niceStep: number
+  if (norm <= 1.5) niceStep = mag
+  else if (norm <= 3.5) niceStep = 2 * mag
+  else if (norm <= 7.5) niceStep = 5 * mag
+  else niceStep = 10 * mag
+
+  const ticks: number[] = []
+  let t = Math.ceil(min / niceStep) * niceStep
+  while (t <= max + niceStep * 0.001) {
+    ticks.push(t)
+    t += niceStep
+  }
+  return ticks
+}
+
+function formatTimeOffset(t: number, minTime: number): string {
+  const offset = t - minTime
+  if (offset < 60) return `${offset.toFixed(4)}s`
+  return `${(offset / 60).toFixed(1)}m`
+}
+
 // --- Time Range Track ---
 
 interface TimeRangeTrackProps {
@@ -113,9 +145,8 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
   const dragStartValues = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
   const dragStartPanX = useRef(0)
 
-  // Visual zoom state — does not change time range, only scales the track
   const [scale, setScale] = useState(1)
-  const [panX, setPanX] = useState(0) // translateX in px for the inner track
+  const [panX, setPanX] = useState(0)
 
   const range = maxTime - minTime
   const effectiveStart = startValue ?? minTime
@@ -123,13 +154,11 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
 
   const toPercent = (t: number) => (range > 0 ? ((t - minTime) / range) * 100 : 0)
 
-  // Map screen pixel → time value, accounting for zoom transform
   const fromPixel = (px: number) => {
     if (!containerRef.current || range <= 0) return minTime
     const rect = containerRef.current.getBoundingClientRect()
-    const containerW = rect.width
     const trackX = (px - rect.left - panX) / scale
-    const frac = Math.max(0, Math.min(1, trackX / containerW))
+    const frac = Math.max(0, Math.min(1, trackX / rect.width))
     return minTime + frac * range
   }
 
@@ -142,13 +171,8 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
   const startPct = toPercent(effectiveStart)
   const endPct = toPercent(effectiveEnd)
 
-  const formatOffset = (t: number) => {
-    const offset = t - minTime
-    if (offset < 60) return `${offset.toFixed(1)}s`
-    return `${(offset / 60).toFixed(1)}m`
-  }
-
   const isActive = startValue != null || endValue != null
+  const isDraggingWindow = dragging === 'start' || dragging === 'end' || dragging === 'window'
 
   const handlePointerDown = useCallback((e: React.PointerEvent, target: 'start' | 'end' | 'window') => {
     e.preventDefault()
@@ -193,7 +217,6 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
     setDragging(null)
   }, [])
 
-  // Click-drag on empty space → pan the viewport
   const handleTrackPointerDown = useCallback((e: React.PointerEvent) => {
     if (dragging) return
     e.preventDefault()
@@ -214,19 +237,14 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
     if (range <= 0 || !containerRef.current) return
 
     const rect = containerRef.current.getBoundingClientRect()
-    const cursorX = e.clientX - rect.left // cursor position relative to container
+    const cursorX = e.clientX - rect.left
 
-    const zoomFactor = e.deltaY < 0 ? 1.25 : 1 / 1.25 // scroll up = zoom in
+    const zoomFactor = e.deltaY < 0 ? 1.25 : 1 / 1.25
     const newScale = Math.max(1, Math.min(50, scale * zoomFactor))
 
-    // Keep the point under cursor stable:
-    // Before: screenX = trackPoint * scale + panX  →  trackPoint = (cursorX - panX) / scale
-    // After:  cursorX = trackPoint * newScale + newPanX
     const trackPoint = (cursorX - panX) / scale
     let newPanX = cursorX - trackPoint * newScale
 
-    // Clamp so track edges don't go past container edges
-    // Left: panX <= 0, Right: panX >= containerW * (1 - newScale)
     const containerW = rect.width
     newPanX = Math.min(0, Math.max(containerW * (1 - newScale), newPanX))
 
@@ -240,16 +258,48 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
   }, [range, scale, panX])
 
   const dots = useEventDots(events, (ev) => toPercent(ev.timestamp))
+  const ticks = useMemo(() => generateTicks(minTime, maxTime), [minTime, maxTime])
+
+  // Edge indicators — show when there's off-screen content
+  const showLeftFade = panX < -1
+  const containerW = containerRef.current?.getBoundingClientRect().width ?? 0
+  const showRightFade = scale > 1 && containerW > 0 && panX > containerW * (1 - scale) + 1
 
   if (range <= 0) {
     return <div className="text-[10px] text-muted-foreground">No time data</div>
   }
 
+  const innerStyle = {
+    width: `${scale * 100}%`,
+    transform: `translateX(${panX}px)`,
+  }
+
+  // Compute pixel position of a handle for labels rendered above the pane
+  const handleLeft = (pct: number) => `calc(${pct}% * ${scale} + ${panX}px)`
+
   return (
-    <div className="relative flex items-center h-10">
+    <div className="relative pt-5">
+      {/* Handle timestamp labels — above the pane, outside overflow */}
+      {isDraggingWindow && (
+        <>
+          <span
+            className="absolute top-0 -translate-x-1/2 text-[10px] font-medium text-primary-foreground bg-primary/80 rounded px-1 py-px whitespace-nowrap z-30 pointer-events-none"
+            style={{ left: handleLeft(startPct) }}
+          >
+            {formatTimeOffset(effectiveStart, minTime)}
+          </span>
+          <span
+            className="absolute top-0 -translate-x-1/2 text-[10px] font-medium text-primary-foreground bg-primary/80 rounded px-1 py-px whitespace-nowrap z-30 pointer-events-none"
+            style={{ left: handleLeft(endPct) }}
+          >
+            {formatTimeOffset(effectiveEnd, minTime)}
+          </span>
+        </>
+      )}
+
       <div
         ref={containerRef}
-        className="relative w-full h-6 bg-muted rounded-lg cursor-grab overflow-hidden active:cursor-grabbing"
+        className="relative w-full h-12 bg-muted rounded-lg cursor-grab overflow-hidden active:cursor-grabbing"
         onPointerDown={handleTrackPointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -257,13 +307,10 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
         onWheel={handleWheel}
       >
         {/* Inner track — scaled and translated for zoom */}
-        <div
-          className="absolute top-0 h-full"
-          style={{
-            width: `${scale * 100}%`,
-            transform: `translateX(${panX}px)`,
-          }}
-        >
+        <div className="absolute top-0 h-full" style={innerStyle}>
+          {/* Tick dashed lines */}
+          <TickLines ticks={ticks} toPercent={(t) => toPercent(t)} />
+
           {/* Event dots layer */}
           <EventDotLayer dots={dots} />
 
@@ -276,29 +323,46 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
 
           {/* Start handle */}
           <div
-            className="absolute top-1/2 -translate-y-1/2 w-1 h-full bg-primary rounded-sm cursor-ew-resize hover:bg-primary/80"
-            style={{ left: `${startPct}%` }}
+            className="absolute top-0 w-1 h-full bg-primary cursor-ew-resize hover:bg-primary/80"
+            style={{ left: `${startPct}%`, marginLeft: -1 }}
             onPointerDown={(e) => handlePointerDown(e, 'start')}
-          >
-            {isActive && (
-              <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground whitespace-nowrap">
-                {formatOffset(effectiveStart)}
-              </span>
-            )}
-          </div>
+          />
 
           {/* End handle */}
           <div
-            className="absolute top-1/2 -translate-y-1/2 w-1 h-full bg-primary rounded-sm cursor-ew-resize hover:bg-primary/80"
-            style={{ left: `${endPct}%` }}
+            className="absolute top-0 w-1 h-full bg-primary cursor-ew-resize hover:bg-primary/80"
+            style={{ left: `${endPct}%`, marginLeft: -1 }}
             onPointerDown={(e) => handlePointerDown(e, 'end')}
-          >
-            {isActive && (
-              <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground whitespace-nowrap">
-                {formatOffset(effectiveEnd)}
-              </span>
-            )}
-          </div>
+          />
+        </div>
+
+        {/* Edge fade indicators */}
+        <div
+          className="absolute left-0 top-0 w-6 h-full bg-gradient-to-r from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
+          style={{ opacity: showLeftFade ? 1 : 0 }}
+        />
+        <div
+          className="absolute right-0 top-0 w-6 h-full bg-gradient-to-l from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
+          style={{ opacity: showRightFade ? 1 : 0 }}
+        />
+
+        {/* Static edge marks */}
+        <div className="absolute left-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none z-10" />
+        <div className="absolute right-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none z-10" />
+      </div>
+
+      {/* Tick labels below the pane */}
+      <div className="relative w-full h-5 overflow-hidden">
+        <div className="absolute top-0 h-full" style={innerStyle}>
+          {ticks.map((t, i) => (
+            <span
+              key={i}
+              className="absolute top-0.5 text-[10px] text-muted-foreground -translate-x-1/2 leading-tight"
+              style={{ left: `${toPercent(t)}%` }}
+            >
+              {formatTimeOffset(t, minTime)}
+            </span>
+          ))}
         </div>
       </div>
     </div>
@@ -317,52 +381,123 @@ interface StepTrackProps {
 }
 
 function StepTrack({ minStep, maxStep, hasSteps, value, onChange, events }: StepTrackProps) {
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [dragging, setDragging] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState<'handle' | 'pan' | null>(null)
+  const dragStartX = useRef(0)
+  const dragStartPanX = useRef(0)
+
+  const [scale, setScale] = useState(1)
+  const [panX, setPanX] = useState(0)
 
   const range = maxStep - minStep
-
-  const fromPixel = useCallback((px: number) => {
-    if (!trackRef.current || range <= 0) return minStep
-    const rect = trackRef.current.getBoundingClientRect()
-    const frac = Math.max(0, Math.min(1, (px - rect.left) / rect.width))
-    return Math.round(minStep + frac * range)
-  }, [minStep, range])
+  const pad = STEP_TRACK_PAD
 
   const toPercent = (s: number) => (range > 0 ? ((s - minStep) / range) * 100 : 50)
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+  // Map screen pixel → step value, accounting for zoom + padding
+  const fromPixel = useCallback((px: number) => {
+    if (!containerRef.current || range <= 0) return minStep
+    const rect = containerRef.current.getBoundingClientRect()
+    const innerLeft = rect.left + pad
+    const innerWidth = rect.width - pad * 2
+    const trackX = (px - innerLeft - panX) / scale
+    const frac = Math.max(0, Math.min(1, trackX / innerWidth))
+    return Math.round(minStep + frac * range)
+  }, [minStep, range, scale, panX, pad])
+
+  const clampPanX = useCallback((px: number, s: number) => {
+    if (!containerRef.current || s <= 1) return 0
+    const innerWidth = containerRef.current.getBoundingClientRect().width - pad * 2
+    return Math.min(0, Math.max(innerWidth * (1 - s), px))
+  }, [pad])
+
+  // Handle drag (on the handle element)
+  const handleHandlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    setDragging(true)
+    setDragging('handle')
     onChange(fromPixel(e.clientX))
   }, [fromPixel, onChange])
 
+  // Pan drag (on empty space)
+  const handleTrackPointerDown = useCallback((e: React.PointerEvent) => {
+    if (dragging) return
+    e.preventDefault()
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    setDragging('pan')
+    dragStartX.current = e.clientX
+    dragStartPanX.current = panX
+  }, [dragging, panX])
+
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging) return
-    onChange(fromPixel(e.clientX))
-  }, [dragging, fromPixel, onChange])
+    if (dragging === 'handle') {
+      onChange(fromPixel(e.clientX))
+    } else if (dragging === 'pan') {
+      const dx = e.clientX - dragStartX.current
+      setPanX(clampPanX(dragStartPanX.current + dx, scale))
+    }
+  }, [dragging, fromPixel, onChange, clampPanX, scale])
 
   const handlePointerUp = useCallback(() => {
-    setDragging(false)
+    setDragging(null)
   }, [])
 
   const handleDoubleClick = useCallback(() => {
     onChange(null)
+    setScale(1)
+    setPanX(0)
   }, [onChange])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
-    if (range <= 0) return
-    const current = value ?? Math.round((minStep + maxStep) / 2)
-    const delta = e.deltaY > 0 ? 1 : -1
-    const next = Math.max(minStep, Math.min(maxStep, current + delta))
-    onChange(next)
+    if (range <= 0 || !containerRef.current) return
+
+    const rect = containerRef.current.getBoundingClientRect()
+    const cursorX = e.clientX - rect.left - pad
+    const innerWidth = rect.width - pad * 2
+
+    const zoomFactor = e.deltaY < 0 ? 1.25 : 1 / 1.25
+    const newScale = Math.max(1, Math.min(50, scale * zoomFactor))
+
+    const trackPoint = (cursorX - panX) / scale
+    let newPanX = cursorX - trackPoint * newScale
+
+    newPanX = Math.min(0, Math.max(innerWidth * (1 - newScale), newPanX))
+
+    if (newScale <= 1) {
+      setScale(1)
+      setPanX(0)
+    } else {
+      setScale(newScale)
+      setPanX(newPanX)
+    }
+  }, [range, scale, panX, pad])
+
+  // Left/right arrow keys to step through (global)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (range <= 0) return
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      e.preventDefault()
+      const current = value ?? Math.round((minStep + maxStep) / 2)
+      const delta = e.key === 'ArrowRight' ? 1 : -1
+      const next = Math.max(minStep, Math.min(maxStep, current + delta))
+      onChange(next)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [range, value, minStep, maxStep, onChange])
 
-  // Only show events that have a step value
   const stepEvents = useMemo(() => events.filter(ev => ev.step != null), [events])
   const dots = useEventDots(stepEvents, (ev) => toPercent(ev.step!))
+  const ticks = useMemo(() => {
+    const raw = generateTicks(minStep, maxStep)
+    return raw.map(t => Math.round(t))
+  }, [minStep, maxStep])
 
   if (!hasSteps) {
     return <div className="text-[10px] text-muted-foreground opacity-50">No step data</div>
@@ -370,35 +505,105 @@ function StepTrack({ minStep, maxStep, hasSteps, value, onChange, events }: Step
 
   const currentPct = value != null ? toPercent(value) : 50
 
+  const innerStyle = {
+    width: `${scale * 100}%`,
+    transform: `translateX(${panX}px)`,
+  }
+
+  // Edge fade indicators
+  const showLeftFade = panX < -1
+  const innerWidth = containerRef.current ? containerRef.current.getBoundingClientRect().width - pad * 2 : 0
+  const showRightFade = scale > 1 && innerWidth > 0 && panX > innerWidth * (1 - scale) + 1
+
   return (
-    <div className="relative flex items-center h-10">
+    <div className="relative pt-5">
       <div
-        ref={trackRef}
-        className="relative w-full h-6 bg-muted cursor-pointer"
-        onPointerDown={handlePointerDown}
+        ref={containerRef}
+        className="relative w-full h-12 bg-muted cursor-grab rounded-lg overflow-hidden active:cursor-grabbing"
+        onPointerDown={handleTrackPointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
       >
-        {/* Event dots layer */}
-        <EventDotLayer dots={dots} />
+        {/* Inset content area with zoom/pan */}
+        <div className="absolute top-0 h-full" style={{ left: pad, right: pad }}>
+          <div className="absolute top-0 h-full" style={innerStyle}>
+            {/* Tick dashed lines */}
+            <TickLines ticks={ticks} toPercent={(t) => toPercent(t)} />
 
-        {/* Handle */}
+            {/* Event dots */}
+            <EventDotLayer dots={dots} inset={false} />
+
+            {/* Handle */}
+            <div
+              className={`absolute top-0 w-0.5 h-full cursor-ew-resize transition-[left] duration-150 ease-out ${
+                value != null ? 'bg-primary hover:bg-primary/80' : 'bg-muted-foreground/40'
+              }`}
+              style={{ left: `${currentPct}%`, transform: 'translateX(-50%)' }}
+              onPointerDown={handleHandlePointerDown}
+            />
+          </div>
+        </div>
+
+        {/* Edge fade indicators */}
         <div
-          className={`absolute top-1/2 -translate-y-1/2 w-1 h-full rounded-sm cursor-ew-resize ${
-            value != null ? 'bg-primary hover:bg-primary/80' : 'bg-muted-foreground/40'
-          }`}
-          style={{ left: `${currentPct}%` }}
-        >
-          {value != null && (
-            <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground whitespace-nowrap">
-              step {value}
-            </span>
-          )}
+          className="absolute left-0 top-0 w-6 h-full bg-gradient-to-r from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
+          style={{ opacity: showLeftFade ? 1 : 0 }}
+        />
+        <div
+          className="absolute right-0 top-0 w-6 h-full bg-gradient-to-l from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
+          style={{ opacity: showRightFade ? 1 : 0 }}
+        />
+
+        {/* Static edge marks */}
+        <div className="absolute left-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none" />
+        <div className="absolute right-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none" />
+      </div>
+
+      {/* Tick labels below the pane */}
+      <div className="relative w-full h-5 overflow-hidden">
+        <div className="absolute top-0 h-full" style={{ left: pad, right: pad }}>
+          <div className="absolute top-0 h-full" style={innerStyle}>
+            {ticks.map((t, i) => (
+              <span
+                key={i}
+                className="absolute top-0.5 text-[10px] text-muted-foreground -translate-x-1/2 leading-tight"
+                style={{ left: `${toPercent(t)}%` }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+// --- Tick Lines (dashed vertical lines inside the pane) ---
+
+function TickLines({ ticks, toPercent }: { ticks: number[]; toPercent: (t: number) => number }) {
+  if (ticks.length === 0) return null
+  return (
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+      {ticks.map((t, i) => {
+        const pct = toPercent(t)
+        return (
+          <line
+            key={i}
+            x1={`${pct}%`}
+            y1="0"
+            x2={`${pct}%`}
+            y2="100%"
+            stroke="currentColor"
+            className="text-foreground/15"
+            strokeWidth={1}
+            strokeDasharray="4 4"
+          />
+        )
+      })}
+    </svg>
   )
 }
 
@@ -418,7 +623,6 @@ function useEventDots(
   return useMemo(() => {
     if (events.length === 0) return []
 
-    // Bucket events by pixel proximity (~0.5% of track width)
     const bucketSize = 0.5
     const buckets = new Map<number, TimelineEvent[]>()
 
@@ -435,7 +639,6 @@ function useEventDots(
 
     const dots: MergedDot[] = []
     for (const [pct, group] of buckets) {
-      // Use color of the most common type in the group
       const typeCounts: Record<string, number> = {}
       for (const ev of group) {
         typeCounts[ev.type] = (typeCounts[ev.type] || 0) + 1
@@ -462,12 +665,17 @@ function useEventDots(
   }, [events, toPercent])
 }
 
-function EventDotLayer({ dots }: { dots: MergedDot[] }) {
+function EventDotLayer({ dots, inset = true }: { dots: MergedDot[]; inset?: boolean }) {
   if (dots.length === 0) return null
+
+  const style = inset
+    ? { left: DOT_MARGIN, right: DOT_MARGIN, width: `calc(100% - ${DOT_MARGIN * 2}px)` }
+    : undefined
 
   return (
     <svg
-      className="absolute inset-0 w-full h-full overflow-visible pointer-events-none"
+      className={`absolute top-0 h-full overflow-visible pointer-events-none ${inset ? '' : 'inset-0 w-full'}`}
+      style={style}
       preserveAspectRatio="none"
     >
       {dots.map((dot, i) => {

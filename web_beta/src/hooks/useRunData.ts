@@ -8,6 +8,8 @@ export function useRunData(runId: string | null) {
   const setRunLogs = useStore(s => s.setRunLogs)
   const setRunErrors = useStore(s => s.setRunErrors)
   const setRunMetrics = useStore(s => s.setRunMetrics)
+  const setRunImages = useStore(s => s.setRunImages)
+  const setRunAudio = useStore(s => s.setRunAudio)
   const addAskPrompt = useStore(s => s.addAskPrompt)
 
   const run = runId ? runs.get(runId) : undefined
@@ -20,6 +22,8 @@ export function useRunData(runId: string | null) {
       api.getRunLogs(runId, { limit: 500 }).then(d => setRunLogs(runId, d.logs)),
       api.getRunErrors(runId).then(d => setRunErrors(runId, d.errors)),
       api.getRunMetrics(runId).then(d => setRunMetrics(runId, d.metrics)),
+      api.getRunImages(runId).then(d => setRunImages(runId, d.images)),
+      api.getRunAudio(runId).then(d => setRunAudio(runId, d.audio)),
       api.getRunAsks(runId).then(d => {
         for (const ask of d.pending) {
           addAskPrompt(runId, {
@@ -33,7 +37,7 @@ export function useRunData(runId: string | null) {
         }
       }),
     ]).catch(() => { /* Run may not exist yet */ })
-  }, [runId, run?.loaded, setRunGraph, setRunLogs, setRunErrors, setRunMetrics, addAskPrompt])
+  }, [runId, run?.loaded, setRunGraph, setRunLogs, setRunErrors, setRunMetrics, setRunImages, setRunAudio, addAskPrompt])
 
   return run ?? null
 }

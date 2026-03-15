@@ -155,6 +155,8 @@ interface GraphbookStore {
   setRunErrors: (runId: string, errors: ErrorEntry[]) => void
   appendRunError: (runId: string, error: ErrorEntry) => void
   setRunMetrics: (runId: string, metrics: Record<string, Record<string, { step: number; value: number }[]>>) => void
+  setRunImages: (runId: string, images: Record<string, ImageEntry[]>) => void
+  setRunAudio: (runId: string, audio: Record<string, AudioEntry[]>) => void
   appendMetric: (runId: string, nodeId: string, name: string, step: number, value: number) => void
   updateNodeProgress: (runId: string, nodeId: string, progress: { current: number; total: number; name?: string } | null) => void
   updateNodeRegistration: (runId: string, data: Record<string, unknown>) => void
@@ -320,6 +322,20 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     const runs = new Map(state.runs)
     const run = runs.get(runId)
     if (run) run.nodeMetrics = metrics
+    return { runs }
+  }),
+
+  setRunImages: (runId, images) => set(state => {
+    const runs = new Map(state.runs)
+    const run = runs.get(runId)
+    if (run) run.nodeImages = images
+    return { runs }
+  }),
+
+  setRunAudio: (runId, audio) => set(state => {
+    const runs = new Map(state.runs)
+    const run = runs.get(runId)
+    if (run) run.nodeAudio = audio
     return { runs }
   }),
 

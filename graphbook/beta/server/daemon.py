@@ -539,7 +539,7 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
         logs = run.logs
         if node:
             logs = [l for l in logs if l.node == node]
-        return {"logs": [{"timestamp": l.timestamp, "node": l.node, "message": l.message, "level": l.level} for l in logs[-limit:]]}
+        return {"logs": [{"timestamp": l.timestamp, "node": l.node, "message": l.message, "level": l.level, "step": l.step} for l in logs[-limit:]]}
 
     @app.get("/runs/{run_id}/errors")
     async def get_run_errors(run_id: str):
@@ -573,6 +573,47 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
             if node.metrics:
                 metrics[node_id] = node.metrics
         return {"metrics": metrics}
+
+    @app.get("/runs/{run_id}/images")
+    async def get_run_images(run_id: str):
+        if run_id not in state.runs:
+            return JSONResponse(status_code=404, content={"error": f"Run '{run_id}' not found"})
+        run = state.runs[run_id]
+        images: dict[str, list] = {}
+        for node_id, node in run.nodes.items():
+            if node.images:
+                images[node_id] = [
+                    {
+                        "node": node_id,
+                        "name": img.get("name", ""),
+                        "data": img.get("data", ""),
+                        "step": img.get("step"),
+                        "timestamp": img.get("timestamp", 0),
+                    }
+                    for img in node.images
+                ]
+        return {"images": images}
+
+    @app.get("/runs/{run_id}/audio")
+    async def get_run_audio(run_id: str):
+        if run_id not in state.runs:
+            return JSONResponse(status_code=404, content={"error": f"Run '{run_id}' not found"})
+        run = state.runs[run_id]
+        audio: dict[str, list] = {}
+        for node_id, node in run.nodes.items():
+            if node.audio:
+                audio[node_id] = [
+                    {
+                        "node": node_id,
+                        "name": a.get("name", ""),
+                        "data": a.get("data", ""),
+                        "sr": a.get("sr", 16000),
+                        "step": a.get("step"),
+                        "timestamp": a.get("timestamp", 0),
+                    }
+                    for a in node.audio
+                ]
+        return {"audio": audio}
 
     @app.get("/runs/{run_id}/nodes/{name}")
     async def get_run_node(run_id: str, name: str):

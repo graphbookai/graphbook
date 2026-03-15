@@ -93,6 +93,8 @@ export const api = {
   },
   getRunErrors: (id: string) => get<{ errors: ErrorEntry[] }>(`/runs/${id}/errors`),
   getRunMetrics: (id: string) => get<{ metrics: Record<string, Record<string, { step: number; value: number }[]>> }>(`/runs/${id}/metrics`),
+  getRunImages: (id: string) => get<{ images: Record<string, Array<{ node: string; name: string; data: string; step: number | null; timestamp: number }>> }>(`/runs/${id}/images`),
+  getRunAudio: (id: string) => get<{ audio: Record<string, Array<{ node: string; name: string; data: string; sr: number; step: number | null; timestamp: number }>> }>(`/runs/${id}/audio`),
   getRunNode: (id: string, name: string) => get<NodeDetail>(`/runs/${id}/nodes/${encodeURIComponent(name)}`),
 
   stopRun: (id: string) => post<{ run_id: string; status: string }>(`/runs/${id}/stop`, {}),

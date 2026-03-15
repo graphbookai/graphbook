@@ -26,7 +26,8 @@ node_modules
 dist
 dist-ssr
 *.local
-graphbook/beta/server/static/
+graphbook/beta/server/static/*
+!graphbook/beta/server/static/.gitkeep
 
 # Editor directories and files
 .vscode/*
