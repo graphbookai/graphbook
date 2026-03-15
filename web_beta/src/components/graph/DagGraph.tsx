@@ -43,9 +43,10 @@ function runDagreLayout(
   nodes: Node[],
   edges: Edge[],
   measured?: Map<string, { width: number; height: number }>,
+  rankdir: 'TB' | 'LR' = 'TB',
 ): Node[] {
   const g = new dagre.graphlib.Graph()
-  g.setGraph({ rankdir: 'TB', nodesep: 50, ranksep: 60 })
+  g.setGraph({ rankdir, nodesep: 50, ranksep: 60 })
   g.setDefaultEdgeLabel(() => ({}))
 
   for (const node of nodes) {
@@ -90,6 +91,7 @@ function DagGraphInner({ runId }: DagGraphProps) {
   const updateNodePosition = useStore(s => s.updateNodePosition)
   const showMinimap = useStore(s => s.settings.showMinimap)
   const showControls = useStore(s => s.settings.showControls)
+  const dagDirection = useStore(s => s.dagDirection)
   const graph = runState?.graph
 
   const { fitView, getNodes } = useReactFlow()
@@ -149,12 +151,12 @@ function DagGraphInner({ runId }: DagGraphProps) {
       setEdges([])
       return
     }
-    const laid = runDagreLayout(baseNodes, baseEdges)
+    const laid = runDagreLayout(baseNodes, baseEdges, undefined, dagDirection)
     setNodes(laid)
     setEdges(baseEdges)
     edgesRef.current = baseEdges
     initialLayoutDone.current = false
-  }, [baseNodes, baseEdges, setNodes, setEdges])
+  }, [baseNodes, baseEdges, setNodes, setEdges, dagDirection])
 
   // After initial measurement, re-layout with real dimensions
   useEffect(() => {
@@ -164,11 +166,11 @@ function DagGraphInner({ runId }: DagGraphProps) {
     const dims = getMeasuredDimensions(currentNodes)
     if (dims.size === currentNodes.length) {
       initialLayoutDone.current = true
-      const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
+      const laid = runDagreLayout(currentNodes, edgesRef.current, dims, dagDirection)
       setNodes(laid)
       requestAnimationFrame(() => fitView({ duration: 200 }))
     }
-  }, [nodesInitialized, nodes.length, getNodes, setNodes, fitView])
+  }, [nodesInitialized, nodes.length, getNodes, setNodes, fitView, dagDirection])
 
   // Relayout only when explicitly triggered (expand/collapse/reset), not on content growth
   const layoutTrigger = useStore(s => s.layoutTrigger)
@@ -181,23 +183,23 @@ function DagGraphInner({ runId }: DagGraphProps) {
       const currentNodes = getNodes()
       const dims = getMeasuredDimensions(currentNodes)
       if (dims.size > 0) {
-        const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
+        const laid = runDagreLayout(currentNodes, edgesRef.current, dims, dagDirection)
         setNodes(laid)
       }
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [layoutTrigger, getNodes, setNodes])
+  }, [layoutTrigger, getNodes, setNodes, dagDirection])
 
   const onResetLayout = useCallback(() => {
     const currentNodes = getNodes()
     const dims = getMeasuredDimensions(currentNodes)
     if (dims.size > 0) {
-      const laid = runDagreLayout(currentNodes, edgesRef.current, dims)
+      const laid = runDagreLayout(currentNodes, edgesRef.current, dims, dagDirection)
       setNodes(laid)
       requestAnimationFrame(() => fitView({ duration: 200 }))
     }
-  }, [getNodes, setNodes, fitView])
+  }, [getNodes, setNodes, fitView, dagDirection])
 
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
 

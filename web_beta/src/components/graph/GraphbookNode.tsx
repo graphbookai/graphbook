@@ -1,5 +1,5 @@
-import { memo, useContext } from 'react'
-import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { memo, useContext, useEffect } from 'react'
+import { Handle, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -28,6 +28,9 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
   })
   const isCollapsed = useStore(s => s.collapsedGraphNodes.has(id))
   const toggleGraphNode = useStore(s => s.toggleGraphNode)
+  const dagDirection = useStore(s => s.dagDirection)
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => { updateNodeInternals(id) }, [dagDirection, id, updateNodeInternals])
   const hideTabsOnDrag = useStore(s => s.settings.hideTabsOnDrag)
   const draggingNodeId = useContext(DragContext)
   const isDragging = draggingNodeId === id
@@ -57,7 +60,7 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
       hasPendingAsk && 'shadow-amber-500/30',
     )}>
       {!nodeInfo.is_source && (
-        <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+        <Handle type="target" position={dagDirection === 'TB' ? Position.Top : Position.Left} className="!bg-muted-foreground !w-2 !h-2" />
       )}
 
       {/* Node header */}
@@ -130,7 +133,7 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
         <div className="border-t border-border h-[40px]" />
       )}
 
-      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground !w-2 !h-2" />
+      <Handle type="source" position={dagDirection === 'TB' ? Position.Bottom : Position.Right} className="!bg-muted-foreground !w-2 !h-2" />
     </div>
   )
 })

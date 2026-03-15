@@ -1,7 +1,7 @@
 import { useReactFlow } from '@xyflow/react'
 import { useStore } from '@/store'
 import { Button } from '@/components/ui/button'
-import { Maximize, RotateCcw, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
+import { Maximize, GitFork, ChevronsDownUp, ChevronsUpDown, ArrowDownUp, ArrowLeftRight } from 'lucide-react'
 
 interface GraphToolbarProps {
   onResetLayout: () => void
@@ -12,6 +12,8 @@ export function GraphToolbar({ onResetLayout }: GraphToolbarProps) {
   const collapsedGraphNodes = useStore(s => s.collapsedGraphNodes)
   const collapseAll = useStore(s => s.collapseAllGraphNodes)
   const expandAll = useStore(s => s.expandAllGraphNodes)
+  const dagDirection = useStore(s => s.dagDirection)
+  const toggleDagDirection = useStore(s => s.toggleDagDirection)
 
   const allCollapsed = collapsedGraphNodes.size > 0
 
@@ -34,6 +36,19 @@ export function GraphToolbar({ onResetLayout }: GraphToolbarProps) {
         variant="outline"
         size="sm"
         className="h-8 bg-card/80 backdrop-blur-sm"
+        onClick={toggleDagDirection}
+        title={dagDirection === 'TB' ? 'Switch to horizontal layout' : 'Switch to vertical layout'}
+      >
+        {dagDirection === 'TB' ? (
+          <ArrowLeftRight className="h-3.5 w-3.5" />
+        ) : (
+          <ArrowDownUp className="h-3.5 w-3.5" />
+        )}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 bg-card/80 backdrop-blur-sm"
         onClick={() => fitView({ padding: 0.1, duration: 300 })}
         title="Fit to view"
       >
@@ -46,7 +61,7 @@ export function GraphToolbar({ onResetLayout }: GraphToolbarProps) {
         onClick={onResetLayout}
         title="Reset layout"
       >
-        <RotateCcw className="h-3.5 w-3.5" />
+        <GitFork className="h-3.5 w-3.5" />
       </Button>
     </div>
   )

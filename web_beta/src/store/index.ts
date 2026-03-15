@@ -126,6 +126,8 @@ interface GraphbookStore {
   // Node interaction (graph view)
   collapsedGraphNodes: Set<string>
   layoutTrigger: number
+  dagDirection: 'TB' | 'LR'
+  toggleDagDirection: () => void
 
   // Pinned panels
   pinnedPanels: PinnedPanel[]
@@ -227,6 +229,11 @@ export const useStore = create<GraphbookStore>((set, get) => ({
 
   collapsedGraphNodes: new Set<string>(),
   layoutTrigger: 0,
+  dagDirection: 'TB',
+  toggleDagDirection: () => set(state => ({
+    dagDirection: state.dagDirection === 'TB' ? 'LR' : 'TB',
+    layoutTrigger: state.layoutTrigger + 1,
+  })),
 
   pinnedPanels: [],
 
