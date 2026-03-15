@@ -1,4 +1,6 @@
-# Graphbook Development Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Build & Run Commands
 - Build web UI: `cd web && npm install && npm run build`
