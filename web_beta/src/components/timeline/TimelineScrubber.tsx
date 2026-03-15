@@ -262,7 +262,11 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
   const maxPct = minPct + 100 / scale
   const visibleRange = useMemo<[number, number]>(() => [minPct - 2, maxPct + 2], [minPct, maxPct])
   const dots = useEventDots(events, (ev) => toPercent(ev.timestamp), scale, visibleRange)
-  const ticks = useMemo(() => generateTicks(minTime, maxTime), [minTime, maxTime])
+  const ticks = useMemo(() => {
+    const visMin = minTime + (minPct / 100) * range
+    const visMax = minTime + (maxPct / 100) * range
+    return generateTicks(Math.max(minTime, visMin), Math.min(maxTime, visMax))
+  }, [minTime, maxTime, range, minPct, maxPct])
 
   // Edge indicators — show when there's off-screen content
   const showLeftFade = panX < -1
@@ -504,9 +508,11 @@ function StepTrack({ minStep, maxStep, hasSteps, value, onChange, events }: Step
   const stepVisibleRange = useMemo<[number, number]>(() => [stepMinPct - 2, stepMaxPct + 2], [stepMinPct, stepMaxPct])
   const dots = useEventDots(stepEvents, (ev) => toPercent(ev.step!), scale, stepVisibleRange)
   const ticks = useMemo(() => {
-    const raw = generateTicks(minStep, maxStep)
+    const visMin = minStep + (stepMinPct / 100) * range
+    const visMax = minStep + (stepMaxPct / 100) * range
+    const raw = generateTicks(Math.max(minStep, visMin), Math.min(maxStep, visMax))
     return raw.map(t => Math.round(t))
-  }, [minStep, maxStep])
+  }, [minStep, maxStep, range, stepMinPct, stepMaxPct])
 
   if (!hasSteps) {
     return <div className="text-[10px] text-muted-foreground opacity-50">No step data</div>
