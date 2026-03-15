@@ -257,7 +257,11 @@ function TimeRangeTrack({ minTime, maxTime, startValue, endValue, onChange, even
     }
   }, [range, scale, panX])
 
-  const dots = useEventDots(events, (ev) => toPercent(ev.timestamp))
+  const cw = containerRef.current?.clientWidth ?? 300
+  const minPct = (-panX / (cw * scale)) * 100
+  const maxPct = minPct + 100 / scale
+  const visibleRange = useMemo<[number, number]>(() => [minPct - 2, maxPct + 2], [minPct, maxPct])
+  const dots = useEventDots(events, (ev) => toPercent(ev.timestamp), scale, visibleRange)
   const ticks = useMemo(() => generateTicks(minTime, maxTime), [minTime, maxTime])
 
   // Edge indicators — show when there's off-screen content
@@ -493,7 +497,12 @@ function StepTrack({ minStep, maxStep, hasSteps, value, onChange, events }: Step
   }, [range, value, minStep, maxStep, onChange])
 
   const stepEvents = useMemo(() => events.filter(ev => ev.step != null), [events])
-  const dots = useEventDots(stepEvents, (ev) => toPercent(ev.step!))
+  const stepContainerW = containerRef.current?.clientWidth ?? 300
+  const stepInnerW = stepContainerW - pad * 2
+  const stepMinPct = (-panX / (stepInnerW * scale)) * 100
+  const stepMaxPct = stepMinPct + 100 / scale
+  const stepVisibleRange = useMemo<[number, number]>(() => [stepMinPct - 2, stepMaxPct + 2], [stepMinPct, stepMaxPct])
+  const dots = useEventDots(stepEvents, (ev) => toPercent(ev.step!), scale, stepVisibleRange)
   const ticks = useMemo(() => {
     const raw = generateTicks(minStep, maxStep)
     return raw.map(t => Math.round(t))
@@ -619,15 +628,18 @@ interface MergedDot {
 function useEventDots(
   events: TimelineEvent[],
   toPercent: (ev: TimelineEvent) => number,
+  scale: number = 1,
+  visibleRange?: [number, number],
 ): MergedDot[] {
   return useMemo(() => {
     if (events.length === 0) return []
 
-    const bucketSize = 0.5
+    const bucketSize = 0.5 / scale
     const buckets = new Map<number, TimelineEvent[]>()
 
     for (const ev of events) {
       const pct = toPercent(ev)
+      if (visibleRange && (pct < visibleRange[0] || pct > visibleRange[1])) continue
       const key = Math.round(pct / bucketSize) * bucketSize
       const existing = buckets.get(key)
       if (existing) {
@@ -662,7 +674,7 @@ function useEventDots(
     }
 
     return dots
-  }, [events, toPercent])
+  }, [events, toPercent, scale, visibleRange])
 }
 
 function EventDotLayer({ dots, inset = true }: { dots: MergedDot[]; inset?: boolean }) {

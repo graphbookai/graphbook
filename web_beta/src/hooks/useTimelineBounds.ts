@@ -18,8 +18,6 @@ export interface TimelineBounds {
   events: TimelineEvent[]
 }
 
-const MAX_EVENTS = 2000
-
 function formatLabel(type: string, offset: number, step: number | null, extra?: string): string {
   const t = offset < 60 ? `${offset.toFixed(1)}s` : `${(offset / 60).toFixed(1)}m`
   const parts = [type]
@@ -113,17 +111,6 @@ export function useTimelineBounds(runId: string | null): TimelineBounds {
       ev.label = formatLabel(ev.type, ev.timestamp - minTime, ev.step)
     }
 
-    // Downsample if needed
-    let events = rawEvents
-    if (events.length > MAX_EVENTS) {
-      const stride = events.length / MAX_EVENTS
-      const sampled: TimelineEvent[] = []
-      for (let i = 0; i < MAX_EVENTS; i++) {
-        sampled.push(events[Math.floor(i * stride)])
-      }
-      events = sampled
-    }
-
-    return { minTime, maxTime, minStep, maxStep, hasSteps, events }
+    return { minTime, maxTime, minStep, maxStep, hasSteps, events: rawEvents }
   }, [logs, nodeImages, nodeAudio])
 }
