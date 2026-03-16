@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "graphbook"
-version = "0.14.0-beta.4"
+version = "0.14.0-beta.5"
 authors = [
     {name = "Richard Franklin", email = "rsamf@graphbook.ai"}
 ]

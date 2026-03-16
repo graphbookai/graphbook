@@ -20,7 +20,7 @@ docs:
 
 package: web web-beta
 	cp -r web/dist graphbook/web
-	mkdir -p graphbook/beta/server/static
+	rm -rf graphbook/beta/server/static/assets graphbook/beta/server/static/index.html graphbook/beta/server/static/favicon.svg
 	cp -r web_beta/dist/* graphbook/beta/server/static/
 	uv build
 	rm -r graphbook/web
