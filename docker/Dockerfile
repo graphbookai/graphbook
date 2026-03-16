@@ -49,4 +49,5 @@ COPY --from=builder /app/web/dist web/dist
 
 EXPOSE 8005 8006
 
+ENV PYTHONPATH=/app
 CMD ["python", "graphbook/core/cli.py", "--web_dir", "web/dist"]
