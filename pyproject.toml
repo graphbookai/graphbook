@@ -74,5 +74,8 @@ peer = [
     "s3fs>=2024.4.0",
 ]
 
+[tool.hatch.build]
+exclude = ["graphbook/beta/server/static/.gitkeep"]
+
 [tool.hatch.build.force-include]
 "graphbook/beta/server/static" = "graphbook/beta/server/static"
