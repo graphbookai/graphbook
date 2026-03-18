@@ -123,6 +123,9 @@ interface GraphbookStore {
   selectedRunId: string | null
   activeRunId: string | null
 
+  runNames: Map<string, string>  // client-side custom display names
+  setRunName: (runId: string, name: string) => void
+
   // Node interaction (graph view)
   collapsedGraphNodes: Set<string>
   layoutTrigger: number
@@ -226,6 +229,17 @@ export const useStore = create<GraphbookStore>((set, get) => ({
   runs: new Map(),
   selectedRunId: null,
   activeRunId: null,
+
+  runNames: new Map(),
+  setRunName: (runId, name) => set(state => {
+    const next = new Map(state.runNames)
+    if (name.trim()) {
+      next.set(runId, name.trim())
+    } else {
+      next.delete(runId)
+    }
+    return { runNames: next }
+  }),
 
   collapsedGraphNodes: new Set<string>(),
   layoutTrigger: 0,
@@ -710,28 +724,30 @@ export const useStore = create<GraphbookStore>((set, get) => ({
 
           case 'image':
             if (nodeId) {
-              if (!run.nodeImages[nodeId]) run.nodeImages[nodeId] = []
-              run.nodeImages[nodeId] = [...run.nodeImages[nodeId], {
+              const ev = event as Record<string, unknown>
+              const prev = run.nodeImages[nodeId] ?? []
+              run.nodeImages = { ...run.nodeImages, [nodeId]: [...prev, {
                 node: nodeId,
-                name: (data.name as string) ?? '',
-                data: (event.data as unknown as string) ?? '',
-                step: (data.step as number) ?? null,
-                timestamp: (event.timestamp as number) ?? Date.now() / 1000,
-              }]
+                name: (ev.name as string) ?? '',
+                data: (ev.data as string) ?? '',
+                step: (ev.step as number) ?? null,
+                timestamp: (ev.timestamp as number) ?? Date.now() / 1000,
+              }] }
             }
             break
 
           case 'audio':
             if (nodeId) {
-              if (!run.nodeAudio[nodeId]) run.nodeAudio[nodeId] = []
-              run.nodeAudio[nodeId] = [...run.nodeAudio[nodeId], {
+              const ev = event as Record<string, unknown>
+              const prev = run.nodeAudio[nodeId] ?? []
+              run.nodeAudio = { ...run.nodeAudio, [nodeId]: [...prev, {
                 node: nodeId,
-                name: (data.name as string) ?? '',
-                data: (event.data as unknown as string) ?? '',
-                sr: (data.sr as number) ?? 16000,
-                step: (data.step as number) ?? null,
-                timestamp: (event.timestamp as number) ?? Date.now() / 1000,
-              }]
+                name: (ev.name as string) ?? '',
+                data: (ev.data as string) ?? '',
+                sr: (ev.sr as number) ?? 16000,
+                step: (ev.step as number) ?? null,
+                timestamp: (ev.timestamp as number) ?? Date.now() / 1000,
+              }] }
             }
             break
 
