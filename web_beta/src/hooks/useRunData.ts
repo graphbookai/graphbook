@@ -1,43 +1,58 @@
-import { useEffect } from 'react'
-import { useStore } from '@/store'
+import { useEffect, useRef } from 'react'
+import { useStore, type RunState } from '@/store'
 import { api } from '@/lib/api'
 
-export function useRunData(runId: string | null) {
+function fetchSingleRun(runId: string, store: ReturnType<typeof useStore.getState>) {
+  const { setRunGraph, setRunLogs, setRunErrors, setRunMetrics, setRunImages, setRunAudio, addAskPrompt } = store
+  return Promise.all([
+    api.getRunGraph(runId).then(g => setRunGraph(runId, g)),
+    api.getRunLogs(runId, { limit: 500 }).then(d => setRunLogs(runId, d.logs)),
+    api.getRunErrors(runId).then(d => setRunErrors(runId, d.errors)),
+    api.getRunMetrics(runId).then(d => setRunMetrics(runId, d.metrics)),
+    api.getRunImages(runId).then(d => setRunImages(runId, d.images)),
+    api.getRunAudio(runId).then(d => setRunAudio(runId, d.audio)),
+    api.getRunAsks(runId).then(d => {
+      for (const ask of d.pending) {
+        addAskPrompt(runId, {
+          askId: ask.ask_id,
+          nodeName: ask.node_name ?? ask.node ?? '',
+          question: ask.question ?? '',
+          options: ask.options ?? null,
+          timeoutSeconds: ask.timeout_seconds ?? null,
+          receivedAt: new Date(),
+        })
+      }
+    }),
+  ]).catch(() => { /* Run may not exist yet */ })
+}
+
+export function useRunData(runId: string | null): RunState | null {
   const runs = useStore(s => s.runs)
-  const setRunGraph = useStore(s => s.setRunGraph)
-  const setRunLogs = useStore(s => s.setRunLogs)
-  const setRunErrors = useStore(s => s.setRunErrors)
-  const setRunMetrics = useStore(s => s.setRunMetrics)
-  const setRunImages = useStore(s => s.setRunImages)
-  const setRunAudio = useStore(s => s.setRunAudio)
-  const addAskPrompt = useStore(s => s.addAskPrompt)
+  const comparisonGroups = useStore(s => s.comparisonGroups)
+  const fetchedRef = useRef(new Set<string>())
 
-  const run = runId ? runs.get(runId) : undefined
+  const isComparison = runId?.startsWith('cmp:') ?? false
+  const group = isComparison && runId ? comparisonGroups.get(runId) : null
+  const run = runId && !isComparison ? runs.get(runId) : undefined
 
+  // Fetch data for a single run
   useEffect(() => {
-    if (!runId || run?.loaded) return
+    if (!runId || isComparison || run?.loaded || fetchedRef.current.has(runId)) return
+    fetchedRef.current.add(runId)
+    fetchSingleRun(runId, useStore.getState())
+  }, [runId, isComparison, run?.loaded])
 
-    Promise.all([
-      api.getRunGraph(runId).then(g => setRunGraph(runId, g)),
-      api.getRunLogs(runId, { limit: 500 }).then(d => setRunLogs(runId, d.logs)),
-      api.getRunErrors(runId).then(d => setRunErrors(runId, d.errors)),
-      api.getRunMetrics(runId).then(d => setRunMetrics(runId, d.metrics)),
-      api.getRunImages(runId).then(d => setRunImages(runId, d.images)),
-      api.getRunAudio(runId).then(d => setRunAudio(runId, d.audio)),
-      api.getRunAsks(runId).then(d => {
-        for (const ask of d.pending) {
-          addAskPrompt(runId, {
-            askId: ask.ask_id,
-            nodeName: ask.node_name ?? ask.node ?? '',
-            question: ask.question ?? '',
-            options: ask.options ?? null,
-            timeoutSeconds: ask.timeout_seconds ?? null,
-            receivedAt: new Date(),
-          })
-        }
-      }),
-    ]).catch(() => { /* Run may not exist yet */ })
-  }, [runId, run?.loaded, setRunGraph, setRunLogs, setRunErrors, setRunMetrics, setRunImages, setRunAudio, addAskPrompt])
+  // Fetch data for all runs in a comparison group
+  useEffect(() => {
+    if (!group) return
+    for (const rid of group.runIds) {
+      const r = runs.get(rid)
+      if (!r?.loaded && !fetchedRef.current.has(rid)) {
+        fetchedRef.current.add(rid)
+        fetchSingleRun(rid, useStore.getState())
+      }
+    }
+  }, [group, runs])
 
   return run ?? null
 }

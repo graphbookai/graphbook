@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { RunSummary, GraphData, LogEntry, ErrorEntry } from '@/lib/api'
 import type { WsEvent } from '@/lib/ws'
+import { assignColor } from '@/lib/colors'
 
 export interface NodeState {
   name: string
@@ -99,6 +100,13 @@ export interface TimelineState {
   step: number | null
 }
 
+export interface ComparisonGroup {
+  id: string
+  title: string
+  runIds: string[]
+  createdAt: Date
+}
+
 export interface RunState {
   summary: RunSummary
   graph: GraphData | null
@@ -126,6 +134,18 @@ interface GraphbookStore {
   runNames: Map<string, string>  // client-side custom display names
   setRunName: (runId: string, name: string) => void
 
+  runColors: Map<string, string>
+  nextColorIndex: number
+  setRunColor: (runId: string, color: string) => void
+  getOrAssignRunColor: (runId: string) => string
+
+  // Comparison
+  selectedForCompare: Set<string>
+  comparisonGroups: Map<string, ComparisonGroup>
+  toggleSelectForCompare: (runId: string) => void
+  createComparisonGroup: (runIds: string[]) => string
+  removeComparisonGroup: (groupId: string) => void
+
   // Node interaction (graph view)
   collapsedGraphNodes: Set<string>
   layoutTrigger: number
@@ -135,12 +155,20 @@ interface GraphbookStore {
   // Pinned panels
   pinnedPanels: PinnedPanel[]
 
-  // Node positions (per run, session-only)
+  // Node positions & sizes (per run, session-only)
   nodePositions: Map<string, Map<string, { x: number; y: number }>>
+  nodeSizes: Map<string, Map<string, { width: number; height: number }>>
+  resizingNodeId: string | null
+  toggleNodeResize: (nodeId: string) => void
+  updateNodeSize: (runId: string, nodeId: string, size: { width: number; height: number }) => void
 
   // Node list panel (desktop)
   nodeListCollapsed: boolean
   toggleNodeList: () => void
+
+  // Desktop view mode
+  desktopViewMode: 'graph' | 'grid'
+  setDesktopViewMode: (mode: 'graph' | 'grid') => void
 
   // Timeline
   timeline: TimelineState
@@ -241,6 +269,58 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     return { runNames: next }
   }),
 
+  runColors: new Map(),
+  nextColorIndex: 0,
+  setRunColor: (runId, color) => set(state => {
+    const next = new Map(state.runColors)
+    next.set(runId, color)
+    return { runColors: next }
+  }),
+  getOrAssignRunColor: (runId) => {
+    const state = get()
+    const existing = state.runColors.get(runId)
+    if (existing) return existing
+    const color = assignColor(state.nextColorIndex)
+    const next = new Map(state.runColors)
+    next.set(runId, color)
+    set({ runColors: next, nextColorIndex: state.nextColorIndex + 1 })
+    return color
+  },
+
+  selectedForCompare: new Set<string>(),
+  comparisonGroups: new Map(),
+  toggleSelectForCompare: (runId) => set(state => {
+    const next = new Set(state.selectedForCompare)
+    if (next.has(runId)) next.delete(runId)
+    else next.add(runId)
+    return { selectedForCompare: next }
+  }),
+  createComparisonGroup: (runIds) => {
+    const id = `cmp:${Date.now()}`
+    const state = get()
+    const names = runIds.map(rid => {
+      const custom = state.runNames.get(rid)
+      if (custom) return custom
+      const run = state.runs.get(rid)
+      return run?.summary.script_path.split('/').pop() ?? rid
+    })
+    const title = names.length <= 2
+      ? `Compare: ${names.join(' vs ')}`
+      : `Compare: ${names[0]} vs ${names[1]} +${names.length - 2}`
+    const group: ComparisonGroup = { id, title, runIds, createdAt: new Date() }
+    const next = new Map(state.comparisonGroups)
+    next.set(id, group)
+    set({ comparisonGroups: next, selectedForCompare: new Set() })
+    return id
+  },
+  removeComparisonGroup: (groupId) => set(state => {
+    const next = new Map(state.comparisonGroups)
+    next.delete(groupId)
+    const updates: Partial<GraphbookStore> = { comparisonGroups: next }
+    if (state.selectedRunId === groupId) updates.selectedRunId = null
+    return updates
+  }),
+
   collapsedGraphNodes: new Set<string>(),
   layoutTrigger: 0,
   dagDirection: 'TB',
@@ -252,9 +332,24 @@ export const useStore = create<GraphbookStore>((set, get) => ({
   pinnedPanels: [],
 
   nodePositions: new Map(),
+  nodeSizes: new Map(),
+  resizingNodeId: null,
+  toggleNodeResize: (nodeId) => set(state => ({
+    resizingNodeId: state.resizingNodeId === nodeId ? null : nodeId,
+  })),
+  updateNodeSize: (runId, nodeId, size) => set(state => {
+    const outer = new Map(state.nodeSizes)
+    const inner = new Map(outer.get(runId) ?? [])
+    inner.set(nodeId, size)
+    outer.set(runId, inner)
+    return { nodeSizes: outer }
+  }),
 
   nodeListCollapsed: false,
   toggleNodeList: () => set(state => ({ nodeListCollapsed: !state.nodeListCollapsed })),
+
+  desktopViewMode: 'graph' as const,
+  setDesktopViewMode: (mode) => set({ desktopViewMode: mode }),
 
   timeline: { mode: 'time', timeStart: null, timeEnd: null, step: null },
   setTimelineMode: (mode) => set(state => ({ timeline: { ...state.timeline, mode } })),

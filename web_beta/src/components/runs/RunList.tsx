@@ -1,11 +1,13 @@
 import { useStore } from '@/store'
 import { RunCard } from './RunCard'
+import { ComparisonGroupCard } from './ComparisonGroupCard'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function RunList() {
   const runs = useStore(s => s.runs)
   const selectedRunId = useStore(s => s.selectedRunId)
   const selectRun = useStore(s => s.selectRun)
+  const comparisonGroups = useStore(s => s.comparisonGroups)
 
   // Sort: running first, then by started_at descending
   const sortedRuns = Array.from(runs.values()).sort((a, b) => {
@@ -18,7 +20,12 @@ export function RunList() {
     return bTime - aTime
   })
 
-  if (sortedRuns.length === 0) {
+  // Comparison groups sorted by creation time (newest first)
+  const sortedGroups = Array.from(comparisonGroups.values()).sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+  )
+
+  if (sortedRuns.length === 0 && sortedGroups.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-6">
         <p className="text-sm">No runs yet</p>
@@ -30,6 +37,17 @@ export function RunList() {
   return (
     <ScrollArea className="h-full [&>div>div]:!block">
       <div className="p-2 space-y-1">
+        {/* Comparison groups at top */}
+        {sortedGroups.map(group => (
+          <ComparisonGroupCard
+            key={group.id}
+            group={group}
+            selected={group.id === selectedRunId}
+            onClick={() => selectRun(group.id)}
+          />
+        ))}
+
+        {/* Individual runs */}
         {sortedRuns.map(run => (
           <RunCard
             key={run.summary.id}

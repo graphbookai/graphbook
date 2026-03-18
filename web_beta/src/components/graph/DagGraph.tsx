@@ -21,6 +21,8 @@ import { GraphbookNode } from './GraphbookNode'
 import { GraphbookEdge } from './GraphbookEdge'
 import { GraphToolbar } from './GraphToolbar'
 import { DescriptionOverlay } from './DescriptionOverlay'
+import { useContextMenu } from '@/hooks/useContextMenu'
+import { GraphContextMenu } from './GraphContextMenu'
 
 interface DagGraphProps {
   runId: string
@@ -201,6 +203,32 @@ function DagGraphInner({ runId }: DagGraphProps) {
     }
   }, [getNodes, setNodes, fitView, dagDirection])
 
+  const resizingNodeId = useStore(s => s.resizingNodeId)
+  const toggleNodeResize = useStore(s => s.toggleNodeResize)
+  const contextMenu = useContextMenu()
+
+  // Escape key clears resizing state
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && resizingNodeId !== null) {
+        toggleNodeResize(resizingNodeId)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [resizingNodeId, toggleNodeResize])
+
+  const onPaneClick = useCallback(() => {
+    if (resizingNodeId !== null) {
+      toggleNodeResize(resizingNodeId)
+    }
+  }, [resizingNodeId, toggleNodeResize])
+
+  const onPaneContextMenu = useCallback((event: MouseEvent | React.MouseEvent) => {
+    event.preventDefault()
+    contextMenu.open(event as React.MouseEvent)
+  }, [contextMenu])
+
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
 
   const onNodeDragStart = useCallback((_: unknown, node: Node) => {
@@ -230,6 +258,8 @@ function DagGraphInner({ runId }: DagGraphProps) {
           onEdgesChange={onEdgesChange}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
+          onPaneClick={onPaneClick}
+          onPaneContextMenu={onPaneContextMenu}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -249,6 +279,7 @@ function DagGraphInner({ runId }: DagGraphProps) {
           <GraphToolbar onResetLayout={onResetLayout} />
         </ReactFlow>
         <DescriptionOverlay runId={runId} />
+        <GraphContextMenu isOpen={contextMenu.isOpen} position={contextMenu.position} onClose={contextMenu.close} />
       </div>
     </DragContext.Provider>
   )

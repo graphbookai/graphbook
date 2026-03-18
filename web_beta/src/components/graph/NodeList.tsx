@@ -4,6 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { NodeTabContainer } from '@/components/node-tabs/NodeTabContainer'
+import { topologicalSort } from '@/lib/graph'
 
 interface NodeListProps {
   runId: string
@@ -142,38 +143,3 @@ export function NodeList({ runId }: NodeListProps) {
   )
 }
 
-function topologicalSort(nodeIds: string[], edges: { source: string; target: string }[]): string[] {
-  const adj = new Map<string, string[]>()
-  const inDegree = new Map<string, number>()
-  const nodeSet = new Set(nodeIds)
-
-  for (const id of nodeIds) {
-    adj.set(id, [])
-    inDegree.set(id, 0)
-  }
-  for (const e of edges) {
-    if (nodeSet.has(e.source) && nodeSet.has(e.target)) {
-      adj.get(e.source)?.push(e.target)
-      inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1)
-    }
-  }
-
-  const result: string[] = []
-  const queue = nodeIds.filter(id => (inDegree.get(id) ?? 0) === 0)
-
-  while (queue.length > 0) {
-    const id = queue.shift()!
-    result.push(id)
-    for (const next of adj.get(id) ?? []) {
-      inDegree.set(next, (inDegree.get(next) ?? 0) - 1)
-      if ((inDegree.get(next) ?? 0) === 0) queue.push(next)
-    }
-  }
-
-  // Add any remaining (cycle participants)
-  for (const id of nodeIds) {
-    if (!result.includes(id)) result.push(id)
-  }
-
-  return result
-}

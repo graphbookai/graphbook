@@ -1,4 +1,5 @@
 import { useStore } from '@/store'
+import { useComparisonContext } from '@/hooks/useComparisonContext'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NodeTabContent } from '@/components/node-tabs/NodeTabContent'
@@ -6,6 +7,7 @@ import { NodeTabContent } from '@/components/node-tabs/NodeTabContent'
 export function PinnedPanelStack() {
   const pinnedPanels = useStore(s => s.pinnedPanels)
   const unpinPanel = useStore(s => s.unpinPanel)
+  const { isComparison, runIds } = useComparisonContext()
 
   if (pinnedPanels.length === 0) return null
 
@@ -21,7 +23,12 @@ export function PinnedPanelStack() {
               </Button>
             </div>
             <div className="h-[200px] overflow-auto p-2">
-              <NodeTabContent runId={panel.runId} nodeId={panel.nodeId} tab={panel.tab} />
+              <NodeTabContent
+                runId={panel.runId}
+                nodeId={panel.nodeId}
+                tab={panel.tab}
+                comparisonRunIds={isComparison ? runIds : undefined}
+              />
             </div>
           </div>
         ))}

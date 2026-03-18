@@ -1,10 +1,13 @@
-import { memo, useContext, useEffect } from 'react'
-import { Handle, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
+import { memo, useCallback, useContext, useEffect } from 'react'
+import { Handle, NodeResizer, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
 import { useStore } from '@/store'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Maximize2 } from 'lucide-react'
 import { NodeTabContainer } from '@/components/node-tabs/NodeTabContainer'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { useContextMenu } from '@/hooks/useContextMenu'
+import { ContextMenu } from '@/components/shared/ContextMenu'
+import { ContextMenuItem } from '@/components/shared/ContextMenuItem'
 import { DragContext } from './DagGraph'
 
 interface GraphbookNodeData {
@@ -31,10 +34,20 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
   const dagDirection = useStore(s => s.dagDirection)
   const updateNodeInternals = useUpdateNodeInternals()
   useEffect(() => { updateNodeInternals(id) }, [dagDirection, id, updateNodeInternals])
+  const resizingNodeId = useStore(s => s.resizingNodeId)
+  const toggleNodeResize = useStore(s => s.toggleNodeResize)
+  const updateNodeSize = useStore(s => s.updateNodeSize)
   const hideTabsOnDrag = useStore(s => s.settings.hideTabsOnDrag)
   const draggingNodeId = useContext(DragContext)
   const isDragging = draggingNodeId === id
   const isExpanded = !isCollapsed
+  const isResizing = resizingNodeId === id
+  const storedSize = useStore(s => s.nodeSizes.get(runId)?.get(nodeId))
+  const contextMenu = useContextMenu()
+
+  const onResize = useCallback((_event: unknown, params: { width: number; height: number }) => {
+    updateNodeSize(runId, nodeId, { width: params.width, height: params.height })
+  }, [runId, nodeId, updateNodeSize])
 
   if (!nodeInfo) return null
 
@@ -52,13 +65,28 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
     : 'border-border'
 
   return (
-    <div className={cn(
-      'bg-card rounded-lg border-2 shadow-sm min-w-[240px] max-w-[320px] transition-all',
-      borderColor,
-      hasErrors && 'animate-shake',
-      isRunning && !hasErrors && 'shadow-blue-500/20',
-      hasPendingAsk && 'shadow-amber-500/30',
-    )}>
+    <div
+      className={cn(
+        'bg-card rounded-lg border-2 shadow-sm transition-all',
+        !storedSize && !isResizing && 'min-w-[240px] max-w-[320px]',
+        borderColor,
+        hasErrors && 'animate-shake',
+        isRunning && !hasErrors && 'shadow-blue-500/20',
+        hasPendingAsk && 'shadow-amber-500/30',
+      )}
+      style={storedSize ? { width: storedSize.width, minWidth: storedSize.width } : undefined}
+      {...contextMenu.handlers}
+    >
+      {isResizing && (
+        <NodeResizer minWidth={200} minHeight={80} onResize={onResize} />
+      )}
+      <ContextMenu isOpen={contextMenu.isOpen} position={contextMenu.position} onClose={contextMenu.close}>
+        <ContextMenuItem
+          label="Resize"
+          icon={<Maximize2 className="w-4 h-4" />}
+          onClick={() => { toggleNodeResize(id); contextMenu.close() }}
+        />
+      </ContextMenu>
       {!nodeInfo.is_source && (
         <Handle type="target" position={dagDirection === 'TB' ? Position.Top : Position.Left} className="!bg-muted-foreground !w-2 !h-2" />
       )}
@@ -123,7 +151,7 @@ export const GraphbookNode = memo(function GraphbookNode({ data, id }: NodeProps
 
       {/* Expanded tab content — optionally hidden during drag for performance */}
       {isExpanded && !(isDragging && hideTabsOnDrag) && (
-        <div className="border-t border-border">
+        <div className="border-t border-border" onWheelCapture={e => e.stopPropagation()}>
           <ErrorBoundary label={`Node ${nodeId}`}>
             <NodeTabContainer runId={runId} nodeId={nodeId} />
           </ErrorBoundary>
