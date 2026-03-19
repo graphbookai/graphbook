@@ -109,9 +109,12 @@ interface NodeGridViewProps {
 export function NodeGridView({ runId }: NodeGridViewProps) {
   const graph = useStore(s => s.runs.get(runId)?.graph)
   const collapseByDefault = useStore(s => s.settings.collapseNodesByDefault)
+  const hideUncalled = useStore(s => s.settings.hideUncalledFunctions)
   const setDesktopViewMode = useStore(s => s.setDesktopViewMode)
 
-  const allNodeIds = useMemo(() => graph ? Object.keys(graph.nodes) : [], [graph])
+  const allNodeIds = useMemo(() => graph
+    ? Object.keys(graph.nodes).filter(id => !hideUncalled || graph.nodes[id].exec_count > 0)
+    : [], [graph, hideUncalled])
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
     return collapseByDefault ? new Set() : new Set(allNodeIds)

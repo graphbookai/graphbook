@@ -30,6 +30,7 @@ export interface Settings {
   showControls: boolean
   collapseNodesByDefault: boolean
   hideTabsOnDrag: boolean
+  hideUncalledFunctions: boolean
 }
 
 const SETTINGS_KEY = 'gb_settings'
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS: Settings = {
   showControls: true,
   collapseNodesByDefault: false,
   hideTabsOnDrag: false,
+  hideUncalledFunctions: true,
 }
 
 function loadSettings(): Settings {

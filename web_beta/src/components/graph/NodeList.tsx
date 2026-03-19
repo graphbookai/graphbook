@@ -12,6 +12,7 @@ interface NodeListProps {
 
 export function NodeList({ runId }: NodeListProps) {
   const run = useStore(s => s.runs.get(runId))
+  const hideUncalled = useStore(s => s.settings.hideUncalledFunctions)
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
 
   const graph = run?.graph
@@ -35,7 +36,9 @@ export function NodeList({ runId }: NodeListProps) {
     })
   }
 
-  const allNodeIds = Object.keys(graph.nodes)
+  const allNodeIds = Object.keys(graph.nodes).filter(
+    id => !hideUncalled || graph.nodes[id].exec_count > 0
+  )
 
   // Separate DAG nodes from non-DAG nodes
   const targetSet = new Set(graph.edges.map(e => e.target))

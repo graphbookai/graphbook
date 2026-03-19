@@ -93,6 +93,7 @@ function DagGraphInner({ runId }: DagGraphProps) {
   const updateNodePosition = useStore(s => s.updateNodePosition)
   const showMinimap = useStore(s => s.settings.showMinimap)
   const showControls = useStore(s => s.settings.showControls)
+  const hideUncalled = useStore(s => s.settings.hideUncalledFunctions)
   const dagDirection = useStore(s => s.dagDirection)
   const graph = runState?.graph
 
@@ -109,12 +110,17 @@ function DagGraphInner({ runId }: DagGraphProps) {
   graphRef.current = graph
 
   // Stable key that only changes when graph topology (node set or edge set) changes
+  // Include exec_count info when hideUncalled is active so toggling the setting or
+  // a node's first execution triggers a recompute.
   const structureKey = useMemo(() => {
     if (!graph) return ''
     const nodeKeys = Object.keys(graph.nodes).sort().join(',')
     const edgeKeys = graph.edges.map(e => `${e.source}->${e.target}`).sort().join(',')
-    return `${nodeKeys}|${edgeKeys}`
-  }, [graph])
+    const execKey = hideUncalled
+      ? Object.entries(graph.nodes).map(([id, n]) => `${id}:${n.exec_count > 0 ? 1 : 0}`).sort().join(',')
+      : ''
+    return `${nodeKeys}|${edgeKeys}|${execKey}|${hideUncalled}`
+  }, [graph, hideUncalled])
 
   // Build base nodes and edges — only recomputes on structural changes, not exec_count/progress
   const { baseNodes, baseEdges } = useMemo(() => {
@@ -123,7 +129,12 @@ function DagGraphInner({ runId }: DagGraphProps) {
     const targetSet = new Set(g.edges.map(e => e.target))
     const sourceSet = new Set(g.edges.map(e => e.source))
 
-    const baseNodes: Node[] = Object.keys(g.nodes).map(id => ({
+    const visibleIds = Object.keys(g.nodes).filter(
+      id => !hideUncalled || g.nodes[id].exec_count > 0
+    )
+    const visibleSet = new Set(visibleIds)
+
+    const baseNodes: Node[] = visibleIds.map(id => ({
       id,
       type: 'graphbook' as const,
       position: { x: 0, y: 0 },
@@ -134,13 +145,15 @@ function DagGraphInner({ runId }: DagGraphProps) {
       },
     }))
 
-    const baseEdges: Edge[] = g.edges.map(e => ({
-      id: `${e.source}->${e.target}`,
-      source: e.source,
-      target: e.target,
-      type: 'graphbook',
-      data: { runId },
-    }))
+    const baseEdges: Edge[] = g.edges
+      .filter(e => visibleSet.has(e.source) && visibleSet.has(e.target))
+      .map(e => ({
+        id: `${e.source}->${e.target}`,
+        source: e.source,
+        target: e.target,
+        type: 'graphbook',
+        data: { runId },
+      }))
 
     return { baseNodes, baseEdges }
     // eslint-disable-next-line react-hooks/exhaustive-deps

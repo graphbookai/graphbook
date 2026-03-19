@@ -1,4 +1,4 @@
-import { Settings, Moon, Sun, Map, Gamepad2, FoldVertical, GripHorizontal } from 'lucide-react'
+import { Settings, Moon, Sun, Map, Gamepad2, FoldVertical, GripHorizontal, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -80,6 +80,18 @@ export function SettingsPanel() {
             <Switch
               checked={settings.hideTabsOnDrag}
               onCheckedChange={v => updateSetting('hideTabsOnDrag', v)}
+            />
+          </div>
+
+          {/* Hide uncalled functions */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>Hide uncalled functions</span>
+            </div>
+            <Switch
+              checked={settings.hideUncalledFunctions}
+              onCheckedChange={v => updateSetting('hideUncalledFunctions', v)}
             />
           </div>
         </div>
