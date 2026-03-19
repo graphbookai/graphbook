@@ -2,7 +2,6 @@
 
 Demonstrates:
 - gb.log_metric() for tracking loss, accuracy over steps
-- gb.inspect() for examining tensor-like objects
 - gb.log_image() for logging generated images
 - @gb.fn() on training functions
 - Metric history accessible via the state API
@@ -23,8 +22,6 @@ def create_dataset(num_samples: int = 100, num_features: int = 10) -> dict:
     X = np.random.randn(num_samples, num_features).astype(np.float32)
     y = (np.random.rand(num_samples) > 0.5).astype(np.int64)
     gb.log(f"Created dataset: {num_samples} samples, {num_features} features")
-    gb.inspect(X, "features")
-    gb.inspect(y, "labels")
     return {"X": X, "y": y}
 
 
@@ -38,7 +35,6 @@ def create_model(input_dim: int = 10, hidden_dim: int = 32) -> dict:
         "b2": np.zeros(1, dtype=np.float32),
     }
     gb.log(f"Created model: {input_dim} → {hidden_dim} → 1")
-    gb.inspect(weights["W1"], "W1")
     return weights
 
 

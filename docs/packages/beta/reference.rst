@@ -94,26 +94,6 @@ Logging Functions
             ...
 
 
-Inspection
-----------
-
-.. function:: gb.inspect(obj: Any, name: str | None = None) -> dict
-
-    Inspect an object and log its metadata. Does **not** log raw data — only metadata such as shape, dtype, device, min/max/mean, length, columns, etc.
-
-    :param obj: The object to inspect.
-    :param name: Optional name for the inspection.
-    :returns: Dictionary of metadata about the object.
-
-    Supported metadata extraction:
-
-    - **PyTorch tensors**: ``shape``, ``dtype``, ``device``, ``requires_grad``, ``min``, ``max``, ``mean``
-    - **NumPy arrays**: ``shape``, ``dtype``, ``min``, ``max``, ``mean``
-    - **pandas DataFrames**: ``columns``, ``dtypes``
-    - **Sequences**: ``length`` (anything with ``__len__``)
-    - **All objects**: ``type`` (the class name)
-
-
 Progress Tracking
 -----------------
 

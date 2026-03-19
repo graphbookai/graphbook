@@ -155,21 +155,6 @@ Configuration
 Multiple ``log_cfg()`` calls within the same node merge their dictionaries.
 
 
-Object Inspection
-=================
-
-``gb.inspect(obj, name)`` logs metadata about an object without logging the raw data. This is useful for debugging tensor shapes, dtypes, and value ranges:
-
-.. code-block:: python
-
-    @gb.fn()
-    def forward(model, batch):
-        output = model(batch)
-        gb.inspect(output, "model_output")
-        # Captures: shape, dtype, device, requires_grad, min, max, mean
-        return output
-
-For PyTorch tensors, it captures ``shape``, ``dtype``, ``device``, ``requires_grad``, ``min``, ``max``, ``mean``. For NumPy arrays, it captures ``shape``, ``dtype``, ``min``, ``max``, ``mean``. For pandas DataFrames, it captures ``columns`` and ``dtypes``. For any object with ``__len__``, it captures the length.
 
 
 Progress Tracking
@@ -340,7 +325,6 @@ Complete Example: Data Processing Pipeline
         t = np.linspace(0, 4 * np.pi, num_samples)
         signal = np.sin(t) + noise * np.random.randn(num_samples)
         gb.log(f"Generated {num_samples} samples")
-        gb.inspect(signal, "raw_signal")
         return signal
 
     @gb.fn()
@@ -351,7 +335,6 @@ Complete Example: Data Processing Pipeline
             data = (data - data.mean()) / (data.std() + 1e-8)
         data = np.clip(data, clip_min, clip_max)
         gb.log(f"Normalized with method={method}, clipped to [{clip_min}, {clip_max}]")
-        gb.inspect(data, "normalized")
         return data
 
     @gb.fn()

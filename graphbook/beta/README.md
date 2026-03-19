@@ -24,7 +24,6 @@ def load_data(path: str = "data.csv") -> list[dict]:
     """Load records from a file."""
     records = [{"id": i, "value": i * 0.5} for i in range(100)]
     gb.log(f"Loaded {len(records)} records from {path}")
-    gb.inspect(records, "raw_records")
     return records
 
 @gb.fn()
@@ -141,19 +140,6 @@ def train(lr=0.001, epochs=50):
 ```
 
 Multiple `log_cfg()` calls within the same node merge their dictionaries.
-
-### `gb.inspect(obj, name=None)` — Object metadata
-
-Inspect any object to log its metadata (shape, dtype, device, min/max/mean) without logging raw data. Works with PyTorch tensors, NumPy arrays, pandas DataFrames, and plain Python objects.
-
-```python
-@gb.fn()
-def forward(model, batch):
-    output = model(batch)
-    gb.inspect(output, "model_output")
-    # Logs: shape=[32, 10], dtype=float32, device=cuda:0, min=-2.3, max=4.1
-    return output
-```
 
 ### `gb.track(iterable, name=None, total=None)` — Progress tracking
 
@@ -376,7 +362,6 @@ def build_model(hidden_size: int = 128, dropout: float = 0.2) -> nn.Module:
         nn.Linear(hidden_size, 10),
     )
     gb.log(f"Built model: hidden_size={hidden_size}, dropout={dropout}")
-    gb.inspect(model, "model")
     return model
 
 @gb.fn()

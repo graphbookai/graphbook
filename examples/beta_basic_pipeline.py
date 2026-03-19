@@ -6,8 +6,6 @@ Demonstrates:
 - gb.log() for text logging
 - gb.track() for progress tracking
 - gb.md() for workflow-level documentation
-- gb.inspect() for object metadata
-
 Key concept: DAG edges are inferred when one @fn function calls another
 @fn function. The caller becomes the parent, and the callee becomes the child.
 Source nodes are those with in-degree 0 (nothing calls them).
@@ -34,7 +32,6 @@ def clean_text(documents: list[dict]) -> list[dict]:
         cleaned.append(cleaned_doc)
         time.sleep(0.3)
     gb.log(f"Cleaned {len(cleaned)} documents")
-    gb.inspect(cleaned, "cleaned_docs")
     return cleaned
 
 
@@ -63,7 +60,6 @@ def summarize(results: list[dict]) -> str:
     total_keywords = sum(r["keyword_count"] for r in results)
     summary = f"Processed {len(results)} documents, found {total_keywords} total keywords."
     gb.log(summary)
-    gb.inspect(results, "final_results")
     return summary
 
 

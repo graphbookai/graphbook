@@ -2,7 +2,7 @@
 
 Demonstrates how to query the graphbook state API after running a pipeline:
 - DAG topology: get_dag_summary(), get_sources(), get_topology_order()
-- Node details: exec_count, logs, metrics, inspections, errors, params
+- Node details: exec_count, logs, metrics, errors, params
 - Edge listing
 - Serializable graph dict (what MCP tools return)
 - Cycle detection via topological order gaps
@@ -26,7 +26,6 @@ def load_data(path: str = "data.csv", limit: int = 100) -> list[dict]:
     """Load raw records from a data source."""
     records = [{"id": i, "value": i * 0.5} for i in range(limit)]
     gb.log(f"Loaded {len(records)} records from {path}")
-    gb.inspect(records, "raw_records")
     time.sleep(0.3)
     return records
 
@@ -55,7 +54,6 @@ def aggregate(records: list[dict]) -> dict:
     }
     gb.log(f"Aggregated: mean={stats['mean']:.4f}, count={stats['count']}")
     gb.log_metric("mean_value", stats["mean"])
-    gb.inspect(stats, "aggregated_stats")
     time.sleep(0.3)
     return stats
 
@@ -113,10 +111,6 @@ def main():
         if node.metrics:
             for metric_name, history in node.metrics.items():
                 print(f"    metric '{metric_name}': {len(history)} points, latest={history[-1][1]:.4f}")
-        if node.inspections:
-            for name, meta in node.inspections.items():
-                print(f"    inspection '{name}': type={meta.get('type')}, "
-                      f"length={meta.get('length')}")
         if node.errors:
             print(f"    errors:     {len(node.errors)}")
             for err in node.errors:
