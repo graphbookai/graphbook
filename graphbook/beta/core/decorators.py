@@ -19,12 +19,14 @@ def fn(func: F) -> F: ...
 @overload
 def fn(
     depends_on: Optional[list[Any]] = None,
+    pausable: bool = False,
 ) -> Callable[[F], F]: ...
 
 
 def fn(
     func: Optional[Any] = None,
     depends_on: Optional[list[Any]] = None,
+    pausable: bool = False,
 ) -> Any:
     """Decorator that registers a function as a DAG node.
 
@@ -33,6 +35,7 @@ def fn(
         @gb.fn
         @gb.fn()
         @gb.fn(depends_on=[other_fn])
+        @gb.fn(pausable=True)
 
     DAG edges are inferred automatically from data flow between
     **sibling** nodes (nodes sharing the same parent/caller). An object
@@ -52,6 +55,8 @@ def fn(
         func: The function to decorate (when used without parentheses).
         depends_on: Optional list of decorated functions or node ID strings
             that this node depends on. Creates explicit edges.
+        pausable: If True, the function will block before execution when
+            the web client sends a pause event. Default is False.
 
     Returns:
         The decorated function.
@@ -64,6 +69,7 @@ def fn(
             node_id=node_id,
             func_name=f.__name__,
             docstring=docstring,
+            pausable=pausable,
         )
 
         # Resolve depends_on to node ID strings at decoration time
@@ -126,6 +132,10 @@ def fn(
                         backend.on_node_start(node_id, params)
                     except Exception:
                         pass
+
+                # Block if paused (only for pausable functions)
+                if pausable:
+                    state.wait_if_paused()
 
                 state.increment_count(node_id)
                 start_time = time.monotonic()

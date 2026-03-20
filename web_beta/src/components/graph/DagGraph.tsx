@@ -276,7 +276,7 @@ function DagGraphInner({ runId }: DagGraphProps) {
               maskColor="rgba(0, 0, 0, 0.3)"
             />
           )}
-          <GraphToolbar onResetLayout={onResetLayout} />
+          <GraphToolbar onResetLayout={onResetLayout} runId={runId} />
         </ReactFlow>
         <DescriptionOverlay runId={runId} />
         <GraphContextMenu isOpen={contextMenu.isOpen} position={contextMenu.position} onClose={contextMenu.close} />

@@ -26,6 +26,7 @@ class MessageType(str, Enum):
     HEALTH = "health"
     CONFIG = "config"
     DESCRIPTION = "description"
+    PAUSE_STATE = "pause_state"
 
 
 @dataclass

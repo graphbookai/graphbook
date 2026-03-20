@@ -56,6 +56,7 @@ class NodeState:
     docstring: Optional[str] = None
     exec_count: int = 0
     is_source: bool = True
+    pausable: bool = False
     params: dict = field(default_factory=dict)
     logs: list[dict] = field(default_factory=list)
     metrics: dict[str, list] = field(default_factory=dict)
@@ -87,6 +88,7 @@ class Run:
     source_hash: Optional[str] = None
     workflow_description: Optional[str] = None
     config: dict = field(default_factory=dict)
+    paused: bool = False
     stdout_lines: list[str] = field(default_factory=list)
     stderr_lines: list[str] = field(default_factory=list)
     significant_events: list[dict] = field(default_factory=list)
@@ -101,6 +103,7 @@ class Run:
                     "docstring": n.docstring,
                     "exec_count": n.exec_count,
                     "is_source": n.is_source,
+                    "pausable": n.pausable,
                     "params": n.params,
                     "progress": n.progress,
                 }
@@ -108,6 +111,8 @@ class Run:
             },
             "edges": self.edges,
             "workflow_description": self.workflow_description,
+            "has_pausable": any(n.pausable for n in self.nodes.values()),
+            "paused": self.paused,
         }
 
     def get_summary(self) -> dict:
@@ -274,6 +279,7 @@ class DaemonState:
                     name=nid,
                     func_name=data.get("func_name", ""),
                     docstring=data.get("docstring"),
+                    pausable=data.get("pausable", False),
                 )
 
         elif etype == "node_executed":
@@ -665,6 +671,53 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
         run.ask_responses[ask_id] = response
         run.pending_asks.pop(ask_id, None)
         return {"status": "ok"}
+
+    # --- Pause / unpause endpoints ---
+
+    @app.get("/runs/{run_id}/pause")
+    async def get_pause_state(run_id: str):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        return {"paused": run.paused}
+
+    @app.post("/runs/{run_id}/pause")
+    async def pause_run(run_id: str):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        run.paused = True
+        # Broadcast pause state to WebSocket clients
+        for ws in state._ws_clients[:]:
+            try:
+                await ws.send_json({
+                    "type": "batch",
+                    "run_id": run_id,
+                    "events": [{"type": "pause_state", "data": {"paused": True}}],
+                })
+            except Exception:
+                if ws in state._ws_clients:
+                    state._ws_clients.remove(ws)
+        return {"status": "ok", "paused": True}
+
+    @app.post("/runs/{run_id}/unpause")
+    async def unpause_run(run_id: str):
+        run, err = _get_run_or_404(run_id)
+        if err:
+            return err
+        run.paused = False
+        # Broadcast unpause state to WebSocket clients
+        for ws in state._ws_clients[:]:
+            try:
+                await ws.send_json({
+                    "type": "batch",
+                    "run_id": run_id,
+                    "events": [{"type": "pause_state", "data": {"paused": False}}],
+                })
+            except Exception:
+                if ws in state._ws_clients:
+                    state._ws_clients.remove(ws)
+        return {"status": "ok", "paused": False}
 
     # --- Event wait endpoint ---
 

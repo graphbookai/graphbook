@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import threading
 import time
 import uuid
 import logging as _stdlib_logging
@@ -33,7 +34,31 @@ from graphbook.beta.logging.logger import (
 T = TypeVar("T")
 
 _auto_init_done = False
+_pause_poll_thread: Optional[threading.Thread] = None
 logger = _stdlib_logging.getLogger(__name__)
+
+def _start_pause_poll() -> None:
+    """Start a background thread that polls the daemon for pause state changes."""
+    global _pause_poll_thread
+    state = get_state()
+    if not state._has_pausable or state._client is None:
+        return
+    if _pause_poll_thread is not None and _pause_poll_thread.is_alive():
+        return
+
+    def _poll_loop() -> None:
+        client = state._client
+        while client is not None and client.is_connected():
+            try:
+                paused = client.get_pause_state()
+                state.set_paused(paused)
+            except Exception:
+                pass
+            time.sleep(0.5)
+
+    _pause_poll_thread = threading.Thread(target=_poll_loop, daemon=True)
+    _pause_poll_thread.start()
+
 
 def _ensure_init() -> None:
     """Lazily auto-initialize when GRAPHBOOK_MODE env vars are detected.
@@ -70,8 +95,10 @@ def _ensure_init() -> None:
                     "node_id": nid,
                     "func_name": node.func_name,
                     "docstring": node.docstring,
+                    "pausable": node.pausable,
                 },
             })
+        _start_pause_poll()
 
 
 def init(
@@ -166,6 +193,10 @@ def init(
                 state._display = TerminalDisplay()
         except ImportError:
             pass
+
+    # Start pause polling if we have pausable nodes and are in server mode
+    if state._client is not None:
+        _start_pause_poll()
 
 
 def ask(
