@@ -226,6 +226,18 @@ class DaemonClient:
             pass
         return None
 
+    def get_pause_state(self) -> bool:
+        """Poll the daemon for the current pause state.
+
+        Returns:
+            True if the run is paused, False otherwise.
+        """
+        path = f"/runs/{self._run_id}/pause"
+        resp = self.get(path)
+        if resp is not None:
+            return resp.get("paused", False)
+        return False
+
     def try_reconnect(self) -> bool:
         """Manually attempt reconnection."""
         if self._connected:

@@ -119,6 +119,7 @@ export interface RunState {
   nodeAudio: Record<string, AudioEntry[]>
   inspections: Record<string, Record<string, unknown>>
   pendingAsks: Map<string, AskPrompt>
+  paused: boolean
   loaded: boolean
 }
 
@@ -213,6 +214,7 @@ interface GraphbookStore {
 
   addAskPrompt: (runId: string, prompt: AskPrompt) => void
   removeAskPrompt: (runId: string, askId: string) => void
+  setPaused: (runId: string, paused: boolean) => void
 
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void
 
@@ -244,6 +246,7 @@ function ensureRun(state: GraphbookStore, runId: string): RunState {
       nodeAudio: {},
       inspections: {},
       pendingAsks: new Map(),
+      paused: false,
       loaded: false,
     }
     state.runs.set(runId, run)
@@ -377,6 +380,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
           nodeAudio: {},
           inspections: {},
           pendingAsks: new Map(),
+          paused: false,
           loaded: false,
         })
       }
@@ -403,6 +407,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     const run = runs.get(runId)
     if (run) {
       run.graph = graph
+      run.paused = graph.paused ?? false
       run.loaded = true
     }
     return { runs }
@@ -635,6 +640,15 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     return { runs }
   }),
 
+  setPaused: (runId, paused) => set(state => {
+    const runs = new Map(state.runs)
+    const run = runs.get(runId)
+    if (run) {
+      run.paused = paused
+    }
+    return { runs }
+  }),
+
   updateSetting: (key, value) => set(state => {
     const next = { ...state.settings, [key]: value }
     saveSettings(next)
@@ -674,6 +688,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
           nodeAudio: {},
           inspections: {},
           pendingAsks: new Map(),
+          paused: false,
           loaded: false,
         }
       }
@@ -740,12 +755,14 @@ export const useStore = create<GraphbookStore>((set, get) => ({
           case 'node_register': {
             const nid = (data.node_id as string) || ''
             if (!run.graph) {
-              run.graph = { nodes: {}, edges: [], workflow_description: null }
+              run.graph = { nodes: {}, edges: [], workflow_description: null, has_pausable: false, paused: false }
             }
+            const isPausable = !!(data.pausable as boolean)
             if (!run.graph.nodes[nid]) {
               // Structural change — new graph object
               run.graph = {
                 ...run.graph,
+                has_pausable: run.graph.has_pausable || isPausable,
                 nodes: {
                   ...run.graph.nodes,
                   [nid]: {
@@ -754,6 +771,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
                     docstring: (data.docstring as string) || null,
                     exec_count: 0,
                     is_source: true,
+                    pausable: isPausable,
                     params: {},
                     progress: null,
                   },
@@ -910,6 +928,15 @@ export const useStore = create<GraphbookStore>((set, get) => ({
               status: exitCode === 0 ? 'completed' : 'crashed',
               exit_code: exitCode,
               ended_at: new Date().toISOString(),
+            }
+            break
+          }
+
+          case 'pause_state': {
+            const paused = !!(data.paused as boolean)
+            run.paused = paused
+            if (run.graph) {
+              run.graph = { ...run.graph, paused }
             }
             break
           }

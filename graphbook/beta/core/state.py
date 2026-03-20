@@ -31,6 +31,7 @@ class NodeInfo:
     docstring: Optional[str] = None
     exec_count: int = 0
     is_source: bool = True  # starts as True, set to False when it receives an edge
+    pausable: bool = False
     params: dict = field(default_factory=dict)
     logs: list = field(default_factory=list)
     metrics: dict = field(default_factory=lambda: {})  # name -> [(step, value)]
@@ -83,6 +84,10 @@ class SessionState:
         self._node_parents: dict[str, Optional[str]] = {}  # node_id -> parent node_id
         self.dag_strategy: str = "object"
         self._lock_state = threading.Lock()
+        # Pause support: Event is set (unblocked) by default; cleared when paused
+        self._pause_event = threading.Event()
+        self._pause_event.set()  # starts unpaused
+        self._has_pausable = False
 
     def ensure_display(self) -> None:
         """Ensure the terminal display is created and started (local mode only)."""
@@ -102,7 +107,13 @@ class SessionState:
             except Exception:
                 pass
 
-    def register_node(self, node_id: str, func_name: str, docstring: Optional[str] = None) -> NodeInfo:
+    def register_node(
+        self,
+        node_id: str,
+        func_name: str,
+        docstring: Optional[str] = None,
+        pausable: bool = False,
+    ) -> NodeInfo:
         """Register a new node or return existing one."""
         created = False
         with self._lock_state:
@@ -111,7 +122,10 @@ class SessionState:
                     name=node_id,
                     func_name=func_name,
                     docstring=docstring,
+                    pausable=pausable,
                 )
+                if pausable:
+                    self._has_pausable = True
                 created = True
         if created:
             self._send_to_client({
@@ -121,9 +135,27 @@ class SessionState:
                     "node_id": node_id,
                     "func_name": func_name,
                     "docstring": docstring,
+                    "pausable": pausable,
                 },
             })
         return self.nodes[node_id]
+
+    def wait_if_paused(self) -> None:
+        """Block until unpaused. Used by pausable @fn nodes.
+
+        Unblocks when:
+        - An unpause (play) event is received
+        - A KeyboardInterrupt occurs
+        - The program is killed
+        """
+        self._pause_event.wait()
+
+    def set_paused(self, paused: bool) -> None:
+        """Set the pause state."""
+        if paused:
+            self._pause_event.clear()
+        else:
+            self._pause_event.set()
 
     def add_edge(self, source: str, target: str) -> None:
         """Add a DAG edge. Marks target as non-source."""
@@ -247,6 +279,8 @@ class SessionState:
             self._initialized_server = False
             self._client = None
             self._mode = "local"
+            self._pause_event.set()
+            self._has_pausable = False
 
     @classmethod
     def reset_singleton(cls) -> None:

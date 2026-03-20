@@ -37,11 +37,14 @@ export interface GraphData {
     docstring: string | null
     exec_count: number
     is_source: boolean
+    pausable: boolean
     params: Record<string, unknown>
     progress: { current: number; total: number; name?: string } | null
   }>
   edges: { source: string; target: string }[]
   workflow_description: string | null
+  has_pausable: boolean
+  paused: boolean
 }
 
 export interface LogEntry {
@@ -108,4 +111,11 @@ export const api = {
 
   respondToAsk: (runId: string, askId: string, response: string) =>
     post(`/runs/${runId}/ask/${askId}/respond`, { response }),
+
+  getPauseState: (runId: string) =>
+    get<{ paused: boolean }>(`/runs/${runId}/pause`),
+  pauseRun: (runId: string) =>
+    post<{ status: string; paused: boolean }>(`/runs/${runId}/pause`, {}),
+  unpauseRun: (runId: string) =>
+    post<{ status: string; paused: boolean }>(`/runs/${runId}/unpause`, {}),
 }
