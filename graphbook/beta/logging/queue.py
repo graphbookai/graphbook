@@ -15,19 +15,16 @@ class LogQueue:
     def __init__(
         self,
         flush_callback: Optional[Callable[[list[dict]], None]] = None,
-        batch_size: int = 50,
         flush_interval: float = 0.1,
     ) -> None:
         """Initialize the log queue.
 
         Args:
             flush_callback: Function called with batched events.
-            batch_size: Max events per batch.
-            flush_interval: Max seconds between flushes.
+            flush_interval: Seconds between flushes.
         """
         self._queue: queue.Queue[dict[str, Any]] = queue.Queue()
         self._flush_callback = flush_callback
-        self._batch_size = batch_size
         self._flush_interval = flush_interval
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -65,12 +62,8 @@ class LogQueue:
                 pass
 
             now = time.monotonic()
-            should_flush = (
-                len(self._events_buffer) >= self._batch_size
-                or (now - last_flush) >= self._flush_interval
-            )
 
-            if should_flush and self._events_buffer:
+            if (now - last_flush) >= self._flush_interval and self._events_buffer:
                 self._do_flush()
                 last_flush = now
 

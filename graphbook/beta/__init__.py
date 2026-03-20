@@ -81,6 +81,7 @@ def init(
     backends: Optional[list[Any]] = None,
     terminal: bool = True,
     dag_strategy: Literal["object", "stack", "both", "none"] = "object",
+    flush_interval: float = 0.1,
 ) -> None:
     """Initialize graphbook beta.
 
@@ -100,6 +101,7 @@ def init(
             'object' (default) uses sibling data-flow edges with parent
             fallback. 'stack' uses caller-to-callee edges only. 'both'
             is the union of object and stack edges.
+        flush_interval: Seconds between event flushes (default 0.1).
     """
     state = get_state()
     state.port = port
@@ -113,11 +115,15 @@ def init(
     env_port = os.environ.get("GRAPHBOOK_SERVER_PORT")
     env_run_id = os.environ.get("GRAPHBOOK_RUN_ID")
 
+    env_flush_interval = os.environ.get("GRAPHBOOK_FLUSH_INTERVAL")
+
     if env_port:
         port = int(env_port)
         state.port = port
     if env_mode:
         mode = env_mode  # type: ignore
+    if env_flush_interval:
+        flush_interval = float(env_flush_interval)
 
     resolved_mode = mode
 
@@ -133,7 +139,7 @@ def init(
         # Try to connect to daemon
         try:
             from graphbook.beta.core.client import DaemonClient
-            client = DaemonClient(host=host, port=port, run_id=run_id)
+            client = DaemonClient(host=host, port=port, run_id=run_id, flush_interval=flush_interval)
             if client.connect():
                 resolved_mode = "server"
                 state._client = client
@@ -143,7 +149,7 @@ def init(
             resolved_mode = "local"
     elif resolved_mode == "server":
         from graphbook.beta.core.client import DaemonClient
-        client = DaemonClient(host=host, port=port, run_id=run_id)
+        client = DaemonClient(host=host, port=port, run_id=run_id, flush_interval=flush_interval)
         if not client.connect():
             print(f"Warning: Could not connect to graphbook daemon at {host}:{port}. Falling back to local mode.")
             resolved_mode = "local"

@@ -150,6 +150,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     env["GRAPHBOOK_SERVER_PORT"] = str(port)
     env["GRAPHBOOK_RUN_ID"] = run_id
     env["GRAPHBOOK_MODE"] = "server"
+    env["GRAPHBOOK_FLUSH_INTERVAL"] = str(args.flush_interval)
 
     cmd = [sys.executable, script] + script_args
 
@@ -352,6 +353,7 @@ def main() -> None:
     p_run.add_argument("script", help="Path to the Python script")
     p_run.add_argument("--name", help="Run name/ID")
     p_run.add_argument("--port", type=int, default=2048)
+    p_run.add_argument("--flush-interval", type=float, default=0.1, help="Seconds between event flushes (default: 0.1)")
     p_run.add_argument("script_args", nargs="*", help="Arguments for the script")
 
     # status
