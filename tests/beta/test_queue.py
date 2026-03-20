@@ -18,7 +18,7 @@ class TestLogQueue:
         def on_flush(batch):
             flushed.extend(batch)
 
-        q = LogQueue(flush_callback=on_flush, batch_size=5, flush_interval=0.05)
+        q = LogQueue(flush_callback=on_flush, flush_interval=0.05)
         q.start()
 
         for i in range(10):
@@ -36,7 +36,7 @@ class TestLogQueue:
         def on_flush(batch):
             flushed.extend(batch)
 
-        q = LogQueue(flush_callback=on_flush, batch_size=1000, flush_interval=10.0)
+        q = LogQueue(flush_callback=on_flush, flush_interval=10.0)
         q.start()
 
         q.put_event({"type": "log", "message": "last msg"})

@@ -32,13 +32,11 @@ class DaemonClient:
         host: str = "localhost",
         port: int = 2048,
         run_id: Optional[str] = None,
-        batch_size: int = 50,
         flush_interval: float = 0.1,
     ) -> None:
         self._host = host
         self._port = port
         self._run_id = run_id
-        self._batch_size = batch_size
         self._flush_interval = flush_interval
         self._base_url = f"http://{host}:{port}"
 
@@ -126,12 +124,8 @@ class DaemonClient:
                 pass
 
             now = time.monotonic()
-            should_flush = (
-                len(self._buffer) >= self._batch_size
-                or (now - last_flush) >= self._flush_interval
-            )
 
-            if should_flush and self._buffer:
+            if (now - last_flush) >= self._flush_interval and self._buffer:
                 success = self._do_flush()
                 last_flush = now
                 if not success:
