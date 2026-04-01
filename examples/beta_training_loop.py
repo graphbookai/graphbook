@@ -38,7 +38,7 @@ def create_model(input_dim: int = 10, hidden_dim: int = 32) -> dict:
     return weights
 
 
-@gb.fn()
+@gb.fn(pausable=True)
 def train_step(model: dict, batch_X: np.ndarray, batch_y: np.ndarray, lr: float = 0.01) -> tuple:
     """Run a single forward pass and compute binary cross-entropy loss."""
     # Forward pass (simplified)

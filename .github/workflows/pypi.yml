@@ -2,10 +2,6 @@ name: Publish Graphbook to PyPI
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Git tag to publish (e.g., v1.0)'
-        required: true
 
 jobs:
   pypi:
@@ -14,8 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag }}
           fetch-depth: 0
+      - name: Checkout latest tag
+        run: git checkout $(git describe --tags --abbrev=0)
       - name: Install uv
         uses: astral-sh/setup-uv@v4
       - uses: actions/setup-python@v5

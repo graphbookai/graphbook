@@ -90,14 +90,12 @@ class SessionState:
         self._has_pausable = False
 
     def ensure_display(self) -> None:
-        """Ensure the terminal display is created and started (local mode only)."""
-        if self._initialized_display or self._mode == "server":
+        """Ensure the terminal display is created and started."""
+        if self._initialized_display:
             return
-        from graphbook.beta.terminal.display import TerminalDisplay
-        if self._display is None:
-            self._display = TerminalDisplay()
-        self._display.start()
-        self._initialized_display = True
+        if self._display is not None:
+            self._display.start()
+            self._initialized_display = True
 
     def _send_to_client(self, event: dict) -> None:
         """Forward an event to the DaemonClient if connected."""

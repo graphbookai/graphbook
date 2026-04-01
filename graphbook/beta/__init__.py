@@ -192,7 +192,7 @@ def init(
 
     state._mode = resolved_mode
 
-    if resolved_mode == "local" and terminal:
+    if terminal:
         try:
             from graphbook.beta.terminal.display import TerminalDisplay
             if state._display is None:

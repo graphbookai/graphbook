@@ -179,6 +179,11 @@ class TerminalDisplay:
                     "exception_message": err.get("error", ""),
                 })
 
+        # Check if also forwarding to daemon
+        client = state._client
+        connected = client is not None and client.is_connected()
+        mode = "server" if connected else "local"
+
         return {
             "runs": [],
             "active_run_id": None,
@@ -189,7 +194,7 @@ class TerminalDisplay:
             },
             "logs": logs[-10:],
             "errors": errors,
-            "mode": "local",
+            "mode": mode,
         }
 
     def _render(self) -> Any:
@@ -212,9 +217,9 @@ class TerminalDisplay:
 
         # ── Mode indicator ──
         if mode == "server":
-            parts.append(Text(f"  Mode: daemon (connected)", style="green"))
+            parts.append(Text("  Daemon: connected", style="green"))
         else:
-            parts.append(Text(f"  Mode: local (in-process)", style="yellow"))
+            parts.append(Text("  Daemon: not connected", style="yellow"))
 
         # ── Run history (daemon mode) ──
         if runs:

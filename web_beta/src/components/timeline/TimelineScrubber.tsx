@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '@/store'
 import { useTimelineBounds, type TimelineEvent } from '@/hooks/useTimelineBounds'
 import { Switch } from '@/components/ui/switch'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 const DOT_COLORS: Record<TimelineEvent['type'], string> = {
   log: '#3b82f6',    // blue
@@ -51,7 +52,10 @@ export function TimelineScrubber({ runId }: TimelineScrubberProps) {
         <span className="text-[10px] text-muted-foreground">Time</span>
         <Switch
           checked={isStepMode}
-          onCheckedChange={(checked) => setTimelineMode(checked ? 'step' : 'time')}
+          onCheckedChange={(checked) => {
+            setTimelineMode(checked ? 'step' : 'time')
+            if (checked) setTimelineStep(bounds.minStep)
+          }}
           className="scale-75"
         />
         <span className="text-[10px] text-muted-foreground">Step</span>
@@ -483,22 +487,46 @@ function StepTrack({ minStep, maxStep, hasSteps, value, onChange, events }: Step
     }
   }, [range, scale, panX, pad])
 
-  // Left/right arrow keys to step through (global)
+  const stepBy = useCallback((delta: number) => {
+    if (range <= 0) return
+    const current = value ?? minStep
+    const next = Math.max(minStep, Math.min(maxStep, current + delta))
+    onChange(next)
+  }, [range, value, minStep, maxStep, onChange])
+
+  // Ctrl+Left/Right arrow keys to step through (global)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (range <= 0) return
+      if (!e.ctrlKey && !e.metaKey) return
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       e.preventDefault()
-      const current = value ?? Math.round((minStep + maxStep) / 2)
-      const delta = e.key === 'ArrowRight' ? 1 : -1
-      const next = Math.max(minStep, Math.min(maxStep, current + delta))
-      onChange(next)
+      stepBy(e.key === 'ArrowRight' ? 1 : -1)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [range, value, minStep, maxStep, onChange])
+  }, [range, stepBy])
+
+  // Auto-pan to keep the handle visible when its value changes
+  const prevValue = useRef(value)
+  useEffect(() => {
+    if (prevValue.current === value) return
+    prevValue.current = value
+    if (value == null || scale <= 1 || !containerRef.current) return
+    const innerWidth = containerRef.current.getBoundingClientRect().width - pad * 2
+    const frac = range > 0 ? (value - minStep) / range : 0
+    setPanX(prev => {
+      const handlePos = frac * innerWidth * scale + prev
+      if (handlePos < 0) {
+        return clampPanX(prev - handlePos, scale)
+      } else if (handlePos > innerWidth) {
+        return clampPanX(prev - (handlePos - innerWidth), scale)
+      }
+      return prev
+    })
+  }, [value, scale, range, minStep, pad, clampPanX])
 
   const stepEvents = useMemo(() => events.filter(ev => ev.step != null), [events])
   const stepContainerW = containerRef.current?.clientWidth ?? 300
@@ -518,7 +546,7 @@ function StepTrack({ minStep, maxStep, hasSteps, value, onChange, events }: Step
     return <div className="text-[10px] text-muted-foreground opacity-50">No step data</div>
   }
 
-  const currentPct = value != null ? toPercent(value) : 50
+  const currentPct = value != null ? toPercent(value) : toPercent(minStep)
 
   const innerStyle = {
     width: `${scale * 100}%`,
@@ -530,67 +558,92 @@ function StepTrack({ minStep, maxStep, hasSteps, value, onChange, events }: Step
   const innerWidth = containerRef.current ? containerRef.current.getBoundingClientRect().width - pad * 2 : 0
   const showRightFade = scale > 1 && innerWidth > 0 && panX > innerWidth * (1 - scale) + 1
 
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent)
+  const modKey = isMac ? '\u2318' : 'Ctrl'
+
   return (
     <div className="relative pt-5">
-      <div
-        ref={containerRef}
-        className="relative w-full h-12 bg-muted cursor-grab rounded-lg overflow-hidden active:cursor-grabbing"
-        onPointerDown={handleTrackPointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onDoubleClick={handleDoubleClick}
-        onWheel={handleWheel}
-      >
-        {/* Inset content area with zoom/pan */}
-        <div className="absolute top-0 h-full" style={{ left: pad, right: pad }}>
-          <div className="absolute top-0 h-full" style={innerStyle}>
-            {/* Tick dashed lines */}
-            <TickLines ticks={ticks} toPercent={(t) => toPercent(t)} />
+      <div className="flex items-start gap-1">
+        <button
+          title={`Previous step (${modKey}+\u2190)`}
+          className="shrink-0 h-12 flex items-center p-0.5 rounded hover:bg-muted-foreground/20 text-muted-foreground disabled:opacity-30"
+          disabled={value != null && value <= minStep}
+          onClick={() => stepBy(-1)}
+        >
+          <ChevronLeft size={16} />
+        </button>
 
-            {/* Event dots */}
-            <EventDotLayer dots={dots} inset={false} />
+        <div className="flex-1 min-w-0">
+          <div
+            ref={containerRef}
+            className="relative w-full h-12 bg-muted cursor-grab rounded-lg overflow-hidden active:cursor-grabbing"
+            onPointerDown={handleTrackPointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onDoubleClick={handleDoubleClick}
+            onWheel={handleWheel}
+          >
+            {/* Inset content area with zoom/pan */}
+            <div className="absolute top-0 h-full" style={{ left: pad, right: pad }}>
+              <div className="absolute top-0 h-full" style={innerStyle}>
+                {/* Tick dashed lines */}
+                <TickLines ticks={ticks} toPercent={(t) => toPercent(t)} />
 
-            {/* Handle */}
+                {/* Event dots */}
+                <EventDotLayer dots={dots} inset={false} />
+
+                {/* Handle */}
+                <div
+                  className={`absolute top-0 w-0.5 h-full cursor-ew-resize transition-[left] duration-150 ease-out ${
+                    value != null ? 'bg-primary hover:bg-primary/80' : 'bg-muted-foreground/40'
+                  }`}
+                  style={{ left: `${currentPct}%`, transform: 'translateX(-50%)' }}
+                  onPointerDown={handleHandlePointerDown}
+                />
+              </div>
+            </div>
+
+            {/* Edge fade indicators */}
             <div
-              className={`absolute top-0 w-0.5 h-full cursor-ew-resize transition-[left] duration-150 ease-out ${
-                value != null ? 'bg-primary hover:bg-primary/80' : 'bg-muted-foreground/40'
-              }`}
-              style={{ left: `${currentPct}%`, transform: 'translateX(-50%)' }}
-              onPointerDown={handleHandlePointerDown}
+              className="absolute left-0 top-0 w-6 h-full bg-gradient-to-r from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
+              style={{ opacity: showLeftFade ? 1 : 0 }}
             />
+            <div
+              className="absolute right-0 top-0 w-6 h-full bg-gradient-to-l from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
+              style={{ opacity: showRightFade ? 1 : 0 }}
+            />
+
+            {/* Static edge marks */}
+            <div className="absolute left-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none" />
+            <div className="absolute right-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none" />
+          </div>
+
+          {/* Tick labels below the pane */}
+          <div className="relative w-full h-5 overflow-hidden">
+            <div className="absolute top-0 h-full" style={{ left: pad, right: pad }}>
+              <div className="absolute top-0 h-full" style={innerStyle}>
+                {ticks.map((t, i) => (
+                  <span
+                    key={i}
+                    className="absolute top-0.5 text-[10px] text-muted-foreground -translate-x-1/2 leading-tight"
+                    style={{ left: `${toPercent(t)}%` }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Edge fade indicators */}
-        <div
-          className="absolute left-0 top-0 w-6 h-full bg-gradient-to-r from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
-          style={{ opacity: showLeftFade ? 1 : 0 }}
-        />
-        <div
-          className="absolute right-0 top-0 w-6 h-full bg-gradient-to-l from-foreground/15 to-transparent pointer-events-none z-10 transition-opacity duration-300"
-          style={{ opacity: showRightFade ? 1 : 0 }}
-        />
-
-        {/* Static edge marks */}
-        <div className="absolute left-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none" />
-        <div className="absolute right-0 top-0 w-1 h-full bg-foreground/20 pointer-events-none" />
-      </div>
-
-      {/* Tick labels below the pane */}
-      <div className="relative w-full h-5 overflow-hidden">
-        <div className="absolute top-0 h-full" style={{ left: pad, right: pad }}>
-          <div className="absolute top-0 h-full" style={innerStyle}>
-            {ticks.map((t, i) => (
-              <span
-                key={i}
-                className="absolute top-0.5 text-[10px] text-muted-foreground -translate-x-1/2 leading-tight"
-                style={{ left: `${toPercent(t)}%` }}
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        </div>
+        <button
+          title={`Next step (${modKey}+\u2192)`}
+          className="shrink-0 h-12 flex items-center p-0.5 rounded hover:bg-muted-foreground/20 text-muted-foreground disabled:opacity-30"
+          disabled={value != null && value >= maxStep}
+          onClick={() => stepBy(1)}
+        >
+          <ChevronRight size={16} />
+        </button>
       </div>
     </div>
   )
