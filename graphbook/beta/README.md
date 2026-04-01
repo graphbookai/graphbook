@@ -286,7 +286,6 @@ Graphbook exposes 15 MCP tools for querying and controlling pipelines from an AI
 | `graphbook_get_metrics` | Metric time series for a node |
 | `graphbook_get_errors` | All errors with full tracebacks and node context |
 | `graphbook_get_description` | Workflow description and all node docstrings |
-| `graphbook_inspect_object` | Last inspection result for a named object |
 
 ### Action Tools
 
@@ -300,6 +299,7 @@ Graphbook exposes 15 MCP tools for querying and controlling pipelines from an AI
 | `graphbook_get_source_code` | Read a pipeline source file |
 | `graphbook_write_source_code` | Write or patch a pipeline source file |
 | `graphbook_ask_user` | Send a question to the user via the terminal |
+| `graphbook_wait_for_event` | Block until a pipeline event occurs or timeout elapses |
 
 ### Example: AI Agent Workflow
 
@@ -319,22 +319,28 @@ An AI agent can use these tools to autonomously run and debug pipelines:
 ┌──────────────┐     ┌──────────────────┐     ┌────────────────┐
 │  Your Python  │────>│  Graphbook SDK   │────>│  Daemon Server │
 │   Pipeline    │     │  (@fn, log,      │     │  (FastAPI,     │
-│              │     │   inspect, ...)  │     │   port 2048)   │
-└──────────────┘     └──────────────────┘     └───────┬────────┘
-                                                       │
-                                    ┌──────────────────┼──────────────────┐
-                                    │                  │                  │
-                              ┌─────v─────┐     ┌─────v─────┐     ┌─────v─────┐
-                              │   CLI     │     │ MCP Tools │     │  Terminal  │
-                              │ graphbook-│     │ (Claude)  │     │ Dashboard  │
-                              │   beta    │     │           │     │  (Rich)    │
-                              └───────────┘     └───────────┘     └───────────┘
+│              │     │   track, ...)    │     │   port 2048)   │
+└──────────────┘     └────────┬─────────┘     └───────┬────────┘
+                              │                       │
+                       ┌──────v──────┐ ┌──────────────┼──────────────┐
+                       │  Terminal   │ │              │              │
+                       │  Dashboard  │ │       ┌──────v─────┐ ┌─────v─────┐
+                       │  (Rich)     │ │       │ MCP Tools │ │   Web UI  │
+                       └─────────────┘ │       │ (Claude)  │ │           │
+                                       │       └───────────┘ └───────────┘
+                                 ┌─────v─────┐
+                                 │   CLI     │
+                                 │ graphbook-│
+                                 │   beta    │
+                                 └───────────┘
 ```
 
 There are two execution modes:
 
-- **Local mode** (default): In-process Rich terminal display. No daemon needed. Just run your script directly.
-- **Server mode**: Events stream to a persistent daemon via HTTP. Use `graphbook-beta serve` to start the daemon, then `graphbook-beta run` to execute pipelines. MCP tools query the daemon.
+- **Local mode** (default): In-process only. No daemon needed. Just run your script directly.
+- **Server mode**: Events stream to a persistent daemon via HTTP. Use `graphbook-beta serve` to start the daemon, then `graphbook-beta run` to execute pipelines. MCP tools and the web UI query the daemon.
+
+In both modes, a Rich terminal dashboard shows the DAG, progress, logs, and errors. In server mode, the dashboard also displays daemon connection status. Pass `terminal=False` to `gb.init()` to disable it.
 
 When running via `graphbook-beta run`, the SDK auto-detects the daemon through environment variables and switches to server mode automatically.
 
@@ -403,10 +409,9 @@ if __name__ == "__main__":
 | `log_image` | `log_image(image, name=None, step=None)` | Log an image |
 | `log_audio` | `log_audio(audio, sr=16000, name=None, step=None)` | Log audio data |
 | `log_text` | `log_text(name, text)` | Log rich text / Markdown |
-| `inspect` | `inspect(obj, name=None) -> dict` | Inspect object metadata |
 | `track` | `track(iterable, name=None, total=None)` | Progress tracking |
 | `md` | `md(description: str)` | Set workflow description |
-| `init` | `init(port, host, mode, backends, terminal)` | Manual initialization |
+| `init` | `init(port, host, mode, backends, terminal, dag_strategy, flush_interval)` | Manual initialization |
 | `ask` | `ask(question, options=None, timeout=None)` | Human-in-the-loop prompt |
 | `get_state` | `get_state() -> SessionState` | Access the global state singleton |
 
