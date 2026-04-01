@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import pytest
 
+import graphbook.beta as gb
 from graphbook.beta.core.state import SessionState, _current_node, get_state
 from graphbook.beta.core.decorators import fn
 from graphbook.beta.core.dag import get_sources, get_topology_order, get_dag_summary
+
+
+def _reset_gb() -> None:
+    """Reset graphbook state and force local mode so tests never contact a daemon."""
+    SessionState.reset_singleton()
+    gb._auto_init_done = False
+    gb.init(mode="local")
 
 
 class TestFnDecorator:
@@ -14,26 +22,31 @@ class TestFnDecorator:
 
     def setup_method(self) -> None:
         """Reset state before each test."""
-        SessionState.reset_singleton()
+        _reset_gb()
 
     def test_fn_registers_node(self) -> None:
-        """@fn should register the function as a node."""
+        """@fn should register the function as a node on first execution."""
         @fn()
         def my_func():
             """My docstring."""
             return 42
 
         state = get_state()
-        assert "TestFnDecorator.test_fn_registers_node.<locals>.my_func" in state.nodes or \
-               any("my_func" in nid for nid in state.nodes)
+        # Node should NOT be registered at decoration time
+        assert not any("my_func" in nid for nid in state.nodes)
+
+        my_func()
+        # Node should be registered after first execution
+        assert any("my_func" in nid for nid in state.nodes)
 
     def test_fn_captures_docstring(self) -> None:
-        """@fn should capture the function's docstring."""
+        """@fn should capture the function's docstring on first execution."""
         @fn()
         def documented_func():
             """This is a documented function."""
             pass
 
+        documented_func()
         state = get_state()
         node = next(n for n in state.nodes.values() if n.func_name == "documented_func")
         assert node.docstring == "This is a documented function."
@@ -102,7 +115,7 @@ class TestDAGInference:
     """Tests for automatic DAG edge and source inference."""
 
     def setup_method(self) -> None:
-        SessionState.reset_singleton()
+        _reset_gb()
 
     def test_single_node_is_source(self) -> None:
         """A single node with no callers should be a source."""
@@ -178,7 +191,7 @@ class TestLogCfgWithFn:
     """Tests for log_cfg() working with @fn."""
 
     def setup_method(self) -> None:
-        SessionState.reset_singleton()
+        _reset_gb()
 
     def test_log_cfg_shows_in_node_params(self) -> None:
         """log_cfg() inside a node should populate node.params."""
@@ -215,7 +228,7 @@ class TestDataFlowEdges:
     """Tests for data-flow-aware DAG edge inference."""
 
     def setup_method(self) -> None:
-        SessionState.reset_singleton()
+        _reset_gb()
 
     def _edge_set(self) -> set[tuple[str, str]]:
         state = get_state()
@@ -436,10 +449,8 @@ class TestDataFlowEdges:
         def alpha():
             return 1
 
-        alpha_id = next(
-            nid for nid, n in get_state().nodes.items()
-            if n.func_name == "alpha"
-        )
+        # Use qualname directly since nodes register on execution, not decoration
+        alpha_id = alpha.__qualname__
 
         @fn(depends_on=[alpha_id])
         def beta():
@@ -553,7 +564,7 @@ class TestDAGStrategy:
     """Tests for configurable DAG strategy."""
 
     def setup_method(self) -> None:
-        SessionState.reset_singleton()
+        _reset_gb()
 
     def _edge_set(self) -> set[tuple[str, str]]:
         state = get_state()

@@ -8,6 +8,15 @@ from typing import Any, Optional, Union
 from graphbook.beta.core.state import _current_node, get_state
 
 
+def _ensure_initialized() -> None:
+    """Trigger auto-init if not yet initialized."""
+    try:
+        from graphbook.beta import _ensure_init
+        _ensure_init()
+    except ImportError:
+        pass
+
+
 def _is_tensor_like(obj: Any) -> bool:
     """Check if obj is a numpy ndarray or torch Tensor."""
     type_name = type(obj).__name__
@@ -78,6 +87,8 @@ def log(message: Union[str, Any], *, step: Optional[int] = None) -> None:
         message: The message string, or a tensor/ndarray to format.
         step: Optional step counter.
     """
+    _ensure_initialized()
+
     if _is_tensor_like(message):
         message = _format_tensor(message)
 
@@ -122,6 +133,7 @@ def log_metric(name: str, value: float, step: Optional[int] = None) -> None:
         value: The scalar value.
         step: Optional step counter.
     """
+    _ensure_initialized()
     state = get_state()
     node_id = _current_node.get()
     timestamp = time.time()
@@ -172,6 +184,7 @@ def log_image(image: Any, *, name: Optional[str] = None, step: Optional[int] = N
         image: The image data.
         step: Optional step counter.
     """
+    _ensure_initialized()
     from graphbook.beta.logging.serializers import serialize_image
 
     import base64
@@ -216,6 +229,7 @@ def log_audio(audio: Any, sr: int = 16000, *, name: Optional[str] = None, step: 
         audio: Audio data as numpy array.
         sr: Sample rate.
     """
+    _ensure_initialized()
     from graphbook.beta.logging.serializers import serialize_audio
 
     import base64
@@ -260,6 +274,7 @@ def log_text(name: str, text: str) -> None:
         name: The text name/label.
         text: The text/markdown content.
     """
+    _ensure_initialized()
     state = get_state()
     node_id = _current_node.get()
     timestamp = time.time()
@@ -292,6 +307,7 @@ def md(description: str) -> None:
     Args:
         description: Markdown description of the workflow.
     """
+    _ensure_initialized()
     state = get_state()
     if state.workflow_description is None:
         state.workflow_description = description

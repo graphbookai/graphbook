@@ -25,6 +25,8 @@ class TestMCPObservationTools:
             """A documented function."""
             pass
 
+        my_func()  # Node registers on first execution
+
         state = get_state()
         state.workflow_description = "Test workflow"
 

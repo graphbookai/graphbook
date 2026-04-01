@@ -63,14 +63,7 @@ def fn(
     """
     def decorator(f: F) -> F:
         node_id = f.__qualname__
-        docstring = f.__doc__
-        state = get_state()
-        state.register_node(
-            node_id=node_id,
-            func_name=f.__name__,
-            docstring=docstring,
-            pausable=pausable,
-        )
+        registered = False
 
         # Resolve depends_on to node ID strings at decoration time
         depends_on_ids: list[str] = []
@@ -83,6 +76,7 @@ def fn(
 
         @functools.wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            nonlocal registered
             # Auto-init on first execution
             try:
                 from graphbook.beta import _ensure_init
@@ -90,6 +84,15 @@ def fn(
             except ImportError:
                 pass
             state = get_state()
+            # Register node on first execution (not at import time)
+            if not registered:
+                state.register_node(
+                    node_id=node_id,
+                    func_name=f.__name__,
+                    docstring=f.__doc__,
+                    pausable=pausable,
+                )
+                registered = True
             state.ensure_display()
             parent = _current_node.get()
             token = _current_node.set(node_id)

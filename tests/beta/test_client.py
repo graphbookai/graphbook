@@ -51,8 +51,10 @@ class TestModeDetection:
     """Tests for mode detection in gb.init()."""
 
     def setup_method(self) -> None:
+        import graphbook.beta as gb
         from graphbook.beta.core.state import SessionState
         SessionState.reset_singleton()
+        gb._auto_init_done = False
 
     def test_local_mode_when_no_daemon(self) -> None:
         """Should fall back to local mode when daemon is not running."""

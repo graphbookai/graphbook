@@ -61,10 +61,10 @@ def _start_pause_poll() -> None:
 
 
 def _ensure_init() -> None:
-    """Lazily auto-initialize when GRAPHBOOK_MODE env vars are detected.
+    """Lazily auto-initialize on first gb.* call.
 
-    Called by the @fn decorator wrapper on first execution. If the user
-    already called gb.init(), this is a no-op.
+    Called by the @fn decorator wrapper and logging functions on first
+    execution. If the user already called gb.init(), this is a no-op.
     """
     global _auto_init_done
     if _auto_init_done:
@@ -76,29 +76,9 @@ def _ensure_init() -> None:
     if state._mode != "local" or state._client is not None:
         return
 
-    # Always try to connect to the daemon (auto mode).
-    # Env vars from `graphbook-beta run` take priority if present.
+    # Auto-connect to daemon. Env vars from `graphbook-beta run`
+    # take priority if present.
     init(mode="auto")
-
-    # Replay pre-init state (nodes registered at import, md() calls, etc.)
-    if state._client is not None:
-        if state.workflow_description:
-            state._send_to_client({
-                "type": "description",
-                "data": {"description": state.workflow_description},
-            })
-        for nid, node in state.nodes.items():
-            state._send_to_client({
-                "type": "node_register",
-                "node": nid,
-                "data": {
-                    "node_id": nid,
-                    "func_name": node.func_name,
-                    "docstring": node.docstring,
-                    "pausable": node.pausable,
-                },
-            })
-        _start_pause_poll()
 
 
 def init(
@@ -130,6 +110,20 @@ def init(
             is the union of object and stack edges.
         flush_interval: Seconds between event flushes (default 0.1).
     """
+    global _auto_init_done
+
+    # If already implicitly initialized by a gb.* call, warn and no-op
+    if _auto_init_done:
+        import warnings
+        warnings.warn(
+            "graphbook was already implicitly initialized by a prior gb.* call. "
+            "Call gb.init() before any @gb.fn() execution, gb.log(), gb.md(), etc. "
+            "This gb.init() call will be ignored.",
+            stacklevel=2,
+        )
+        return
+
+    _auto_init_done = True
     state = get_state()
     state.port = port
     state.dag_strategy = dag_strategy
