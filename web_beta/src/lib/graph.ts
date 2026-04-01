@@ -81,5 +81,5 @@ export function computeUnionGraph(
     }
   }
 
-  return { nodes, edges, workflow_description: null, nodePresence }
+  return { nodes, edges, workflow_description: null, has_pausable: false, paused: false, nodePresence }
 }

@@ -494,7 +494,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
     if (run) {
       const nodeId = (data.node_id as string) || ''
       if (!run.graph) {
-        run.graph = { nodes: {}, edges: [], workflow_description: null }
+        run.graph = { nodes: {}, edges: [], workflow_description: null, has_pausable: false, paused: false }
       }
       if (!run.graph.nodes[nodeId]) {
         run.graph.nodes[nodeId] = {
@@ -503,6 +503,7 @@ export const useStore = create<GraphbookStore>((set, get) => ({
           docstring: (data.docstring as string) || null,
           exec_count: 0,
           is_source: true,
+          pausable: false,
           params: {},
           progress: null,
         }
