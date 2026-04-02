@@ -69,16 +69,16 @@ def _ensure_init() -> None:
     global _auto_init_done
     if _auto_init_done:
         return
-    _auto_init_done = True
 
     state = get_state()
     # If user already called init() and connected, skip
     if state._mode != "local" or state._client is not None:
+        _auto_init_done = True
         return
 
     # Auto-connect to daemon. Env vars from `graphbook-beta run`
     # take priority if present.
-    init(mode="auto")
+    init(mode="auto", _internal=True)
 
 
 def init(
@@ -89,6 +89,7 @@ def init(
     terminal: bool = True,
     dag_strategy: Literal["object", "stack", "both", "none"] = "object",
     flush_interval: float = 0.1,
+    _internal: bool = False,
 ) -> None:
     """Initialize graphbook beta.
 
@@ -112,8 +113,8 @@ def init(
     """
     global _auto_init_done
 
-    # If already implicitly initialized by a gb.* call, warn and no-op
-    if _auto_init_done:
+    # If already initialized, warn and no-op (unless called internally by _ensure_init)
+    if _auto_init_done and not _internal:
         import warnings
         warnings.warn(
             "graphbook was already implicitly initialized by a prior gb.* call. "
@@ -189,8 +190,10 @@ def init(
     if terminal:
         try:
             from graphbook.beta.terminal.display import TerminalDisplay
+            import atexit
             if state._display is None:
                 state._display = TerminalDisplay()
+                atexit.register(state._display.stop)
         except ImportError:
             pass
 

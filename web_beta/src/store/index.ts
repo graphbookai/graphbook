@@ -78,16 +78,16 @@ export interface PinnedPanel {
 
 export interface ImageEntry {
   node: string
+  mediaId: string
   name: string
-  data: string // base64-encoded PNG
   step: number | null
   timestamp: number
 }
 
 export interface AudioEntry {
   node: string
+  mediaId: string
   name: string
-  data: string // base64-encoded WAV
   sr: number
   step: number | null
   timestamp: number
@@ -200,6 +200,10 @@ interface GraphbookStore {
   addEdge: (runId: string, source: string, target: string) => void
   updateInspection: (runId: string, nodeId: string, name: string, data: unknown) => void
   setWorkflowDescription: (runId: string, description: string) => void
+
+  // Media cache (mediaId -> base64 data)
+  mediaCache: Map<string, string>
+  cacheMedia: (mediaId: string, data: string) => void
 
   selectRun: (runId: string | null) => void
   toggleGraphNode: (nodeId: string) => void
@@ -451,14 +455,32 @@ export const useStore = create<GraphbookStore>((set, get) => ({
   setRunImages: (runId, images) => set(state => {
     const runs = new Map(state.runs)
     const run = runs.get(runId)
-    if (run) run.nodeImages = images
+    if (run) {
+      const merged: Record<string, ImageEntry[]> = { ...run.nodeImages }
+      for (const [nodeId, entries] of Object.entries(images)) {
+        const existing = merged[nodeId] ?? []
+        const existingIds = new Set(existing.map(e => e.mediaId))
+        const newEntries = entries.filter(e => !existingIds.has(e.mediaId))
+        merged[nodeId] = [...existing, ...newEntries]
+      }
+      run.nodeImages = merged
+    }
     return { runs }
   }),
 
   setRunAudio: (runId, audio) => set(state => {
     const runs = new Map(state.runs)
     const run = runs.get(runId)
-    if (run) run.nodeAudio = audio
+    if (run) {
+      const merged: Record<string, AudioEntry[]> = { ...run.nodeAudio }
+      for (const [nodeId, entries] of Object.entries(audio)) {
+        const existing = merged[nodeId] ?? []
+        const existingIds = new Set(existing.map(e => e.mediaId))
+        const newEntries = entries.filter(e => !existingIds.has(e.mediaId))
+        merged[nodeId] = [...existing, ...newEntries]
+      }
+      run.nodeAudio = merged
+    }
     return { runs }
   }),
 
@@ -570,6 +592,14 @@ export const useStore = create<GraphbookStore>((set, get) => ({
       run.graph = { ...run.graph, workflow_description: description }
     }
     return { runs }
+  }),
+
+  // Media cache
+  mediaCache: new Map(),
+  cacheMedia: (mediaId, data) => set(state => {
+    const next = new Map(state.mediaCache)
+    next.set(mediaId, data)
+    return { mediaCache: next }
   }),
 
   selectRun: (runId) => set({ selectedRunId: runId }),
@@ -844,8 +874,8 @@ export const useStore = create<GraphbookStore>((set, get) => ({
               const prev = run.nodeImages[nodeId] ?? []
               run.nodeImages = { ...run.nodeImages, [nodeId]: [...prev, {
                 node: nodeId,
+                mediaId: (ev.media_id as string) ?? '',
                 name: (ev.name as string) ?? '',
-                data: (ev.data as string) ?? '',
                 step: (ev.step as number) ?? null,
                 timestamp: (ev.timestamp as number) ?? Date.now() / 1000,
               }] }
@@ -858,8 +888,8 @@ export const useStore = create<GraphbookStore>((set, get) => ({
               const prev = run.nodeAudio[nodeId] ?? []
               run.nodeAudio = { ...run.nodeAudio, [nodeId]: [...prev, {
                 node: nodeId,
+                mediaId: (ev.media_id as string) ?? '',
                 name: (ev.name as string) ?? '',
-                data: (ev.data as string) ?? '',
                 sr: (ev.sr as number) ?? 16000,
                 step: (ev.step as number) ?? null,
                 timestamp: (ev.timestamp as number) ?? Date.now() / 1000,

@@ -9,8 +9,20 @@ function fetchSingleRun(runId: string, store: ReturnType<typeof useStore.getStat
     api.getRunLogs(runId, { limit: 500 }).then(d => setRunLogs(runId, d.logs)),
     api.getRunErrors(runId).then(d => setRunErrors(runId, d.errors)),
     api.getRunMetrics(runId).then(d => setRunMetrics(runId, d.metrics)),
-    api.getRunImages(runId).then(d => setRunImages(runId, d.images)),
-    api.getRunAudio(runId).then(d => setRunAudio(runId, d.audio)),
+    api.getRunImages(runId).then(d => {
+      const mapped: Record<string, Array<{ node: string; mediaId: string; name: string; step: number | null; timestamp: number }>> = {}
+      for (const [nodeId, entries] of Object.entries(d.images)) {
+        mapped[nodeId] = entries.map(e => ({ node: e.node, mediaId: e.media_id, name: e.name, step: e.step, timestamp: e.timestamp }))
+      }
+      setRunImages(runId, mapped)
+    }),
+    api.getRunAudio(runId).then(d => {
+      const mapped: Record<string, Array<{ node: string; mediaId: string; name: string; sr: number; step: number | null; timestamp: number }>> = {}
+      for (const [nodeId, entries] of Object.entries(d.audio)) {
+        mapped[nodeId] = entries.map(e => ({ node: e.node, mediaId: e.media_id, name: e.name, sr: e.sr, step: e.step, timestamp: e.timestamp }))
+      }
+      setRunAudio(runId, mapped)
+    }),
     api.getRunAsks(runId).then(d => {
       for (const ask of d.pending) {
         addAskPrompt(runId, {
@@ -23,7 +35,7 @@ function fetchSingleRun(runId: string, store: ReturnType<typeof useStore.getStat
         })
       }
     }),
-  ]).catch(() => { /* Run may not exist yet */ })
+  ]).catch((err) => { console.warn(`[useRunData] Failed to fetch data for run ${runId}:`, err) })
 }
 
 export function useRunData(runId: string | null): RunState | null {

@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import os
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -144,6 +145,7 @@ class DaemonState:
         self._ws_clients: list[Any] = []
         self._lock = asyncio.Lock()
         self._event_notify: asyncio.Condition = asyncio.Condition()
+        self._media_store: dict[str, str] = {}  # media_id -> base64 data
 
     def create_run(
         self,
@@ -309,18 +311,24 @@ class DaemonState:
 
         elif etype == "image":
             if node_id and node_id in run.nodes:
+                media_id = uuid.uuid4().hex[:16]
+                self._media_store[media_id] = event.pop("data", "")
+                event["media_id"] = media_id
                 run.nodes[node_id].images.append({
+                    "media_id": media_id,
                     "name": event.get("name", ""),
-                    "data": event.get("data", ""),
                     "step": event.get("step"),
                     "timestamp": event.get("timestamp", time.time()),
                 })
 
         elif etype == "audio":
             if node_id and node_id in run.nodes:
+                media_id = uuid.uuid4().hex[:16]
+                self._media_store[media_id] = event.pop("data", "")
+                event["media_id"] = media_id
                 run.nodes[node_id].audio.append({
+                    "media_id": media_id,
                     "name": event.get("name", ""),
-                    "data": event.get("data", ""),
                     "sr": event.get("sr", 16000),
                     "step": event.get("step"),
                     "timestamp": event.get("timestamp", time.time()),
@@ -591,8 +599,8 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
                 images[node_id] = [
                     {
                         "node": node_id,
+                        "media_id": img.get("media_id", ""),
                         "name": img.get("name", ""),
-                        "data": img.get("data", ""),
                         "step": img.get("step"),
                         "timestamp": img.get("timestamp", 0),
                     }
@@ -611,8 +619,8 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
                 audio[node_id] = [
                     {
                         "node": node_id,
+                        "media_id": a.get("media_id", ""),
                         "name": a.get("name", ""),
-                        "data": a.get("data", ""),
                         "sr": a.get("sr", 16000),
                         "step": a.get("step"),
                         "timestamp": a.get("timestamp", 0),
@@ -620,6 +628,14 @@ def create_daemon_app(state: DaemonState | None = None, port: int | None = None)
                     for a in node.audio
                 ]
         return {"audio": audio}
+
+    @app.get("/runs/{run_id}/media/{media_id}")
+    async def get_media(run_id: str, media_id: str):
+        if run_id not in state.runs:
+            return JSONResponse(status_code=404, content={"error": f"Run '{run_id}' not found"})
+        if media_id not in state._media_store:
+            return JSONResponse(status_code=404, content={"error": f"Media '{media_id}' not found"})
+        return {"data": state._media_store[media_id]}
 
     @app.get("/runs/{run_id}/nodes/{name}")
     async def get_run_node(run_id: str, name: str):

@@ -96,8 +96,9 @@ export const api = {
   },
   getRunErrors: (id: string) => get<{ errors: ErrorEntry[] }>(`/runs/${id}/errors`),
   getRunMetrics: (id: string) => get<{ metrics: Record<string, Record<string, { step: number; value: number }[]>> }>(`/runs/${id}/metrics`),
-  getRunImages: (id: string) => get<{ images: Record<string, Array<{ node: string; name: string; data: string; step: number | null; timestamp: number }>> }>(`/runs/${id}/images`),
-  getRunAudio: (id: string) => get<{ audio: Record<string, Array<{ node: string; name: string; data: string; sr: number; step: number | null; timestamp: number }>> }>(`/runs/${id}/audio`),
+  getRunImages: (id: string) => get<{ images: Record<string, Array<{ node: string; media_id: string; name: string; step: number | null; timestamp: number }>> }>(`/runs/${id}/images`),
+  getRunAudio: (id: string) => get<{ audio: Record<string, Array<{ node: string; media_id: string; name: string; sr: number; step: number | null; timestamp: number }>> }>(`/runs/${id}/audio`),
+  getMedia: (runId: string, mediaId: string) => get<{ data: string }>(`/runs/${runId}/media/${mediaId}`),
   getRunNode: (id: string, name: string) => get<NodeDetail>(`/runs/${id}/nodes/${encodeURIComponent(name)}`),
 
   stopRun: (id: string) => post<{ run_id: string; status: string }>(`/runs/${id}/stop`, {}),

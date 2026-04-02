@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
-import { useStore } from '@/store'
+import { useStore, type ImageEntry } from '@/store'
 import { useTimelineFilter } from '@/hooks/useTimelineFilter'
+import { useMedia } from '@/hooks/useMedia'
 import { formatTimestamp } from '@/lib/utils'
 import { ComparisonGrid } from '@/components/shared/ComparisonGrid'
 
@@ -22,6 +23,36 @@ export function NodeImages({ runId, nodeId, comparisonRunIds }: NodeImagesProps)
   return <SingleRunImages runId={runId} nodeId={nodeId} />
 }
 
+function ImageItem({ runId, img, showTimestamp }: { runId: string; img: ImageEntry; showTimestamp?: boolean }) {
+  const { data, loading } = useMedia(runId, img.mediaId)
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className={`${showTimestamp ? 'text-xs' : 'text-[10px]'} font-medium`}>{img.name}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {img.step != null && `step ${img.step}`}
+          {showTimestamp && img.step != null && ' · '}
+          {showTimestamp && formatTimestamp(img.timestamp)}
+        </span>
+      </div>
+      {loading ? (
+        <div className="rounded border border-border bg-muted/50 animate-pulse h-32 w-full" />
+      ) : data ? (
+        <img
+          src={`data:image/png;base64,${data}`}
+          alt={img.name}
+          className="rounded border border-border max-w-full"
+        />
+      ) : (
+        <div className="rounded border border-border bg-muted/30 h-32 w-full flex items-center justify-center">
+          <span className="text-xs text-muted-foreground">Failed to load</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ComparisonImageCell({ runId, nodeId }: { runId: string; nodeId: string }) {
   const allImages = useStore(s => s.runs.get(runId)?.nodeImages[nodeId]) ?? []
   const timelineFilter = useTimelineFilter()
@@ -37,20 +68,8 @@ function ComparisonImageCell({ runId, nodeId }: { runId: string; nodeId: string 
 
   return (
     <div className="space-y-2 p-1">
-      {images.map((img, i) => (
-        <div key={i} className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-medium">{img.name}</span>
-            <span className="text-[10px] text-muted-foreground">
-              {img.step != null && `step ${img.step}`}
-            </span>
-          </div>
-          <img
-            src={`data:image/png;base64,${img.data}`}
-            alt={img.name}
-            className="rounded border border-border max-w-full"
-          />
-        </div>
+      {images.map((img) => (
+        <ImageItem key={img.mediaId} runId={runId} img={img} />
       ))}
     </div>
   )
@@ -71,21 +90,8 @@ function SingleRunImages({ runId, nodeId }: { runId: string; nodeId: string }) {
 
   return (
     <div className="space-y-3">
-      {images.map((img, i) => (
-        <div key={i} className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium">{img.name}</span>
-            <span className="text-[10px] text-muted-foreground">
-              {img.step != null && `step ${img.step} · `}
-              {formatTimestamp(img.timestamp)}
-            </span>
-          </div>
-          <img
-            src={`data:image/png;base64,${img.data}`}
-            alt={img.name}
-            className="rounded border border-border max-w-full"
-          />
-        </div>
+      {images.map((img) => (
+        <ImageItem key={img.mediaId} runId={runId} img={img} showTimestamp />
       ))}
     </div>
   )

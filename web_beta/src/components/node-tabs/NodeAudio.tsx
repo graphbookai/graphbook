@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
-import { useStore } from '@/store'
+import { useStore, type AudioEntry } from '@/store'
 import { useTimelineFilter } from '@/hooks/useTimelineFilter'
+import { useMedia } from '@/hooks/useMedia'
 import { formatTimestamp } from '@/lib/utils'
 import { ComparisonGrid } from '@/components/shared/ComparisonGrid'
 
@@ -22,6 +23,35 @@ export function NodeAudio({ runId, nodeId, comparisonRunIds }: NodeAudioProps) {
   return <SingleRunAudio runId={runId} nodeId={nodeId} />
 }
 
+function AudioItem({ runId, entry, showTimestamp }: { runId: string; entry: AudioEntry; showTimestamp?: boolean }) {
+  const { data, loading } = useMedia(runId, entry.mediaId)
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className={`${showTimestamp ? 'text-xs' : 'text-[10px]'} font-medium`}>{entry.name}</span>
+        <span className="text-[10px] text-muted-foreground">
+          {entry.sr}Hz
+          {showTimestamp && ` · ${formatTimestamp(entry.timestamp)}`}
+        </span>
+      </div>
+      {loading ? (
+        <div className="rounded border border-border bg-muted/50 animate-pulse h-8 w-full" />
+      ) : data ? (
+        <audio
+          controls
+          src={`data:audio/wav;base64,${data}`}
+          className="w-full h-8"
+        />
+      ) : (
+        <div className="rounded border border-border bg-muted/30 h-8 w-full flex items-center justify-center">
+          <span className="text-[10px] text-muted-foreground">Failed to load</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ComparisonAudioCell({ runId, nodeId }: { runId: string; nodeId: string }) {
   const allAudioEntries = useStore(s => s.runs.get(runId)?.nodeAudio[nodeId]) ?? []
   const timelineFilter = useTimelineFilter()
@@ -37,18 +67,8 @@ function ComparisonAudioCell({ runId, nodeId }: { runId: string; nodeId: string 
 
   return (
     <div className="space-y-2 p-1">
-      {audioEntries.map((entry, i) => (
-        <div key={i} className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-medium">{entry.name}</span>
-            <span className="text-[10px] text-muted-foreground">{entry.sr}Hz</span>
-          </div>
-          <audio
-            controls
-            src={`data:audio/wav;base64,${entry.data}`}
-            className="w-full h-8"
-          />
-        </div>
+      {audioEntries.map((entry) => (
+        <AudioItem key={entry.mediaId} runId={runId} entry={entry} />
       ))}
     </div>
   )
@@ -69,20 +89,8 @@ function SingleRunAudio({ runId, nodeId }: { runId: string; nodeId: string }) {
 
   return (
     <div className="space-y-3">
-      {audioEntries.map((entry, i) => (
-        <div key={i} className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium">{entry.name}</span>
-            <span className="text-[10px] text-muted-foreground">
-              {entry.sr}Hz · {formatTimestamp(entry.timestamp)}
-            </span>
-          </div>
-          <audio
-            controls
-            src={`data:audio/wav;base64,${entry.data}`}
-            className="w-full h-8"
-          />
-        </div>
+      {audioEntries.map((entry) => (
+        <AudioItem key={entry.mediaId} runId={runId} entry={entry} showTimestamp />
       ))}
     </div>
   )
