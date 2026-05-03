@@ -373,17 +373,33 @@ To disable storage globally when starting the daemon:
 
     nebo serve --no-store
 
-To load a ``.nebo`` file into the daemon for viewing and Q&A:
+To load a ``.nebo`` file into a *local* daemon for viewing and Q&A:
 
 .. code-block:: bash
 
     nebo load path/to/run.nebo
 
+To load a file into a *remote* daemon (e.g. one running on a
+Hugging Face Space), pass ``--url``. The file is read locally and
+its events are replayed through ``/events`` because the remote
+daemon can't see your filesystem:
+
+.. code-block:: bash
+
+    nebo load path/to/run.nebo \
+        --url https://username-space.hf.space \
+        --api-token nb_…
+
+``NEBO_URL`` and ``NEBO_API_TOKEN`` env vars work as defaults so
+you don't have to repeat the flags.
+
 
 MCP Integration for AI Agents
 ===============================
 
-Nebo includes 17 MCP tools that allow AI agents (like Claude) to run, monitor, debug, and query pipelines. To set up MCP:
+Nebo includes 21 MCP tools that allow AI agents (like Claude) to
+run, monitor, debug, query, and *push data into* pipelines. To set
+up MCP:
 
 1. Start the daemon:
 
@@ -399,9 +415,26 @@ Nebo includes 17 MCP tools that allow AI agents (like Claude) to run, monitor, d
 
 3. Add the printed config to your Claude Desktop or Claude Code MCP configuration.
 
-The MCP tools provide observation (``nebo_get_graph``, ``nebo_get_node_status``, ``nebo_get_logs``, ``nebo_get_metrics``, ``nebo_get_errors``, ``nebo_get_description``) and action (``nebo_run_pipeline``, ``nebo_stop_pipeline``, ``nebo_restart_pipeline``, ``nebo_get_run_status``, ``nebo_get_run_history``, ``nebo_get_source_code``, ``nebo_write_source_code``, ``nebo_ask_user``, ``nebo_load_file``, ``nebo_chat``) capabilities.
+The tools fall into three buckets:
 
-An AI agent can use these to autonomously run experiments, diagnose failures, patch code, ask questions about runs, and iterate.
+- **Observation** — ``nebo_get_graph``, ``nebo_get_loggable_status``,
+  ``nebo_get_logs``, ``nebo_get_metrics``, ``nebo_get_errors``,
+  ``nebo_get_description``.
+- **Action / lifecycle** — ``nebo_run_pipeline``, ``nebo_stop_pipeline``,
+  ``nebo_restart_pipeline``, ``nebo_get_run_status``,
+  ``nebo_get_run_history``, ``nebo_get_source_code``,
+  ``nebo_write_source_code``, ``nebo_wait_for_event``,
+  ``nebo_ask_user``, ``nebo_load_file``, ``nebo_chat``.
+- **Write** — ``nebo_log_metric``, ``nebo_log_image``,
+  ``nebo_log_audio``, ``nebo_log_text``. These mirror the SDK's
+  ``nb.log_*`` helpers so an external agent can push metrics, media,
+  and text into a run without owning the SDK process. URL-based
+  media is fetched server-side and persisted via the existing media
+  path so runs stay self-contained even when the source URL goes
+  stale.
+
+An AI agent can use these to autonomously run experiments, diagnose
+failures, patch code, ask questions about runs, and iterate.
 
 
 Q&A Chat
@@ -412,6 +445,149 @@ Nebo supports querying runs using natural language. From the web UI, users can o
 The daemon delegates Q&A to Claude Code CLI, spawning it as a subprocess with MCP config pointing back to itself. Claude Code reads the run's state via MCP tools and generates an answer.
 
 This requires Claude Code CLI to be installed on the system where the daemon runs.
+
+
+Notebook Embedding via ``nb.show()``
+======================================
+
+In a Jupyter / IPython context, ``nb.show()`` returns an inline
+``<iframe>`` pointing at the running daemon. The slice rendered is
+inferred from which kwargs you pass — there is no ``view=``
+discriminator. Pick at most one of ``metric`` / ``image`` / ``audio``
+/ ``logs`` / ``dag``; pass nothing for the full run dashboard.
+
+.. code-block:: python
+
+    import nebo as nb
+
+    nb.show()                                  # full run
+    nb.show(node="train")                      # single node detail
+    nb.show(node="train", metric="loss")       # one metric, scoped to a node
+    nb.show(metric=True)                       # gallery of all metrics
+    nb.show(logs=True)                         # logs panel
+    nb.show(dag=True)                          # DAG only
+
+Each call maps to a URL the iframe loads — the same query-param
+scheme the dashboard accepts directly:
+
+============================  ====================================
+Python                        URL appended to the daemon root
+============================  ====================================
+``nb.show()``                 ``?run=<id>``
+``nb.show(node="t")``         ``?run=<id>&node=t``
+``nb.show(metric="loss")``    ``?run=<id>&metric=loss``
+``nb.show(metric=True)``      ``?run=<id>&metrics``
+``nb.show(image="hero.png")`` ``?run=<id>&image=hero.png``
+``nb.show(audio=True)``       ``?run=<id>&audios``
+``nb.show(logs=True)``        ``?run=<id>&logs``
+``nb.show(dag=True)``         ``?run=<id>&dag``
+============================  ====================================
+
+When the daemon enforces auth, append ``&token=…`` to the URL — the
+dashboard captures it once on first load, persists it in
+localStorage, and strips it from the visible URL via
+``replaceState``.
+
+
+Hosting on Hugging Face Spaces
+================================
+
+Nebo's daemon is the same FastAPI app whether it runs on your laptop,
+in CI, or on a Hugging Face Space. ``nebo deploy`` bundles a
+Docker-SDK Space, sets the necessary secrets, and gives you the
+endpoint URL plus a token to share with the SDK.
+
+Install the optional ``deploy`` extra and authenticate:
+
+.. code-block:: bash
+
+    pip install 'nebo[deploy]'
+    huggingface-cli login           # writes a token write-scoped for your account
+
+Deploy to a new (or existing) Space:
+
+.. code-block:: bash
+
+    nebo deploy --space-id <user>/nebo-test --from-source
+
+The CLI prints the public URL and a randomly-generated
+``NEBO_API_TOKEN``. Save it — the deploy won't show it again. Use
+``--api-token <tok>`` to supply your own.
+
+Connect the SDK from anywhere:
+
+.. code-block:: python
+
+    import nebo as nb
+
+    nb.init(
+        url="https://<user>-nebo-test.hf.space",
+        api_token="nb_…",
+    )
+
+    @nb.fn()
+    def step():
+        nb.log("hello from a remote Space")
+        nb.log_line("loss", 0.42)
+
+    step()
+
+Or set ``NEBO_URL`` / ``NEBO_API_TOKEN`` in the environment so the
+same script works locally and remotely without a code change.
+
+Access modes
+------------
+
+The deployed daemon defaults to **public reads, private writes** —
+anyone with the URL can view runs in the dashboard, but only token
+holders can push events or control runs. Override with the
+``--read`` / ``--write`` flags:
+
+.. code-block:: bash
+
+    nebo deploy --space-id <user>/private-dash \
+        --read private --write private \
+        --from-source
+
+================  ==========================  ===========================
+Mode              ``--read``                  ``--write``
+================  ==========================  ===========================
+Public dashboard  ``public`` (default)        ``private`` (default)
+Private dashboard ``private``                 ``private``
+Read-only mirror  ``public``                  ``public``  (no SDK auth)
+================  ==========================  ===========================
+
+Embed slices on a website
+-------------------------
+
+The same iframe URL scheme used by ``nb.show()`` works against the
+deployed Space. Anything that renders HTML can host a live slice:
+
+.. code-block:: html
+
+    <iframe
+        src="https://<user>-nebo-test.hf.space/?run=<id>&metric=loss"
+        width="100%" height="600">
+    </iframe>
+
+For private dashboards, append ``&token=…`` once — the dashboard
+caches it for subsequent visits.
+
+Loading a local file into a deployed Space
+------------------------------------------
+
+If you have a ``.nebo`` file from a local run and want it visible on
+the Space:
+
+.. code-block:: bash
+
+    export NEBO_URL=https://<user>-nebo-test.hf.space
+    export NEBO_API_TOKEN=nb_…
+    nebo load path/to/run.nebo --url "$NEBO_URL"
+
+The events are read locally and replayed through ``/events`` on the
+remote daemon (the daemon's ``POST /load`` only accepts server-side
+paths, which don't help when the file is on your laptop).
 
 
 Complete Example: Data Processing Pipeline

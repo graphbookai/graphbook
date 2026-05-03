@@ -21,6 +21,16 @@ Or with `uv <https://docs.astral.sh/uv/>`_:
 
     uv add nebo
 
+Optional extras
+---------------
+
+To use ``nebo deploy`` (push the daemon to a Hugging Face Space),
+also install ``huggingface_hub``:
+
+.. code-block:: bash
+
+    pip install 'nebo[deploy]'
+
 Quick Start
 ===========
 

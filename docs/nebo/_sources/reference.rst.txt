@@ -210,7 +210,7 @@ UI Configuration
 Initialization
 --------------
 
-.. function:: nb.init(port: int = 7861, host: str = "localhost", mode: str = "auto", terminal: bool = True, dag_strategy: str = "object", flush_interval: float = 0.1, store: bool = True) -> None
+.. function:: nb.init(port: int = 7861, host: str = "localhost", mode: str = "auto", terminal: bool = True, dag_strategy: str = "object", flush_interval: float = 0.1, store: bool = True, url: str | None = None, api_token: str | None = None) -> None
 
     Explicitly initialize nebo.
 
@@ -221,16 +221,73 @@ Initialization
     :param dag_strategy: How DAG edges are inferred: ``"object"`` (default), ``"stack"``, ``"both"``, ``"linear"``, or ``"none"``. ``"linear"`` chains nodes in first-execution order.
     :param flush_interval: Seconds between event flushes (default: 0.1).
     :param store: Whether the daemon should persist this run to a ``.nebo`` file (default: True).
+    :param url: Full URL of a remote daemon (e.g. a Hugging Face Space at ``https://username-space.hf.space``). Overrides ``host``+``port``. Defaults to env var ``NEBO_URL``.
+    :param api_token: Token for daemons that require auth. Sent as the ``X-Nebo-Token`` header. Defaults to env var ``NEBO_API_TOKEN``.
 
     Mode detection (when ``mode="auto"``):
 
     1. Check ``NEBO_MODE`` and ``NEBO_SERVER_PORT`` environment variables.
-    2. Try connecting to the daemon at ``host:port``.
+    2. Try connecting to the daemon at ``host:port`` (or ``url`` if set).
     3. If found, use server mode. If not, use local mode.
 
     .. note::
 
-        You rarely need to call ``init()`` explicitly. When using ``nebo run``, the SDK auto-initializes from environment variables on the first ``@fn`` execution.
+        You rarely need to call ``init()`` explicitly. When using ``nebo run``, the SDK auto-initializes from environment variables on the first ``@fn`` execution. To target a remote daemon, set ``NEBO_URL`` and ``NEBO_API_TOKEN`` in the environment so the same code works against a local or remote target.
+
+
+Notebook Embedding
+------------------
+
+.. function:: nb.show(*, run=None, node=None, metric=None, image=None, audio=None, logs=False, dag=False, width="100%", height=600)
+
+    Return a Jupyter-renderable iframe of the daemon UI scoped to one
+    slice of a run. The slice is determined by which kwargs are set —
+    pass nothing to embed the full run dashboard. At most one slice
+    kwarg may be set; passing more than one raises ``ValueError``.
+
+    :param run: Run ID to embed. Defaults to the active run.
+    :param node: Node ID or function name. With no slice kwarg, shows the node detail; combined with a slice it filters that slice.
+    :param metric: ``str`` shows a single metric by name; ``True`` shows the metrics gallery (filtered by ``node`` if set).
+    :param image: Same shape as ``metric`` for images.
+    :param audio: Same shape as ``metric`` for audio recordings.
+    :param logs: ``True`` shows the logs panel (filtered by ``node`` if set).
+    :param dag: ``True`` shows the DAG-only view.
+    :param width, height: iframe dimensions. Strings (``"100%"``) or ints (px).
+    :returns: A handle whose ``_repr_html_`` emits the ``<iframe>``.
+
+    Example::
+
+        nb.show(metric="loss")                # one metric chart
+        nb.show(node="train", metric=True)    # gallery of train's metrics
+        nb.show(image="hero.png")             # one image
+        nb.show(logs=True, node="train")      # logs panel filtered to train
+
+Iframe URL scheme
+~~~~~~~~~~~~~~~~~
+
+The dashboard switches into embedded mode whenever a ``?run=…`` query
+param is present. The slice is inferred from the other params — there
+is no ``view=`` discriminator:
+
+================================  ====================================
+URL                               Renders
+================================  ====================================
+``?run=X``                        Full run dashboard (DAG + timeline)
+``?run=X&dag``                    DAG only
+``?run=X&node=Y``                 Single node detail
+``?run=X&logs``                   Logs panel
+``?run=X&metrics``                Metrics gallery
+``?run=X&metric=loss``            Single metric
+``?run=X&images``                 Image gallery
+``?run=X&image=hero.png``         Single image
+``?run=X&audios``                 Audio gallery
+``?run=X&audio=bell.wav``         Single audio recording
+================================  ====================================
+
+Add ``&node=Y`` to any of the slice forms to filter to one node.
+Append ``&token=…`` to authenticate with a token-protected daemon —
+the dashboard captures it once, persists it in localStorage, and
+strips it from the visible URL.
 
 
 Human-in-the-Loop
@@ -272,6 +329,8 @@ Commands
     .. code-block:: console
 
         $ nebo serve [--host HOST] [--port PORT] [-d] [--no-store]
+                     [--store-dir DIR] [--api-token TOKEN]
+                     [--read public|private] [--write public|private]
 
     ``--host``
         Host to bind (default: ``localhost``).
@@ -284,6 +343,24 @@ Commands
 
     ``--no-store``
         Disable ``.nebo`` file storage globally.
+
+    ``--store-dir DIR``
+        Directory for ``.nebo`` files (default: ``./.nebo``). Sets
+        ``NEBO_STORE_DIR``. Useful when hosting on Hugging Face Spaces
+        where the persistent volume mounts at ``/data``.
+
+    ``--api-token TOKEN``
+        Require this token on API requests. Sets ``NEBO_API_TOKEN``.
+        See ``--read`` / ``--write`` for the modes that activate when
+        the token is set.
+
+    ``--read public|private``
+        Read-access mode (default: ``public``). Only matters when
+        ``--api-token`` is set.
+
+    ``--write public|private``
+        Write-access mode (default: ``private``). Only matters when
+        ``--api-token`` is set.
 
 ``run``
     Run a pipeline script managed by the daemon.
@@ -327,11 +404,21 @@ Commands
         $ nebo errors [--run RUN_ID] [--port PORT]
 
 ``load``
-    Load a ``.nebo`` file into the daemon for viewing and Q&A.
+    Load a ``.nebo`` file into the daemon for viewing and Q&A. With
+    ``--url`` (or ``NEBO_URL`` env), the file is read locally and its
+    events are replayed to the remote daemon — useful when the daemon
+    is on a Hugging Face Space and can't see the user's filesystem.
 
     .. code-block:: console
 
         $ nebo load <file> [--port PORT]
+        $ nebo load <file> --url URL [--api-token TOKEN]
+
+    ``--url URL``
+        Remote daemon URL (e.g. an HF Space). Defaults to ``NEBO_URL``.
+
+    ``--api-token TOKEN``
+        Token for the remote daemon. Defaults to ``NEBO_API_TOKEN``.
 
 ``mcp``
     Print MCP connection config for Claude Code / Claude Desktop.
@@ -347,11 +434,54 @@ Commands
 
         $ nebo mcp-stdio [--port PORT]
 
+``deploy``
+    Deploy the nebo daemon to a Hugging Face Space. Creates (or
+    reuses) a Docker-SDK Space, sets ``NEBO_API_TOKEN`` as a Space
+    secret, sets the read/write mode variables, and uploads a
+    Dockerfile and a Spaces-flavored README.
+
+    Requires the optional ``deploy`` extra:
+
+    .. code-block:: console
+
+        $ pip install 'nebo[deploy]'
+
+    .. code-block:: console
+
+        $ nebo deploy --space-id <user>/<space> [--from-source]
+                      [--api-token TOKEN] [--hf-token TOKEN] [--private]
+                      [--read public|private] [--write public|private]
+
+    ``--space-id <user>/<space>``
+        Hugging Face Space identifier (required).
+
+    ``--from-source``
+        Build a wheel from the current checkout and ship it instead of
+        installing from PyPI. Use this to deploy un-released code.
+
+    ``--api-token TOKEN``
+        Token clients must send via ``X-Nebo-Token`` / ``?token=``.
+        Random if omitted; printed once after the deploy completes.
+
+    ``--hf-token TOKEN``
+        Hugging Face write token. Defaults to the ``HF_TOKEN`` env or
+        a cached login (``huggingface-cli login``).
+
+    ``--private``
+        Create the Space as HF-private (visible only to your account).
+
+    ``--read public|private`` (default ``public``)
+        Read-access mode for the deployed daemon.
+
+    ``--write public|private`` (default ``private``)
+        Write-access mode for the deployed daemon.
+
 
 MCP Tools Reference
 ====================
 
-The following 17 MCP tools are available when the daemon is running.
+The daemon exposes 21 MCP tools split across observation, action, and
+write categories.
 
 Observation Tools
 -----------------
@@ -361,23 +491,23 @@ Observation Tools
 
     :param run_id: Optional run ID. Uses the latest run if omitted.
 
-``nebo_get_node_status``
-    Get detailed status for a specific node: execution count, params, docstring, recent logs, errors, and progress.
+``nebo_get_loggable_status``
+    Get detailed status for a specific loggable (node or global): execution count, params, docstring, recent logs, errors, and progress.
 
-    :param name: The node name (required).
+    :param loggable_id: The loggable ID (required).
     :param run_id: Optional run ID.
 
 ``nebo_get_logs``
-    Get recent log entries, optionally filtered by node and run.
+    Get recent log entries, optionally filtered by loggable and run.
 
-    :param node: Optional node name filter.
+    :param loggable_id: Optional loggable ID filter.
     :param run_id: Optional run ID.
     :param limit: Maximum entries (default: 100).
 
 ``nebo_get_metrics``
-    Get metric time series for a node.
+    Get metric time series for a loggable.
 
-    :param node: The node name (required).
+    :param loggable_id: The loggable ID (required).
     :param name: Optional specific metric name.
 
 ``nebo_get_errors``
@@ -410,6 +540,9 @@ Action Tools
 
 ``nebo_get_run_status``
     Get the status of a run: running, completed, crashed, or stopped.
+    Includes ``metrics_index`` (``{loggable_id: [name, ...]}``) so
+    callers can discover available metric names without iterating
+    every loggable card.
 
     :param run_id: The run ID (required).
 
@@ -428,8 +561,15 @@ Action Tools
     :param content: Full file content (replaces entire file).
     :param patches: List of ``{old, new}`` patches to apply.
 
+``nebo_wait_for_event``
+    Block until a pipeline event occurs or the timeout elapses.
+
+    :param timeout: Max seconds to wait (default: 300).
+    :param events: Event types to wait for (default: ``error``, ``completed``, ``ask_prompt``).
+    :param run_id: Optional run ID. Uses the latest run if omitted.
+
 ``nebo_ask_user``
-    Send a question to the user via the web UI.
+    Send a question to the user via the terminal dashboard.
 
     :param question: The question to ask (required).
     :param options: Valid response options.
@@ -444,6 +584,45 @@ Action Tools
 
     :param question: The question to ask (required).
     :param run_id: Optional run ID. Uses the active run if omitted.
+
+Write Tools
+-----------
+
+These mirror the SDK's ``nb.log_*`` helpers as MCP tools so an
+external agent can push data into a run without owning the SDK
+process. Each tool accepts a single entry or a list of entries;
+entries are auto-registered as loggables so unknown ``loggable_id``
+values aren't silently dropped.
+
+``nebo_log_metric``
+    Log one or more metric points. Mirrors ``nb.log_line`` /
+    ``log_bar`` / ``log_pie`` / ``log_scatter`` / ``log_histogram``.
+
+    :param entries: Single dict or list. Each: ``{run_id?, loggable_id, name, value, type?, step?, tags?}``. Default ``type`` is ``"line"``.
+    :param run_id: Default run ID for entries that don't specify one.
+
+``nebo_log_image``
+    Log one or more images. Mirrors ``nb.log_image``. Each entry
+    supplies either ``url`` (fetched server-side, persisted) or
+    ``data`` (already-base64 bytes). Bytes are stored on the daemon so
+    the run survives the source URL going stale.
+
+    :param entries: Single dict or list. Each: ``{run_id?, loggable_id, name, url? | data?, step?, labels?}``.
+    :param run_id: Default run ID.
+
+``nebo_log_audio``
+    Log one or more audio recordings. Same shape as ``nebo_log_image``
+    plus an optional per-entry ``sr`` (sample rate, default 16000).
+
+    :param entries: Single dict or list. Each: ``{run_id?, loggable_id, name, url? | data?, sr?, step?}``.
+    :param run_id: Default run ID.
+
+``nebo_log_text``
+    Log one or more text entries. Mirrors ``nb.log``. ``loggable_id``
+    defaults to ``"__global__"`` when omitted.
+
+    :param entries: Single dict or list. Each: ``{run_id?, loggable_id?, message, level?, step?}``.
+    :param run_id: Default run ID.
 
 
 Environment Variables
@@ -478,6 +657,42 @@ These are set automatically by ``nebo run`` and read by the SDK during auto-init
 
 ``NEBO_FLUSH_INTERVAL``
     Override the event flush interval (seconds).
+
+SDK-side (read by ``nb.init()``):
+
+``NEBO_URL``
+    Full URL of a remote daemon (e.g. ``https://username-space.hf.space``).
+    Overrides ``host``+``port`` so the same SDK code targets either a
+    local or remote daemon depending on the environment.
+
+``NEBO_API_TOKEN``
+    Token sent on every request as the ``X-Nebo-Token`` header.
+    Required when the target daemon enforces auth.
+
+Daemon-side (read by ``nebo serve`` / the deployed Space):
+
+``NEBO_API_TOKEN``
+    When set, gates the API per the read/write modes below. Routes
+    accept the token via ``X-Nebo-Token`` header or ``?token=…`` query
+    parameter (the query form is for browser/iframe flows that can't
+    set custom WebSocket headers). ``/health`` and the static UI
+    bundle stay open in every mode.
+
+``NEBO_READ_MODE``
+    ``public`` (default) or ``private``. Gates GET requests when
+    ``NEBO_API_TOKEN`` is set. The WebSocket handshake follows this
+    mode.
+
+``NEBO_WRITE_MODE``
+    ``public`` or ``private`` (default). Gates non-GET requests when
+    ``NEBO_API_TOKEN`` is set. Inbound WebSocket events follow this
+    mode (unauthed events are silently dropped while the subscription
+    stays open).
+
+``NEBO_STORE_DIR``
+    Directory the daemon writes ``.nebo`` files into (default:
+    ``./.nebo``). Set to a persistent path (e.g. ``/data`` on Hugging
+    Face Spaces) so runs survive container restarts.
 
 
 .nebo File Format

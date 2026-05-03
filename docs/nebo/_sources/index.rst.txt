@@ -46,9 +46,11 @@ Features
 * **Web UI**: Real-time DAG visualization, metrics charting, image/audio viewers, and run comparison
 * **Agent tracing**: Linear timeline view for agentic workflows
 * **Q&A via AI**: Ask questions about runs — nebo delegates to Claude Code CLI via MCP
-* **MCP integration**: 17 tools for AI agents to run, monitor, and debug pipelines
+* **MCP integration**: 21 tools for AI agents to observe, control, and *push data into* pipelines (incl. ``log_metric`` / ``log_image`` / ``log_audio`` / ``log_text``)
 * **UI configuration from code**: ``nb.ui()`` and ``@nb.fn(ui={})`` set display defaults
 * **Human-in-the-loop**: ``nb.ask()`` pauses the pipeline and prompts the user for input
+* **Notebook embedding**: ``nb.show()`` returns a Jupyter-renderable iframe of any slice of a run
+* **Hugging Face Spaces deploy**: ``nebo deploy`` ships the daemon to a Space with shared-secret auth and configurable public/private read+write modes
 
 .. toctree::
    :caption: Docs

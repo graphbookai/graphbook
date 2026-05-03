@@ -139,9 +139,11 @@
 <li><p><strong>Web UI</strong>: Real-time DAG visualization, metrics charting, image/audio viewers, and run comparison</p></li>
 <li><p><strong>Agent tracing</strong>: Linear timeline view for agentic workflows</p></li>
 <li><p><strong>Q&amp;A via AI</strong>: Ask questions about runs — nebo delegates to Claude Code CLI via MCP</p></li>
-<li><p><strong>MCP integration</strong>: 17 tools for AI agents to run, monitor, and debug pipelines</p></li>
+<li><p><strong>MCP integration</strong>: 21 tools for AI agents to observe, control, and <em>push data into</em> pipelines (incl. <code class="docutils literal notranslate"><span class="pre">log_metric</span></code> / <code class="docutils literal notranslate"><span class="pre">log_image</span></code> / <code class="docutils literal notranslate"><span class="pre">log_audio</span></code> / <code class="docutils literal notranslate"><span class="pre">log_text</span></code>)</p></li>
 <li><p><strong>UI configuration from code</strong>: <code class="docutils literal notranslate"><span class="pre">nb.ui()</span></code> and <code class="docutils literal notranslate"><span class="pre">@nb.fn(ui={})</span></code> set display defaults</p></li>
 <li><p><strong>Human-in-the-loop</strong>: <code class="docutils literal notranslate"><span class="pre">nb.ask()</span></code> pauses the pipeline and prompts the user for input</p></li>
+<li><p><strong>Notebook embedding</strong>: <code class="docutils literal notranslate"><span class="pre">nb.show()</span></code> returns a Jupyter-renderable iframe of any slice of a run</p></li>
+<li><p><strong>Hugging Face Spaces deploy</strong>: <code class="docutils literal notranslate"><span class="pre">nebo</span> <span class="pre">deploy</span></code> ships the daemon to a Space with shared-secret auth and configurable public/private read+write modes</p></li>
 </ul>
 
 </section>

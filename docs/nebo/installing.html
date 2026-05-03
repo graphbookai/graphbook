@@ -125,6 +125,14 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">uv<span class="w"> </span>add<span class="w"> </span>nebo
 </span></code></pre></div>
 </div>
+<section id="optional-extras">
+<h3>Optional extras<a class="headerlink" href="#optional-extras" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#optional-extras'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<p>To use <code class="docutils literal notranslate"><span class="pre">nebo</span> <span class="pre">deploy</span></code> (push the daemon to a Hugging Face Space),
+also install <code class="docutils literal notranslate"><span class="pre">huggingface_hub</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'nebo[deploy]'</span>
+</span></code></pre></div>
+</div>
+</section>
 </section>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#quick-start'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h2>
@@ -177,7 +185,10 @@
 <div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
 <ul>
 <li><a :data-current="activeSection === '#requirements'" class="reference internal" href="#requirements">Requirements</a></li>
-<li><a :data-current="activeSection === '#install-from-pypi'" class="reference internal" href="#install-from-pypi">Install from PyPI</a></li>
+<li><a :data-current="activeSection === '#install-from-pypi'" class="reference internal" href="#install-from-pypi">Install from PyPI</a><ul>
+<li><a :data-current="activeSection === '#optional-extras'" class="reference internal" href="#optional-extras">Optional extras</a></li>
+</ul>
+</li>
 <li><a :data-current="activeSection === '#quick-start'" class="reference internal" href="#quick-start">Quick Start</a></li>
 <li><a :data-current="activeSection === '#install-from-source'" class="reference internal" href="#install-from-source">Install from Source</a></li>
 </ul>
