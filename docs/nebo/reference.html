@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+
+<html :class="{'dark': darkMode === 'dark' || (darkMode === 'system' &amp;&amp; window.matchMedia('(prefers-color-scheme: dark)').matches)}" class="scroll-smooth" data-content_root="./" lang="en" x-data="{ darkMode: localStorage.getItem('darkMode') || localStorage.setItem('darkMode', 'system'), activeSection: '' }" x-init="$watch('darkMode', val =&gt; localStorage.setItem('darkMode', val))">
+<head>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta charset="utf-8"/>
+<meta content="white" media="(prefers-color-scheme: light)" name="theme-color"/>
+<meta content="black" media="(prefers-color-scheme: dark)" name="theme-color"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>API Reference | Nebo — AI-native observability for Python</title>
+<meta content="API Reference | Nebo — AI-native observability for Python" property="og:title"/>
+<meta content="API Reference | Nebo — AI-native observability for Python" property="twitter:title"/>
+<meta content="Nebo is an AI-native observability SDK for Python pipelines and agentic workflows. Decorate functions and classes, log metrics and media, visualize DAGs, and query runs with AI." name="description"/>
+<meta content="Nebo is an AI-native observability SDK for Python pipelines and agentic workflows. Decorate functions and classes, log metrics and media, visualize DAGs, and query runs with AI." property="og:description"/>
+<meta content="Nebo is an AI-native observability SDK for Python pipelines and agentic workflows. Decorate functions and classes, log metrics and media, visualize DAGs, and query runs with AI." property="twitter:description"/>
+<meta content="" property="og:image"/>
+<meta content="" property="twitter:image"/>
+<meta content="website" property="og:type"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<link href="_static/pygments.css?v=652ce3ed" rel="stylesheet" type="text/css"/>
+<link href="_static/theme.css?v=73505e79" rel="stylesheet" type="text/css"/>
+<link href="_static/sphinx-design.min.css?v=95c83b7e" rel="stylesheet" type="text/css"/>
+<link href="_static/awesome-sphinx-design.css?v=c54898a4" rel="stylesheet" type="text/css"/>
+<link href="https://docs.graphbook.ai/nebo/reference.html" rel="canonical"/>
+<link href="search.html" rel="search" title="Search"/>
+<link href="genindex.html" rel="index" title="Index"/>
+<link href="contributing.html" rel="next" title="Contributing"/>
+<link href="guide.html" rel="prev" title="Guide"/>
+<script>
+    <!-- Prevent Flash of wrong theme -->
+      const userPreference = localStorage.getItem('darkMode');
+      let mode;
+      if (userPreference === 'dark' || window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        mode = 'dark';
+        document.documentElement.classList.add('dark');
+      } else {
+        mode = 'light';
+      }
+      if (!userPreference) {localStorage.setItem('darkMode', mode)}
+    </script>
+</head>
+<body :class="{ 'overflow-hidden': showSidebar }" class="min-h-screen font-sans antialiased bg-background text-foreground" x-data="{ showSidebar: false }">
+<div @click.self="showSidebar = false" class="fixed inset-0 z-50 overflow-hidden bg-background/80 backdrop-blur-sm md:hidden" x-cloak="" x-show="showSidebar"></div><div class="relative flex flex-col min-h-screen" id="page"><a class="absolute top-0 left-0 z-[100] block bg-background p-4 text-xl transition -translate-x-full opacity-0 focus:translate-x-0 focus:opacity-100" href="#content">
+      Skip to content
+    </a><header class="sticky top-0 z-40 w-full border-b shadow-sm border-border supports-backdrop-blur:bg-background/60 bg-background/95 backdrop-blur"><div class="container flex items-center h-14">
+<div class="hidden mr-4 md:flex">
+<a class="flex items-center mr-6" href="index.html"><span class="hidden font-bold sm:inline-block text-clip whitespace-nowrap">Nebo</span>
+</a></div><button @click="showSidebar = true" class="inline-flex items-center justify-center h-10 px-0 py-2 mr-2 text-base font-medium transition-colors rounded-md hover:text-accent-foreground hover:bg-transparent md:hidden" type="button">
+<svg aria-hidden="true" fill="currentColor" height="24" viewbox="0 96 960 960" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M152.587 825.087q-19.152 0-32.326-13.174t-13.174-32.326q0-19.152 13.174-32.326t32.326-13.174h440q19.152 0 32.326 13.174t13.174 32.326q0 19.152-13.174 32.326t-32.326 13.174h-440Zm0-203.587q-19.152 0-32.326-13.174T107.087 576q0-19.152 13.174-32.326t32.326-13.174h320q19.152 0 32.326 13.174T518.087 576q0 19.152-13.174 32.326T472.587 621.5h-320Zm0-203.587q-19.152 0-32.326-13.174t-13.174-32.326q0-19.152 13.174-32.326t32.326-13.174h440q19.152 0 32.326 13.174t13.174 32.326q0 19.152-13.174 32.326t-32.326 13.174h-440ZM708.913 576l112.174 112.174q12.674 12.674 12.674 31.826t-12.674 31.826Q808.413 764.5 789.261 764.5t-31.826-12.674l-144-144Q600 594.391 600 576t13.435-31.826l144-144q12.674-12.674 31.826-12.674t31.826 12.674q12.674 12.674 12.674 31.826t-12.674 31.826L708.913 576Z"></path>
+</svg>
+<span class="sr-only">Toggle navigation menu</span>
+</button>
+<div class="flex items-center justify-between flex-1 space-x-2 sm:space-x-4 md:justify-end">
+<div class="flex-1 w-full md:w-auto md:flex-none"><form @keydown.k.window.meta="$refs.search.focus()" action="search.html" class="relative flex items-center group" id="searchbox" method="get">
+<input aria-label="Search the docs" class="inline-flex items-center font-medium transition-colors bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background border border-input hover:bg-accent focus:bg-accent hover:text-accent-foreground focus:text-accent-foreground hover:placeholder-accent-foreground py-2 px-4 relative h-9 w-full justify-start rounded-[0.5rem] text-sm text-muted-foreground sm:pr-12 md:w-40 lg:w-64" id="search-input" name="q" placeholder="Search ..." type="search" x-ref="search"/>
+
+</form>
+</div>
+<nav class="flex items-center space-x-1">
+<a href="https://github.com/graphbookai/nebo" rel="noopener nofollow" target="_blank" title="Visit our github repo">
+<div class="inline-flex items-center justify-center px-0 text-sm font-medium transition-colors rounded-md disabled:opacity-50 disabled:pointer-events-none hover:bg-accent hover:text-accent-foreground h-9 w-9">
+<svg fill="currentColor" height="26px" style="margin-top:-2px;display:inline" viewbox="0 0 45 44" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M22.477.927C10.485.927.76 10.65.76 22.647c0 9.596 6.223 17.736 14.853 20.608 1.087.2 1.483-.47 1.483-1.047 0-.516-.019-1.881-.03-3.693-6.04 1.312-7.315-2.912-7.315-2.912-.988-2.51-2.412-3.178-2.412-3.178-1.972-1.346.149-1.32.149-1.32 2.18.154 3.327 2.24 3.327 2.24 1.937 3.318 5.084 2.36 6.321 1.803.197-1.403.759-2.36 1.379-2.903-4.823-.548-9.894-2.412-9.894-10.734 0-2.37.847-4.31 2.236-5.828-.224-.55-.969-2.759.214-5.748 0 0 1.822-.584 5.972 2.226 1.732-.482 3.59-.722 5.437-.732 1.845.01 3.703.25 5.437.732 4.147-2.81 5.967-2.226 5.967-2.226 1.185 2.99.44 5.198.217 5.748 1.392 1.517 2.232 3.457 2.232 5.828 0 8.344-5.078 10.18-9.916 10.717.779.67 1.474 1.996 1.474 4.021 0 2.904-.027 5.247-.027 5.96 0 .58.392 1.256 1.493 1.044C37.981 40.375 44.2 32.24 44.2 22.647c0-11.996-9.726-21.72-21.722-21.72" fill="currentColor" fill-rule="evenodd"></path></svg>
+</div>
+</a>
+<button @click="darkMode = darkMode === 'light' ? 'dark' : 'light'" aria-label="Color theme switcher" class="relative inline-flex items-center justify-center px-0 text-sm font-medium transition-colors rounded-md hover:bg-accent hover:text-accent-foreground h-9 w-9" type="button">
+<svg class="absolute transition-all scale-100 rotate-0 dark:-rotate-90 dark:scale-0" fill="currentColor" height="24" viewbox="0 96 960 960" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M480 685q45.456 0 77.228-31.772Q589 621.456 589 576q0-45.456-31.772-77.228Q525.456 467 480 467q-45.456 0-77.228 31.772Q371 530.544 371 576q0 45.456 31.772 77.228Q434.544 685 480 685Zm0 91q-83 0-141.5-58.5T280 576q0-83 58.5-141.5T480 376q83 0 141.5 58.5T680 576q0 83-58.5 141.5T480 776ZM80 621.5q-19.152 0-32.326-13.174T34.5 576q0-19.152 13.174-32.326T80 530.5h80q19.152 0 32.326 13.174T205.5 576q0 19.152-13.174 32.326T160 621.5H80Zm720 0q-19.152 0-32.326-13.174T754.5 576q0-19.152 13.174-32.326T800 530.5h80q19.152 0 32.326 13.174T925.5 576q0 19.152-13.174 32.326T880 621.5h-80Zm-320-320q-19.152 0-32.326-13.174T434.5 256v-80q0-19.152 13.174-32.326T480 130.5q19.152 0 32.326 13.174T525.5 176v80q0 19.152-13.174 32.326T480 301.5Zm0 720q-19.152 0-32.326-13.17Q434.5 995.152 434.5 976v-80q0-19.152 13.174-32.326T480 850.5q19.152 0 32.326 13.174T525.5 896v80q0 19.152-13.174 32.33-13.174 13.17-32.326 13.17ZM222.174 382.065l-43-42Q165.5 327.391 166 308.239t13.174-33.065q13.435-13.674 32.587-13.674t32.065 13.674l42.239 43q12.674 13.435 12.555 31.706-.12 18.272-12.555 31.946-12.674 13.674-31.445 13.413-18.772-.261-32.446-13.174Zm494 494.761-42.239-43q-12.674-13.435-12.674-32.087t12.674-31.565Q686.609 756.5 705.38 757q18.772.5 32.446 13.174l43 41.761Q794.5 824.609 794 843.761t-13.174 33.065Q767.391 890.5 748.239 890.5t-32.065-13.674Zm-42-494.761Q660.5 369.391 661 350.62q.5-18.772 13.174-32.446l41.761-43Q728.609 261.5 747.761 262t33.065 13.174q13.674 13.435 13.674 32.587t-13.674 32.065l-43 42.239q-13.435 12.674-31.706 12.555-18.272-.12-31.946-12.555Zm-495 494.761Q165.5 863.391 165.5 844.239t13.674-32.065l43-42.239q13.435-12.674 32.087-12.674t31.565 12.674Q299.5 782.609 299 801.38q-.5 18.772-13.174 32.446l-41.761 43Q231.391 890.5 212.239 890t-33.065-13.174ZM480 576Z"></path>
+</svg>
+<svg class="absolute transition-all scale-0 rotate-90 dark:rotate-0 dark:scale-100" fill="currentColor" height="24" viewbox="0 96 960 960" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M480 936q-151 0-255.5-104.5T120 576q0-138 90-239.5T440 218q25-3 39 18t-1 44q-17 26-25.5 55t-8.5 61q0 90 63 153t153 63q31 0 61.5-9t54.5-25q21-14 43-1.5t19 39.5q-14 138-117.5 229T480 936Zm0-80q88 0 158-48.5T740 681q-20 5-40 8t-40 3q-123 0-209.5-86.5T364 396q0-20 3-40t8-40q-78 32-126.5 102T200 576q0 116 82 198t198 82Zm-10-270Z"></path>
+</svg>
+</button>
+</nav>
+</div>
+</div>
+</header>
+<div class="flex-1"><div class="container flex-1 items-start md:grid md:grid-cols-[220px_minmax(0,1fr)] md:gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-10"><aside :aria-hidden="!showSidebar" :class="{ 'translate-x-0': showSidebar }" class="fixed inset-y-0 left-0 md:top-14 z-50 md:z-30 bg-background md:bg-transparent transition-all duration-100 -translate-x-full md:translate-x-0 ml-0 p-6 md:p-0 md:-ml-2 md:h-[calc(100vh-3.5rem)] w-5/6 md:w-full overflow-y-auto border-r border-border md:sticky" id="left-sidebar">
+<a class="justify-start text-sm md:!hidden bg-background" href="index.html"><span class="font-bold text-clip whitespace-nowrap">Nebo — AI-native observability for Python</span>
+</a>
+<div class="relative overflow-hidden md:overflow-auto my-4 md:my-0">
+<div class="overflow-y-auto h-full w-full relative pr-6"><nav class="table w-full min-w-full my-6 lg:my-8">
+<p class="caption" role="heading"><span class="caption-text">Docs</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installing.html">Installing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="guide.html">Guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+</nav>
+</div>
+</div>
+<button @click="showSidebar = false" class="absolute md:hidden right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100" type="button">
+<svg class="h-4 w-4" fill="currentColor" height="24" stroke="none" viewbox="0 96 960 960" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M480 632 284 828q-11 11-28 11t-28-11q-11-11-11-28t11-28l196-196-196-196q-11-11-11-28t11-28q11-11 28-11t28 11l196 196 196-196q11-11 28-11t28 11q11 11 11 28t-11 28L536 576l196 196q11 11 11 28t-11 28q-11 11-28 11t-28-11L480 632Z"></path>
+</svg>
+</button>
+</aside>
+<main class="relative py-6 lg:gap-10 lg:py-8 xl:grid xl:grid-cols-[1fr_300px]">
+<div class="w-full min-w-0 mx-auto">
+<nav aria-label="breadcrumbs" class="flex items-center mb-4 space-x-1 text-sm text-muted-foreground">
+<a class="overflow-hidden text-ellipsis whitespace-nowrap hover:text-foreground" href="index.html">
+<span class="hidden md:inline">Nebo</span>
+<svg aria-label="Home" class="md:hidden" fill="currentColor" height="18" stroke="none" viewbox="0 96 960 960" width="18" xmlns="http://www.w3.org/2000/svg">
+<path d="M240 856h120V616h240v240h120V496L480 316 240 496v360Zm-80 80V456l320-240 320 240v480H520V696h-80v240H160Zm320-350Z"></path>
+</svg>
+</a>
+<div class="mr-1">/</div><span aria-current="page" class="font-medium text-foreground overflow-hidden text-ellipsis whitespace-nowrap">API Reference</span>
+</nav>
+<div id="content" role="main">
+<section id="api-reference">
+<span id="id1"></span><h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h1>
+<p>This is the complete API reference for the <code class="docutils literal notranslate"><span class="pre">nebo</span></code> package.</p>
+<section id="module-nebo">
+<h2>Module: <code class="docutils literal notranslate"><span class="pre">nebo</span></code><a class="headerlink" href="#module-nebo" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#module-nebo'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h2>
+<p>The top-level module provides all the public functions you need. Import it as:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="kn">import</span><span class="w"> </span><span class="nn">nebo</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nb</span>
+</span></code></pre></div>
+</div>
+<section id="decorators">
+<h3>Decorators<a class="headerlink" href="#decorators" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#decorators'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.fn">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">fn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">depends_on</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pausable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ui</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nb.fn" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.fn'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Register a function or class for observability. When applied to a function, it sets up scope tracking — the node materializes (becomes visible in the DAG) as soon as the decorated function is executed, regardless of whether it calls a log function. When applied to a class, all methods are wrapped with scope tracking and the class becomes a visual grouping container in the DAG.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>func</strong> – The function or class to decorate (when used without parentheses).</p></li>
+<li><p><strong>depends_on</strong> – Optional list of decorated functions or node ID strings that this node depends on.</p></li>
+<li><p><strong>pausable</strong> – If True, the function blocks before execution when paused via the web UI.</p></li>
+<li><p><strong>ui</strong> – Optional dict of per-node UI display hints (e.g., <code class="docutils literal notranslate"><span class="pre">{"color":</span> <span class="pre">"#34d399",</span> <span class="pre">"default_tab":</span> <span class="pre">"metrics"}</span></code>).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The decorated function or class (unchanged behavior, with observability added).</p>
+</dd>
+</dl>
+<p>Usage forms:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="nd">@nb</span><span class="o">.</span><span class="n">fn</span>                          <span class="c1"># bare decorator</span>
+</span><span id="line-2"><span class="nd">@nb</span><span class="o">.</span><span class="n">fn</span><span class="p">()</span>                        <span class="c1"># with empty parentheses</span>
+</span><span id="line-3"><span class="nd">@nb</span><span class="o">.</span><span class="n">fn</span><span class="p">(</span><span class="n">depends_on</span><span class="o">=</span><span class="p">[</span><span class="n">setup</span><span class="p">])</span>      <span class="c1"># with explicit dependencies</span>
+</span><span id="line-4"><span class="nd">@nb</span><span class="o">.</span><span class="n">fn</span><span class="p">(</span><span class="n">ui</span><span class="o">=</span><span class="p">{</span><span class="s2">"color"</span><span class="p">:</span> <span class="s2">"#34d399"</span><span class="p">})</span> <span class="c1"># with per-node UI hints</span>
+</span></code></pre></div>
+</div>
+<p><strong>On functions:</strong> The node ID is derived from the function’s <code class="docutils literal notranslate"><span class="pre">__qualname__</span></code>. The function’s docstring becomes the node’s description. The node materializes (becomes visible) on the first call to the decorated function, so even silent functions that never log appear in the DAG and act as real links in dependency chains.</p>
+<p><strong>On classes:</strong> All methods are wrapped. The class itself is never a node — it is a transparent bounding box in the DAG. Every method that runs materializes as a node inside that bounding box, including methods that never call a log function.</p>
+</dd></dl>
+</section>
+<section id="logging-functions">
+<h3>Logging Functions<a class="headerlink" href="#logging-functions" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#logging-functions'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#nb.log" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log a text message to the current node. Tensor-like objects (NumPy arrays, PyTorch tensors) are auto-formatted with shape, dtype, and statistics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>message</strong> – The message string or tensor-like object.</p></li>
+<li><p><strong>step</strong> – Optional step counter.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_line">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_line</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tags</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nb.log_line" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_line'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log a scalar line-chart datapoint. Line is the only chart type
+that <strong>accumulates</strong> — repeated calls with the same name append
+another point to the series. <code class="docutils literal notranslate"><span class="pre">step</span></code> auto-increments per
+<code class="docutils literal notranslate"><span class="pre">(loggable,</span> <span class="pre">name)</span></code> when omitted.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> – Metric name.</p></li>
+<li><p><strong>value</strong> – A scalar <code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">float</span></code> (NumPy/PyTorch scalars are accepted).</p></li>
+<li><p><strong>step</strong> – Optional step counter.</p></li>
+<li><p><strong>tags</strong> – List of strings attached to this emission for UI filtering.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_bar">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_bar</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nb.log_bar" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_bar'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log a bar-chart snapshot. <code class="docutils literal notranslate"><span class="pre">value</span></code> is a dict <code class="docutils literal notranslate"><span class="pre">{label:</span> <span class="pre">number}</span></code>.
+Repeated calls with the same name <strong>overwrite</strong> the prior value.</p>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_pie">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_pie</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nb.log_pie" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_pie'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log a pie-chart snapshot. <code class="docutils literal notranslate"><span class="pre">value</span></code> is a dict <code class="docutils literal notranslate"><span class="pre">{label:</span> <span class="pre">number}</span></code>.
+Repeated calls with the same name <strong>overwrite</strong> the prior value.</p>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_scatter">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_scatter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">colors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nb.log_scatter" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_scatter'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log a labeled scatter snapshot. <code class="docutils literal notranslate"><span class="pre">value</span></code> is a dict
+<code class="docutils literal notranslate"><span class="pre">{label:</span> <span class="pre">list[(x,</span> <span class="pre">y)]}</span></code> — every label becomes its own series on
+the same chart and is toggleable via the UI chip row. Repeated
+calls with the same name <strong>overwrite</strong> the prior value.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>colors</strong> – When <code class="docutils literal notranslate"><span class="pre">True</span></code>, distinguish labels by palette color
+(in addition to the per-label shape). Default <code class="docutils literal notranslate"><span class="pre">False</span></code>
+(every label uses the run color, distinguished by shape only).
+<strong>Not recommended in comparison views</strong> where color is reserved
+for run identity.</p>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_histogram">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_histogram</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">colors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nb.log_histogram" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_histogram'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log a labeled histogram snapshot. <code class="docutils literal notranslate"><span class="pre">value</span></code> is a dict
+<code class="docutils literal notranslate"><span class="pre">{label:</span> <span class="pre">list[number]}</span></code> — every label is a distribution; the UI
+bins all labels against a shared range so overlapping
+distributions line up. Repeated calls with the same name
+<strong>overwrite</strong> the prior value. To log a single histogram, wrap in
+a single-key dict, e.g. <code class="docutils literal notranslate"><span class="pre">{"all":</span> <span class="pre">samples}</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>colors</strong> – When <code class="docutils literal notranslate"><span class="pre">True</span></code>, give each label a distinct palette
+color so overlapping distributions can be picked apart.
+Default <code class="docutils literal notranslate"><span class="pre">False</span></code> (every label uses the run color; the overlap
+reads as a single mass via alpha compositing). <strong>Not
+recommended in comparison views</strong> where color is reserved for
+run identity.</p>
+</dd>
+</dl>
+</dd></dl>
+<p>The chart type locks on first emission per <code class="docutils literal notranslate"><span class="pre">(loggable,</span> <span class="pre">name)</span></code> pair —
+mixing <code class="docutils literal notranslate"><span class="pre">log_line</span></code> and <code class="docutils literal notranslate"><span class="pre">log_bar</span></code> for the same metric name raises
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
+<p>Steps and tags only apply to <code class="docutils literal notranslate"><span class="pre">log_line</span></code>. The four snapshot helpers
+ignore them; passing <code class="docutils literal notranslate"><span class="pre">step=</span></code> or <code class="docutils literal notranslate"><span class="pre">tags=</span></code> to <code class="docutils literal notranslate"><span class="pre">log_bar</span></code> /
+<code class="docutils literal notranslate"><span class="pre">log_pie</span></code> / <code class="docutils literal notranslate"><span class="pre">log_scatter</span></code> / <code class="docutils literal notranslate"><span class="pre">log_histogram</span></code> is a <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="n">nb</span><span class="o">.</span><span class="n">log_line</span><span class="p">(</span><span class="s2">"loss"</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+</span><span id="line-2"><span class="n">nb</span><span class="o">.</span><span class="n">log_bar</span><span class="p">(</span><span class="s2">"counts"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"cat"</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">"dog"</span><span class="p">:</span> <span class="mi">5</span><span class="p">})</span>
+</span><span id="line-3"><span class="n">nb</span><span class="o">.</span><span class="n">log_scatter</span><span class="p">(</span><span class="s2">"embed_2d"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"inliers"</span><span class="p">:</span> <span class="p">[(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">)],</span>
+</span><span id="line-4">                             <span class="s2">"outliers"</span><span class="p">:</span> <span class="p">[(</span><span class="mf">2.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">)]})</span>
+</span><span id="line-5"><span class="n">nb</span><span class="o">.</span><span class="n">log_histogram</span><span class="p">(</span>
+</span><span id="line-6">    <span class="s2">"latencies"</span><span class="p">,</span>
+</span><span id="line-7">    <span class="p">{</span><span class="s2">"p50"</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="s2">"p95"</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="s2">"p99"</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">]},</span>
+</span><span id="line-8">    <span class="n">colors</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="line-9"><span class="p">)</span>
+</span><span id="line-10"><span class="n">nb</span><span class="o">.</span><span class="n">log_line</span><span class="p">(</span><span class="s2">"lr"</span><span class="p">,</span> <span class="mf">3e-4</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"main"</span><span class="p">])</span>
+</span></code></pre></div>
+</div>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_image">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boxes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">circles</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">polygons</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bitmask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nb.log_image" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_image'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log an image with optional geometric labels overlaid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>image</strong> – PIL.Image, numpy ndarray, or torch.Tensor.</p></li>
+<li><p><strong>name</strong> – Display label for the image.</p></li>
+<li><p><strong>step</strong> – Optional step counter.</p></li>
+<li><p><strong>points</strong> – Single <code class="docutils literal notranslate"><span class="pre">[x,</span> <span class="pre">y]</span></code> or list <code class="docutils literal notranslate"><span class="pre">[[x,</span> <span class="pre">y],</span> <span class="pre">...]</span></code>.</p></li>
+<li><p><strong>boxes</strong> – Single <code class="docutils literal notranslate"><span class="pre">[x1,</span> <span class="pre">y1,</span> <span class="pre">x2,</span> <span class="pre">y2]</span></code> (xyxy) or a list of them.</p></li>
+<li><p><strong>circles</strong> – Single <code class="docutils literal notranslate"><span class="pre">[x,</span> <span class="pre">y,</span> <span class="pre">r]</span></code> or a list of them.</p></li>
+<li><p><strong>polygons</strong> – Single polygon <code class="docutils literal notranslate"><span class="pre">[[x,</span> <span class="pre">y],</span> <span class="pre">...]</span></code> or a list of polygons.</p></li>
+<li><p><strong>bitmask</strong> – 2D mask (HxW), 3D stack (NxHxW), or a list of 2D masks.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Tensors and ndarrays are normalized to plain Python lists; bitmasks are
+PNG-encoded and transmitted inline. The UI’s Settings pane &gt; “Image
+labels” section exposes per-(loggable, image, key) visibility and
+opacity controls.</p>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="n">nb</span><span class="o">.</span><span class="n">log_image</span><span class="p">(</span>
+</span><span id="line-2">    <span class="n">img</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"pred"</span><span class="p">,</span>
+</span><span id="line-3">    <span class="n">boxes</span><span class="o">=</span><span class="p">[[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">]],</span>
+</span><span id="line-4">    <span class="n">points</span><span class="o">=</span><span class="p">[[</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">]],</span>
+</span><span id="line-5"><span class="p">)</span>
+</span></code></pre></div>
+</div>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_audio">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_audio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">audio</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">16000</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#nb.log_audio" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_audio'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log audio data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>audio</strong> – Audio data as a NumPy array.</p></li>
+<li><p><strong>sr</strong> – Sample rate (default: 16000).</p></li>
+<li><p><strong>name</strong> – Optional audio clip name.</p></li>
+<li><p><strong>step</strong> – Optional step counter.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.log_cfg">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">log_cfg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#nb.log_cfg" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.log_cfg'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Log configuration for the current node. Merges <em>cfg</em> into the node’s <code class="docutils literal notranslate"><span class="pre">params</span></code> dict so the Info tab displays all configuration in one place.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cfg</strong> – A flat or nested dictionary of configuration values. Only JSON-serializable values are retained.</p>
+</dd>
+</dl>
+<p>Multiple calls within the same node merge dictionaries (later calls win on key conflicts).</p>
+</dd></dl>
+</section>
+<section id="progress-tracking">
+<h3>Progress Tracking<a class="headerlink" href="#progress-tracking" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#progress-tracking'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.track">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">track</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">iterable</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">TrackedIterable</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#nb.track" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.track'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Wrap an iterable for tqdm-like progress tracking. The progress is reported to the terminal dashboard, daemon, and web UI.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>iterable</strong> – The iterable to wrap.</p></li>
+<li><p><strong>name</strong> – Display name for the progress bar.</p></li>
+<li><p><strong>total</strong> – Total number of items. Auto-detected from <code class="docutils literal notranslate"><span class="pre">__len__</span></code> if available.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A <code class="docutils literal notranslate"><span class="pre">TrackedIterable</span></code> that yields items and reports progress.</p>
+</dd>
+</dl>
+</dd></dl>
+</section>
+<section id="workflow-description">
+<h3>Workflow Description<a class="headerlink" href="#workflow-description" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#workflow-description'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.md">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">md</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">description</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#nb.md" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.md'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Set or append to the workflow-level Markdown description. Distinct from node docstrings — this describes the overall workflow.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>description</strong> – Markdown description text.</p>
+</dd>
+</dl>
+</dd></dl>
+</section>
+<section id="ui-configuration">
+<h3>UI Configuration<a class="headerlink" href="#ui-configuration" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#ui-configuration'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.ui">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">ui</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">layout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">view</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minimap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theme</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#nb.ui" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.ui'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Set run-level UI defaults. These are sent to the daemon and web UI as defaults that the user can override.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>layout</strong> – DAG layout direction: <code class="docutils literal notranslate"><span class="pre">"horizontal"</span></code> or <code class="docutils literal notranslate"><span class="pre">"vertical"</span></code>.</p></li>
+<li><p><strong>view</strong> – Default view mode: <code class="docutils literal notranslate"><span class="pre">"dag"</span></code> or <code class="docutils literal notranslate"><span class="pre">"grid"</span></code>.</p></li>
+<li><p><strong>minimap</strong> – Whether to show the minimap.</p></li>
+<li><p><strong>theme</strong> – Color theme: <code class="docutils literal notranslate"><span class="pre">"dark"</span></code> or <code class="docutils literal notranslate"><span class="pre">"light"</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Calling <code class="docutils literal notranslate"><span class="pre">nb.ui()</span></code> again overwrites the previous defaults.</p>
+</dd></dl>
+</section>
+<section id="initialization">
+<h3>Initialization<a class="headerlink" href="#initialization" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#initialization'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.init">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">init</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">7861</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">terminal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dag_strategy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'object'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flush_interval</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">store</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#nb.init" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.init'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Explicitly initialize nebo.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>port</strong> – Daemon server port (default: 7861).</p></li>
+<li><p><strong>host</strong> – Daemon server host (default: <code class="docutils literal notranslate"><span class="pre">"localhost"</span></code>).</p></li>
+<li><p><strong>mode</strong> – <code class="docutils literal notranslate"><span class="pre">"auto"</span></code>, <code class="docutils literal notranslate"><span class="pre">"server"</span></code>, or <code class="docutils literal notranslate"><span class="pre">"local"</span></code>.</p></li>
+<li><p><strong>terminal</strong> – Whether to show the Rich terminal display in local mode.</p></li>
+<li><p><strong>dag_strategy</strong> – How DAG edges are inferred: <code class="docutils literal notranslate"><span class="pre">"object"</span></code> (default), <code class="docutils literal notranslate"><span class="pre">"stack"</span></code>, <code class="docutils literal notranslate"><span class="pre">"both"</span></code>, <code class="docutils literal notranslate"><span class="pre">"linear"</span></code>, or <code class="docutils literal notranslate"><span class="pre">"none"</span></code>. <code class="docutils literal notranslate"><span class="pre">"linear"</span></code> chains nodes in first-execution order.</p></li>
+<li><p><strong>flush_interval</strong> – Seconds between event flushes (default: 0.1).</p></li>
+<li><p><strong>store</strong> – Whether the daemon should persist this run to a <code class="docutils literal notranslate"><span class="pre">.nebo</span></code> file (default: True).</p></li>
+</ul>
+</dd>
+</dl>
+<p>Mode detection (when <code class="docutils literal notranslate"><span class="pre">mode="auto"</span></code>):</p>
+<ol class="arabic simple">
+<li><p>Check <code class="docutils literal notranslate"><span class="pre">NEBO_MODE</span></code> and <code class="docutils literal notranslate"><span class="pre">NEBO_SERVER_PORT</span></code> environment variables.</p></li>
+<li><p>Try connecting to the daemon at <code class="docutils literal notranslate"><span class="pre">host:port</span></code>.</p></li>
+<li><p>If found, use server mode. If not, use local mode.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You rarely need to call <code class="docutils literal notranslate"><span class="pre">init()</span></code> explicitly. When using <code class="docutils literal notranslate"><span class="pre">nebo</span> <span class="pre">run</span></code>, the SDK auto-initializes from environment variables on the first <code class="docutils literal notranslate"><span class="pre">@fn</span></code> execution.</p>
+</div>
+</dd></dl>
+</section>
+<section id="human-in-the-loop">
+<h3>Human-in-the-Loop<a class="headerlink" href="#human-in-the-loop" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#human-in-the-loop'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.ask">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">ask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">question</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#nb.ask" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.ask'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Ask the user a question. In server mode, the question appears in the web UI. In local mode, falls back to a Rich terminal prompt.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>question</strong> – The question to ask.</p></li>
+<li><p><strong>options</strong> – Optional list of valid response choices.</p></li>
+<li><p><strong>timeout</strong> – Optional timeout in seconds.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The user’s response string.</p>
+</dd>
+</dl>
+</dd></dl>
+</section>
+<section id="state-access">
+<h3>State Access<a class="headerlink" href="#state-access" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#state-access'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nb.get_state">
+<span class="sig-prename descclassname"><span class="pre">nb.</span></span><span class="sig-name descname"><span class="pre">get_state</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">→</span> <span class="sig-return-typehint"><span class="pre">SessionState</span></span></span><a class="headerlink" href="#nb.get_state" title="Link to this definition" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nb.get_state'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></dt>
+<dd><p>Get the global session state singleton. Advanced usage — most users won’t need this.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The <code class="docutils literal notranslate"><span class="pre">SessionState</span></code> instance containing all nodes, edges, and configuration.</p>
+</dd>
+</dl>
+</dd></dl>
+</section>
+</section>
+<section id="cli-reference-nebo">
+<h2>CLI Reference: <code class="docutils literal notranslate"><span class="pre">nebo</span></code><a class="headerlink" href="#cli-reference-nebo" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#cli-reference-nebo'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h2>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">nebo &lt;command&gt; [options]
+</span></code></pre></div>
+</div>
+<section id="commands">
+<h3>Commands<a class="headerlink" href="#commands" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#commands'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">serve</span></code></dt><dd><p>Start the persistent daemon server.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>serve<span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>-d<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-store<span class="o">]</span>
+</span></code></pre></div>
+</div>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--host</span></code></dt><dd><p>Host to bind (default: <code class="docutils literal notranslate"><span class="pre">localhost</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--port</span></code></dt><dd><p>Port to bind (default: <code class="docutils literal notranslate"><span class="pre">7861</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-d</span></code>, <code class="docutils literal notranslate"><span class="pre">--daemon</span></code></dt><dd><p>Run in background (daemon mode).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--no-store</span></code></dt><dd><p>Disable <code class="docutils literal notranslate"><span class="pre">.nebo</span></code> file storage globally.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">run</span></code></dt><dd><p>Run a pipeline script managed by the daemon.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>run<span class="w"> </span>&lt;script&gt;<span class="w"> </span><span class="o">[</span>--name<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--flush-interval<span class="w"> </span>SECS<span class="o">]</span><span class="w"> </span><span class="o">[</span>args...<span class="o">]</span>
+</span></code></pre></div>
+</div>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">&lt;script&gt;</span></code></dt><dd><p>Path to the Python script.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--name</span></code></dt><dd><p>Run name/ID (auto-generated if not provided).</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">status</span></code></dt><dd><p>Show daemon status and recent runs.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>status<span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
+</span></code></pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">stop</span></code></dt><dd><p>Stop the daemon.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>stop<span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
+</span></code></pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">logs</span></code></dt><dd><p>View logs from runs.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>logs<span class="w"> </span><span class="o">[</span>--run<span class="w"> </span>RUN_ID<span class="o">]</span><span class="w"> </span><span class="o">[</span>--node<span class="w"> </span>NODE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--limit<span class="w"> </span>N<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
+</span></code></pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">errors</span></code></dt><dd><p>View errors from runs.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>errors<span class="w"> </span><span class="o">[</span>--run<span class="w"> </span>RUN_ID<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
+</span></code></pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">load</span></code></dt><dd><p>Load a <code class="docutils literal notranslate"><span class="pre">.nebo</span></code> file into the daemon for viewing and Q&amp;A.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>load<span class="w"> </span>&lt;file&gt;<span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
+</span></code></pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">mcp</span></code></dt><dd><p>Print MCP connection config for Claude Code / Claude Desktop.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>mcp
+</span></code></pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">mcp-stdio</span></code></dt><dd><p>Run the MCP stdio bridge (used internally).</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><code><span id="line-1"><span class="gp">$ </span>nebo<span class="w"> </span>mcp-stdio<span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
+</span></code></pre></div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="mcp-tools-reference">
+<h2>MCP Tools Reference<a class="headerlink" href="#mcp-tools-reference" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#mcp-tools-reference'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h2>
+<p>The following 17 MCP tools are available when the daemon is running.</p>
+<section id="observation-tools">
+<h3>Observation Tools<a class="headerlink" href="#observation-tools" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#observation-tools'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_graph</span></code></dt><dd><p>Get the full DAG structure: nodes (with docstrings, execution counts, group membership), edges, and workflow description.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param run_id<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Optional run ID. Uses the latest run if omitted.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_node_status</span></code></dt><dd><p>Get detailed status for a specific node: execution count, params, docstring, recent logs, errors, and progress.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param name<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The node name (required).</p>
+</dd>
+<dt class="field-even">param run_id<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional run ID.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_logs</span></code></dt><dd><p>Get recent log entries, optionally filtered by node and run.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param node<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Optional node name filter.</p>
+</dd>
+<dt class="field-even">param run_id<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional run ID.</p>
+</dd>
+<dt class="field-odd">param limit<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Maximum entries (default: 100).</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_metrics</span></code></dt><dd><p>Get metric time series for a node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param node<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The node name (required).</p>
+</dd>
+<dt class="field-even">param name<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional specific metric name.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_errors</span></code></dt><dd><p>Get all errors with full tracebacks, node context, and parameter values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param run_id<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Optional run ID.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_description</span></code></dt><dd><p>Get the workflow-level description and all node docstrings.</p>
+</dd>
+</dl>
+</section>
+<section id="action-tools">
+<h3>Action Tools<a class="headerlink" href="#action-tools" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#action-tools'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_run_pipeline</span></code></dt><dd><p>Start a pipeline script. Returns a <code class="docutils literal notranslate"><span class="pre">run_id</span></code> for tracking.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param script_path<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path to the Python script (required).</p>
+</dd>
+<dt class="field-even">param args<span class="colon">:</span></dt>
+<dd class="field-even"><p>Script arguments.</p>
+</dd>
+<dt class="field-odd">param name<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Optional run name/ID.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_stop_pipeline</span></code></dt><dd><p>Stop a running pipeline by run ID.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param run_id<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The run ID to stop (required).</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_restart_pipeline</span></code></dt><dd><p>Stop and re-run a pipeline with the same script and arguments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param run_id<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The run ID to restart (required).</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_run_status</span></code></dt><dd><p>Get the status of a run: running, completed, crashed, or stopped.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param run_id<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The run ID (required).</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_run_history</span></code></dt><dd><p>List all runs with outcomes, timestamps, and error counts.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_get_source_code</span></code></dt><dd><p>Read a pipeline source file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param file_path<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path to the source file (required).</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_write_source_code</span></code></dt><dd><p>Write or patch a pipeline source file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param file_path<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Path to the source file (required).</p>
+</dd>
+<dt class="field-even">param content<span class="colon">:</span></dt>
+<dd class="field-even"><p>Full file content (replaces entire file).</p>
+</dd>
+<dt class="field-odd">param patches<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List of <code class="docutils literal notranslate"><span class="pre">{old,</span> <span class="pre">new}</span></code> patches to apply.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_ask_user</span></code></dt><dd><p>Send a question to the user via the web UI.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param question<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The question to ask (required).</p>
+</dd>
+<dt class="field-even">param options<span class="colon">:</span></dt>
+<dd class="field-even"><p>Valid response options.</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_load_file</span></code></dt><dd><p>Load a <code class="docutils literal notranslate"><span class="pre">.nebo</span></code> log file into the daemon for viewing and Q&amp;A.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param filepath<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Absolute path to the <code class="docutils literal notranslate"><span class="pre">.nebo</span></code> file (required).</p>
+</dd>
+</dl>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nebo_chat</span></code></dt><dd><p>Ask a question about a run. Uses the run’s logs, metrics, graph, and errors to generate an answer via Claude Code CLI.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param question<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The question to ask (required).</p>
+</dd>
+<dt class="field-even">param run_id<span class="colon">:</span></dt>
+<dd class="field-even"><p>Optional run ID. Uses the active run if omitted.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</section>
+<section id="environment-variables">
+<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#environment-variables'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h2>
+<p>These are set automatically by <code class="docutils literal notranslate"><span class="pre">nebo</span> <span class="pre">run</span></code> and read by the SDK during auto-initialization:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">NEBO_MODE</span></code></dt><dd><p>Execution mode: <code class="docutils literal notranslate"><span class="pre">"server"</span></code> or <code class="docutils literal notranslate"><span class="pre">"local"</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">NEBO_SERVER_PORT</span></code></dt><dd><p>The daemon server port.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">NEBO_RUN_ID</span></code></dt><dd><p>The current run identifier.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">NEBO_DAEMON_PORT</span></code></dt><dd><p>Used internally by the daemon process itself.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">NEBO_NO_STORE</span></code></dt><dd><p>When set, disables <code class="docutils literal notranslate"><span class="pre">.nebo</span></code> file storage globally. The daemon’s
+auto-create and <code class="docutils literal notranslate"><span class="pre">run_start</span></code> paths skip opening the file writer.
+Useful for ephemeral test daemons and embedders that don’t want
+runs persisted to disk.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">NEBO_NO_TERMINAL</span></code></dt><dd><p>When set, <code class="docutils literal notranslate"><span class="pre">nb.init()</span></code> skips the Rich live terminal dashboard even
+if <code class="docutils literal notranslate"><span class="pre">terminal=True</span></code> (the default). Mirrors the per-call
+<code class="docutils literal notranslate"><span class="pre">terminal=False</span></code> argument as a process-wide override and is the
+recommended way to suppress the dashboard from headless contexts
+(CI, notebooks, subprocess wrappers).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">NEBO_FLUSH_INTERVAL</span></code></dt><dd><p>Override the event flush interval (seconds).</p>
+</dd>
+</dl>
+</section>
+<section id="nebo-file-format">
+<h2>.nebo File Format<a class="headerlink" href="#nebo-file-format" title="Link to this heading" x-intersect.margin.0%.0%.-70%.0%="activeSection = '#nebo-file-format'"><svg height="1em" viewbox="0 0 24 24" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"></path></svg></a></h2>
+<p>Nebo persists runs as append-only binary files using MessagePack.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span><code><span id="line-1">[Header]
+</span><span id="line-2">  magic: "nebo" (4 bytes)
+</span><span id="line-3">  version: u16 big-endian (currently 1)
+</span><span id="line-4">  metadata_size: u32 big-endian
+</span><span id="line-5">  metadata: msgpack map {run_id, script_path, started_at, nebo_version, args}
+</span><span id="line-6">
+</span><span id="line-7">[Entry]*
+</span><span id="line-8">  type: u8 (entry type index)
+</span><span id="line-9">  size: u32 big-endian (payload size in bytes)
+</span><span id="line-10">  payload: msgpack map (entry-specific data)
+</span></code></pre></div>
+</div>
+<p>Entry types: log (0), metric (1), image (2), audio (3), node_register (4), edge (5), error (6), ask (7), ui_config (8), text (9), progress (10), config (11), description (12), node_executed (13), ask_response (14), run_start (15), run_completed (16), pause_state (17).</p>
+<p>Media assets (images, audio) are embedded as raw bytes inside the msgpack payload, avoiding base64 overhead.</p>
+</section>
+</section>
+</div><div class="flex justify-between items-center pt-6 mt-12 border-t border-border gap-4">
+<div class="mr-auto">
+<a class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-input hover:bg-accent hover:text-accent-foreground py-2 px-4" href="guide.html">
+<svg class="mr-2 h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+<polyline points="15 18 9 12 15 6"></polyline>
+</svg>
+        Guide
+      </a>
+</div>
+<div class="ml-auto">
+<a class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-input hover:bg-accent hover:text-accent-foreground py-2 px-4" href="contributing.html">
+        Contributing
+        <svg class="ml-2 h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</a>
+</div>
+</div></div><aside class="hidden text-sm xl:block" id="right-sidebar">
+<div class="sticky top-16 -mt-10 max-h-[calc(100vh-5rem)] h-full overflow-y-auto pt-6 space-y-2"><p class="font-medium">On this page</p>
+<ul>
+<li><a :data-current="activeSection === '#module-nebo'" class="reference internal" href="#module-nebo">Module: <code class="docutils literal notranslate"><span class="pre">nebo</span></code></a><ul>
+<li><a :data-current="activeSection === '#decorators'" class="reference internal" href="#decorators">Decorators</a><ul>
+<li><a :data-current="activeSection === '#nb.fn'" class="reference internal" href="#nb.fn"><code class="docutils literal notranslate"><span class="pre">nb.fn()</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#logging-functions'" class="reference internal" href="#logging-functions">Logging Functions</a><ul>
+<li><a :data-current="activeSection === '#nb.log'" class="reference internal" href="#nb.log"><code class="docutils literal notranslate"><span class="pre">nb.log()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_line'" class="reference internal" href="#nb.log_line"><code class="docutils literal notranslate"><span class="pre">nb.log_line()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_bar'" class="reference internal" href="#nb.log_bar"><code class="docutils literal notranslate"><span class="pre">nb.log_bar()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_pie'" class="reference internal" href="#nb.log_pie"><code class="docutils literal notranslate"><span class="pre">nb.log_pie()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_scatter'" class="reference internal" href="#nb.log_scatter"><code class="docutils literal notranslate"><span class="pre">nb.log_scatter()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_histogram'" class="reference internal" href="#nb.log_histogram"><code class="docutils literal notranslate"><span class="pre">nb.log_histogram()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_image'" class="reference internal" href="#nb.log_image"><code class="docutils literal notranslate"><span class="pre">nb.log_image()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_audio'" class="reference internal" href="#nb.log_audio"><code class="docutils literal notranslate"><span class="pre">nb.log_audio()</span></code></a></li>
+<li><a :data-current="activeSection === '#nb.log_cfg'" class="reference internal" href="#nb.log_cfg"><code class="docutils literal notranslate"><span class="pre">nb.log_cfg()</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#progress-tracking'" class="reference internal" href="#progress-tracking">Progress Tracking</a><ul>
+<li><a :data-current="activeSection === '#nb.track'" class="reference internal" href="#nb.track"><code class="docutils literal notranslate"><span class="pre">nb.track()</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#workflow-description'" class="reference internal" href="#workflow-description">Workflow Description</a><ul>
+<li><a :data-current="activeSection === '#nb.md'" class="reference internal" href="#nb.md"><code class="docutils literal notranslate"><span class="pre">nb.md()</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#ui-configuration'" class="reference internal" href="#ui-configuration">UI Configuration</a><ul>
+<li><a :data-current="activeSection === '#nb.ui'" class="reference internal" href="#nb.ui"><code class="docutils literal notranslate"><span class="pre">nb.ui()</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#initialization'" class="reference internal" href="#initialization">Initialization</a><ul>
+<li><a :data-current="activeSection === '#nb.init'" class="reference internal" href="#nb.init"><code class="docutils literal notranslate"><span class="pre">nb.init()</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#human-in-the-loop'" class="reference internal" href="#human-in-the-loop">Human-in-the-Loop</a><ul>
+<li><a :data-current="activeSection === '#nb.ask'" class="reference internal" href="#nb.ask"><code class="docutils literal notranslate"><span class="pre">nb.ask()</span></code></a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#state-access'" class="reference internal" href="#state-access">State Access</a><ul>
+<li><a :data-current="activeSection === '#nb.get_state'" class="reference internal" href="#nb.get_state"><code class="docutils literal notranslate"><span class="pre">nb.get_state()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#cli-reference-nebo'" class="reference internal" href="#cli-reference-nebo">CLI Reference: <code class="docutils literal notranslate"><span class="pre">nebo</span></code></a><ul>
+<li><a :data-current="activeSection === '#commands'" class="reference internal" href="#commands">Commands</a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#mcp-tools-reference'" class="reference internal" href="#mcp-tools-reference">MCP Tools Reference</a><ul>
+<li><a :data-current="activeSection === '#observation-tools'" class="reference internal" href="#observation-tools">Observation Tools</a></li>
+<li><a :data-current="activeSection === '#action-tools'" class="reference internal" href="#action-tools">Action Tools</a></li>
+</ul>
+</li>
+<li><a :data-current="activeSection === '#environment-variables'" class="reference internal" href="#environment-variables">Environment Variables</a></li>
+<li><a :data-current="activeSection === '#nebo-file-format'" class="reference internal" href="#nebo-file-format">.nebo File Format</a></li>
+</ul>
+</div>
+</aside>
+</main>
+</div>
+</div><footer class="py-6 border-t border-border md:py-0">
+<div class="container flex flex-col items-center justify-between gap-4 md:h-24 md:flex-row">
+<div class="flex flex-col items-center gap-4 px-8 md:flex-row md:gap-2 md:px-0">
+<p class="text-sm leading-loose text-center text-muted-foreground md:text-left">© 2025, Graphbook AI Built with <a class="font-medium underline underline-offset-4" href="https://www.sphinx-doc.org" rel="noreferrer">Sphinx 8.1.3</a></p>
+</div>
+</div>
+</footer>
+</div>
+<script src="_static/documentation_options.js?v=5929fcd5"></script>
+<script src="_static/doctools.js?v=9bcbadda"></script>
+<script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+<script defer="defer" src="_static/theme.js?v=582b20c5"></script>
+<script src="_static/design-tabs.js?v=f930bc37"></script>
+</body>
+</html>
