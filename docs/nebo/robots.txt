@@ -1,3 +1,0 @@
-User-agent: *
-
-Sitemap: https://docs.graphbook.ai/nebo/sitemap.xml
